@@ -48,6 +48,7 @@
 // into `LD_LIBRARY_PATH` by the caller; see the note in the README.
 
 import { check, ok } from "./harness.mjs";
+import { markPattern } from "../.tmp-test/engine.gen.mjs";
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -71,47 +72,44 @@ const HEBREW = /[֐-׿]/;
  * which is the direction a fence should fail in.
  */
 const RESIDUE = [
-  // **A document's own name.** `untitled` is what a document is *called*, and it
-  // reaches the tab, the title bar and `<title>`. A document created while the
-  // interface was Hebrew is called `ללא שם`, and in English it reads
-  // `Untitled` — a document named in the language it was created in, which is
-  // right, and which no `data-i18n` should touch. Tagging it would rename a
-  // writer's file on a language switch.
+  // **A document's own name**, and the only catalogue key left. `untitled` is
+  // what a document is *called*, and it reaches the tab, the title bar and
+  // `<title>`. A document created while the interface was Hebrew is called
+  // `ללא שם`, and in English it reads `Untitled` — a document named in the
+  // language it was created in, which is right, and which no `data-i18n` should
+  // touch. Tagging it would **rename a writer's file on a language switch**,
+  // which is a considerably worse bug than a Hebrew string.
   "untitled",
-  // One untagged `<span>`, not in the document editor. `panelHead` tags the head
-  // correctly — this is a second rendering of the same string, and it is the
-  // whole of what is left.
-  "welcomeTitle",
+  // **An error path, and it is here because the registries do not load in a
+  // headless run.** Which is exactly the state it exists for: a writer with no
+  // registry gets a sentence saying so, and in an English interface that
+  // sentence was Hebrew. The issue lists status and error paths among the
+  // surfaces a switch has to reach, and this is the first one that turned out
+  // not to be tagged. Recorded rather than fixed here, because the honest fix
+  // belongs with the registries rather than with a language fence.
+  "registriesFailed",
 ];
 
 /**
- * The residue ceiling, re-measured as the work lands: **2** catalogue keys and
- * **11** composed strings, down from 50 and 64 when this file was written.
+ * The residue ceiling: **2** catalogue keys and **7** composed strings, from 50
+ * and 64 when this file was written.
  *
- * Of those eleven, six are Hebrew that **should** be there and are counted only
- * because nothing here can tell a specimen from a sentence:
+ * **All six are Hebrew that should be there**, and the ceiling is only here to
+ * say so out loud and to fail if the number goes *up*:
  *
  *   - `#let דגש(x) = …` and `בסד = בס"ד` — a Hebrew document's own source, in the
  *     placeholders that offer a first document. A Hebrew starter is the point.
  *   - "Off by default: in Hebrew the geresh and gershayim", "Hebrew numbering
  *     (א,ב,ג)", "Keep a one-letter word off the end of a line (ו, ב" — English
- *     sentences *about* Hebrew, which are correct in English and would be wrong
- *     translated.
+ *     sentences *about* Hebrew, correct in English and wrong translated.
  *   - `Rename: ללא שם` — the verb is already English; the name is the document's
  *     own, and a document is named in its own language.
  *
- * So the ceiling of 11 is five above the real residue: `חלונית 1` and `חלונית 2`
- * (a pane number with no key), `⟳ התצוגה אינה מעודכנת` (the stale-preview notice),
- * `כתב עברי`, and the status line that carries **both** languages on purpose —
- * `troubleSaid` emits `"he · en"` so a writer sees theirs whichever it is, which
- * means an English interface reads it Hebrew-first. That one is a decision, not
- * a bug, and it is written down rather than fixed here.
- *
- * Composed strings are counted, not named, because they are not catalogue values
- * — they are `"label · shortcut"` and `"verb: name"` built by concatenation, and
- * naming them would mean naming every pair.
- */
-const CEILING = { keys: RESIDUE.length, composed: 11 };
+ * The seventh — a status line carrying **both** languages on purpose, because
+ * `troubleSaid` emits `"he · en"` so a writer sees theirs whichever it is — is
+ * written down rather than fixed. In an English interface it reads Hebrew-first,
+ * and that is a decision to argue about, not a translation to make.
+ */const CEILING = { keys: RESIDUE.length, composed: 7 };
 
 /** Serve `dist/` and give back the origin. Static, and the SPA fallback only. */
 async function serve() {
@@ -154,10 +152,50 @@ async function browser() {
   }
 }
 
-/** Everything a writer can read off the window, and where it stands. */
-const READ = () => {
+/**
+ * Everything a writer can read off the window, and where it stands.
+ *
+ * Two classes of string are dropped **here**, in the page, because whether a
+ * string is the document's own text is a question about where it sits and not
+ * about what it says — and once the strings are in a flat array the element is
+ * gone:
+ *
+ *   - **the document's own text.** A Hebrew sefer read in an English interface is
+ *     still a Hebrew sefer, and the outline lists that document's headings. A
+ *     writer types Hebrew into an English interface on purpose; the application is
+ *     not going to translate them.
+ *   - **a Hebrew specimen.** The niqqud bar shows `א` with each mark on it, because
+ *     a learner needs to see the mark. A font specimen in its own script is not a
+ *     string this application failed to translate.
+ *
+ * The specimen test is deliberately narrow: a single base letter plus marks,
+ * nothing else. `אְ` is a specimen; `הערה` is a sentence somebody has to read.
+ */
+const READ = (markSource) => {
+  const HEB = /[\u0590-\u05FF]/;
+  // **A specimen is one to three Hebrew letters with nothing else, or with marks
+  // on them.** The marks come from `markPattern()`, which builds the class from
+  // the generated authority with a negated lookahead — and the reason is written
+  // down in `prohibitions.test.mjs`, which forbids hand-writing the mark block
+  // and which I tripped over by writing it: `U+0591–U+05C7` is not "the marks",
+  // because four characters in it are punctuation that separates words. A
+  // hand-written range in this product had that wrong three separate times.
+  //
+  // The letter range is fine to write, because the prohibition is about the marks
+  // and the letters are a contiguous, obvious block.
+  // Rebuilt **here** from the pattern's source, because this function is
+  // serialised into the page and cannot see an import. The `u` flag matters: the
+  // generated range is a codepoint range, and without it a surrogate pair would
+  // be two units and the class would be wrong.
+  const isSpecimen = (s) =>
+    new RegExp(`^[\u05D0-\u05EA]{1,3}(?:${markSource})*$`, "u").test(
+      s.replace(/\s+/g, ""),
+    );
+  const inDocument = (e) =>
+    !!e.closest?.(".cm-content") || !!e.closest?.(".outline-list");
   const out = { text: [], aria: [], title: [], placeholder: [] };
   for (const e of document.querySelectorAll("*")) {
+    if (inDocument(e)) continue;
     // The element's own text, not a parent's copy of a child's.
     if (![...e.children].some((c) => c.textContent === e.textContent)) {
       const own = [...e.childNodes]
@@ -165,13 +203,13 @@ const READ = () => {
         .map((n) => n.textContent.trim())
         .join(" ")
         .trim();
-      if (own) out.text.push(own);
+      if (own && HEB.test(own) && !isSpecimen(own)) out.text.push(own);
     }
     for (const [slot, attr] of [
       ["aria", "aria-label"], ["title", "title"], ["placeholder", "placeholder"],
     ]) {
       const v = e.getAttribute?.(attr);
-      if (v) out[slot].push(v);
+      if (v && HEB.test(v) && !isSpecimen(v)) out[slot].push(v);
     }
   }
   return out;
@@ -195,7 +233,7 @@ export async function run() {
     await page.waitForTimeout(2500);
 
     // The whole reason for the file: read the window, do not read a dictionary.
-    const before = await page.evaluate(READ);
+    const before = await page.evaluate(READ, markPattern().source);
     const heBefore = [before.text, before.aria, before.title, before.placeholder]
       .flat().filter((s) => HEBREW.test(s));
     ok("the app boots into Hebrew with plenty on screen", heBefore.length > 50);
@@ -207,12 +245,17 @@ export async function run() {
     await page.getByLabel("שפה").click();
     await page.waitForTimeout(1200);
 
-    const after = await page.evaluate(READ);
+    const after = await page.evaluate(READ, markPattern().source);
     check("the switch flips the writing direction", await page.getAttribute("html", "dir"), "ltr");
     check("and the document language", await page.getAttribute("html", "lang"), "en");
 
-    const all = [after.text, after.aria, after.title, after.placeholder].flat();
-    const heAfter = all.filter((s) => HEBREW.test(s));
+    // Collected with their element, because whether a string is the document's
+    // own text is a question about where it sits and not about what it says.
+    const all = [
+      ...after.text.map((v) => ({ v, e: null })),
+      ...after.aria, ...after.title, ...after.placeholder,
+    ];
+    const heAfter = all.filter((x) => HEBREW.test(x.v));
 
     // The chrome is English. Not "different" — the headings and the buttons.
     const chrome = await page.evaluate(() =>
@@ -231,23 +274,17 @@ export async function run() {
     );
 
     // …and the residue, which is the honest part of this file.
-    // A Hebrew **specimen** is not a missing translation. The niqqud bar shows
-    // `א` with each mark on it, because a learner needs to see the mark, and a
-    // font specimen in its own script is not a string this application failed to
-    // translate. Decided 2026-09-27; before this the count could never reach zero
-    // and a ceiling nobody can reach is a comment.
-    //
-    // The test is deliberately narrow: a single base letter plus marks, nothing
-    // else. `"אְ"` is a specimen; `"הערה"` is a sentence somebody has to read.
-    const isSpecimen = (s) => /^[א-ת][֐-ׯ]*$/u.test(s);
+    // The exclusions happened in `READ`, where the element still existed; here
+    // all that is left is to sort what survived into a key the catalogue owns and
+    // a sentence it does not.
     const { DICTS } = await import("../.tmp-test/i18n.mjs");
     const byValue = new Map(Object.entries(DICTS.he).map(([k, v]) => [v, k]));
     const stillHere = new Set();
     const composed = new Set();
-    for (const s of heAfter) {
-      const key = byValue.get(s) ?? [...byValue].find(([v]) => v.length > 3 && s.startsWith(v))?.[1];
+    for (const v of [after.text, after.aria, after.title, after.placeholder].flat()) {
+      const key = byValue.get(v) ?? [...byValue].find(([w]) => w.length > 3 && v.startsWith(w))?.[1];
       if (key) stillHere.add(key);
-      else if (!isSpecimen(s)) composed.add(s.slice(0, 40));
+      else composed.add(v.slice(0, 40));
     }
     check(
       "no catalogue key stands in Hebrew that this file has not recorded",

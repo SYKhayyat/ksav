@@ -2893,7 +2893,16 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
     // else.
     host.append(
       el("button", { class: "preview-stale", onClick: () => compileNow(), hidden: "hidden" }, [
-        el("b", {}, ["⟳ " + t("previewStale")]),
+        el(
+          "b",
+          {
+            // `⟳` is a glyph, not a word, and does not change with the language;
+            // the word beside it does.
+            "data-i18n": "msg.glyphThen",
+            "data-i18n-args": JSON.stringify(["⟳", ":previewStale"]),
+          },
+          [tf("msg.glyphThen", "⟳", t("previewStale"))],
+        ),
         el("span", { "data-i18n": "previewStaleHow" }, [t("previewStaleHow")]),
       ]),
     );
@@ -2959,7 +2968,14 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // manager reached. It has to be *visible* to be usable: a picker offering
   // "pane 3" is worth nothing if nothing on screen says which pane is 3.
   const kids: Node[] = [
-    el("span", { class: "pane-no", title: tf("paneNumbered", String(paneNumberOf(pane.id))) }, [
+    el("span", {
+      class: "pane-no",
+      title: tf("paneNumbered", String(paneNumberOf(pane.id))),
+      // `paneNumbered` is a template, so the number is an argument — and a bare
+      // number is a bare number in either language, so it is not marked with `:`.
+      "data-i18n-title": "paneNumbered",
+      "data-i18n-title-args": JSON.stringify([String(paneNumberOf(pane.id))]),
+    }, [
       String(paneNumberOf(pane.id)),
     ]),
     el("span", { class: "pane-name", "data-i18n": NAME[pane.role] }, [t(NAME[pane.role])]),

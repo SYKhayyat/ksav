@@ -1504,3 +1504,80 @@ and the fence is right for a second reason I had not thought of: it does not car
 whether a claim is being made or being reported, and neither should it.
 
 Editor assertions unchanged at 7,849. Engine untouched.
+
+---
+
+## 2026-09-27 · #71, the last five — and a fence that caught the fourth
+
+### Two of the five were the document's own text
+
+`כתב עברי` sits in `DIV.cm-content` and `ברוכים הבאים לכְּתָב` sits inside
+`BUTTON.outline-item` in `DIV.outline-list`. The first is the document the writer is
+looking at; the second is that document's first heading, listed in the outline. A
+Hebrew sefer read in an English interface is still a Hebrew sefer, and a writer types
+Hebrew into an English interface **on purpose**. Excluding them is not a
+convenience — it is the only correct answer, and the fence now skips anything
+inside `.cm-content` or `.outline-list`.
+
+Which also removed `welcomeTitle` from the count without my finding its site: the
+span the browser kept reporting was the outline's row, not a second rendering of a
+head. The browser had told me the element's parent chain three times and I read it
+as a bug instead of as an answer.
+
+### The other two were one-line gaps, and one is a template
+
+- `paneNumbered` is `{0}` — the pane's number in its tooltip — and the span was
+  untagged. It is a template, so it wanted the argument list, and the number is a
+  bare number in either language, so it is not marked with `:`.
+- The stale-preview notice was `"⟳ " + t("previewStale")`, a glyph and a word. A
+  glyph is not language-dependent, so `msg.glyphThen` puts it in the template and
+  passes it as a literal.
+
+### The new one: an error path, because the registries do not load headless
+
+`registriesFailed` appeared, and the reason it is *here* is that the registries do
+not load in a headless run — which is exactly the state it exists for. A writer with
+no registry gets a sentence saying so, and in an English interface that sentence was
+Hebrew. The issue lists status and error paths among the surfaces a switch has to
+reach, and this is the first one that turned out not to be tagged. Recorded rather
+than fixed here, because the honest fix belongs with the registries and not with a
+language fence.
+
+### And then the prohibition fence caught me writing the mark block by hand
+
+To exclude specimens I wrote `/^[א-ת]{1,3}[marks]*$/` and needed the marks. So I
+wrote the range. `prohibitions.test.mjs` has forbidden exactly that since the class
+was got wrong three separate times, and its comment says why: **`U+0591–U+05C7` is
+not "the marks"**, because four characters in it are punctuation that separates
+words — maqaf, paseq, sof pasuq, nun hafukha.
+
+The repository had already solved it and I had read the answer an hour ago:
+`markPattern()` in `engine.gen.ts` builds the class from the generated authority with
+a **negated lookahead, so there is no range to split**. The fence was not
+obstructive; it was pointing at a helper I had quoted from two files above.
+
+And it took three attempts to get right, each an off-by-N in the same direction:
+
+1. `U+0590–U+05AF` — stops one codepoint **before** the niqqud, so all fourteen
+   specimens counted.
+2. `U+0591–U+05BD` — covers the points and the dagesh, and stops six codepoints
+   **short of the shin and sin dots** at U+05C1 and U+05C2, which are two of the
+   fourteen marks the bar exists for.
+3. `U+0591–U+05C7` — correct, and still hand-written, and therefore still wrong in
+   the way the fence means.
+
+Every version of that bound was a hand-split range with a hole in it. Which is the
+fence's whole argument, restated by me three times.
+
+### 114 → 9, and the ceiling says what the nine are
+
+Two catalogue keys — `untitled`, which is a document's own name and would rename a
+file on a language switch if tagged, and `registriesFailed`, an error path. Seven
+composed, all of them Hebrew that should be there: a Hebrew starter's own source in
+placeholders, English sentences *about* Hebrew, `Rename: <the document's name>`, and
+the status line that carries both languages on purpose.
+
+That last one is the one thing left to argue about rather than fix. `troubleSaid`
+emits `"he · en"` so a writer sees theirs whichever language this is, which is a
+good rule — and it means an English interface reads it Hebrew-first. A decision, and
+it is written down rather than made here.

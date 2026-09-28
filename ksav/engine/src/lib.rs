@@ -976,6 +976,31 @@ impl Default for DocConfig {
 /// NaN and infinity are rejected outright rather than clamped, because a NaN
 /// formatted into the source is not a Typst length at all and fails inside the
 /// prelude, pointing the writer at code they never wrote.
+/// One per-edge margin, read by name, or `None` when the writer did not set it.
+///
+/// The `None` is load-bearing and is not the same as zero: an absent edge means
+/// "take `margin_cm`", and a pair check that treated absent as zero would
+/// conclude there was nothing to move and leave a default on the page.
+fn margin_slot(cfg: &DocConfig, key: &str) -> Option<f64> {
+    match key {
+        "margin_top_cm" => cfg.margin_top_cm,
+        "margin_bottom_cm" => cfg.margin_bottom_cm,
+        "margin_inner_cm" => cfg.margin_inner_cm,
+        "margin_outer_cm" => cfg.margin_outer_cm,
+        _ => None,
+    }
+}
+
+fn margin_slot_mut<'a>(cfg: &'a mut DocConfig, key: &str) -> Option<&'a mut Option<f64>> {
+    match key {
+        "margin_top_cm" => Some(&mut cfg.margin_top_cm),
+        "margin_bottom_cm" => Some(&mut cfg.margin_bottom_cm),
+        "margin_inner_cm" => Some(&mut cfg.margin_inner_cm),
+        "margin_outer_cm" => Some(&mut cfg.margin_outer_cm),
+        _ => None,
+    }
+}
+
 fn clamped(
     cfg: &mut DocConfig,
     v: &serde_json::Value,
@@ -1119,10 +1144,6 @@ impl DocConfig {
         if let Some(s) = clamped(&mut cfg, v, "size_pt", 1.0, 400.0) {
             cfg.size_pt = s;
         }
-        // Margins must leave a text region: half of the short side of A5.
-        if let Some(m) = clamped(&mut cfg, v, "margin_cm", 0.0, 7.0) {
-            cfg.margin_cm = m;
-        }
         if let Some(d) = v.get("dir").and_then(|x| x.as_str()) {
             // The one config string that was never sanitised: `"RTL"` reached
             // the prelude whole, named no direction anything compared against,
@@ -1216,6 +1237,27 @@ impl DocConfig {
         // value that leaves nothing is still refused — and now says so, which is
         // the whole of what was missing.
         let (sheet_w, sheet_h) = sheet_cm_of(&cfg);
+
+        // **`margin_cm` is bounded by the sheet, and it is bounded here rather
+        // than where it used to be.** It was `0.0..7.0`, with the comment
+        // *"half of the short side of A5"* — and 7 is the A5 *instance* of a
+        // rule that is right on every sheet: a uniform margin lands on **both**
+        // edges of each axis, so the honest bound is `2m ≤ short_side −
+        // MIN_TEXT_CM`. That is 6.9cm for A5, **10.0cm for A4**, 14.35 for A3.
+        //
+        // #15 replaced the hardcoded 7 with the sheet on the per-edge path and
+        // left the constant standing here — on the path almost every document
+        // takes, since four `None` edges mean "use `margin_cm`". So the fix was
+        // applied to half the settings, and `margin_cm: 9` on A4 was still being
+        // refused as out of range. It also could not have been fixed in place:
+        // this line ran *before* the page size was read, so the sheet was not
+        // known yet. **A bound that depends on the sheet has to be evaluated
+        // after the sheet is known**, which is the whole lesson of #15.
+        let uniform_hi = ((sheet_w.min(sheet_h) - MIN_TEXT_CM) / 2.0).max(0.0);
+        if let Some(m) = clamped(&mut cfg, v, "margin_cm", 0.0, uniform_hi) {
+            cfg.margin_cm = m;
+        }
+
         for (key, lo, hi) in [
             ("margin_top_cm", 0.0, (sheet_h - MIN_TEXT_CM).max(0.0)),
             ("margin_bottom_cm", 0.0, (sheet_h - MIN_TEXT_CM).max(0.0)),
@@ -1235,6 +1277,58 @@ impl DocConfig {
                 *slot = Some(m);
             }
         }
+        // ---- opposing margins, checked as a pair
+        //
+        // Each edge above is bounded by `sheet − MIN_TEXT_CM`, and bounded
+        // *individually*, which answers *"is this margin bigger than the paper?"*
+        // and does not answer *"are these two margins bigger than the paper
+        // between them."* So both could be legal and together consume the page:
+        // `margin_inner_cm: 20, margin_outer_cm: 20` on A4 is 20 ≤ 20 on each
+        // edge, accepted without a word, and hands back a text region **19cm
+        // wider than the sheet**.
+        //
+        // **A value the writer did not set is never the one moved.** An absent
+        // edge is standing in for `margin_cm`, which is a default, and the app
+        // un-choosing on the writer's behalf is the exact defect #15 was filed
+        // about — so when only one edge of a pair was asked for, that is the edge
+        // that gives way. When both were asked for, the *second* one does and the
+        // diagnostic names it and says what it became: the order is arbitrary,
+        // and a wrong reference is worse than none, so it is better to be
+        // deterministic and loud than clever and silent.
+        for (a_key, b_key, allow) in [
+            ("margin_top_cm", "margin_bottom_cm", sheet_h - MIN_TEXT_CM),
+            ("margin_inner_cm", "margin_outer_cm", sheet_w - MIN_TEXT_CM),
+        ] {
+            let (a_set, b_set) = (margin_slot(&cfg, a_key), margin_slot(&cfg, b_key));
+            let a = a_set.unwrap_or(cfg.margin_cm);
+            let b = b_set.unwrap_or(cfg.margin_cm);
+            if a + b <= allow {
+                continue;
+            }
+            let (key, asked, other) = match (a_set, b_set) {
+                (Some(_), None) => (a_key, a, b),
+                (None, Some(_)) => (b_key, b, a),
+                // **The larger margin gives way**, not the second one. The first
+                // version of this took the second, and it was wrong in a way the
+                // pre-existing fence caught at once: `inner 13, outer 0` on a
+                // 10.5cm sheet is over by 3.5cm, so "the second" clamped
+                // `outer` to 0 — where it already was — and left `inner` at 13.
+                // The pair was still 4.5cm too wide and the document laid out
+                // anyway. Moving the larger makes the pair sum to exactly the
+                // allowance, and the other edge is by construction the smaller,
+                // so the result is never negative. A tie goes to the second, so
+                // the choice is total and reproducible.
+                (Some(_), Some(_)) if a > b => (a_key, a, b),
+                (Some(_), Some(_)) => (b_key, b, a),
+                (None, None) => continue,
+            };
+            let used = (allow - other).max(0.0);
+            if let Some(slot) = margin_slot_mut(&mut cfg, key) {
+                *slot = Some(used);
+            }
+            cfg.refusals.push(Refusal { key: key.to_string(), asked, used });
+        }
+
         if let Some(g) = clamped(&mut cfg, v, "gutter_cm", 0.0, 5.0) {
             cfg.gutter_cm = g;
         }

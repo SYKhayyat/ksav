@@ -65,9 +65,14 @@ fn each_edge_is_bounded_by_its_own_dimension() {
     // 10.5 cm wide. A single constant for both would have got one of them wrong,
     // and getting this one wrong is the bug this whole change is about.
     let sheet = json!({ "page_width_cm": 10.5, "page_height_cm": 14.8 });
-    let top = DocConfig::from_json(&json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_top_cm": 13.0 }));
+    // The opposite edge is set to 0 **on purpose**. It used to be left absent,
+    // which meant the 2.5cm default bottom margin was silently in the way — and
+    // this test then passed a 13cm top margin that had no room to exist. Now
+    // that the pair is checked (#76), an absent edge is a real margin, so the
+    // comparison has to say what is opposite it.
+    let top = DocConfig::from_json(&json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_top_cm": 13.0, "margin_bottom_cm": 0.0 }));
     assert_eq!(top.margin_top_cm, Some(13.0), "a top margin within the height was refused");
-    let inner = DocConfig::from_json(&json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_inner_cm": 13.0 }));
+    let inner = DocConfig::from_json(&json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_inner_cm": 13.0, "margin_outer_cm": 0.0 }));
     assert_eq!(inner.margin_inner_cm, Some(9.5), "an inner margin is bounded by the width, not the height");
     assert_eq!(inner.refusals.len(), 1, "and it is reported");
     assert!(sheet.get("page_height_cm").is_some());
@@ -168,5 +173,160 @@ fn nan_and_infinity_are_still_not_clamped() {
     for v in [json!({ "margin_top_cm": f64::NAN }), json!({ "margin_top_cm": f64::INFINITY })] {
         let cfg = laid(v.clone());
         assert_eq!(cfg.margin_top_cm, None, "{v} was turned into a margin");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// #76 — the bound is the sheet's, and the sheet is only half the question
+// ---------------------------------------------------------------------------
+
+/// A uniform margin is bounded by the **sheet**, not by a constant.
+///
+/// `margin_cm` was `0.0..7.0` with the comment *"half of the short side of A5"*,
+/// and 7 is the A5 instance of a rule that is right on every sheet: a uniform
+/// margin lands on **both** edges of each axis, so the bound is
+/// `2m ≤ short_side − MIN_TEXT_CM`. That is 6.9cm on A5 and **10.0cm on A4**.
+///
+/// So #15 replaced the hardcoded 7 with the sheet on the per-edge path and left
+/// the constant standing here — on the path almost every document takes, since
+/// four absent edges mean "use `margin_cm`". A4 was still refusing a 9cm margin
+/// as out of range.
+#[test]
+fn a_uniform_margin_is_bounded_by_the_sheet_and_not_by_seven() {
+    let a4_nine = DocConfig::from_json(&json!({ "margin_cm": 9.0 }));
+    assert_eq!(
+        a4_nine.margin_cm, 9.0,
+        "A4 is 21cm wide; 9cm all round leaves 3cm of text, and it was refused"
+    );
+    assert!(
+        a4_nine.refusals.is_empty(),
+        "a margin the sheet can hold was still refused: {:?}",
+        a4_nine.refusals
+    );
+
+    // And the A5 figure is still the A5 figure, now derived rather than assumed.
+    let a5_twelve = DocConfig::from_json(
+        &json!({ "paper": "a5", "margin_cm": 12.0 }),
+    );
+    assert!(
+        a5_twelve.margin_cm < 12.0,
+        "A5 is 14.8cm wide; 12cm all round was accepted: {}",
+        a5_twelve.margin_cm
+    );
+    assert!(
+        a5_twelve.refusals.iter().any(|r| r.key == "margin_cm"),
+        "the refusal was not recorded: {:?}",
+        a5_twelve.refusals
+    );
+}
+
+/// Two opposing margins are checked **as a pair**, which is the whole of #76.
+///
+/// Each edge is bounded by `sheet − MIN_TEXT_CM` on its own, so each of these
+/// is legal. Together they are not, and they used to be accepted in silence: A4
+/// is 21.0 × 29.7, so `20` and `20` asks for a text region 19cm wider than the
+/// sheet and 10.3cm taller than it.
+#[test]
+fn opposing_margins_that_cannot_both_fit_are_refused() {
+    let cfg = DocConfig::from_json(
+        &json!({ "margin_inner_cm": 20.0, "margin_outer_cm": 20.0 }),
+    );
+    let in_ = cfg.margin_inner_cm.expect("inner");
+    let out = cfg.margin_outer_cm.expect("outer");
+    assert!(
+        in_ + out <= 20.0,
+        "the pair still consumes the page: {in_} + {out} on a 21cm sheet"
+    );
+    assert!(
+        cfg.refusals.iter().any(|r| r.key.starts_with("margin_") && r.key.ends_with("cm")),
+        "a margin was moved without saying so: {:?}",
+        cfg.refusals
+    );
+}
+
+/// **A value the writer did not set is never the one moved.**
+///
+/// An absent edge stands in for `margin_cm`, which is a default. Reducing the
+/// default would be the app un-choosing on the writer's behalf — the exact
+/// defect `settings.ts` names, and the one #15 was filed about. So when only
+/// one edge of a pair was asked for, that is the edge that gives way.
+#[test]
+fn an_edge_the_writer_did_not_set_is_never_the_one_moved() {
+    let cfg = DocConfig::from_json(&json!({ "margin_inner_cm": 20.0 }));
+    assert_eq!(
+        cfg.margin_outer_cm, None,
+        "the default outer margin was overwritten: {:?}",
+        cfg.margin_outer_cm
+    );
+    let in_ = cfg.margin_inner_cm.expect("inner was refused, not dropped");
+    assert!(
+        in_ <= 20.0 - cfg.margin_cm + 0.001,
+        "the edge that was set was left at {in_}, leaving no room for the default"
+    );
+    assert!(
+        cfg.refusals.iter().any(|r| r.key == "margin_inner_cm"),
+        "the wrong edge was blamed: {:?}",
+        cfg.refusals.iter().map(|r| &r.key).collect::<Vec<_>>()
+    );
+}
+
+/// Asymmetry that fits is left exactly as written.
+///
+/// The rule bounds a *pair*, not each edge to half of the sheet. A layout that
+/// wants 2cm at the binding and 3cm at the fore-edge is a real one, and halving
+/// the sheet to "be safe" would throw it away.
+#[test]
+fn an_asymmetric_pair_that_fits_is_untouched() {
+    let cfg = DocConfig::from_json(
+        &json!({ "margin_inner_cm": 2.0, "margin_outer_cm": 3.0 }),
+    );
+    assert_eq!(cfg.margin_inner_cm, Some(2.0));
+    assert_eq!(cfg.margin_outer_cm, Some(3.0));
+    assert!(
+        cfg.refusals.is_empty(),
+        "a legal layout was refused: {:?}",
+        cfg.refusals
+    );
+}
+
+/// Whatever happens, at least `MIN_TEXT_CM` of text survives on both axes.
+///
+/// This is the invariant the other four are arguing for, stated once so that a
+/// future change to the rule cannot pass by making the refusal quieter.
+#[test]
+fn the_text_region_is_never_negative_on_either_axis() {
+    for json in [
+        json!({ "margin_cm": 9.0 }),
+        json!({ "margin_inner_cm": 20.0, "margin_outer_cm": 20.0 }),
+        json!({ "margin_top_cm": 20.0, "margin_bottom_cm": 20.0 }),
+        json!({ "margin_cm": 12.0 }),
+        json!({ "margin_cm": 12.0, "margin_inner_cm": 11.0 }),
+        // The pair that broke the first version of the rule: both edges set, the
+        // larger one over the allowance, and the *smaller* one already at zero.
+        json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_inner_cm": 13.0, "margin_outer_cm": 0.0 }),
+        json!({ "margin_inner_cm": 18.0, "margin_outer_cm": 0.5 }),
+        json!({ "margin_top_cm": 28.0, "margin_bottom_cm": 1.0 }),
+    ] {
+        let cfg = DocConfig::from_json(&json);
+        let sheet = json.get("page_width_cm").and_then(|x| x.as_f64());
+        let (w, h) = (
+            sheet.unwrap_or(21.0),
+            json.get("page_height_cm").and_then(|x| x.as_f64()).unwrap_or(29.7),
+        );
+        let g = cfg.gutter_cm;
+        let inner = cfg.margin_inner_cm.unwrap_or(cfg.margin_cm);
+        let outer = cfg.margin_outer_cm.unwrap_or(cfg.margin_cm);
+        let top = cfg.margin_top_cm.unwrap_or(cfg.margin_cm);
+        let bottom = cfg.margin_bottom_cm.unwrap_or(cfg.margin_cm);
+        assert!(
+            w - inner - outer - g >= 1.0 - 0.001,
+            "{json}: text width is {:.2}cm on a {w}cm sheet",
+            w - inner - outer - g
+        );
+        assert!(
+            h - top - bottom >= 1.0 - 0.001,
+            "{json}: text height is {:.2}cm on a {h}cm sheet",
+            h - top - bottom
+        );
     }
 }

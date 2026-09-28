@@ -2100,3 +2100,71 @@ directory removes the capability with no code change. And the measurement is now
 reproducible by anyone:
 
     cargo run --example render-pages -- doc.typ out/ 3
+
+---
+
+## 2026-09-28 · #76 — a gap in my own work, and a wrong report about it
+
+### I measured a path the application does not have
+
+Filed #76 saying `margin_cm: 11` is "accepted silently" on A4. **It is not.** Through
+`from_json` it is clamped to 7.0, a refusal is recorded, and a diagnostic is emitted:
+
+    {"margin_cm": 11.0} → margin_cm = 7.0, refusal "margin_cm: 11→7"
+
+The reason is the fifth instance of one habit: **I set `cfg.margin_cm` in Rust**, so
+`from_json` — the thing the issue is about — never ran. I built a probe that bypassed
+the code under discussion and reported its result as the code's behaviour.
+
+The finding survived; the evidence was mine, not the code's. Corrected on the issue
+before touching it, because a defect filed on invented evidence is worse than no issue.
+
+### Two defects, and one of them is a regression of #15
+
+**The pair.** `margin_inner_cm: 20, margin_outer_cm: 20` is 20 ≤ 20 on *each* edge, so
+both are accepted with no refusal, and A4 hands back a text region **19cm wider than the
+sheet**. Real, and exactly as filed.
+
+**The constant that survived.** `margin_cm` was `0.0..7.0`, commented *"half of the short
+side of A5"*. And 7 is the A5 **instance of a rule that is right on every sheet**: a
+uniform margin lands on both edges of each axis, so the bound is `2m ≤ short_side − 1`.
+That is 6.9cm on A5, **10.0cm on A4**, 14.35 on A3.
+
+So **#15 replaced the hardcoded 7 with the sheet on the per-edge path and left the
+constant standing on the uniform path** — the one almost every document takes, since
+four absent edges mean "use `margin_cm`". A4 was still refusing a 9cm margin that it
+holds comfortably. The generalisation was right and applied to half the settings, and
+it *could not* have been fixed in place: the line ran before the page size was read, so
+the sheet was not known yet. **A bound that depends on the sheet must be evaluated after
+the sheet is known** — which is the entire lesson of #15, learned by breaking it.
+
+Both fixed. `margin_cm: 9` on A4 is now accepted; `margin_cm: 12` is refused to 10.00
+and says so.
+
+### The rule for a pair, and the fence that caught me being wrong about it
+
+**A value the writer did not set is never the one moved.** An absent edge is standing in
+for `margin_cm`, which is a default, and reducing a default is the app un-choosing on
+the writer's behalf — the sentence `settings.ts` already says and #15 exists to fix.
+So with one edge set, that edge gives way; with both set, something has to be chosen.
+
+My first choice was **the second edge**, and it was wrong in a way the *pre-existing*
+fence caught immediately. `inner 13, outer 0` on a 10.5cm sheet is over by 3.5cm, so
+"the second" clamped `outer` to 0 — where it already was — and left `inner` at 13. The
+pair was still 4.5cm too wide and the document laid out anyway. **The invariant held for
+every case I had invented and failed for the one I had not.**
+
+**The larger margin gives way.** The other edge is then the smaller by construction, so
+`allowance − other` is never negative and the pair sums to exactly the allowance. A tie
+goes to the second, so the choice is total.
+
+That test also had to change, and its change is the real content: it had been leaving
+the opposite edge absent, which meant the 2.5cm default was silently in the way, and it
+was **passing a 13cm top margin that had no room to exist**. Now that a pair is checked,
+an absent edge is a real margin — so the comparison has to say what is opposite it.
+
+Six new tests, and one of them states the invariant once, over a sheet per case, so a
+later change to the rule cannot pass by making the refusal quieter.
+
+Engine tests 1050 → 1055, binaries 75. Editor assertions 7,849 — and the documentation
+fence caught the stale count before I looked for it, which is what it is for.

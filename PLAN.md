@@ -70,11 +70,20 @@ still right.
   diagnostic. **Latent, not live:** nothing in Ksav sets `breakable: false`, and #65/#43
   are the only things that would. Worth knowing *before* they are built, because the
   failure mode is missing text rather than a box that looks wrong. (from #70)
-- [ ] #76 opposing margins can consume the whole page — **a gap in my own #15 work.**
-  The clamp bounds each margin against the sheet and never against *the other* margin,
-  so `margin_cm: 11` on A4 is accepted (11 ≤ 28.7 on every edge) and the text area comes
-  back **negative width**: 21.0 − 11 − 11. Small, and it is the same defect sentence as
-  #15 arriving by another door. (from #70)
+- [x] #76 opposing margins can consume the whole page — **a gap in my own #15 work**,
+  and a second one I did not know was there. (from #70) — Two defects, and my first
+  report on this was wrong in a way worth recording: **I set `cfg.margin_cm` directly
+  in Rust, so `from_json` never ran and I measured a path the application does not
+  have.** Through the real path `margin_cm: 11` *was* clamped and reported. The pair
+  check was still needed (`inner 20 + outer 20` on A4 → a text region 19cm wider than
+  the sheet, silently), and #15 had in fact left the **old A5 constant standing on the
+  uniform path** — 7cm is the A5 instance of `2m ≤ short_side − 1`, so A4 was refusing
+  a 9cm margin that it can hold. Both fixed: a uniform margin is bounded by the sheet,
+  and a pair is checked as a pair, with **a value the writer did not set never the one
+  moved** — reducing a default is the app un-choosing on their behalf, which is the
+  sentence #15 exists to fix. My first rule ("the second edge gives way") was wrong and
+  a pre-existing fence caught it the same day: `inner 13 + outer 0` clamped the edge
+  that was already 0. **The larger margin gives way.**
 - [ ] #75 a bare hex colour is refused as *"something's off near a #"* — and the `#` is
   the one character the writer got right; Typst 0.15 wants `rgb("#eef3ff")`. Ksav's own
   167 `insert` strings already use `rgb()`, so nobody is handed a broken example. (from #70)

@@ -51,9 +51,11 @@ still right.
 - [x] #3 i18n completeness + e2e switch test. (High) — 11 keys had Hebrew and no
   English, and `t` falls back to the **key name**, so `refreshTitle` was a panel
   heading in English. The switch mechanism already existed and needed only a fence.
-- [ ] #71 a language switch leaves **114 Hebrew strings** standing: 50 catalogue keys
-  nothing re-localises, 64 composed strings no `data-i18n` can express. Found by a
-  real browser, so the catalogue fence is now provably not enough. (High, from #3)
+- [ ] #71 a language switch left **114 Hebrew strings** standing. **50 keys → 2**
+  (`untitled` is a document's own name and must not be tagged); the mechanism for
+  composed strings exists and is fenced. What is left is **41 composed**, of which
+  ~13 are the file/theme ribbon — the `noteBtn` family in another builder. Found by
+  a real browser, so the catalogue fence is provably not enough. (High, from #3)
 - [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
   the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
   research, **unmeasured here** — one probe, then a decision. (Medium, from #5)

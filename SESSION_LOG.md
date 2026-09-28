@@ -1424,3 +1424,13 @@ rather than edited by hand, and every recorded key carries why it is still there
   chord in either language"*, which is the same point and survives the sweep. The
   fence is doing exactly what it is for: a plausible sentence about chords in a
   document that names chords is a claim about which chords exist.
+
+### #71: 114 → 43, and the two that must stay
+
+The headline number moved from 114 to 43, and the composition of it matters more
+than the total: two catalogue keys (one of which is correct) and 41 composed
+strings, of which about thirteen are the file and theme ribbon — the same shape as
+`noteBtn`, in a different builder — and the rest are Hebrew that *should* stay
+(letter samples in the niqqud bar, Hebrew document source in placeholders, English
+text about Hebrew). Chasing the last thirteen is the next piece; the ceiling in the
+browser test is what says when it is done.

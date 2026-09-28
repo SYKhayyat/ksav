@@ -60,6 +60,57 @@ still right.
 - [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
   the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
   research, **unmeasured here** — one probe, then a decision. (Medium, from #5)
+- [x] #15 two-document glue. (High) — **the seam is fixed; the premise is not.** The
+  7 cm margin clamp was *silently* refusing a 21.7 cm seam, which is the bug the app
+  already names one layer up; a margin is now bounded by the sheet and a refusal is
+  reported. And the box does not cap: 30 entries draw in 4 pages where the proposal
+  measured 5, so "why it buys what a box cannot" lists properties the box already
+  has. Reopened on a worked sheet-count, not a preference. (from #15)
+- [x] #27 all three English tables are facts values now; each with a cross-check that exits 1. (High)
+- [x] #28 the templates' collective guarantee is a predicate; it found three unreachable capabilities. (Medium)
+- [x] #29 FALSE POSITIVE, measured; the fence it was missing is `engine/tests/registry_wire.rs`. (Medium)
+
+## Phase 2 — Security Criticals
+- [x] #50 missing-chapter marker injects name into Typst unescaped. (High→Critical)
+- [x] #51 opening .ksav executes customCommands with no warning. (High)
+- [x] #53 engine SVG innerHTML + attribute passthrough. (High)
+- [x] #52 asset names unvalidated; ksav.typ shadows prelude. (High) — the shadowing was
+  already closed by resolver order; what was real is a **panic** in `typst-as-lib`'s
+  path handling, i.e. one unauthenticated request could take a worker thread down.
+
+**Phase 2 complete.** Four Highs, all fixed at the root with a fence that was shown
+to fire. Two of them (#52, and #29 before it) turned out to be mis-identified: what
+was actually there was smaller or larger than the report said, and the fix list was
+still right.
+
+## Phase 3 — Correctness Highs
+- [x] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan).
+  (Critical) — six of the audit's seven no longer reproduce; the deliverable is
+  `engine/tests/note_layout.rs`, and what was left was a note sent to a
+  **destination the document never declared**, landing silently in the page foot.
+- [x] #6 audit fire-and-forget (127 void, no fence). (High) — measured **51 of 93
+  sites** had a callee with no error handling at all; 48 converted to one wrapper,
+  3 of them found to be synchronous and put back. The fence is the inventory.
+- [x] #2′ non-linear note fixtures — both branches reached and fenced: B3's sort
+  needs a reversed anchor order, B5's carry needs a bounded sheet and a page
+  break. **9 of 11 tests now fail with their fix removed.** (from #2)
+- [x] #5 parser/config/installer hardening. (High) — **16 of 50 setters** accepted a
+  typo, and the check was *inside* the `update` closure, so it fired on the next
+  note rather than on the typo. The other four sub-items have no site: `purge_ratio`
+  has no owner, the installer does not exist here, git probing is already bounded
+  and locale-free, grammar spans already carry line+column.
+- [x] #3 i18n completeness + e2e switch test. (High) — 11 keys had Hebrew and no
+  English, and `t` falls back to the **key name**, so `refreshTitle` was a panel
+  heading in English. The switch mechanism already existed and needed only a fence.
+- [x] #71 a language switch left **114 Hebrew strings** standing; now **9** — two
+  catalogue keys (`untitled`, a document's own name, which must never be tagged, and
+  `registriesFailed`, an error path) and seven composed, all of them Hebrew that
+  belongs there. What is left to argue about rather than fix: `troubleSaid`'s
+  deliberate `"he · en"` status line, which an English interface reads Hebrew-first.
+  Found by a real browser, and the browser test now fences the ceiling at 9. (from #3)
+- [ ] #70 verify a breakable Typst box: does it draw an **empty border** at the foot of
+  the page it breaks from, and is a fifth `חריגה:` answer wanted at all? Third-party
+  research, **unmeasured here** — one probe, then a decision. (Medium, from #5)
 - [ ] #15 two-document glue second flow (probe exists). (High)
 - [ ] #67 Typst package resolution missing — @preview/@local imports fail. (High)
 

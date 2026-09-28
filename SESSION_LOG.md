@@ -2050,3 +2050,53 @@ It is not bundled and I have not read it. Everything above about Ksav and Typst 
 measured; the claim that `meander` supplies this routing comes from its description in
 #73 and is not verified. Vendoring is also **reversible** — #67's resolver reads a
 directory, so removing the directory removes the capability with no code change.
+
+---
+
+## 2026-09-28 · rendered it, looked at it, and the answer is no
+
+### Asking the question by looking instead of by counting
+
+*"…should work for two rows on each page, flowing into that row on the next page, no?"*
+
+I had been answering this with y-coordinates, which is the wrong instrument for a
+question about the *shape* of a page. `examples/svgdump.rs` only emits page 1, so it
+could not show this at all — the answer lives on page 2. So `examples/render-pages.rs`
+now emits every page as SVG, and I converted them with `pdftoppm`/`magick` and **read
+the images**.
+
+The document: two 400-line streams, A (`אורייתא`) and B (`פירוש`), in
+`#grid(rows: 2, columns: 1, [A], [B])`.
+
+**Page 1:** entirely A.
+**Page 2:** A down to line 399, and then **B starts at the bottom of the same page**,
+running on into pages 3 and 4.
+
+So it is **one flow**. Cell 1, then cell 2, in reading order, across page boundaries.
+`grid(rows: 2)` divides a single stream into two bands; it does not create two streams,
+and the second band does not resume in the same band on the next page.
+
+### The distinction, now with a picture behind it
+
+- **works:** `#cols(n)` — divide a page into n bands that **one** flow fills in reading
+  order. Measured at 2, 3, 6, 8 and 12, text intact in every case.
+- **does not work:** n **independent** flows, each continuing into the same band of the
+  next page. That is what was asked for. It is not what a grid or a `cols` does.
+
+And it is not a matter of finding the right Typst incantation. **Typst 0.15 has no
+`Flow` element** — every crate in the dependency set checked; the only `Flow` in the
+registry is GTK's `flow_box` and a parser's AST node. A column is a *region you fill in
+order*; what is wanted is an *address you send content to*, and nothing in the language
+has one.
+
+**So this is the concrete case for #73, and it is the first one that is not a guess.** The
+earlier arguments were note-spill and "routing", both of which could be dismissed as
+speculative. This one is a rendered page saying no. `meander`'s description in #73 —
+*page layout with text threading* — is exactly this feature, and it is still unverified
+because it is not bundled.
+
+Vendoring it remains reversible: #67's resolver reads a directory, and deleting the
+directory removes the capability with no code change. And the measurement is now
+reproducible by anyone:
+
+    cargo run --example render-pages -- doc.typ out/ 3

@@ -85,14 +85,33 @@ const RESIDUE = [
 ];
 
 /**
- * The residue ceiling, re-measured as the work lands: **2** catalogue keys and 41
- * composed strings, down from 50 and 64 when this file was written.
+ * The residue ceiling, re-measured as the work lands: **2** catalogue keys and
+ * **11** composed strings, down from 50 and 64 when this file was written.
+ *
+ * Of those eleven, six are Hebrew that **should** be there and are counted only
+ * because nothing here can tell a specimen from a sentence:
+ *
+ *   - `#let דגש(x) = …` and `בסד = בס"ד` — a Hebrew document's own source, in the
+ *     placeholders that offer a first document. A Hebrew starter is the point.
+ *   - "Off by default: in Hebrew the geresh and gershayim", "Hebrew numbering
+ *     (א,ב,ג)", "Keep a one-letter word off the end of a line (ו, ב" — English
+ *     sentences *about* Hebrew, which are correct in English and would be wrong
+ *     translated.
+ *   - `Rename: ללא שם` — the verb is already English; the name is the document's
+ *     own, and a document is named in its own language.
+ *
+ * So the ceiling of 11 is five above the real residue: `חלונית 1` and `חלונית 2`
+ * (a pane number with no key), `⟳ התצוגה אינה מעודכנת` (the stale-preview notice),
+ * `כתב עברי`, and the status line that carries **both** languages on purpose —
+ * `troubleSaid` emits `"he · en"` so a writer sees theirs whichever it is, which
+ * means an English interface reads it Hebrew-first. That one is a decision, not
+ * a bug, and it is written down rather than fixed here.
  *
  * Composed strings are counted, not named, because they are not catalogue values
  * — they are `"label · shortcut"` and `"verb: name"` built by concatenation, and
  * naming them would mean naming every pair.
  */
-const CEILING = { keys: RESIDUE.length, composed: 41 };
+const CEILING = { keys: RESIDUE.length, composed: 11 };
 
 /** Serve `dist/` and give back the origin. Static, and the SPA fallback only. */
 async function serve() {
@@ -212,6 +231,15 @@ export async function run() {
     );
 
     // …and the residue, which is the honest part of this file.
+    // A Hebrew **specimen** is not a missing translation. The niqqud bar shows
+    // `א` with each mark on it, because a learner needs to see the mark, and a
+    // font specimen in its own script is not a string this application failed to
+    // translate. Decided 2026-09-27; before this the count could never reach zero
+    // and a ceiling nobody can reach is a comment.
+    //
+    // The test is deliberately narrow: a single base letter plus marks, nothing
+    // else. `"אְ"` is a specimen; `"הערה"` is a sentence somebody has to read.
+    const isSpecimen = (s) => /^[א-ת][֐-ׯ]*$/u.test(s);
     const { DICTS } = await import("../.tmp-test/i18n.mjs");
     const byValue = new Map(Object.entries(DICTS.he).map(([k, v]) => [v, k]));
     const stillHere = new Set();
@@ -219,7 +247,7 @@ export async function run() {
     for (const s of heAfter) {
       const key = byValue.get(s) ?? [...byValue].find(([v]) => v.length > 3 && s.startsWith(v))?.[1];
       if (key) stillHere.add(key);
-      else composed.add(s.slice(0, 40));
+      else if (!isSpecimen(s)) composed.add(s.slice(0, 40));
     }
     check(
       "no catalogue key stands in Hebrew that this file has not recorded",

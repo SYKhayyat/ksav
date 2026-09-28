@@ -18,23 +18,34 @@ import * as runtime from "./runtime";
 import { settings } from "./settings";
 
 /** Each mark, its name, and the key that types it. */
+/**
+ * The fourteen marks, as `[mark, nameKey, chord]`.
+ *
+ * The second column was a **translated string** until 2026-09-27 — `"פתח"`, not a
+ * key — which is the same defect `nameMarks` had: the sentence was built once and
+ * the key was gone, so a language switch had nothing to re-render. Fourteen
+ * buttons, all standing in Hebrew, because the bar could not say anything else.
+ *
+ * The name is **transliterated** in English rather than translated, so a Hebrew
+ * learner in an English interface meets the word their grammar book uses. The
+ * mark itself is the glyph beside the label and is Hebrew in both.
+ */
 export const NIKUD: [string, string, string][] = [
-  ["ַ", "פתח", "Alt-a"],
-  ["ָ", "קמץ", "Alt-s"],
-  ["ֶ", "סגול", "Alt-d"],
-  ["ֵ", "צירי", "Alt-f"],
-  ["ִ", "חיריק", "Alt-g"],
-  ["ֹ", "חולם", "Alt-h"],
-  ["ֻ", "קובוץ", "Alt-j"],
-  ["ְ", "שווא", "Alt-k"],
-  ["ּ", "דגש", "Alt-l"],
-  ["ׁ", "שין ימנית", "Alt-w"],
-  ["ׂ", "שין שמאלית", "Alt-e"],
-  ["ֱ", "חטף סגול", "Alt-z"],
-  ["ֲ", "חטף פתח", "Alt-x"],
-  ["ֳ", "חטף קמץ", "Alt-c"],
+  ["\u05b7", "nikud.patach", "Alt-a"],
+  ["\u05b8", "nikud.kamatz", "Alt-s"],
+  ["\u05b6", "nikud.segol", "Alt-d"],
+  ["\u05b5", "nikud.tsere", "Alt-f"],
+  ["\u05b4", "nikud.hiriq", "Alt-g"],
+  ["\u05b9", "nikud.holam", "Alt-h"],
+  ["\u05bb", "nikud.kubbutz", "Alt-j"],
+  ["\u05b0", "nikud.sheva", "Alt-k"],
+  ["\u05bc", "nikud.dagesh", "Alt-l"],
+  ["\u05c1", "nikud.shinRight", "Alt-w"],
+  ["\u05c2", "nikud.shinLeft", "Alt-e"],
+  ["\u05b1", "nikud.shindotSegol", "Alt-z"],
+  ["\u05b2", "nikud.shindotPatach", "Alt-x"],
+  ["\u05b3", "nikud.shindotKamatz", "Alt-c"],
 ];
-
 /**
  * Add a vowel mark at the cursor.
  *
@@ -75,7 +86,7 @@ export function nikudKeymap(afterInsert: () => void): KeyBinding[] {
 
 export function buildNikudBar(afterInsert: () => void): HTMLElement {
   return el("div", { id: "nikud-bar", class: "nikud-bar", role: "group", "aria-label": t("nikud"), "data-i18n-label": "nikud" }, [
-    ...NIKUD.map(([mark, name, key]) =>
+    ...NIKUD.map(([mark, nameKey, key]) =>
       el(
         "button",
         {
@@ -83,8 +94,13 @@ export function buildNikudBar(afterInsert: () => void): HTMLElement {
           type: "button",
           // The shortcut is on the button, because a shortcut nobody can find
           // is the same as no shortcut.
-          title: `${name} · ${key.replace("Alt-", "Alt+")}`,
-          "aria-label": `${name} · ${key.replace("Alt-", "Alt+")}`,
+          title: `${t(nameKey)} · ${key.replace("Alt-", "Alt+")}`,
+          "aria-label": `${t(nameKey)} · ${key.replace("Alt-", "Alt+")}`,
+          // A composed sentence, so it needs a template and its parts. The chord
+          // is a literal — `Alt+a` is `Alt+a` in either language — and the leading
+          // `:` says the other half is a key. See `localise`.
+          "data-i18n-both": "msg.shortcut",
+          "data-i18n-both-args": JSON.stringify([`:${nameKey}`, key.replace("Alt-", "Alt+")]),
           onClick: () => insertNikud(mark, afterInsert),
         },
         [

@@ -1175,6 +1175,22 @@ const HE: Dict = {
   outline: "מפת מסמך",
   nikud: "ניקוד",
   nikudHint: "הקלידו אות ואז Alt+המקש",
+  // The fourteen niqqud, by name. These were a table of translated strings until
+  // 2026-09-27, which is why the whole bar stayed in Hebrew after a switch.
+  "nikud.patach": "פתח",
+  "nikud.kamatz": "קמץ",
+  "nikud.segol": "סגול",
+  "nikud.tsere": "צירי",
+  "nikud.hiriq": "חיריק",
+  "nikud.holam": "חולם",
+  "nikud.kubbutz": "קובוץ",
+  "nikud.sheva": "שווא",
+  "nikud.dagesh": "דגש",
+  "nikud.shinRight": "שין ימנית",
+  "nikud.shinLeft": "שין שמאלית",
+  "nikud.shindotSegol": "חטף סגול",
+  "nikud.shindotPatach": "חטף פתח",
+  "nikud.shindotKamatz": "חטף קמץ",
   history: "היסטוריית גרסאות",
   snapshotNow: "שמור גרסה",
   confirmRestore: "לשחזר גרסה זו? הגרסה הנוכחית תישמר בהיסטוריה.",
@@ -2638,6 +2654,25 @@ const EN: Dict = {
   outline: "Document map",
   nikud: "Nikud",
   nikudHint: "Type a letter, then Alt+key",
+  // **Transliterated, not translated.** Decided 2026-09-27: the bar is a Hebrew
+  // learner's instrument, and a learner in an English interface needs the
+  // romanisation they will meet in a grammar book — "patach" is the word they
+  // will look up. The mark itself is the glyph beside the label and stays Hebrew
+  // either way; only the *name* of it changes.
+  "nikud.patach": "patach",
+  "nikud.kamatz": "kamatz",
+  "nikud.segol": "segol",
+  "nikud.tsere": "tsere",
+  "nikud.hiriq": "hiriq",
+  "nikud.holam": "holam",
+  "nikud.kubbutz": "kubbutz",
+  "nikud.sheva": "sheva",
+  "nikud.dagesh": "dagesh",
+  "nikud.shinRight": "shin, right dot",
+  "nikud.shinLeft": "shin, left dot",
+  "nikud.shindotSegol": "shindot segol",
+  "nikud.shindotPatach": "shindot patach",
+  "nikud.shindotKamatz": "shindot kamatz",
   history: "Version history",
   snapshotNow: "Snapshot now",
   confirmRestore: "Restore this version? The current one will be saved to history.",

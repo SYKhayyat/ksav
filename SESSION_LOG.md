@@ -1419,11 +1419,13 @@ rather than edited by hand, and every recorded key carries why it is still there
   accept either spelling, with the reason written down, rather than reverting the
   helper.
 - `readme.test.mjs` refuses a living page that names a shortcut the product does
-  not bind. My session log said *"the chord `Alt+a` is `Alt+a` in Hebrew"* as an
-  illustration, and `Alt+a` is not a Ksav binding. Rewritten to say *"a chord is a
-  chord in either language"*, which is the same point and survives the sweep. The
-  fence is doing exactly what it is for: a plausible sentence about chords in a
-  document that names chords is a claim about which chords exist.
+  not bind. My session log illustrated the point with an invented chord — one this
+  product does not bind — written in the backticks the sweep looks for, which is
+  the violation reproduced inside the sentence reporting it. Rewritten to say
+  that a chord is a chord in either language, which is the same point and survives
+  the sweep. The fence is doing exactly what it is for: a plausible sentence about
+  chords, in a document that names chords, is a claim about which chords exist —
+  including when the sentence is *about* the claim.
 
 ### #71: 114 → 43, and the two that must stay
 
@@ -1434,3 +1436,71 @@ strings, of which about thirteen are the file and theme ribbon — the same shap
 (letter samples in the niqqud bar, Hebrew document source in placeholders, English
 text about Hebrew). Chasing the last thirteen is the next piece; the ceiling in the
 browser test is what says when it is done.
+
+---
+
+## 2026-09-27 · #71, the niqqud bar — and a misreading worth recording
+
+### I read "פתח · Alt+a" as "Open · Alt+a" and built a plan around it
+
+The residue list had fourteen strings of the shape `<name> · Alt+<letter>`, and I
+named them *"the file/theme ribbon"* in the plan and in a comment, and said the next
+piece was to find the file and theme builder. `פתח` is **patach**. `קמץ` is
+**kamatz**, `סגול` is **segol**, `חולם` is **holam**. They are the fourteen niqqud,
+and the builder was `buildNikudBar` — the first place I had already been, where I
+had tagged the bar's `aria-label` and its hint and moved on.
+
+The tell was available and I walked past it twice: the strings sat on
+`class="nikud-btn"`, and I had *just* edited that file. Reading a Hebrew string and
+inferring its English is the exact move this repository keeps refusing to make
+programmatically — `hasKey` exists because "the value equals the key" cannot tell a
+cognate from a hole — and I made it with my own eyes.
+
+### The table held sentences, which is the same defect twice
+
+`NIKUD` was `[mark, name, chord]` with `name` the **translated** string. So the key
+was gone before the button existed, and the bar could say nothing else. That is
+`nameMarks` again, in a second file, and the fix is the same shape: the table now
+carries a key, and `t(nameKey)` is called at the point of use.
+
+Fourteen keys in each half, and the English is **transliterated** — decided rather
+than guessed, because it is a product call and the code cannot answer it. The bar
+is a Hebrew learner's instrument, and a learner in an English interface needs the
+romanisation they will meet in a grammar book: `patach`, `kamatz`, `segol`, `tsere`,
+`hiriq`, `holam`, `kubbutz`, `sheva`, `dagesh`, `shin, right dot`, `shin, left dot`,
+`shindot segol`, `shindot patach`, `shindot kamatz`. The mark itself is the glyph
+beside the label and stays Hebrew in both; only the *name* changes.
+
+### And specimens are not a missing translation
+
+The count was also charging for `אְ אֱ אֲ` — the `א` with each mark on it, shown
+because a learner needs to *see* the mark. A font specimen in its own script is not
+a string this application failed to translate, and a ceiling nobody can reach is a
+comment. The exclusion is deliberately narrow: one base letter plus marks, nothing
+else. `אְ` is a specimen; `הערה` is a sentence somebody has to read.
+
+### 41 → 11 composed, and six of the eleven are right
+
+| | |
+|---|---|
+| `#let דגש(x) = …`, `בסד = בס"ד` | a Hebrew document's own source, in the placeholders offering a first document |
+| "Off by default: in Hebrew the geresh…", "Hebrew numbering (א,ב,ג)", "Keep a one-letter word…" | English sentences *about* Hebrew, correct in English and wrong translated |
+| `Rename: ללא שם` | the verb is already English; the name is the document's own |
+
+So the real residue is five: `חלונית 1`/`חלונית 2` (a pane number with no key),
+`⟳ התצוגה אינה מעודכנת` (the stale-preview notice), `כתב עברי`, and the status line
+that carries **both** languages on purpose — `troubleSaid` emits `"he · en"` so a
+writer sees theirs whichever it is, which means an English interface reads it
+Hebrew-first. That last one is a decision, not a bug, and it is written down rather
+than fixed here.
+
+### The fence caught me committing the violation I had just described
+
+Last round `readme.test.mjs` refused my session log for naming an unbound chord, and
+the log entry I wrote *about that* quoted the chord in the backticks the sweep looks
+for. A sentence about the violation, containing the violation. It has been rewritten
+to describe the chord without naming it, which is the only way to write it down —
+and the fence is right for a second reason I had not thought of: it does not care
+whether a claim is being made or being reported, and neither should it.
+
+Editor assertions unchanged at 7,849. Engine untouched.

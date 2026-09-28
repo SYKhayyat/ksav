@@ -1095,3 +1095,86 @@ five findings, one is a live defect with a root cause nobody had named, and four
 are either already done or describe software this repository does not have. The
 useful move was to say which, with the measurement, rather than to invent work to
 match the list.
+
+---
+
+## 2026-09-27 · #3 i18n — eleven strings, and the hole is smaller than the issue's framing
+
+### The infrastructure was already there
+
+`setSetting("lang", …)` already called `localise()` and `rebuildOpenPanels()`, and
+`localise` already sweeps all four label kinds — `data-i18n`, `-title`, `-label`,
+`-placeholder`. A previous fix did the hard part. The issue's framing ("a complete,
+testable localization architecture") describes the absence of *evidence*, not of
+code.
+
+### What was actually wrong, and it is not "Hebrew left on screen"
+
+`t` falls back to `DICTS.en[key] ?? key`, and the i18n module says why that is right
+at a call site — *"a writer sees a word rather than `sc.hiddenBreak`"*. So a key
+with no English entry does not look missing. **It looks like a developer name.**
+Measured against the built module:
+
+```
+setLang("en"); t("refreshTitle")  →  "refreshTitle"
+setLang("en"); t("sourcePasted")  →  "sourcePasted"
+```
+
+Eleven of them — and not in a corner. `refreshTitle` is a **panel heading** and
+`sourcePasted` is a **status line**. An English writer was not seeing Hebrew, which
+is the defect everybody looks for; they were seeing a key name, which nobody looks
+for. 919 Hebrew keys, 908 English.
+
+This is why a dictionary test is not enough. `hasKey` answers *"is this in either
+shelf"*, and a Hebrew-only key answers yes. The question is the other one: **is it
+in the one the user is reading?**
+
+### A Latin-script detail that would have shipped wrong
+
+`sourcePasted` in Hebrew interpolates `${GIRSA}`. My first English version did the
+same, which produced *"A source was pasted from גִּרְסָא"* — a Hebrew product name
+inside an English sentence, which is the exact defect `language.test.mjs` exists
+to prevent, in the one file meant to prevent it. Every other English line spells it
+`Girsa`. Fixed.
+
+### Two rules in the fence that were wrong, both catching good translations
+
+The check I wanted was "no English value is its own key name". First attempt flagged
+`words: "words"`, `chars: "chars"` and `recovered: "recovered"` — all real, all
+with a Hebrew entry that differs. Second attempt went after "looks like an
+identifier" and flagged `importWord: "Import from Word (.docx)…"`,
+`copyFailed: "Copy failed — use \"Word (.doc)\" instead."` and
+`git.installGit: "Install git: git-scm.com"` — a file extension and a URL.
+
+What survives both is exact: **the value is the key, and the key is a name** —
+camelCase or dotted. `refreshTitle: "refreshTitle"` is that; nothing in a real
+translation is. The three cognates are now named in the test with their Hebrew
+entries, so the next reader does not re-litigate them.
+
+### The e2e the issue asks for, and the part that cannot be one
+
+`installChrome` gives a `document` whose `querySelectorAll` returns `[]`
+unconditionally — so `localise(document)` is a no-op that passes everything asked
+of it. A browser test is not available and a test that claimed to open every panel
+would open none.
+
+What *is* testable is the real `localise` against the real dictionaries, on a root
+implementing exactly the four selectors and the setters the sweep uses. That catches
+the realistic regression — a dropped `data-i18n-title` line — and drops one `say(…)`
+from `panels.ts` to confirm. Recorded as a gap, not approximated.
+
+### Two vacuous assertions of my own, both in the same line
+
+The per-attribute loop filtered on `n._attr`, which the rewritten node factory no
+longer carried, so `mine` was empty and `every` on an empty array is true — and it
+only *read*, so it compared Hebrew nodes against an English test. Two bugs pointing
+at one assertion that could not fail. Found by the idempotence check immediately
+after it, which is the only reason it was found at all.
+
+### Mutations
+
+- a new Hebrew-only key → "every Hebrew key has an English entry" and the size check
+- an English value reverted to its own key name → two assertions, naming the key
+- the `data-i18n-title` sweep dropped from `localise` → four assertions
+
+Editor assertions 7,798 → 7,836, test files 110 → 111. Engine untouched.

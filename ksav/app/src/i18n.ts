@@ -2520,6 +2520,26 @@ const EN: Dict = {
   healAllAction: "Fix all",
   healedNothing: "No missing brackets.",
   sourceArrived: "A source arrived from Girsa — %s",
+  // The eleven strings below had a Hebrew entry and no English one, so an English
+  // writer saw the **key name** — `refreshTitle` as a panel heading,
+  // `sourcePasted` in the status line — because `t` falls back to the key and
+  // there was no key to fall back to. Measured 2026-09-27 against the built
+  // module: `t("refreshTitle")` returned the string "refreshTitle".
+  //
+  // `%s` is the house placeholder for these, and `GIRSA` is interpolated as it
+  // is in the Hebrew, so the two lines are the same sentence in two languages and
+  // not two sentences that happen to be near each other.
+  refreshTitle: "Refresh the sources",
+  refreshNone: "No citations with a place marker in this document",
+  refreshedCount: "%s citations checked · %s changed",
+  refreshTake: "Update",
+  refreshTook: "The source was updated",
+  refreshSame: "Unchanged",
+  refreshGone: "The citation is no longer in the document",
+  refreshMoved: "%s place markers moved — the library re-segmented the place",
+  refreshRetarget: "Update the place markers",
+  refreshRetargeted: "The place markers were updated",
+  sourcePasted: "A source was pasted from Girsa — with a place marker",
   selectAPhrase: "Select a phrase to look its source up",
   askingGirsa: "Asking Girsa…",
   girsaNeedsApp: "Looking sources up needs Girsa open beside Ksav (not in the browser)",

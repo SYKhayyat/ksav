@@ -676,6 +676,13 @@ export const PAGE_FIELDS = [
   "reserve_overflow",
   // The strip itself, in cm. Absent = decide from the document.
   "notes_region_cm",
+  // The two ceilings on a `#כלול` expansion, and **a property of the document**
+  // rather than of the machine: a sefer that genuinely needs half a million lines
+  // of expanded text must be able to say so, and one that has gone wrong must be
+  // stopped rather than laid out for sixteen seconds. Two and not one, because
+  // they answer different questions — see the engine's `include::Limits`.
+  "max_lines_warn",
+  "max_lines_refuse",
   // Metadata and the export standard: also facts about the document, not about
   // the machine it is being written on. `pdf_pages` is deliberately absent —
   // "just pages 4 to 9" is a property of one export, not of the sefer.

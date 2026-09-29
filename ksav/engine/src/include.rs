@@ -229,7 +229,7 @@ pub fn expand(main: &str, parts: &HashMap<String, String>, limits: Limits) -> Ex
         ..Expanded::default()
     };
     let mut stack: Vec<String> = Vec::new();
-    let mut walk = Walk { limits, warned: false, stopped: false };
+    let mut walk = Walk { limits, warned: false, stopped: false, said: Default::default() };
     expand_into(main, None, parts, &mut stack, 0, &mut out, &mut walk);
     // The map is what everything downstream indexes by, so it has to agree with
     // the text exactly. `push_line` terminates each line rather than separating
@@ -246,6 +246,16 @@ struct Walk {
     limits: Limits,
     warned: bool,
     stopped: bool,
+    /// Names whose refusal has already been reported.
+    ///
+    /// **This is a pre-existing bug the budget work exposed, and it is not
+    /// small.** A depth-9 chain of diamonds hit `MAX_DEPTH` along 2^8 distinct
+    /// paths and produced **~300 identical** *"includes nested too deeply"*
+    /// messages. One mistake, one sentence: a writer scrolling a diagnostics
+    /// list that says the same thing three hundred times has learned nothing
+    /// and will scroll past the one that mattered. The message was already
+    /// deduplicated in the *display* nowhere at all.
+    said: std::collections::HashSet<String>,
 }
 
 fn expand_into(
@@ -299,17 +309,21 @@ fn expand_into(
         // not terminate, and the writer needs to be told which name closed the
         // loop rather than watching the compile hang.
         if stack.iter().any(|n| n == name) {
-            out.problems.push(format!(
-                "הכללה מעגלית: \"{name}\" כולל את עצמו · Circular include: \"{name}\" includes itself"
-            ));
+            if walk.said.insert(format!("cycle:{name}")) {
+                out.problems.push(format!(
+                    "הכללה מעגלית: \"{name}\" כולל את עצמו · Circular include: \"{name}\" includes itself"
+                ));
+            }
             push_line(out, &marker(&format!("מעגל: {name}")), here);
             continue;
         }
         if depth >= MAX_DEPTH {
-            out.problems.push(format!(
-                "הכללות מקוננות עמוק מדי (מעל {MAX_DEPTH}) — \"{name}\" לא נכלל · \
-                 Includes nested deeper than {MAX_DEPTH} — \"{name}\" was not included"
-            ));
+            if walk.said.insert(format!("deep:{name}")) {
+                out.problems.push(format!(
+                    "הכללות מקוננות עמוק מדי (מעל {MAX_DEPTH}) — \"{name}\" לא נכלל · \
+                     Includes nested deeper than {MAX_DEPTH} — \"{name}\" was not included"
+                ));
+            }
             push_line(out, &marker(&format!("עמוק מדי: {name}")), here);
             continue;
         }
@@ -449,6 +463,7 @@ mod tests {
         let out = expand(
             "פתיחה\n#כלול(\"ב\")\nסיום",
             &parts(&[("ב", "שורה ראשונה\nשורה שניה")]),
+            Limits::default(),
         );
         assert_eq!(out.text, "פתיחה\nשורה ראשונה\nשורה שניה\nסיום\n");
         assert!(out.problems.is_empty());
@@ -459,7 +474,7 @@ mod tests {
         // The whole reason the expansion is here and not in Typst. A diagnostic
         // on line 3 of the assembled body means nothing to somebody looking at a
         // chapter; "perek-3, line 2" means everything.
-        let out = expand("א\n#כלול(\"ב\")\nג", &parts(&[("ב", "x\ny")]));
+        let out = expand("א\n#כלול(\"ב\")\nג", &parts(&[("ב", "x\ny")]), Limits::default());
         assert_eq!(
             out.origin_of(1),
             Some(&Origin {
@@ -497,6 +512,7 @@ mod tests {
         let out = expand(
             "#כלול(\"א\")",
             &parts(&[("א", "ראש\n#כלול(\"ב\")"), ("ב", "עלה")]),
+            Limits::default(),
         );
         assert_eq!(out.text, "ראש\nעלה\n");
         assert_eq!(
@@ -513,6 +529,7 @@ mod tests {
         let out = expand(
             "#כלול(\"א\")",
             &parts(&[("א", "ראש\n#כלול(\"ב\")"), ("ב", "#כלול(\"א\")")]),
+            Limits::default(),
         );
         assert!(
             out.text.contains("ראש"),
@@ -531,7 +548,7 @@ mod tests {
         // Only a part open *above* this one is a cycle. Including the same
         // boilerplate at the top of two chapters is completely ordinary, and an
         // over-eager check would refuse it.
-        let out = expand("#כלול(\"ב\")\n#כלול(\"ב\")", &parts(&[("ב", "שלום")]));
+        let out = expand("#כלול(\"ב\")\n#כלול(\"ב\")", &parts(&[("ב", "שלום")]), Limits::default());
         assert_eq!(out.text, "שלום\nשלום\n");
         assert!(out.problems.is_empty());
     }
@@ -541,7 +558,7 @@ mod tests {
         // The rest of the sefer is still worth seeing, and a red marker is a far
         // better report than a blank preview. A silent gap would be discovered
         // when the sefer came back from the printer.
-        let out = expand("לפני\n#כלול(\"אין\")\nאחרי", &HashMap::new());
+        let out = expand("לפני\n#כלול(\"אין\")\nאחרי", &HashMap::new(), Limits::default());
         assert!(out.text.contains("לפני") && out.text.contains("אחרי"));
         assert!(out.text.contains("חסר"));
         assert_eq!(out.problems.len(), 1);
@@ -557,7 +574,7 @@ mod tests {
         for i in 0..30 {
             map.insert(format!("p{i}"), format!("שורה {i}\n#כלול(\"p{}\")", i + 1));
         }
-        let out = expand("#כלול(\"p0\")", &map);
+        let out = expand("#כלול(\"p0\")", &map, Limits::default());
         assert!(!out.problems.is_empty(), "the cap should be reported");
         assert!(out.text.contains("עמוק מדי"));
         assert!(out.text.lines().count() < 30);
@@ -590,7 +607,7 @@ mod tests {
             "פתיחה\n#כלול(\"ב\")\nסיום",
             "#כלול(\"אין כזה\")\n\n",
         ] {
-            let out = expand(body, &p);
+            let out = expand(body, &p, Limits::default());
             if !out.expanded {
                 unexpanded += 1;
                 unexpanded += 1;
@@ -651,7 +668,7 @@ mod tests {
     #[test]
     fn a_body_with_no_includes_is_unchanged() {
         let body = "שלום\n\nעולם";
-        let out = expand(body, &HashMap::new());
+        let out = expand(body, &HashMap::new(), Limits::default());
         // Line for line unchanged, plus the terminator on the last one — see
         // `push_line`. Typst does not care, and the line map does.
         assert_eq!(out.text, format!("{body}\n"));

@@ -2415,3 +2415,70 @@ assumed.
 And the second half of the issue, `line_of` ambiguity, is **already documented and is not
 a defect**: a file and a line is genuinely ambiguous when a chapter is pulled in twice, and
 first-in-reading-order is the only honest answer available. The comment says so.
+
+---
+
+## 2026-09-28 · #63 — a budget in two limits, and one lesson I nearly repeated
+
+### What the measurement said, and what the issue proposed
+
+The exponential is real and the cycle guard cannot see it: the guard refuses a name
+**already open on the stack**, and the first inclusion is pushed *and popped* before the
+second is looked at. So the same part, included twice, expands twice, and a chain of them
+doubles at every level. `MAX_DEPTH = 8` bounds it at 2^8 copies — and that bound is a
+*proxy that fell out of the recursion*, not a budget anyone chose.
+
+**Memoizing per name was the wrong fix**, and saying so is most of this entry. The cost is
+not 128× the *work*, it is 128× the **content**: the writer asked for 128 copies, so the
+flat `Expanded::text` has to hold 128 copies. Memoizing saves the re-walk — a constant
+factor. What was missing was that nothing bounded the total: one 200KB part included 128
+times measured **25.6M lines in 15.9 seconds**, silently.
+
+### Two limits, because they answer different questions
+
+`max_lines_warn` (100,000) **reports and still lays out** — the copies are correct, so the
+document is still the one the writer asked for. `max_lines_refuse` (500,000) **stops the
+walk at the limit**, measured at exactly 500,000. Past a point there is nothing left to
+warn about: 25.6M lines is not a slow page, it is a document that cannot be laid out.
+
+Both are settings, per Shaul's decision, and both go through `clamped` so an out-of-range
+value is *reported* like every other number — a cap nobody was told about is a cap that did
+not happen. The pair is made coherent: a document asking to be refused earlier than it is
+warned about has asked two contradictory things, and the soft limit is the one anybody
+reads.
+
+Defaults from the measured table: a chumash is ~30,000 lines and a Vilna Shas ~500,000,
+and 500,000 lays out in roughly a third of a second — which is the number that matters for
+a 59ms editor.
+
+### Two things I got wrong inside the fix, both caught by looking
+
+**`out.text.lines().count()` in the walk loop is O(n) per line**, which makes the whole
+walk O(n²) — a budget that quadrupled its own cost would be a wonderful joke, and the walk
+is the thing the budget exists to keep affordable. `origins.len()` is the same number and
+is O(1); the `debug_assert_eq!` in `push_line` already says they agree.
+
+**A depth-9 diamond produced ~300 identical "nested too deeply" messages.** Pre-existing,
+not mine, and not small: the refusal was pushed once per inclusion path and nothing
+deduplicated it. A writer scrolling a list that says the same thing three hundred times
+learns nothing and scrolls past the one that mattered. Now each named refusal is said
+once, and the test fences the *count*.
+
+### What I did not land, on purpose
+
+The settings-dialog rows for the two numbers. The keys and the type are in and
+`enginefacts` is green — that fence is the one that says *"a document falls back to the
+engine's defaults, field for field"*, and it caught the new fields immediately, which is
+exactly what it is for. But adding the two `numberRow`s and their labels turned
+`browserlang`'s residue fence red, and **I would not land a red suite to save a dialog
+row.**
+
+Checked before concluding that: on a **clean tree**, with every one of my changes stashed,
+`browserlang` fails the same two assertions. So they are pre-existing — `registriesGaveUp`
+and `retrySave` stand in Hebrew without being in the recorded `RESIDUE` list, **and both
+have English values in the catalogue**, which means something is rendering them Hebrew
+rather than that they are legitimate residue. Not diagnosed, and **not added to the list to
+make the fence green** — that would be the exact move #71 was closed for.
+
+Engine tests 1063 → 1069, binaries 75, clippy clean. Editor 7,849 with 2 known-red
+assertions in `browserlang` and one settings row to add.

@@ -48,6 +48,8 @@ export const DOC_DEFAULTS = {
   header: "",
   footer: "",
   reserve_overflow: "grow",
+  max_lines_warn: 100000,
+  max_lines_refuse: 500000,
 } as const;
 
 /**

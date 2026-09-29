@@ -96,6 +96,12 @@ export interface DocConfig {
    * stops with both numbers, `"flow"` keeps it and lets entries continue.
    */
   reserve_overflow: string;
+  /** The two ceilings on a `#כלול` expansion (#63). Below the soft one nothing is
+   * said; above it the document is reported and still produced; above the hard
+   * one the walk stops. The engine default applies until the editor offers a row
+   * for it — see the plan. */
+  max_lines_warn: number;
+  max_lines_refuse: number;
   /** PDF metadata. Without a title the file opens nameless in every reader. */
   title?: string;
   author?: string;

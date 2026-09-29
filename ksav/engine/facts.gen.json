@@ -39,7 +39,9 @@
     "header": "",
     "footer": "",
     "notes_region_cm": null,
-    "reserve_overflow": "grow"
+    "reserve_overflow": "grow",
+    "max_lines_warn": 100000.0,
+    "max_lines_refuse": 500000.0
   },
   "commands": [
     {

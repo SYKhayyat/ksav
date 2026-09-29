@@ -36,7 +36,7 @@ fn runs(main: &str, parts: &[(&str, &str)]) -> Vec<probe::TextRun> {
         .iter()
         .map(|(n, b)| ((*n).to_string(), (*b).to_string()))
         .collect();
-    let whole = include::expand(main, &map);
+    let whole = include::expand(main, &map, include::Limits::default());
     let doc = probe::layout(&whole.text, &DocConfig::default())
         .unwrap_or_else(|d| panic!("the sefer did not compile: {d:?}"));
     probe::text_runs(&doc)

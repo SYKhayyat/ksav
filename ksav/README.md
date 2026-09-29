@@ -803,8 +803,8 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 7,849 assertions across 112 files |
-| `engine` | both | formatting, lints, then 1063 tests across 75 binaries |
+| `editor` | both | the typechecker, then 7,851 assertions across 112 files |
+| `engine` | both | formatting, lints, then 1069 tests across 75 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 

@@ -192,6 +192,29 @@ still right.
   it now names the spec as written and lists what **is** bundled. (from #67)
 
 ## Phase 4 — Mediums (engine quality)
+- [x] #63 include diamond re-expansion. (from #63) — **A budget somebody chose, in two
+  limits, and it is a setting.** The exponential is real (2^depth, and the cycle guard
+  cannot see it because the first inclusion is popped before the second is looked at) but
+  **memoizing would have been the wrong fix**: the writer asked for 128 copies, so the
+  flat output has to hold 128 copies, and memoizing saves only the re-walk. What was
+  missing was that **nothing bounded the total** — one 200KB part included 128 times
+  measured **25.6M lines in 15.9s**, silently. Now `max_lines_warn` (100,000, **reports
+  and still lays out**) and `max_lines_refuse` (500,000, **stops the walk at the limit**),
+  both settable, read through `clamped` so an out-of-range value is reported like every
+  other number, and made coherent with each other. `MAX_DEPTH` stays as the shape
+  backstop and is now a *different kind of thing* from the budget.
+  **Remaining, and both small:** the settings-dialog rows for the two numbers
+  (the keys and the type are in; the two `numberRow`s and their labels are not,
+  because adding them turned `browserlang`'s residue fence red and I would not
+  land a red suite to save a dialog row). And **a pre-existing red fence**:
+  `app/test/browserlang.test.mjs` fails 2 assertions on a clean tree —
+  `registriesGaveUp` and `retrySave` stand in Hebrew without being in the
+  recorded `RESIDUE` list, **and both have English values in the catalogue**, so
+  the honest reading is that something is rendering them Hebrew, not that they
+  are legitimate residue. Not diagnosed, not papered over.
+  **Bonus, pre-existing and not small:** a depth-9 diamond produced **~300 identical**
+  "nested too deeply" messages, because the refusal was pushed once per inclusion path and
+  nothing deduplicated it. One mistake, one sentence. (from #63)
 - [ ] #62 tokenizer quadratic,  #60 undecodable assets, #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
 - [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port, #21 styles walkers onto walkArgs.
 - [ ] #7 keyed updates (5× replaceChildren).

@@ -266,6 +266,22 @@ pub struct DocConfig {
     /// needs the walk to cap at the strip and comes with the overflow-ladder
     /// work.)
     pub reserve_overflow: String,
+    /// The two ceilings on an `#כלול` expansion (#63).
+    ///
+    /// **Two, not one, because they answer different questions.** A part included
+    /// 128 times is 128 copies, and the copies are *correct* — the writer asked
+    /// for them. What is not correct is that nothing bounded the total: one 200KB
+    /// part pulled in 128 times measured **25.6 million lines in 15.9 seconds**
+    /// with no error and nothing refused. So this is a budget somebody chose,
+    /// where `MAX_DEPTH` was a cap that fell out of the recursion.
+    ///
+    /// The soft one tells the writer while the document is still worth laying
+    /// out; the hard one stops the walk, because past a point there is nothing
+    /// left to warn about. Defaults: 100,000 and 500,000 — a chumash is ~30,000
+    /// lines and a Vilna Shas ~500,000, and 500,000 lays out in roughly a third
+    /// of a second, which is the number that matters for a 59ms editor.
+    pub max_lines_warn: f64,
+    pub max_lines_refuse: f64,
 }
 
 /// Commands whose notes render into the page *footer* rather than expanding the
@@ -962,6 +978,8 @@ impl Default for DocConfig {
             footer: String::new(),
             notes_region_cm: None,
             reserve_overflow: "grow".to_string(),
+            max_lines_warn: include::Limits::default().warn as f64,
+            max_lines_refuse: include::Limits::default().refuse as f64,
         }
     }
 }
@@ -1206,6 +1224,29 @@ impl DocConfig {
         }
         if let Some(p) = v.get("reserve_overflow").and_then(|x| x.as_str()) {
             cfg.reserve_overflow = p.to_string();
+        }
+        // Read through `clamped` like every other number, so a value outside the
+        // range is **reported** rather than quietly used — which is the whole of
+        // #15, and a cap nobody was told about is a cap that did not happen.
+        //
+        // The pair is then made coherent. A document asking to be *refused*
+        // earlier than it is *warned* about has asked for two contradictory
+        // things, and the honest resolution is the nearest coherent one plus a
+        // sentence: the soft limit is the one the writer will actually read.
+        if let Some(n) = clamped(&mut cfg, v, "max_lines_warn", 1_000.0, 100_000_000.0) {
+            cfg.max_lines_warn = n;
+        }
+        if let Some(n) = clamped(&mut cfg, v, "max_lines_refuse", 1_000.0, 100_000_000.0) {
+            cfg.max_lines_refuse = n;
+        }
+        if cfg.max_lines_refuse < cfg.max_lines_warn {
+            let asked = cfg.max_lines_refuse;
+            cfg.max_lines_refuse = cfg.max_lines_warn;
+            cfg.refusals.push(Refusal {
+                key: "max_lines_refuse".into(),
+                asked,
+                used: cfg.max_lines_refuse,
+            });
         }
         // Per-edge margins are clamped on the same range as the uniform one, and
         // stay `None` when absent — an absent edge means "use margin_cm", which
@@ -3130,7 +3171,13 @@ fn read_document(input_json: &str) -> Result<DocumentRequest, Unreadable> {
     // the chapter it belongs to rather than a line number in a concatenation that
     // exists nowhere. A request with no `parts` expands to itself, at no cost.
     let parts = include::from_request(&v);
-    let expanded = include::expand(body, &parts, include::Limits::default());
+    // The writer's own budget, not the default one: the whole point of the setting
+    // is that a sefer with a genuinely large apparatus can raise it.
+    let limits = include::Limits {
+        warn: cfg.max_lines_warn.max(1.0) as usize,
+        refuse: cfg.max_lines_refuse.max(1.0) as usize,
+    };
+    let expanded = include::expand(body, &parts, limits);
     Ok(DocumentRequest { v, expanded, cfg })
 }
 

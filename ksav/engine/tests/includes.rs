@@ -7,6 +7,8 @@
 //! letting Typst's `include` do it.
 
 use serde_json::{json, Value};
+use std::collections::HashMap;
+use ksav_engine::include;
 
 fn compile(request: Value) -> Value {
     serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap()
@@ -189,7 +191,7 @@ fn a_chapter_name_cannot_become_typst() {
         // different bug, and asserting on it would be testing the wrong string.
         let mut parts = std::collections::HashMap::new();
         let body = format!("לפני\n#כלול({})\nאחרי", ksav_engine::escape::string_literal(name));
-        let expanded = ksav_engine::include::expand(&body, &mut parts).text;
+        let expanded = ksav_engine::include::expand(&body, &mut parts, ksav_engine::include::Limits::default()).text;
 
         // The marker is one call, and its *whole* body is the escaped name — said
         // as equality rather than as a search, because the escaped form contains
@@ -240,7 +242,7 @@ fn the_missing_chapter_marker_escapes_every_markup_character() {
         .map(|c| c.to_string())
         .collect::<String>();
     let body = format!("#כלול({})\n", ksav_engine::escape::string_literal(&hostile));
-    let expanded = ksav_engine::include::expand(&body, &mut parts).text;
+    let expanded = ksav_engine::include::expand(&body, &mut parts, ksav_engine::include::Limits::default()).text;
 
     for c in ksav_engine::escape::MARKUP {
         assert!(
@@ -249,4 +251,131 @@ fn the_missing_chapter_marker_escapes_every_markup_character() {
             expanded
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// #63 — a budget somebody chose, because nothing bounded the total
+// ---------------------------------------------------------------------------
+
+/// A diamond, in the simplest form there is: the same part included twice.
+///
+/// The cycle guard cannot see it, and that is worth stating rather than
+/// discovering: the guard refuses a name **already open on the stack**, and the
+/// first inclusion is pushed *and popped* before the second is looked at, so the
+/// name is on the stack neither time.
+fn diamond(depth: usize, leaf_lines: usize) -> (String, HashMap<String, String>) {
+    let mut parts: HashMap<String, String> = HashMap::new();
+    parts.insert(
+        "leaf".into(),
+        (0..leaf_lines).map(|i| format!("שורה {i}\n")).collect(),
+    );
+    for d in (0..depth).rev() {
+        let next = if d == depth - 1 { "leaf".into() } else { format!("p{}", d + 1) };
+        parts.insert(format!("p{d}"), format!("#כלול(\"{next}\")\n#כלול(\"{next}\")\n"));
+    }
+    ("#כלול(\"p0\")\n".into(), parts)
+}
+
+/// Above the soft limit the expansion is **reported and still completes**.
+///
+/// 128 copies of a part is what the writer asked for, so the copies stay. The
+/// soft limit exists to tell somebody while the document is still worth
+/// laying out — not to silently give them a different document.
+#[test]
+fn the_soft_limit_warns_and_still_produces_the_document() {
+    let (main, parts) = diamond(7, 2_000);
+    let out = ksav_engine::include::expand(&main, &parts, ksav_engine::include::Limits { warn: 100_000, refuse: 500_000 });
+    assert!(
+        out.text.lines().count() > 100_000,
+        "the fixture did not pass the soft limit: {}",
+        out.text.lines().count()
+    );
+    assert_eq!(out.problems.len(), 1, "expected one warning: {:?}", out.problems);
+    assert!(
+        out.problems[0].contains("may be slow"),
+        "the problem does not say the document may be slow: {:?}",
+        out.problems[0]
+    );
+}
+
+/// Above the hard limit the walk **stops**, at the limit and not past it.
+///
+/// Measured: one 200KB part included 128 times produced 25.6 million lines in
+/// 15.9 seconds. Refusing is not a policy about taste there — there is nothing
+/// left to lay out.
+#[test]
+fn the_hard_limit_stops_the_walk_at_the_limit() {
+    let (main, parts) = diamond(7, 20_000);
+    let out = ksav_engine::include::expand(&main, &parts, ksav_engine::include::Limits { warn: 100_000, refuse: 500_000 });
+    assert_eq!(
+        out.text.lines().count(),
+        500_000,
+        "the walk did not stop exactly at the limit"
+    );
+    assert_eq!(out.problems.len(), 2, "a warning and a stop: {:?}", out.problems);
+    assert!(
+        out.problems.iter().any(|p| p.contains("stopped")),
+        "nothing said the expansion stopped: {:?}",
+        out.problems
+    );
+}
+
+/// **A writer who raises the budget gets the document.** The setting is the
+/// point; a cap nobody can move is a cap that did not happen.
+#[test]
+fn a_raised_budget_produces_the_whole_document() {
+    let (main, parts) = diamond(7, 20_000);
+    let out = ksav_engine::include::expand(
+        &main,
+        &parts,
+        ksav_engine::include::Limits { warn: 40_000_000, refuse: 80_000_000 },
+    );
+    assert_eq!(out.text.lines().count(), 2_560_000);
+    assert!(out.problems.is_empty(), "a raised budget still complained: {:?}", out.problems);
+}
+
+/// An ordinary document is untouched: no budget, no problems.
+#[test]
+fn an_ordinary_document_says_nothing() {
+    let (main, parts) = diamond(3, 10);
+    let out = ksav_engine::include::expand(&main, &parts, ksav_engine::include::Limits::default());
+    assert!(out.problems.is_empty(), "an ordinary document was warned: {:?}", out.problems);
+    assert_eq!(out.text.lines().count(), 80);
+}
+
+/// **One mistake, one sentence** — found by the budget work, and pre-existing.
+///
+/// A depth-9 chain of diamonds hit `MAX_DEPTH` along 2^8 distinct paths and
+/// produced about **three hundred identical** "includes nested too deeply"
+/// messages. A writer scrolling a list that says the same thing three hundred
+/// times learns nothing and scrolls past the one that mattered.
+#[test]
+fn a_refusal_named_once_is_reported_once_however_many_paths_reach_it() {
+    let (main, parts) = diamond(9, 10);
+    let out = ksav_engine::include::expand(&main, &parts, ksav_engine::include::Limits::default());
+    assert!(
+        out.text.lines().count() >= 256,
+        "the deep fixture did not expand at all: {}",
+        out.text.lines().count()
+    );
+    let deep: Vec<&String> = out
+        .problems
+        .iter()
+        .filter(|p| p.contains("nested deeper"))
+        .collect();
+    assert_eq!(
+        deep.len(),
+        1,
+        "one depth refusal was reported {} times: {:?}",
+        deep.len(),
+        out.problems
+    );
+}
+
+/// The defaults are the ones the doc comment claims, and they are ordered.
+#[test]
+fn the_default_budget_is_ordered_and_documented() {
+    let d = ksav_engine::include::Limits::default();
+    assert!(d.warn < d.refuse, "the soft limit is not below the hard one");
+    assert_eq!((d.warn, d.refuse), (100_000, 500_000));
 }

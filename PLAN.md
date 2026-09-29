@@ -106,18 +106,17 @@ still right.
   means a sefer is one file forever. Proposal: `packages_root()` a second time, per
   sefer. **Cheap half first:** `@local` alone in the `app_data_dir()` that already holds
   the dictionary. Decision, not a task — autosave, `git.rs` and the file tree all move. (from #15)
-- [ ] #77 **n independent flows, each continuing into the same position on the next
-  page** — the missing layout primitive, and a *product decision* rather than a task.
-  Almost all of the wish is already built (side notes beside the source at body size,
-  named streams, `#טורים_בלוק(n)` dividing a page into n bands, boxes that flow
-  cleanly, boxes with no fill). What is missing is *independence*: everything is **one
-  flow filling regions in order**, and Typst 0.15 has no `Flow` element, so this is not
-  a syntax problem. Rendered, not inferred — `#grid(rows: 2)` over two 400-line streams
-  gives page 1 all A, then B starting at the *bottom* of page 2. **The anchor already
-  exists** (a note knows its line, or it could not reach the right page's box) and is
-  discarded after choosing the page. The fair question is not *how do we get meander* but
-  ***do we want a Vilna-style page at all*** — `meander` entered this thread through
-  #15's misdiagnosis, and the decision it implies has never been made. (from #15)
+- [~] #77 parallel streams — **decided (build it) and mostly already built.**
+  `הגדרות_זרמים(פריסה: "צד")` is side-by-side, a column per stream, with a
+  per-stream `טורים` count, and measured over seven pages each stream **keeps its column
+  on every page** with its content flowing through it — which *is* #77's requirement.
+  Two gaps remain, both small and both extensions of that apparatus rather than a new
+  one: **arbitrary content** in a stream (`הערה_זרם` is a *note* command, and the original
+  question said "not just notes"), and **where streams live** (the apparatus is the
+  read-only footer; a stream in the page body is unverified). `examples/streams.rs` proves
+  the architecture by laying each stream out as its own band-sized document and zipping
+  the pages by index — and **duplicates what `פריסה: "צד"` already does**, so it stays as
+  evidence and must not become a second mechanism. (from #15)
 - [ ] #73 bundle real Typst libraries, starting with `meander`. #67 made it possible for
   the first time; #70 has now **removed the main reason** (they thread cleanly). What
   remains is the uncomfortable one: page-breaking is what a typesetting app most needs

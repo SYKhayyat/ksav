@@ -2275,3 +2275,77 @@ block is a warning nobody reads, and an unsplittable block that fits is a legal 
 so silence is the correct answer rather than an omission.
 
 Engine tests 1061 → 1063, binaries 75. Editor assertions 7,849.
+
+---
+
+## 2026-09-28 · #77 — the decision was to build it, and it turns out it is built
+
+### "Lets build the possibility. the user should be able to do it if he wants."
+
+So #77 stopped being a question. The shape is now construction, and the measurements
+already settled three things about it: Typst 0.15 has no `Flow` element so this is
+Ksav's work; `#grid`/`#cols` are one flow filling regions in order so a compositor over
+one flow cannot do it; and Ksav already compiles one source into two documents with the
+boundary coming for free.
+
+The construction I had in mind: **each stream is laid out as its own document whose page
+*is the band*, and the per-stream pages are zipped onto sheets by index.** The appeal is
+that the requirement — *a flow continues into the same position on the next page* — is
+not something a page-breaking algorithm has to achieve. Stream A laid out alone produces
+A/1, A/2, A/3 as ordinary pages; the zip puts A/2 in A's band on sheet 2. Nothing is
+threaded, so nothing can mis-thread.
+
+`examples/streams.rs` does it. Three streams, six band-pages, rendered and looked at:
+`מקור` exhausted so its band is nearly empty while `פירוש` and `מערה` both continue, in
+the bands they held on the previous sheet. The cost is real and printed rather than
+assumed: **N streams is N layouts of the same source**, and this is a 59ms editor.
+
+### And then I read Ksav's own prelude instead of only Typst's
+
+```typst
+#הגדרות_זרמים(זרמים: ("תוכן", "מקורות"), פריסה: "צד")
+```
+
+**`פריסה: "צד"` is side by side, a column per stream**, and the same command carries
+`טורים` — a per-stream column count. Measured, two streams of 60 notes each, across
+seven pages:
+
+    p1  תוכן x=509.4   מקורות x=263.4
+    p2  תוכן x=507.3   מקורות x=261.2
+    p3  תוכן x=506.9   מקורות x=260.9
+    ...
+    p7  תוכן x=506.8   מקורות x=260.8
+
+**Each stream keeps its column on every page and its content flows continuously through
+it.** That is #77's requirement, measured and working, in the product today.
+
+### The same mistake, for the seventh time, and the largest one yet
+
+I measured **Typst** — `#grid`, `#cols`, the absence of a `Flow` element — and concluded
+"not possible, this is Ksav's work". **I never opened `הגדרות_זרמים`.** The conclusion
+was true of Typst and irrelevant to Ksav, and the gap between the two is the entire
+product.
+
+#76 I measured a Rust field instead of `from_json`. This time I measured the language
+underneath instead of the product above it. Both times the number was right and the
+question was mine. **The two failures are the same failure**: reaching for the thing that
+is easy to measure instead of the thing the question is about.
+
+### What the build actually is now
+
+Already there: named streams, side-by-side placement, a column per stream, per-stream
+column counts, numbering and headings, and each stream holding its band on every page.
+
+Genuinely open, and small: **arbitrary content** in a stream — `הערה_זרם` is a *note*
+command, and the original question said *not just notes* — and **where the streams
+live**, since the apparatus is the read-only footer and the question is whether a stream
+can occupy the page body.
+
+Both are extensions of an existing apparatus with an existing vocabulary. That is the
+difference between a feature and a competitor.
+
+The probe stays as evidence and **must not become a second mechanism**: two ways to do
+one thing is how a product grows a setting nobody can find. It also caught its own bug —
+the first render clipped every band on the right edge, because `probe::layout_plain`
+takes no config and laid each stream out at A4 before cropping. The numbers said three
+streams of one page each; the picture said the bands were the wrong shape.

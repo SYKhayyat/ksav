@@ -3130,7 +3130,7 @@ fn read_document(input_json: &str) -> Result<DocumentRequest, Unreadable> {
     // the chapter it belongs to rather than a line number in a concatenation that
     // exists nowhere. A request with no `parts` expands to itself, at no cost.
     let parts = include::from_request(&v);
-    let expanded = include::expand(body, &parts);
+    let expanded = include::expand(body, &parts, include::Limits::default());
     Ok(DocumentRequest { v, expanded, cfg })
 }
 

@@ -95,6 +95,48 @@ impl Expanded {
 /// backstop, not the mechanism.
 const MAX_DEPTH: usize = 8;
 
+/// The two ceilings on an expanded document (#63).
+///
+/// **Two, and not one, because they answer different questions.** The soft limit
+/// exists so a writer is *told* while the document is still worth laying out; the
+/// hard limit exists because past a point there is nothing to warn about — 25.6
+/// million lines took 15.9 seconds, so refusing is not a policy about taste, it
+/// is the only honest answer to a document that cannot be laid out at all.
+///
+/// `MAX_DEPTH` is not this. It bounds the *shape* (2^8 copies) as a by-product of
+/// the recursion, which is why a depth-7 chain multiplied a 200KB part into
+/// 25.6 million lines while sitting comfortably inside it. A budget somebody chose
+/// is a different kind of thing from a cap that fell out of a loop.
+#[derive(Clone, Copy, Debug)]
+pub struct Limits {
+    /// Above this, the expansion is reported and still completes.
+    pub warn: usize,
+    /// Above this, the expansion stops.
+    pub refuse: usize,
+}
+
+impl Default for Limits {
+    /// 100,000 lines of expanded text, and 500,000.
+    ///
+    /// A chumash is around 30,000 and a Vilna Shas around 500,000, so the soft
+    /// limit is a genuinely large sefer and the hard one is the edge of a real
+    /// one. From the measured table: 256,000 lines laid out in 355ms and
+    /// 2,560,000 in 1.5s, so **500,000 is already around a third of a second** —
+    /// which is the number that matters, because the editor is 59ms from a
+    /// keystroke and anything past that stops being interactive whatever the
+    /// document says.
+    fn default() -> Self {
+        Limits { warn: 100_000, refuse: 500_000 }
+    }
+}
+
+impl Limits {
+    /// A pair that never fires, for a caller that has no configuration.
+    pub fn unlimited() -> Self {
+        Limits { warn: usize::MAX, refuse: usize::MAX }
+    }
+}
+
 /// Is this line an inclusion directive, and of what?
 ///
 /// Both spellings, because every command in Ksav has an English alias and a
@@ -143,7 +185,7 @@ pub fn referenced(body: &str) -> Vec<String> {
 }
 
 /// Expand every inclusion, recording where each resulting line came from.
-pub fn expand(main: &str, parts: &HashMap<String, String>) -> Expanded {
+pub fn expand(main: &str, parts: &HashMap<String, String>, limits: Limits) -> Expanded {
     // A body with no `#כלול` in it is not expanded at all.
     //
     // The doc comment on `read_document` said *"a request with no `parts`
@@ -187,7 +229,8 @@ pub fn expand(main: &str, parts: &HashMap<String, String>) -> Expanded {
         ..Expanded::default()
     };
     let mut stack: Vec<String> = Vec::new();
-    expand_into(main, None, parts, &mut stack, 0, &mut out);
+    let mut walk = Walk { limits, warned: false, stopped: false };
+    expand_into(main, None, parts, &mut stack, 0, &mut out, &mut walk);
     // The map is what everything downstream indexes by, so it has to agree with
     // the text exactly. `push_line` terminates each line rather than separating
     // them, which makes the count of `lines()` the count of pushes for every
@@ -197,6 +240,14 @@ pub fn expand(main: &str, parts: &HashMap<String, String>) -> Expanded {
     out
 }
 
+/// State carried through the recursive walk, so the budget is enforced once and
+/// reported once without a string sentinel and without counting a string.
+struct Walk {
+    limits: Limits,
+    warned: bool,
+    stopped: bool,
+}
+
 fn expand_into(
     body: &str,
     file: Option<&str>,
@@ -204,8 +255,38 @@ fn expand_into(
     stack: &mut Vec<String>,
     depth: usize,
     out: &mut Expanded,
+    walk: &mut Walk,
 ) {
+    // `origins.len()` is the line count and is O(1). The obvious
+    // `out.text.lines().count()` in this position is **O(n) per line**, which
+    // makes the walk O(n²) — and the walk is the thing the budget exists to
+    // keep affordable, so a budget that quadrupled its own cost would be a
+    // wonderful joke. The `debug_assert_eq!` in `push_line` already states that
+    // the two agree.
     for (i, line) in body.lines().enumerate() {
+        // Checked **before** the line, and returning rather than skipping: an
+        // expansion past its ceiling must stop recursing, not merely stop
+        // emitting. Continuing to walk to discover there is more would be the
+        // expensive half.
+        if out.origins.len() >= walk.limits.refuse {
+            if !walk.stopped {
+                walk.stopped = true;
+                out.problems.push(format!(
+                    "הרחבה נעצרה ב-{} שורות — הגבלת הקובץ עברה · \
+                     expansion stopped at {} lines — the include limit was passed",
+                    walk.limits.refuse, walk.limits.refuse
+                ));
+            }
+            return;
+        }
+        if out.origins.len() >= walk.limits.warn && !walk.warned {
+            walk.warned = true;
+            out.problems.push(format!(
+                "הרחבה עברה את {}-{} השורות — המסמך עלול להיות איטי · \
+                 the expansion passed {}-{} lines — this document may be slow",
+                walk.limits.warn, walk.limits.refuse, walk.limits.warn, walk.limits.refuse
+            ));
+        }
         let here = Origin {
             file: file.map(str::to_string),
             line: i + 1,
@@ -243,7 +324,7 @@ fn expand_into(
             continue;
         };
         stack.push(name.to_string());
-        expand_into(part, Some(name), parts, stack, depth + 1, out);
+        expand_into(part, Some(name), parts, stack, depth + 1, out, walk);
         stack.pop();
     }
 }

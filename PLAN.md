@@ -116,6 +116,16 @@ still right.
   `examples/streams.rs` proves the architecture — each stream its own band-sized document,
   pages zipped by index — and **duplicates what `פריסה: "צד"` does**, so it is evidence
   and must not become a second mechanism. (from #15)
+- [ ] #80 **reledmac + reledpar** for Hebrew RTL text-critical editions — forwarded
+  research, **unverified, and a different shape from #73**. It is LaTeX, and #67's
+  resolver takes Typst packages only, so this is not "bundle a dependency" but *read it
+  for the knowledge* / *adopt a second engine* / *nothing*. The multi-stream half is
+  **already answered** — `הגדרות_זרמים(פריסה: "צד")` keeps each stream in its column across
+  pages — so the only scope worth a sprint is the text-critical half: lemmata, line
+  numbers, and **several independent footnote registers on one page** (the forwarded
+  "Bug C" is the most transferable claim in the set). The forwarded verdict, "the only
+  system capable of handling it", is a claim of exactly the kind this repository measures
+  first. (from #80)
 - [ ] #73 bundle real Typst libraries, starting with `meander`. #67 made it possible for
   the first time; #70 has now **removed the main reason** (they thread cleanly). What
   remains is the uncomfortable one: page-breaking is what a typesetting app most needs

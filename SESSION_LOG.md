@@ -2168,3 +2168,59 @@ later change to the rule cannot pass by making the refusal quieter.
 
 Engine tests 1050 → 1055, binaries 75. Editor assertions 7,849 — and the documentation
 fence caught the stale count before I looked for it, which is what it is for.
+
+---
+
+## 2026-09-28 · #75 — the `#` was the character that was right
+
+### The message told a correct character it was wrong
+
+Typst 0.15 dropped the bare hex colour literal, so `#eef3ff` fails with *"the character
+`#` is not valid in code"*. The translation answered it with the sentence for a missing
+space, an unclosed bracket, or a literal hash in prose. The writer has typed the obvious
+thing for twenty years and been told they have mistyped it.
+
+**The line had to be consulted, because the raw error cannot tell the two apart.** A
+removed colour and a genuine stray `#` produce byte-identical Typst text. So `rephrase`
+now takes the offending line and looks for a `#` followed by 3, 4, 6 or 8 hex digits.
+A `#` before Hebrew, a space or a bracket is a real syntax error and still gets the real
+sentence — which is the half that keeps the fix honest, and the half that would be
+easiest to break by accident.
+
+### Two things I got wrong inside the fix
+
+**The helper never fired.** I wrote it as "try 8, then 6, then 4, then 3, give up after
+the first fails". For `#eef3ff` the 8-character window is `eef3ff)[`, which is not all
+hex digits, so the helper failed on 8, **broke**, and never tried 6. Taken as the
+maximal hex run and then checked against the legal lengths, it is right immediately.
+The lesson is the one I keep re-learning and should stop re-discovering: *a loop that
+gives up on the first attempt is a loop that only ever tests the first case.*
+
+**A false positive that looked like a success.** `#1234zz` has a hex run of 4, so it
+matched, and the message said *"write `rgb("#1234")`"* — advice that **cannot work**,
+because `rgb("#1234zz")` is not a colour either. The run is a colour only if the token
+is *delimited*: nothing alphanumeric or `_` may follow it. With that, `#eef3ff)` and
+`#eef3ff\n` match and `#1234zz` and `#eef3ff_x` do not.
+
+### One mistake is one message
+
+`#block(fill: #eef3ff)` produced **two** errors: the real one, and then *"there is a
+comma missing between two arguments"* — the parser recovering from the first and
+blaming the punctuation around the hole it left. That second one is advice a writer can
+act on and cannot fix, and it arrives *after* the sentence that already explains
+everything, so it reads as a second problem where there is one.
+
+Suppressed, tested on Typst's **raw** text rather than our translated message (`expected
+comma` is the engine's wording and is not translated), and only for a comma on a line
+that already reported a colour — so a genuine missing comma on a line that happens to
+contain a colour survives.
+
+### Gates
+
+Six tests. Two of them are about what must **not** fire, which is the honest half: a
+stray `#` still gets the syntax sentence, a hex run inside a word is not a colour, and a
+colour on line 1 is not blamed for an error on line 2 — that last one needed a helper
+that filters diagnostics *by line*, because several tests here are about not blaming the
+wrong line.
+
+Engine tests 1055 → 1061, binaries 75. Editor assertions 7,849.

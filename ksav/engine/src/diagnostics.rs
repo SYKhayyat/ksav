@@ -194,6 +194,21 @@ pub fn body_offset_of(main: &str, body: &str) -> usize {
 }
 
 /// 1-based line and character column of a byte offset inside `text`.
+/// The single line of the writer's own text that a byte offset falls in.
+///
+/// The diagnostics layer already knows the line as a number; this is the same
+/// thing as *text*, and it is what lets `rephrase` tell a removed syntax from a
+/// genuine mistake of the same shape. Bounded by the newline either side, and
+/// `None` when the offset is not in the body at all.
+fn line_text_of(body: &str, at: usize) -> Option<&str> {
+    if at > body.len() {
+        return None;
+    }
+    let start = body[..at].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let end = body[at..].find('\n').map(|i| at + i).unwrap_or(body.len());
+    Some(&body[start..end])
+}
+
 fn line_column(text: &str, byte: usize) -> (usize, usize) {
     let upto = &text[..byte.min(text.len())];
     let line = upto.matches('\n').count() + 1;
@@ -314,6 +329,39 @@ pub(crate) fn body_byte_of(span: Span, main: &Source, body_offset: usize) -> Opt
 /// `Tracepoint::Call(name)` also carries the function's name, which is a better
 /// answer to *which command was this about* than reading the text backwards —
 /// so the text scan is only the fallback.
+/// A `#` followed by something that used to be a colour, on this line.
+///
+/// **3, 4, 6 and 8 digits, and the match has to stop there.** `#eef3ff` and
+/// `#fff` are colours; `#1234zz` is not, and treating it as one would send a
+/// writer looking for a colour they never meant. Requiring the token to end is
+/// also what stops `#eef3fff` from being reported as a shorter colour, and it is
+/// what keeps a `#` in prose — followed by a space, a bracket, or Hebrew — from
+/// ever matching.
+fn bare_hex_after_hash(line: &str) -> Option<&str> {
+    let mut found: Option<&str> = None;
+    for (i, _) in line.match_indices('#') {
+        let after = &line[i + 1..];
+        let run = after.bytes().take_while(u8::is_ascii_hexdigit).count();
+        // **The maximal run, it must be a length a colour can be, and the token
+        // must be *delimited*.** The first version tried 8, then 6, then 4, then
+        // 3 and gave up after the first length failed, so `#eef3ff` — whose
+        // 8-character window is `eef3ff)[` — matched nothing and the branch
+        // never fired. Taking the run first gets the length right.
+        //
+        // The delimiter is the other half, and it is what stops a **false**
+        // answer. `#1234zz` has a hex run of 4 and so looked like a colour, and
+        // the message it produced was *"write rgb("#1234")"* — advice that
+        // cannot work, because `rgb("#1234zz")` is not a colour either. The run
+        // is a colour only if what follows it is not part of a word.
+        if matches!(run, 3 | 4 | 6 | 8)
+            && !after[run..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
+        {
+            found = Some(&after[..run]);
+        }
+    }
+    found
+}
+
 /// The `@namespace/name:version` a *file not found* message was really about.
 ///
 /// Typst reports a missing package with the directory it searched, in its own
@@ -823,7 +871,7 @@ struct Said {
 }
 
 /// Rephrase one of Typst's messages, or say nothing and let the raw text stand.
-fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
+fn rephrase(raw: &str, about_from_span: Option<String>, line_text: Option<&str>) -> Said {
     let lower = raw.to_lowercase();
     let mut about = about_from_span;
     let mut did_you_mean = None;
@@ -996,6 +1044,29 @@ fn rephrase(raw: &str, about_from_span: Option<String>) -> Said {
          Too many levels of nesting at once (a Typst safety limit) — try simplifying the structure"
             .to_string()
     } else if lower.contains("not valid in code") || lower.contains("preceding hash") {
+        // **A removed syntax is not a missing space.** Typst 0.15 dropped the
+        // bare hex colour literal, so `#eef3ff` now fails with *"the character `#`
+        // is not valid in code"* — and this branch answered it with advice about
+        // a missing space, an unclosed bracket, or a literal hash in prose. The
+        // `#` is the one character that writer got **right**: they have written
+        // the obvious thing for twenty years and the message says they mistyped
+        // it.
+        //
+        // So the line is consulted, because the raw error is identical for a
+        // removed colour and for a genuine stray `#`, and only the line tells
+        // them apart. A `#` followed by 3, 4, 6 or 8 hex digits is a colour that
+        // used to work; a `#` followed by Hebrew, a space or a bracket is the
+        // syntax error this sentence was written for.
+        if let Some(hex) = line_text.and_then(bare_hex_after_hash) {
+            return Said {
+                message: format!(
+                    "#{hex} אינו צבע יותר — צבעים נכתבים עכשיו כ-rgb(\"#{hex}\") · \
+                     #{hex} is not a colour any more — colours are written rgb(\"#{hex}\")"
+                ),
+                about,
+                did_you_mean,
+            };
+        }
         "יש בעיה ליד סימן # — אולי חסר רווח או סוגר, או שרצית סולמית רגילה (כתבו \\#) · \
          Something's off near a # — you may be missing a space or bracket, or want a literal # (write \\#)"
             .to_string()
@@ -1165,7 +1236,7 @@ fn located(
             // The trace's own name first, because Typst recorded which function
             // was called; reading the text backwards is only the fallback.
             let about = named.or_else(|| at.and_then(|at| enclosing_command(body, at)));
-            let said = rephrase(&raw, about);
+            let said = rephrase(&raw, about, at.and_then(|at| line_text_of(body, at)));
             Diagnostic {
                 severity: severity.to_string(),
                 message: said.message,
@@ -1181,8 +1252,46 @@ fn located(
                 file: None,
             }
         })
-        .collect()
+        .collect::<Vec<_>>()
+        .pipe(drop_colour_cascades)
 }
+
+/// **One mistake, one message.**
+///
+/// `#block(fill: #eef3ff)` produced *two* errors: the real one, and then
+/// *"there is a comma missing between two arguments"* — the parser recovering
+/// from the first and blaming the punctuation around the hole it left. The
+/// second is advice a writer can act on and cannot fix, and it arrives after
+/// the sentence that already explains everything, so it reads as a second
+/// problem where there is one.
+///
+/// The test is on Typst's own `raw` text rather than on our message, because our
+/// message is translated into two languages and the raw text is not: `expected
+/// comma` is the engine's wording, and the line is checked against the writer's
+/// own line so a genuine missing comma on a line that also has a colour survives.
+fn drop_colour_cascades(mut ds: Vec<Diagnostic>) -> Vec<Diagnostic> {
+    let hex_lines: Vec<usize> = ds
+        .iter()
+        .filter(|d| d.raw.contains("not valid in code"))
+        .filter_map(|d| d.line)
+        .collect();
+    if hex_lines.is_empty() {
+        return ds;
+    }
+    ds.retain(|d| {
+        let is_comma = d.raw.contains("expected comma");
+        !(is_comma && d.line.map(|l| hex_lines.contains(&l)).unwrap_or(false))
+    });
+    ds
+}
+
+/// `x.pipe(f)` — the shape this file already reads in, without a dependency.
+trait Pipe: Sized {
+    fn pipe<F: FnOnce(Self) -> Self>(self, f: F) -> Self {
+        f(self)
+    }
+}
+impl<T> Pipe for T {}
 
 #[cfg(test)]
 mod tests {
@@ -1227,7 +1336,7 @@ mod tests {
     #[test]
     fn typsts_type_names_are_replaced_and_not_merely_shortened() {
         let raw = "expected auto, relative length, fraction, integer, or array, found string";
-        let said = rephrase(raw, Some("#טבלה".into()));
+        let said = rephrase(raw, Some("#טבלה".into()), None);
         for leak in [
             "relative length",
             "fraction",
@@ -1272,7 +1381,7 @@ mod tests {
 
     #[test]
     fn an_unknown_command_is_answered_with_the_nearest_real_one() {
-        let said = rephrase("unknown variable: הדגשא", None);
+        let said = rephrase("unknown variable: הדגשא", None, None);
         assert_eq!(said.about.as_deref(), Some("#הדגשא"));
         assert_eq!(said.did_you_mean.as_deref(), Some("#הדגשה"));
         assert!(said.message.contains("#הדגשה"), "{}", said.message);
@@ -1281,7 +1390,7 @@ mod tests {
 
     #[test]
     fn an_unknown_command_with_no_near_match_says_where_to_define_it() {
-        let said = rephrase("unknown variable: qqqqqqqqqq", None);
+        let said = rephrase("unknown variable: qqqqqqqqqq", None, None);
         assert_eq!(said.did_you_mean, None);
         assert!(said.message.contains("הפקודות שלי"), "{}", said.message);
     }
@@ -1332,7 +1441,7 @@ mod tests {
             "file not found (searched at x.png)",
         ];
         for raw in raws {
-            let said = rephrase(raw, None);
+            let said = rephrase(raw, None, None);
             assert!(
                 said.message.chars().any(is_hebrew),
                 "no Hebrew in `{raw}`: {}",
@@ -1348,7 +1457,7 @@ mod tests {
 
     #[test]
     fn an_unrecognised_message_is_kept_rather_than_swallowed() {
-        let said = rephrase("something nobody has ever seen", None);
+        let said = rephrase("something nobody has ever seen", None, None);
         assert_eq!(said.message, "something nobody has ever seen");
     }
 
@@ -1613,6 +1722,113 @@ mod end_to_end {
     //! even though a 900-line prelude sits in front of it.
 
     use crate::{compile, DocConfig};
+
+    // ---------------------------------------------------------------- #75
+    // A removed syntax is not a typo, and the `#` is the character that was right.
+
+    /// The message names the change and gives the working form.
+    #[test]
+    fn a_bare_hex_colour_is_told_what_to_write_instead() {
+        let said = only("#block(fill: #eef3ff)[טקסט]").message;
+        assert!(
+            said.contains("rgb("),
+            "the message does not give the form that works: {said}"
+        );
+        assert!(
+            said.contains("not a colour any more"),
+            "the message does not say the syntax changed: {said}"
+        );
+        assert!(
+            !said.contains("missing a space or bracket"),
+            "the old advice about a space is still being given: {said}"
+        );
+    }
+
+    /// **The old sentence is still correct for a real syntax error**, and this
+    /// is the half that keeps the fix honest. `#` in prose, or before Hebrew, is
+    /// a genuine mistake and gets the genuine sentence.
+    #[test]
+    fn a_stray_hash_is_still_told_about_a_space_or_a_bracket() {
+        let said = only("#שלום # עולם").message;
+        assert!(
+            !said.contains("rgb("),
+            "a stray # was told to write a colour function: {said}"
+        );
+    }
+
+    /// A hex run that is **not a delimited token** is not a colour, and telling
+    /// the writer to write `rgb("#1234")` would be advice that cannot work.
+    #[test]
+    fn a_hex_run_inside_a_word_is_not_treated_as_a_colour() {
+        for body in [
+            "#block(fill: #1234zz)[טקסט]",
+            "#block(fill: #eef3ff_x)[טקסט]",
+        ] {
+            for said in said_all(body) {
+                assert!(
+                    !said.contains("rgb("),
+                    "`{body}` was told to write a colour function: {said}"
+                );
+            }
+        }
+    }
+
+    /// Three digits is a colour, and six is the common one.
+    #[test]
+    fn every_colour_length_is_recognised() {
+        for hex in ["abc", "abcd", "eef3ff", "eef3ffaa"] {
+            let said = only(&format!("#block(fill: #{hex})[טקסט]")).message;
+            assert!(
+                said.contains(&format!("rgb(\"#{hex}\")")),
+                "the 4-character form was missed for #{hex}: {said}"
+            );
+        }
+    }
+
+    /// The line is what tells the two apart, so a colour on a **different line**
+    /// from the error must not be blamed. The hex is on line 1 and the error on
+    /// line 2, and the message must be about line 2.
+    #[test]
+    fn a_colour_elsewhere_in_the_document_is_not_the_explanation() {
+        let said = said_on("#block(fill: #eef3ff)[טקסט]\n#שלום # עולם", 2);
+        assert!(
+            !said.is_empty(),
+            "the error on line 2 was not reported at all"
+        );
+        for m in said {
+            assert!(
+                !m.contains("not a colour any more"),
+                "line 1's colour was blamed for an error on line 2: {m}"
+            );
+        }
+    }
+
+    /// `rgb()` was never broken and must not be told it was.
+    #[test]
+    fn the_working_form_still_compiles() {
+        let out = compile("#block(fill: rgb(\"#eef3ff\"))[טקסט]", &DocConfig::default());
+        assert!(out.ok, "rgb() stopped working: {:?}", out.diagnostics);
+    }
+
+    /// Every message a real compile produced, for cases where a first mistake
+    /// legitimately cascades into a second report.
+    fn said_all(body: &str) -> Vec<String> {
+        let out = compile(body, &DocConfig::default());
+        assert!(!out.ok, "expected a failed compile for `{body}`");
+        out.diagnostics.iter().map(|d| d.message.clone()).collect()
+    }
+
+    /// The message on a given 1-based line, which is what "this line, not that
+    /// one" needs — several tests here are about *not* blaming the wrong line.
+    fn said_on(body: &str, line: usize) -> Vec<String> {
+        let out = compile(body, &DocConfig::default());
+        assert!(!out.ok, "expected a failed compile for `{body}`");
+        out.diagnostics
+            .iter()
+            .filter(|d| d.line == Some(line))
+            .map(|d| d.message.clone())
+            .collect()
+    }
 
     fn only(body: &str) -> crate::Diagnostic {
         let out = compile(body, &DocConfig::default());

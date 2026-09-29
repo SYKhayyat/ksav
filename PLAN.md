@@ -84,9 +84,15 @@ still right.
   sentence #15 exists to fix. My first rule ("the second edge gives way") was wrong and
   a pre-existing fence caught it the same day: `inner 13 + outer 0` clamped the edge
   that was already 0. **The larger margin gives way.**
-- [ ] #75 a bare hex colour is refused as *"something's off near a #"* — and the `#` is
-  the one character the writer got right; Typst 0.15 wants `rgb("#eef3ff")`. Ksav's own
-  167 `insert` strings already use `rgb()`, so nobody is handed a broken example. (from #70)
+- [x] #75 a bare hex colour is refused as *"something's off near a #"*. (from #70) —
+  Fixed, and **the `#` is the one character the writer got right**: Typst 0.15 dropped
+  the bare literal, so `#eef3ff` fails with *"the character `#` is not valid in code"* and
+  the message was answering with advice about a missing space. The **line** is now
+  consulted to tell a removed syntax from a genuine stray `#`, and it had to be the
+  line: the raw error is identical for both. A hex run is only a colour if it is
+  **delimited** — `#1234zz` is not, and *"write `rgb("#1234")`"* is advice that cannot
+  work. It also produced **two** errors, the second being the parser blaming the comma
+  around the hole it left, so one mistake is now one message. (from #70)
 - [ ] #72 a sefer cannot read the disk at all, and that was never a decision. `#import
   "helper.typ"`, `read()`, absolute paths — all refused; only bundled packages resolve.
   The sandbox is *right* (`packages_root()` is a root a document cannot escape), but it

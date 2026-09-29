@@ -228,9 +228,17 @@ export function reportSaveFailure(e: unknown) {
     // because the writer needs to know their text is not being kept and the bug
     // report needs the rest.
     el("span", { class: "save-error-text", title: bad.detail }, [msg]),
-    el("button", { class: "save-error-act", type: "button", onClick: () => void saveNow() }, [
-      t("retrySave"),
-    ]),
+    // **A key, not `t("retrySave")`.** The banner is built once, when the save
+    // fails, and then lives in the DOM for as long as the problem does — so the
+    // resolved string stayed in the language it was born in. `browserlang`'s
+    // residue fence named this one specifically: it has an English value, so
+    // nothing about it is legitimately Hebrew. The *sentence* beside it is
+    // composed and has no key, and stays literal.
+    el(
+      "button",
+      { class: "save-error-act", type: "button", "data-i18n": "retrySave", onClick: () => void saveNow() },
+      [t("retrySave")],
+    ),
     el("button", { class: "save-error-act", type: "button", onClick: exportBackup }, [
       t("downloadBackup"),
     ]),

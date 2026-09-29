@@ -7871,6 +7871,12 @@ function buildSettingsDrawer(): HTMLElement {
       ["refuse", t("overflowRefuse")],
       ["flow", t("overflowFlow")],
     ]),
+    // The two ceilings on a `#כלול` expansion. Two and not one because they
+    // answer different questions: below the soft one nothing is said, above it
+    // the document is reported and still laid out, and above the hard one the
+    // walk stops — because past a point there is nothing left to warn about.
+    numberRow("maxLinesWarn", "max_lines_warn", 1000, 100000000, 1000),
+    numberRow("maxLinesRefuse", "max_lines_refuse", 1000, 100000000, 1000),
     selectRow("headAlign", "head_align", [
       ["center", t("headAlign.center")],
       ["outside", t("headAlign.outside")],
@@ -9698,6 +9704,8 @@ async function maybeCheckForUpdate() {
   const release = await update.checkForUpdate();
   if (!release) return;
   showChromeNotice(tf("updateAvailable", release.version), {
+    // Composed with a version, so it is text rather than a key.
+
     label: t("updateDownload"),
     press: () => window.open(release.url, "_blank", "noopener"),
   });
@@ -13654,7 +13662,7 @@ function adoptPageSetupAsDefault(): void {
   // document was not laid out on.
   settings.newDocument = ownPageSetup(docConfig() as unknown as PageSetup);
   saveSettings();
-  showChromeNotice(t("setupIsDefault"));
+  showChromeNotice("setupIsDefault");
 }
 
 function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
@@ -14536,7 +14544,9 @@ const REGISTRY_RETRY_MS = 2000;
  * two unrelated things is how that fence starts reporting the wrong offence.
  */
 interface NoticeAct {
-  label: string;
+  /** An i18n **key**, or `label` for text that is not one. */
+  key?: string;
+  label?: string;
   press: () => void;
 }
 
@@ -14554,9 +14564,29 @@ interface NoticeAct {
 function showChromeNotice(message: string, ...acts: NoticeAct[]) {
   document.getElementById("chrome-error")?.remove();
   const banner = el("div", { id: "chrome-error", class: "chrome-error", role: "alert" }, [
-    el("span", { class: "save-error-text" }, [message]),
+    // **A key, not the string it resolves to.** The banner used to be built with
+    // `t("…")` at the moment of failure and then sat in the DOM for as long as
+    // the problem lasted, so a writer who changed language kept reading a
+    // notice in the language it was born in. `browserlang`'s residue fence
+    // caught exactly two of these — `registriesGaveUp` and `retrySave` — and it
+    // was right to: both have English values, so nothing about them is
+    // legitimately Hebrew. The fix is the same one `panels.ts` already uses for
+    // headings, and `hasKey` is the guard that turns "a call site passed the
+    // answer where the question belonged" into a boot-time error.
+    el("span", { class: "save-error-text", ...(hasKey(message) ? { "data-i18n": message } : {}) }, [
+      hasKey(message) ? t(message) : message,
+    ]),
     ...acts.map((a) =>
-      el("button", { class: "save-error-act", type: "button", onClick: a.press }, [a.label]),
+      el(
+        "button",
+        {
+          class: "save-error-act",
+          type: "button",
+          onClick: a.press,
+          ...(a.key ? { "data-i18n": a.key } : {}),
+        },
+        [a.key ? t(a.key) : (a.label ?? "")],
+      ),
     ),
   ]);
   noticeHost().append(banner);
@@ -14589,12 +14619,12 @@ function clearChromeNotice() {
  */
 async function loadRegistries(): Promise<void> {
   if (await fetchRegistries()) return;
-  showChromeNotice(t("registriesFailed"));
+  showChromeNotice("registriesFailed");
   window.setTimeout(async () => {
     if (await fetchRegistries()) return;
     // Out of automatic attempts: hand the retry over rather than leaving a
     // "retrying…" that will never resolve.
-    showChromeNotice(t("registriesGaveUp"), { label: t("retrySave"), press: () => void loadRegistries() });
+    showChromeNotice("registriesGaveUp", { key: "retrySave", press: () => void loadRegistries() });
   }, REGISTRY_RETRY_MS);
 }
 

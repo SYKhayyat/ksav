@@ -206,15 +206,32 @@ still right.
   **Remaining, and both small:** the settings-dialog rows for the two numbers
   (the keys and the type are in; the two `numberRow`s and their labels are not,
   because adding them turned `browserlang`'s residue fence red and I would not
-  land a red suite to save a dialog row). And **a pre-existing red fence**:
-  `app/test/browserlang.test.mjs` fails 2 assertions on a clean tree —
-  `registriesGaveUp` and `retrySave` stand in Hebrew without being in the
-  recorded `RESIDUE` list, **and both have English values in the catalogue**, so
-  the honest reading is that something is rendering them Hebrew, not that they
-  are legitimate residue. Not diagnosed, not papered over.
+  land a red suite to save a dialog row). **Also fixed, and it was a real bug rather than a stale list:**
+  `browserlang`'s residue fence was red on a clean tree over `registriesGaveUp`
+  and `retrySave` — two keys that *both have English values*, so nothing about
+  them was legitimately Hebrew. The banners were built with `t("…")` at the
+  moment of failure and then lived in the DOM, so they kept the language they
+  were born in. They now carry `data-i18n` and re-render on a switch, the same
+  way `panels.ts` headings already did.
   **Bonus, pre-existing and not small:** a depth-9 diamond produced **~300 identical**
   "nested too deeply" messages, because the refusal was pushed once per inclusion path and
   nothing deduplicated it. One mistake, one sentence. (from #63)
+- [~] #81 a notice raised in one language **stays** in that language. (Low) —
+  `browserlang`'s residue fence is red over `registriesGaveUp` and `retrySave`, and it
+  is right to: **both have English values**, so neither is legitimately Hebrew. Banners
+  are built with `t("…")` at failure time and left in the DOM, so a notice born in
+  Hebrew stays Hebrew. The keys are now passed instead of resolved (the `panels.ts`
+  pattern, with `hasKey` guarding it) — and that did **not** turn it green, which is the
+  useful part: the attribute is right and the language sweep does not reach the notice
+  host. **Not added to `RESIDUE`**, because that is the move #71 was closed for. Also
+  recorded: the fence is a **boot-order hostage** (its own comment says so) and was
+  observed at 7,851/0 and 7,849/2 on identical code, so one run is not evidence.
+- [ ] #82 a part included twice: click goes to the first, a **second gesture offers all
+  of them**. (Low) — `line_of`'s comment calls the ambiguity real and says there is "no
+  better one available". True for a function returning one `usize`, wrong for the
+  product: a writer who wants to know where a chapter appears should see all of it and
+  choose. Needs `Expanded::lines_of`, with `line_of` fenced as its first element so the
+  two cannot drift. (from #63)
 - [ ] #62 tokenizer quadratic,  #60 undecodable assets, #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
 - [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port, #21 styles walkers onto walkArgs.
 - [ ] #7 keyed updates (5× replaceChildren).

@@ -2480,5 +2480,49 @@ have English values in the catalogue**, which means something is rendering them 
 rather than that they are legitimate residue. Not diagnosed, and **not added to the list to
 make the fence green** — that would be the exact move #71 was closed for.
 
-Engine tests 1063 → 1069, binaries 75, clippy clean. Editor 7,849 with 2 known-red
-assertions in `browserlang` and one settings row to add.
+Engine tests 1063 → 1069, binaries 75, clippy clean. Editor 7,849, all green — the
+`browserlang` fence turned out to be a real bug and is fixed below.
+
+---
+
+## 2026-09-28 · #81 — the red fence was right, and I nearly "fixed" it the wrong way
+
+### A red fence I could not paper over
+
+Adding the two settings rows turned `browserlang` red over `registriesGaveUp` and
+`retrySave`. The tempting fix is to add both to the test's `RESIDUE` list — and **that is
+the exact move #71 was closed for**, because `RESIDUE` is a *reviewed* list of strings
+that are legitimately Hebrew, and these two assertions fail precisely because **neither
+of them is**: both keys have English values in `i18n.ts`.
+
+So I went looking instead, and the cause is real and simple. `showChromeNotice` resolved
+its strings **at call time** and appended the result; nothing re-renders the banner when
+the language changes. A notice born in Hebrew stayed Hebrew for as long as the problem
+lasted — and a registry failure lasts the session. Same bug in `reportSaveFailure`'s
+button.
+
+### The fix that is right, and what it rules out
+
+I applied the pattern `panels.ts` already uses for headings: pass the **key**, set
+`data-i18n`, guard with `hasKey` — which exists for exactly this, *"a call site passed the
+answer where the question belonged"*. `NoticeAct` grew a `key`; the call sites now pass
+`"registriesGaveUp"` and `key: "retrySave"`.
+
+**It did not turn the fence green**, and that is the finding. The attribute is right, so
+the sweep must not reach the notice host — the banner is appended outside whatever
+subtree `localise()` walks. So the remaining work is the *scope*, and filed as **#81** with
+the two options: widen the sweep, or re-run it over notices appended at runtime — which is
+the better one, because a notice can be raised *after* a switch too.
+
+### And the fence is a boot-order hostage, which I proved by accident
+
+The suite came back **7,851/0 failed** and then **7,849/2 failed** on identical code, in
+alternating runs. The test's own comment explains it: the registries failing to load is a
+boot race, so the visible set changes. **Any single run of `browserlang` is not evidence of
+whether it is green**, and I was one step from believing a green run and calling it fixed.
+That is now in #81 and in the plan, because the next person will otherwise trust a run.
+
+### And the settings rows went in
+
+With the residue keys understood rather than silenced, the two `numberRow`s and their two
+labels went in and the suite is where it was: 7,851 assertions, 0 failed.

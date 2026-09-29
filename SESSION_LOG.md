@@ -2224,3 +2224,54 @@ that filters diagnostics *by line*, because several tests here are about not bla
 wrong line.
 
 Engine tests 1055 → 1061, binaries 75. Editor assertions 7,849.
+
+---
+
+## 2026-09-28 · #74 — an unsplittable block, reported rather than obeyed
+
+### The failure was always going to be silence
+
+`breakable: false` on a block taller than the text area is a legitimate request that
+cannot be granted. The measured result was the worst kind of failure: 24 lines to
+`y=1104.1` on an 841.89pt sheet, the block's own fill ending at 530.1, so **about 18
+lines rendered below the bottom of the page**, outside their own background, with the
+document compiling and nothing reported at all.
+
+**The content still goes off the sheet.** Nothing was changed about the layout,
+deliberately: the honest answer to a request that cannot be granted is to say so, and
+moving the content silently would be the same defect one layer down — a page that is
+not what the writer asked for, arriving without a sentence. So the fix is a sentence.
+
+### The threshold is the page, and that is the whole design
+
+A layout audit wants to compare content against *somewhere*, and the obvious place is
+the text area. **That would have been a defect on every document with a running head or
+a folio**, because both live in the margins quite legally. Comparing against the
+**page** removes the ambiguity entirely: *a folio cannot be below the bottom of the
+page*. Off the sheet means off the sheet, and nothing else means that, so no
+header/footer bookkeeping is needed and none can rot.
+
+The second question is whether the writer asked for this, because a document with no
+`breakable: false` cannot reach the state. So the audit scans the writer's own text —
+not the 75KB of prelude in front of it — and an ordinary document pays one pass over
+its lines and nothing else. A scan rather than a parse, and the report names the line,
+which is the one thing the writer can change.
+
+Measured: 285pt of a block reported as not printed at all, naming line 1. The same
+content splittable: silent. An unsplittable block that comfortably fits: silent. A
+document with no unsplittable block: no diagnostics at all.
+
+### The fence changed shape, which is what it asked for
+
+`an_unbreakable_oversized_block_overflows_off_the_sheet_silently` asserted only that the
+overflow *happened*, and its own comment said to rewrite it when the fix landed —
+because it would have kept passing after the audit was added and proved nothing about
+it. It now asserts **both** halves: the content still goes off the sheet, *and* the
+document says so. And the report is checked **through `compile`**, not by calling the
+audit directly, because the hook into the success path is half of what was fixed.
+
+The other two new tests are about what must **not** fire. A warning on every long
+block is a warning nobody reads, and an unsplittable block that fits is a legal request
+so silence is the correct answer rather than an omission.
+
+Engine tests 1061 → 1063, binaries 75. Editor assertions 7,849.

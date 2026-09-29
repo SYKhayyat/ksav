@@ -362,6 +362,83 @@ fn bare_hex_after_hash(line: &str) -> Option<&str> {
     found
 }
 
+/// #74 — a block that cannot split, and does not fit, loses its content **quietly**
+///
+/// `breakable: false` on a block taller than the text area is a legitimate
+/// request that cannot be granted, and the measured result was the worst kind of
+/// failure: 24 lines to `y=1104.1` on an 841.89pt sheet, the block's own fill
+/// ending at 530.1, so **about 18 lines rendered below the bottom of the page**
+/// — outside their own background, with no error, no warning and no overflow
+/// diagnostic. The document compiled. A writer would have taken a long quotation
+/// to the printer and lost most of it.
+///
+/// # Two questions before any warning, because a wrong warning is a defect
+///
+/// **Is the content actually off the sheet?** The threshold is the *page*, not
+/// the text area. That is deliberate and it is what makes this safe: a running
+/// head and a folio sit in the margins and are perfectly legal, so a threshold
+/// at the text area would flag every document with a header. A folio cannot be
+/// below the bottom of the page. Off the sheet means off the sheet, and nothing
+/// else means that.
+///
+/// **Did the writer ask for this?** A document with no `breakable: false`
+/// cannot reach this state, so the scan is over the writer's own text and an
+/// ordinary document pays one pass over its lines and nothing else. The report
+/// then names the line, which is the one thing the writer can change.
+pub fn overflow_audit(doc: &typst_layout::PagedDocument, body: &str) -> Vec<Diagnostic> {
+    let Some(line) = line_of_unsplittable(body) else {
+        return Vec::new();
+    };
+    let sizes = crate::probe::page_sizes(doc);
+    let runs = crate::probe::text_runs(doc);
+    let mut out = Vec::new();
+    for (i, (_, h)) in sizes.iter().enumerate() {
+        let deepest = runs
+            .iter()
+            .filter(|r| r.page == i + 1)
+            .map(|r| r.y + r.size)
+            .fold(f64::NEG_INFINITY, f64::max);
+        if !deepest.is_finite() || deepest <= *h {
+            continue;
+        }
+        let lost = deepest - h;
+        out.push(Diagnostic {
+            severity: "warning".into(),
+            message: format!(
+                "תיבה שלא ניתן לפצל (שורה {line}) גדולה מהעמוד — כ-{lost:.0} נקודות ממנה לא הודפסו כלל. \
+                 אפשר להרשות לתיבה להיפצל או לקצר את הטקסט · \
+                 a block told not to split (line {line}) is taller than the page — \
+                 about {lost:.0}pt of it was not printed at all. Let the block split, \
+                 or shorten what is in it"
+            ),
+            raw: String::new(),
+            line: Some(line),
+            column: None,
+            about: None,
+            did_you_mean: None,
+            file: None,
+        });
+    }
+    out
+}
+
+/// The first line of the writer's own text that asked for an unsplittable block.
+///
+/// **A scan, not a parse.** The prelude is 75 KB of Typst in front of every
+/// document, and the question is whether *the writer* said this — so the answer
+/// has to come from the body, and matching the argument text is enough for a
+/// warning that names the line and defers the rest to the writer. A typo like
+/// `breakable: falsey` does not match, and that costs a missed warning on a
+/// document whose block may not have been unsplittable anyway.
+fn line_of_unsplittable(body: &str) -> Option<usize> {
+    body.split('\n')
+        .enumerate()
+        .find_map(|(i, l)| {
+            let tight: String = l.chars().filter(|c| !c.is_whitespace()).collect();
+            tight.contains("breakable:false").then_some(i + 1)
+        })
+}
+
 /// The `@namespace/name:version` a *file not found* message was really about.
 ///
 /// Typst reports a missing package with the directory it searched, in its own

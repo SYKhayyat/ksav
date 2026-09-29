@@ -65,11 +65,18 @@ still right.
   `width`/`height`**: a fill that spans a break *starts above* the last line, so the
   origin looks correct and is silent about the empty band that was the subject. An
   origin is not a shape. (from #70)
-- [ ] #74 an unbreakable block taller than the text area **silently loses content off
-  the sheet** — 24 lines to `y=1104.1` on an 841.89pt page, ~18 lines printed nowhere, no
-  diagnostic. **Latent, not live:** nothing in Ksav sets `breakable: false`, and #65/#43
-  are the only things that would. Worth knowing *before* they are built, because the
-  failure mode is missing text rather than a box that looks wrong. (from #70)
+- [x] #74 an unbreakable block taller than the text area **silently loses content off
+  the sheet**. (from #70) — Reported now, and the content still goes off the sheet,
+  because the fix is to **say so**, not to silently move it. The threshold is the
+  **page**, not the text area, and that is what makes it safe: a running head and a
+  folio sit in the margins quite legally, so a text-area threshold would warn on
+  every document with a header — and **a folio cannot be below the bottom of the
+  page**. The audit also needs the writer to have asked for it, so it scans the
+  body for `breakable: false` and an ordinary document pays one pass and no more.
+  Measured: 285pt of a block reported as not printed at all, naming the line, while
+  the same content splittable and an unsplittable block that *fits* both stay
+  silent. **Latent when filed** — nothing in Ksav set `breakable: false`; #65 and #43
+  are the only things that would. (from #70)
 - [x] #76 opposing margins can consume the whole page — **a gap in my own #15 work**,
   and a second one I did not know was there. (from #70) — Two defects, and my first
   report on this was wrong in a way worth recording: **I set `cfg.margin_cm` directly

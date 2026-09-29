@@ -2794,6 +2794,10 @@ pub fn compile_parts(
     match output {
         Ok(doc) => {
             let mut diagnostics = locate(&warnings, "warning");
+            // A block that cannot split and does not fit loses its content off
+            // the bottom of the sheet with nothing reported (#74). The document
+            // compiled, so this is the only place the loss is visible.
+            diagnostics.extend(crate::diagnostics::overflow_audit(&doc, body));
             diagnostics.extend(italic.clone());
             diagnostics.extend(dangling.clone());
             diagnostics.extend(stray.clone());

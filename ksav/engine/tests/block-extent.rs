@@ -123,15 +123,16 @@ fn a_breakable_block_refits_its_background_to_each_fragment() {
     }
 }
 
-/// The control: `breakable: false` on a block taller than the page renders text
-/// off the bottom of the sheet, and says nothing. Filed as #74.
+/// The control: `breakable: false` on a block taller than the page loses its
+/// content off the bottom of the sheet — and is now **reported** (#74).
 ///
-/// **This test does not assert the fix.** It asserts the *hazard is real and
-/// reachable*, so that when #74 is fixed this test changes shape rather than
-/// quietly continuing to pass, and so nobody later "fixes" it by making the
-/// overflow unassertable.
+/// This test changed shape when the fix landed, which is what its own comment
+/// asked for. It used to assert only that the overflow *happened*, so it would
+/// have kept passing after the audit was added and proved nothing about it. It
+/// now asserts both halves: the content still goes off the sheet — because the
+/// fix is to say so, not to silently move it — **and** the document says so.
 #[test]
-fn an_unbreakable_oversized_block_overflows_off_the_sheet_silently() {
+fn an_unbreakable_oversized_block_overflows_and_says_so() {
     let doc = probe::layout(&boxed("breakable: false, ", 24), &cramped()).expect("compiles");
     let runs = block_runs!(doc);
     let last = runs
@@ -145,6 +146,65 @@ fn an_unbreakable_oversized_block_overflows_off_the_sheet_silently() {
     assert!(
         last > sheet,
         "the overflow no longer happens (last_y={last:.1}, sheet={sheet:.1}) — \
-         #74 may be fixed; update this fence to assert the report instead"
+         if this was fixed by making the content fit, the audit is now warning \
+         about something that does not occur and this fence should be rewritten"
+    );
+
+    // And the report, through the public entry point rather than the audit
+    // called directly, because the hook into the success path is half the fix.
+    let body = boxed("breakable: false, ", 24);
+    let out = ksav_engine::compile(&body, &cramped());
+    assert!(out.ok, "the document stopped compiling, so there is nothing to report");
+    let said = out
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains("not printed at all"))
+        .unwrap_or_else(|| {
+            panic!(
+                "the content went off the sheet and nothing said so: {:?}",
+                out.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(said.severity, "warning", "a lost block is a warning, not an error");
+    assert_eq!(said.line, Some(1), "the report does not name the writer's line");
+}
+
+/// **The two things it must not do**, which is the honest half of the fence.
+///
+/// A splittable block with identical content loses nothing and must be silent —
+/// a warning on every long block would be a warning nobody reads. And an
+/// unsplittable block that *fits* is a legal request, so saying nothing about
+/// it is the correct answer, not an omission.
+#[test]
+fn the_overflow_report_is_silent_when_there_is_nothing_to_report() {
+    let cases: [(&str, String, usize); 2] = [
+        ("splittable, same long content", boxed("", 24), 0),
+        ("unsplittable, comfortably small", "#block(breakable: false)[שורה אחת]\n".to_string(), 0),
+    ];
+    for (label, body, want) in cases {
+        let out = ksav_engine::compile(&body, &cramped());
+        let said = out
+            .diagnostics
+            .iter()
+            .filter(|d| d.message.contains("not printed at all"))
+            .count();
+        assert_eq!(said, want, "{label}: {said} overflow reports, expected {want}");
+    }
+}
+
+/// A document that never asks for an unsplittable block pays nothing and is
+/// never touched by the audit.
+#[test]
+fn a_document_with_no_unsplittable_block_is_never_audited() {
+    let body = boxed("", 40);
+    assert!(
+        !body.contains("breakable"),
+        "the fixture grew a breakable block, so this test would stop testing what it says"
+    );
+    let out = ksav_engine::compile(&body, &cramped());
+    assert!(
+        out.diagnostics.is_empty(),
+        "an ordinary document was warned about: {:?}",
+        out.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }

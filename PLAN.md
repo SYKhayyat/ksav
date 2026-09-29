@@ -106,17 +106,16 @@ still right.
   means a sefer is one file forever. Proposal: `packages_root()` a second time, per
   sefer. **Cheap half first:** `@local` alone in the `app_data_dir()` that already holds
   the dictionary. Decision, not a task — autosave, `git.rs` and the file tree all move. (from #15)
-- [~] #77 parallel streams — **decided (build it) and mostly already built.**
-  `הגדרות_זרמים(פריסה: "צד")` is side-by-side, a column per stream, with a
-  per-stream `טורים` count, and measured over seven pages each stream **keeps its column
-  on every page** with its content flowing through it — which *is* #77's requirement.
-  Two gaps remain, both small and both extensions of that apparatus rather than a new
-  one: **arbitrary content** in a stream (`הערה_זרם` is a *note* command, and the original
-  question said "not just notes"), and **where streams live** (the apparatus is the
-  read-only footer; a stream in the page body is unverified). `examples/streams.rs` proves
-  the architecture by laying each stream out as its own band-sized document and zipping
-  the pages by index — and **duplicates what `פריסה: "צד"` already does**, so it stays as
-  evidence and must not become a second mechanism. (from #15)
+- [x] #77 parallel streams. (from #15) — **Decided (build it), and found mostly
+  already built.** `הגדרות_זרמים(פריסה: "צד")` is side-by-side, a column per stream, with
+  a per-stream `טורים` count, and measured over seven pages each stream **keeps its column
+  on every page** with its content flowing through it. #77's requirement is therefore
+  already met for notes. Split into the two gaps that remain: **#78** arbitrary content in
+  a stream (it is a *note* command, and the question said "not just notes") and **#79**
+  whether a stream can occupy the **page body** rather than the read-only footer.
+  `examples/streams.rs` proves the architecture — each stream its own band-sized document,
+  pages zipped by index — and **duplicates what `פריסה: "צד"` does**, so it is evidence
+  and must not become a second mechanism. (from #15)
 - [ ] #73 bundle real Typst libraries, starting with `meander`. #67 made it possible for
   the first time; #70 has now **removed the main reason** (they thread cleanly). What
   remains is the uncomfortable one: page-breaking is what a typesetting app most needs

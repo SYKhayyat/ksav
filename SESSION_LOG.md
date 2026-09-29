@@ -2349,3 +2349,69 @@ one thing is how a product grows a setting nobody can find. It also caught its o
 the first render clipped every band on the right edge, because `probe::layout_plain`
 takes no config and laid each stream out at A4 before cropping. The numbers said three
 streams of one page each; the picture said the bands were the wrong shape.
+
+---
+
+## 2026-09-28 · #63 — the exponential is real, and the proposed fix would not have helped
+
+### The mechanism, and why the cycle guard does not catch it
+
+A diamond reduced to its simplest form: the same part included twice. `expand_into` only
+guards against a name **already open on the stack**, and the first inclusion is pushed
+**and popped** before the second is looked at — so the name is not on the stack either
+time, and the guard has nothing to say. What is left is `MAX_DEPTH = 8`.
+
+### Two fixtures that measured the wrong thing, faithfully
+
+    depth 8, leaf 20 lines   → 256 lines   (looked like 2^8 = 256 copies)
+
+**That 256 was the cap, not the growth.** `MAX_DEPTH` refuses before the leaf is
+reached, so depth 8 never got there. Only when the leaf was given its own name — and
+the chain shortened by one — did the real shape appear:
+
+    depth 4 → 16    depth 5 → 32    depth 6 → 64    depth 7 → 128    depth 8 → capped
+
+And the first fixture was worse: it used `p{depth-1}` for the leaf, which the
+construction loop then **overwrote with a self-include**, so the cycle guard fired
+correctly and the output was 256 marker lines whatever the leaf's size — which is
+exactly why depth 8 "looked" like the growth. The numbers were true. The questions were
+mine, for the eighth time, and the second one is a new shape of it: **I used the
+recursion's own guard as if it were the thing under test.**
+
+### The cost at the ceiling
+
+One 200KB part included 128 times:
+
+    leaf lines      copies   output lines      time
+         20           128           2,560        5ms
+        200           128          25,600       22ms
+      2,000           128         256,000      355ms
+     20,000           128       2,560,000    1,532ms
+    200,000           128      25,600,000   15,901ms
+
+**Sixteen seconds and twenty-five million lines, from a document that compiled.** No
+error, no warning, nothing refused.
+
+### Memoizing would not have fixed it, and that is the finding
+
+The issue proposes *"memoize per name"*, and it is a genuine inefficiency: 128 inclusions
+re-walk the part 128 times. But the cost is not 128× *work*, it is 128× **content**, and
+the content has to be there — the writer wrote `#כלול("x")` 128 times and the expanded
+document is supposed to contain 128 copies. `Expanded::text` is a flat string. Memoizing
+the expansion saves the re-walk, roughly a constant factor, and cannot touch it.
+
+**The exponential is real but it is not the hazard. The hazard is that nothing bounds
+the total**, and the bound that exists is a proxy that fell out of the recursion rather
+than a budget anybody chose. So the fix is a **total-size budget with a diagnostic**, in
+the shape `reserve_overflow: "refuse"` already uses.
+
+The remaining question is **policy, and it is a product call**: proportional or total, and
+refuse or warn. The engine has both vocabularies — a refusal from #15 is a warning that
+lays the document out, `reserve_overflow: "refuse"` stops the compile — and my
+recommendation is **a proportional budget that refuses**, because the failure is not a
+wrong page but a document that cannot be laid out at all. Posted on the issue rather than
+assumed.
+
+And the second half of the issue, `line_of` ambiguity, is **already documented and is not
+a defect**: a file and a line is genuinely ambiguous when a chapter is pulled in twice, and
+first-in-reading-order is the only honest answer available. The comment says so.

@@ -231,6 +231,70 @@ export async function run() {
     fresh.slice(0, fresh.indexOf("\n}")).includes("process.exit(1)"),
   );
 
+  // The same class, one layer over, and **it had already cost a finding**.
+  //
+  // `assertFresh` above is about `include_dir!` baking `dist/` into the server
+  // binary. `browserlang.test.mjs` is about the other consumer of the same
+  // directory: it serves `dist/` to Chromium and reads the window. Nothing
+  // checked that the copy on disk matched the sources beside it — `gate.mjs`
+  // does not build `dist/`, and the CI app job runs the suite *before* its
+  // `npx vite build`, so in CI this file always skips and the gap is invisible
+  // there.
+  //
+  // So #81's fix landed (`showChromeNotice` passes the key, the banner carries
+  // `data-i18n`, `localise()` re-renders it) and the fence stayed red, on
+  // identical code. The recorded conclusion was a false claim about the product
+  // — *"the sweep does not reach the notice host"* — which then sat in
+  // `PLAN.md` and `SESSION_LOG.md` as an open half of the issue. The real cause
+  // was a `dist/` built the day before the commit it was being asked about.
+  // It was also not the boot-order race the same entries concluded next.
+  {
+    const lang = read("ksav/app/test/browserlang.test.mjs");
+    ok("the browser test has the same guard", lang.includes("function assertFreshBuild"));
+    // **Fails rather than skips.** The distinction is the finding: a stale
+    // `dist/` is not this machine being unable to run the test, it is the test
+    // about to report a confident fictional result. Skipping would have been
+    // the same silence wearing a different sign, and `run.mjs` counts a skip as
+    // "asserted nothing", which is red anyway — but only by accident, and with
+    // no explanation. The guard below refuses and names both timestamps.
+    const guard = lang.slice(lang.indexOf("function assertFreshBuild"));
+    ok(
+      "…and refuses rather than skipping",
+      guard.slice(0, guard.indexOf("\n}")).includes("check("),
+      guard.slice(0, 400),
+    );
+    // And it is reached **before** anything is measured, which is the whole
+    // value of it: a guard that runs after the window has been read has already
+    // let the measurement happen.
+    //
+    // **The call, and not the name.** The first spelling of this was
+    // `indexOf("assertFreshBuild()") < indexOf("await browser()")`, and it
+    // stayed green when the call was moved to *after* `await browser()` —
+    // because `indexOf` found the **declaration**, `function assertFreshBuild()`
+    // at line 120, which is always before anything. A positional fence written
+    // over source finds the first spelling of a name, and a name has two
+    // spellings. This is the same trap twenty lines above in this file, about a
+    // fixed lookahead over source matching whatever happens to be nearby, and I
+    // walked into it while adding a fence twenty lines below it.
+    //
+    // `!assertFreshBuild()` is only ever written at the call, so it is the call.
+    ok(
+      "…before it opens a browser",
+      lang.indexOf("!assertFreshBuild()") > 0 &&
+        lang.indexOf("!assertFreshBuild()") < lang.indexOf("await browser()"),
+      `guard call at ${lang.indexOf("!assertFreshBuild()")}, browser at ${lang.indexOf("await browser()")}`,
+    );
+    // The one that bit the author of that guard: a fresh build returned nothing
+    // and the call site read the answer as a boolean, so the file skipped itself
+    // on every run and `run.mjs` reported "asserted nothing". Assert the
+    // `true` is there, since a bare `return` is the spelling that reproduces it.
+    ok(
+      "…and says so when the build is fresh, rather than returning nothing",
+      /if \([^)]*\) return true;/.test(guard.slice(0, guard.indexOf("\n}"))),
+      guard.slice(0, 400),
+    );
+  }
+
   // -------------------------------------- an assertion that cannot be vacuous
 
   // There are two functions called `check` in this repository's test tooling

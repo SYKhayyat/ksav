@@ -46,18 +46,106 @@
 // is told about it — rather than failing for a reason that has nothing to do with
 // the application. On this machine the libraries are resolved from the nix store
 // into `LD_LIBRARY_PATH` by the caller; see the note in the README.
+//
+// # …and it must not measure a build that is not the code
+//
+// `dist/` is git-ignored, it is **not** built by `gate.mjs` (the CI app job runs
+// `node tools/gate.mjs editor` and *then* `npx vite build`, so in CI this file
+// always skips), and nothing anywhere checked that the copy on disk matched the
+// sources beside it. So the one test in this repository that opens a real window
+// could be served a build from any point in the past, and would report on it in
+// the present tense.
+//
+// **It did, and it cost a finding.** #81 landed the fix — `showChromeNotice`
+// passes the *key*, the banner carries `data-i18n`, `localise()` re-renders it —
+// and the fence here stayed red, over `registriesGaveUp` and `retrySave`, on
+// identical code. The recorded conclusion was *"the sweep does not reach the
+// notice host"*, which is a false claim about the product, written into
+// `PLAN.md` and `SESSION_LOG.md` as an open half. It was not a boot-order race
+// either, which is what the same entries concluded next: it was a `dist/` built
+// on 28 September being asked about a fix committed on the 29th.
+//
+// The sweep reaches the notice host. Measured: the banner carries
+// `data-i18n="registriesGaveUp"` and `data-i18n="retrySave"`, the host is inside
+// `document.body`, and after a switch the same two elements read
+// *"The command list did not load — the toolbar and menus will stay empty.
+// Reload the page."* and *"Try again"*. Removing the two attributes puts this
+// fence red on `registriesGaveUp` and `retrySave`, four runs out of four.
+//
+// So the guard below is not a nicety about a build directory. It is the reason a
+// correct fix was recorded as an incorrect one, and it is the same class the
+// acceptance script already fences one layer over with `assertFresh` — see
+// `visibility.test.mjs`, which holds both.
 
 import { check, ok } from "./harness.mjs";
 import { markPattern } from "../.tmp-test/engine.gen.mjs";
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { extname, join, dirname, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, "..");
 const DIST = join(APP, "dist");
+const SRC = join(APP, "src");
+
+/** The newest file under `dir`, as an mtime in ms — 0 when it holds no files. */
+function newestFile(dir) {
+  let newest = 0;
+  let where = "";
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const at = join(entry.parentPath ?? entry.path, entry.name);
+    const ms = statSync(at).mtimeMs;
+    if (ms > newest) {
+      newest = ms;
+      where = at;
+    }
+  }
+  return { newest, where };
+}
+
+/**
+ * Refuse to measure a `dist/` older than the sources beside it.
+ *
+ * **A refusal and not a skip**, and the difference is the whole point. A missing
+ * `dist/` or a missing Chromium means *this machine cannot run this test*, which
+ * is a complaint about the machine and the file already says so. A **stale**
+ * `dist/` means the test is about to produce a confident, well-formatted,
+ * entirely fictional finding about code that is not in the tree — and that is
+ * what happened to #81. A skip would have been the same silence with a worse
+ * sign on it, so this goes red and names the two timestamps.
+ *
+ * Newest-of-each rather than a single file, on both sides: `vite` writes many
+ * chunks and `src/` is many files, so either one alone is a sample of a
+ * distribution. And it compares `src/` against `dist/` rather than against the
+ * test files, so editing a test — which is what you do when a test is wrong —
+ * does not make the build stale and does not turn this red for no reason.
+ */
+function assertFreshBuild() {
+  const built = newestFile(DIST);
+  const edited = newestFile(SRC);
+  // **`true`, not a bare `return`.** The first version of this returned nothing
+  // on the fresh path, and the call site reads the answer as a boolean — so a
+  // *fresh* `dist/` was indistinguishable from a refusal, and the file skipped
+  // itself on every run without printing why. `run.mjs`'s "asserted nothing"
+  // check is what caught it, which is that check earning its keep twice.
+  if (built.newest === 0 || edited.newest <= built.newest) return true;
+  console.error(
+    `app/dist is older than app/src, so this would measure a build that is not this code.\n` +
+      `  built  ${new Date(built.newest).toISOString()}  ${built.where}\n` +
+      `  edited ${new Date(edited.newest).toISOString()}  ${edited.where}\n` +
+      `  rebuild it:\n` +
+      `    cd ksav/app && npm run build`,
+  );
+  check(
+    "this run refused to measure a build older than the sources",
+    `${new Date(built.newest).toISOString()} < ${new Date(edited.newest).toISOString()}`,
+    "dist newer than src",
+  );
+  return false;
+}
 
 /** Hebrew script, the thing a switch is supposed to remove. */
 const HEBREW = /[֐-׿]/;
@@ -220,6 +308,10 @@ export async function run() {
     console.log("SKIPPED browserlang: no dist/ — run `npm run build` first");
     return;
   }
+  // Before the browser, and before anything is measured. The skip above is this
+  // machine's problem; a stale `dist/` is a false reading, and the two must not
+  // be the same kind of silence.
+  if (!assertFreshBuild()) return;
   const { b, why } = await browser();
   if (!b) {
     console.log(`SKIPPED browserlang: ${why}`);

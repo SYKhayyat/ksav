@@ -216,16 +216,28 @@ still right.
   **Bonus, pre-existing and not small:** a depth-9 diamond produced **~300 identical**
   "nested too deeply" messages, because the refusal was pushed once per inclusion path and
   nothing deduplicated it. One mistake, one sentence. (from #63)
-- [~] #81 a notice raised in one language **stays** in that language. (Low) —
-  `browserlang`'s residue fence is red over `registriesGaveUp` and `retrySave`, and it
-  is right to: **both have English values**, so neither is legitimately Hebrew. Banners
-  are built with `t("…")` at failure time and left in the DOM, so a notice born in
-  Hebrew stays Hebrew. The keys are now passed instead of resolved (the `panels.ts`
-  pattern, with `hasKey` guarding it) — and that did **not** turn it green, which is the
-  useful part: the attribute is right and the language sweep does not reach the notice
-  host. **Not added to `RESIDUE`**, because that is the move #71 was closed for. Also
-  recorded: the fence is a **boot-order hostage** (its own comment says so) and was
-  observed at 7,851/0 and 7,849/2 on identical code, so one run is not evidence.
+- [x] #81 a notice raised in one language **stays** in that language. (Low) — The fix
+  was already in and works: measured in a real browser, the banner carries
+  `data-i18n="registriesGaveUp"` and `data-i18n="retrySave"`, the host is inside
+  `document.body`, and after a switch the same two elements read English.
+  Removing both attributes puts `browserlang` red on exactly those two keys,
+  **four runs out of four** — so the fence is a real fence for this fix. What the
+  red was really measuring: **`browserlang` serves `dist/`, and nothing anywhere
+  checked that the copy on disk matched `src/`.** `gate.mjs` does not build it and
+  the CI app job runs the suite *before* its `vite build`, so the gap is invisible
+  in CI and the file always skips there. A `dist/` built on the 28th was being
+  asked about a fix committed on the 29th, and the false conclusion — *"the sweep
+  does not reach the notice host"* — was written into this plan and the session
+  log as an open half. It was **not** the boot-order race the same entries
+  concluded next, and `browserlang` is green 6/6 on a correct build.
+  **Now refused rather than believed:** `assertFreshBuild()` compares
+  newest-of-`src/` against newest-of-`dist/` and goes **red** naming both
+  timestamps — not a skip, because a stale build is not a machine that cannot run
+  the test, it is a confident fictional measurement, and a skip is that same
+  silence with a nicer sign on it. Fenced from both ends by `visibility.test.mjs`,
+  beside the acceptance script's `assertFresh`, which already fences this class
+  for the server binary. Removing the guard makes a stale `dist/` pass 13/13
+  silently. (from #81)
 - [ ] #82 a part included twice: click goes to the first, a **second gesture offers all
   of them**. (Low) — `line_of`'s comment calls the ambiguity real and says there is "no
   better one available". True for a function returning one `usize`, wrong for the

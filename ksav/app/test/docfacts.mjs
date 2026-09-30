@@ -259,6 +259,14 @@ export const RUNTIME = ["appAssertions", "appTestFiles"];
 export const LOGS = {
   "decisions/": "The dated record — nine waves, audits and resolutions, each true on its date and never edited afterwards. See decisions/README.md.",
   "lamdan/": "Audit reports, each dated and kept verbatim so its fixes are legible beside it.",
+  // **One file, thirty-two days, appended and never edited** — the same
+  // lifecycle as the two directories above, and it was missing from this list
+  // only because its dates are in its body rather than in its name, which is
+  // what `logDate` had to learn to read. Without it the backward sweep treated
+  // a dated entry as a claim about today, and #81 landed on a red suite over a
+  // sentence that was true and must not be rewritten. See `logDate`.
+  "SESSION_LOG.md":
+    "The session log: one append-only file holding a dated entry per working session, each true on its date and never edited afterwards. Its counts are measurements of that day and are stale by definition.",
 };
 
 /** Does this exemption cover that page? A trailing `/` means the directory. */
@@ -283,11 +291,42 @@ export function coveredBy(entry, tracked = trackedMarkdown()) {
  * refuses. The index page of a log directory is the one thing that is *not* a
  * record and is exempted by name here, because a directory that cannot explain
  * itself is worse than one file that has to be named twice.
+ *
+ * # …or off its body, when the log is one file with many entries in it
+ *
+ * The rule above is a *property*, not a filename convention: a record is exempt
+ * because it was true on a date, so it has to carry one. `decisions/` and
+ * `lamdan/` carry theirs in the name because one file is one day. `SESSION_LOG.md`
+ * is thirty-two days in one file and carries theirs in its headings —
+ * `## 2026-09-28 · #81 — …` — which is the same property, held differently.
+ *
+ * **It had to be added, and the way it was forced is the argument for it.**
+ * Without this branch `SESSION_LOG.md` was a living page, and the entry
+ * recording *"7,851 assertions, 0 failed"* was measured against the suite of the
+ * day and is false today — so the backward sweep went red and stayed red on a
+ * clean tree. #81 landed with a failing suite, and the honest-looking fixes were
+ * all wrong: rewriting the number destroys the record, and dropping the sentence
+ * would too.
+ *
+ * So the *instrument* was wrong, not the log, and the check that noticed is the
+ * same one that caught `decisions/` being extended to reach a living page: an
+ * exemption must be excusing something real. `SESSION_LOG.md` still trips the
+ * sweep on every count in it, forever, which is what makes it a record and what
+ * makes the exemption load-bearing rather than a name on a list.
  */
 export function logDate(file) {
   if (file.endsWith("/README.md")) return "index";
   const m = /(\d{4}-\d{2}-\d{2})[^/]*\.md$/.exec(file) ?? /(\d{4}-\d{2}-\d{2})\.md$/.exec(file);
-  return m ? m[1] : null;
+  if (m) return m[1];
+  // One file, many entries: the newest dated heading in it. Read rather than
+  // remembered, so a log whose last entry predates a rewrite cannot pass by
+  // having once had a date.
+  const at = path.join(ROOT, file);
+  if (!existsSync(at)) return null;
+  const dates = [...readFileSync(at, "utf8").matchAll(/^#{2,6} +(\d{4}-\d{2}-\d{2})\b/gmu)]
+    .map((d) => d[1])
+    .sort();
+  return dates.length ? dates[dates.length - 1] : null;
 }
 
 // ---------------------------------------------------------------- the claims

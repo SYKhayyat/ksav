@@ -2526,3 +2526,184 @@ That is now in #81 and in the plan, because the next person will otherwise trust
 
 With the residue keys understood rather than silenced, the two `numberRow`s and their two
 labels went in and the suite is where it was: 7,851 assertions, 0 failed.
+
+---
+
+## 2026-09-30 · #81 — the fix works, and it was never the sweep that was missing
+
+### What I went looking for
+
+Three issues in the plan turned out to be decisions rather than tasks — #72, #80,
+#73 — and I deferred each with a note on the issue. #81 was next, and it was
+marked `[~]`: half committed, one identified gap, *"the attribute is right and the
+language sweep does not reach the notice host"*.
+
+So the first thing to do was check that claim rather than build on it.
+
+### The claim is false, and here is the window
+
+Driven in Chromium against `dist/`, at four points during boot and once after a
+switch:
+
+```
+boot   #notices inside document.body                        true
+  0s   data-i18n="registriesFailed"    Hebrew sentence
+  2.5s  data-i18n="registriesGaveUp"    Hebrew sentence
+       data-i18n="retrySave"            נסה שוב
+switch
+       data-i18n="registriesGaveUp"    "The command list did not load — the
+                                         toolbar and menus will stay empty.
+                                         Reload the page."
+       data-i18n="retrySave"            "Try again"
+```
+
+The sweep reaches the notice host. `noticeHost()` appends to `#app`, `localise()`
+defaults to `document`, and `rerenderChrome()` calls it on the toggle. The fix in
+`7e14220` is correct and complete.
+
+### So why was the fence red?
+
+Not a boot-order race, which is what the previous entry concluded after the first
+conclusion was wrong. `browserlang.test.mjs` serves `dist/`, and:
+
+- `dist/` is git-ignored;
+- `gate.mjs`'s `editor` check runs `node test/run.mjs` and **does not build it**;
+- the CI app job runs `node tools/gate.mjs editor` and *then* `npx vite build`.
+
+So in CI the file always skips, the gap is invisible, and on a machine with a
+local `dist/` the one test in the repository that opens a real window can be
+served **any build from the past** and reports on it in the present tense.
+
+Measured: `dist/` was built 2026-09-28 04:42. Commit `7e14220` landed
+2026-09-29 13:22. The fence was red about a fix it had never seen.
+
+Two conclusions were recorded on the strength of it — *"the sweep does not reach
+the notice host"*, then *"the fence is a boot-order hostage"*. Both are false,
+and the second one is worse than the first: it taught the next reader that a
+single run is not evidence, which was a true statement with a false reason, and
+therefore no reason at all.
+
+### The fence was real after all
+
+Deleting the two `data-i18n` attributes and rebuilding:
+
+```
+FAIL no catalogue key stands in Hebrew that this file has not recorded
+  got  ["registriesGaveUp","retrySave"]
+FAIL the recorded set is a superset of what is standing (3 of 2)
+✗ browserlang.test.mjs     11 passed, 2 FAILED      — four runs out of four
+```
+
+Unmutated, against a correct build: **13 passed, six runs out of six.** The fence
+was never the problem. It was answering correctly about the wrong build.
+
+### The fix, and what it is not
+
+`assertFreshBuild()` compares newest-of-`src/` against newest-of-`dist/` and
+**refuses**. Red, with both timestamps and the one command — not a skip, because
+the two are different sentences: *"this machine cannot run this test"* is a
+complaint about the machine and the file already says so; *"`dist/` is a day old"*
+is the test about to report a confident fictional finding. A skip would have been
+the same silence with a friendlier sign.
+
+Newest-of-each on both sides, because `vite` writes many chunks and `src/` is
+many files. And `src/` against `dist/`, not against `test/`, so fixing a wrong
+test does not make the build stale and does not go red for no reason.
+
+Fenced from both ends in `visibility.test.mjs`, next to the acceptance script's
+`assertFresh`, which has fenced this exact class for the server binary since it
+was written. Four mutations, all caught:
+
+| mutation | caught by |
+|---|---|
+| guard renamed away | 3 assertions red |
+| refusal downgraded to a skip | 1 |
+| call moved **after** `await browser()` | 1 |
+| fresh path returns `undefined` again | 1 |
+
+Two of those are worth recording rather than counting.
+
+**The fourth was mine, and it is the oldest bug in this file's genre.** The guard
+ended with a bare `return` on the fresh path; the call site read the answer as a
+boolean, so a *fresh* `dist/` was indistinguishable from a refusal and the file
+skipped itself on every run, printing nothing. `run.mjs`'s "asserted nothing"
+check is what caught it — that check earning its keep twice — and the fence now
+asserts the `true` is there, because a bare `return` is the spelling that
+reproduces it.
+
+**The third is a fence I wrote that could not fail.** I asserted the guard ran
+before the browser with `indexOf("assertFreshBuild()") < indexOf("await
+browser()")`, and it stayed green when I moved the call to *after* `await
+browser()` — because `indexOf` found the **declaration**, `function
+assertFreshBuild()` at line 120, which is always before anything. A positional
+fence written over source finds the first spelling of a name, and a name has two
+spellings. This is the same trap twenty lines above in the same file, about a
+fixed lookahead matching whatever happens to be nearby, and I walked into it
+while adding a fence twenty lines below it. `!assertFreshBuild()` is only ever
+written at the call, so it is the call.
+
+### Also fixed, and it was landing red before I started
+
+The documentation fence was **already failing on a clean tree**: `SESSION_LOG.md`
+said "7,851 assertions", the backward sweep read it as a claim about today, and
+#81 landed with a red suite. Confirmed by stashing everything of mine.
+
+The two honest-looking fixes are both wrong. Rewriting the number destroys the
+record; dropping the sentence does too. **The instrument was wrong, not the
+log.** `LOGS` exempted `decisions/` and `lamdan/`, both directories whose files
+carry a date **in their name**, and `SESSION_LOG.md` is thirty-two days in one
+file with the dates in its **headings** — the same lifecycle, held differently,
+which the exemption could not express.
+
+So `logDate` learned to read a body: a dated `## …` heading, newest wins. And
+`SESSION_LOG.md` joined `LOGS` with the reason stated. Three mutations, all
+caught: dropping it from `LOGS` (the exemption stops excusing anything real),
+disabling the body branch (it stops being a dated record), and widening the
+exemption to `docs/start-here.md` — which fails three ways, including the
+pre-existing *"no exemption reaches a page that is documentation"*.
+
+This is the sweep working as designed, one level up: the same check that caught
+`decisions/` being extended to reach a living page is what makes adding a record
+here cost something. An exemption that buys nothing is refused.
+
+### Three issues deferred, with the measurement attached
+
+Not "no time" — each one is a decision, and each comment says what was measured.
+
+- **#72**, `app_data_dir()` for `@local`. The cheap half is blocked on a seam that
+  does not exist: `packages_root()` is the engine's only root and it is hardcoded,
+  and the shell's only two references to the engine are `services::find` and
+  `(svc.call)(&input)` — **the compile channel is `(name, String)`**, no path, no
+  `AppHandle`. So it needs a new process-global in the place this repository has
+  deliberately never had one, and whether that root is set by the app at startup or
+  arrives on the request is the difference between a feature and the sandbox
+  gone. One measured trap recorded either way: `diagnostics::missing_package()`
+  recovers `@ns/name:version` by splitting on the literal `"packages/"`, and a
+  user root not so named degrades the message back to *"a file (e.g. an image)
+  wasn't found"* — the wart #67 closed.
+- **#80**, reledmac/reledpar. The forwarded "Bug C" is **already built** —
+  `footnote_streams`, `ksav/engine/src/lib.rs:4650`, two registers side by side
+  with independent per-stream numbering, fenced to converge. So the residue is
+  exactly two features: line numbers (nothing in the prelude) and lemmata
+  (`rg -i lemmat` returns one hit, and it is `PLAN.md`). I would do #73 first.
+- **#73**, bundling `meander`. Its own precondition is discharged — #70 measured
+  that a breakable Typst block threads cleanly — but reading `meander` means
+  vendoring it, which is a licence and a permanent weight with a name on it. I
+  offered the reversible half: the resolver reads a directory, so removing the
+  directory removes the capability with no code change.
+
+### State at log write
+
+| item | state |
+|---|---|
+| #81 | fixed — `assertFreshBuild()`, fenced from both ends, 4/4 mutations caught |
+| pre-existing red | fixed — `SESSION_LOG.md` exempted as a record, 3/3 mutations caught |
+| #72, #80, #73 | deferred, with a measured comment on each |
+| #82 | not started |
+
+Editor **7,849 → 7,858** across 112 files, all green. Engine untouched (1,069
+tests, 75 binaries). `tsc --noEmit` clean.
+
+### Next move
+
+#82 — `Expanded::lines_of`, with `line_of` fenced as its first element.

@@ -2707,3 +2707,191 @@ tests, 75 binaries). `tsc --noEmit` clean.
 ### Next move
 
 #82 — `Expanded::lines_of`, with `line_of` fenced as its first element.
+
+---
+
+## 2026-09-30 · #82 — the engine half is built, and the product half has no site at all
+
+### What the issue asked for, in two halves
+
+`Expanded::lines_of`, and a second gesture that offers every place a part appears
+instead of only the first. The first is a clear task. The second is not, and
+finding out why is the substance of this entry.
+
+### `lines_of`, and the invariant made structural
+
+```rust
+fn matching<'a>(&'a self, file: Option<&'a str>, line: usize)
+    -> impl Iterator<Item = usize> + 'a
+```
+
+Both `line_of` and `lines_of` are built from it. The issue asked for "`line_of`
+fenced as its first element so the two cannot drift" — and a fence is a promise
+that somebody will keep checking. Making them share one predicate **removes the
+possibility** rather than watching for it, which is strictly better, and the
+fence is still there in `tests/includes.rs` for the reason the house has
+recorded about fences that check what the compiler already guarantees: a thing
+true by construction today can be true by accident tomorrow, and what is worth
+holding is the *sentence* — **first is reading order** — not the identity.
+
+`line_of` stays lazy (`.next()`, not `lines_of(..).into_iter().next()`). It is on
+the reveal path, and it is overwhelmingly the first match that answers, so the
+lazy form allocates nothing per keystroke. Measured: it has exactly one caller,
+`jump.rs:285`.
+
+### Why the product half cannot be built, and it is not a matter of effort
+
+I went looking for the site and it is not there.
+
+- `BodySpot` is `{line, column}` — **`api.ts:670`, no `file` field.**
+- `reveal_request` reads `file` off the request (`jump.rs:283`) — and the app
+  never sends it, because there is nowhere to send it from.
+- So `lines_of` is reached with `file: None`, and a **main-body line maps to
+  exactly one expanded line**. The list is always length one.
+
+There is no ambiguity to offer a list of, because the app cannot address a place
+inside a part *at all*. The ambiguity #82 describes needs the writer to be
+standing in `perek-3` line 2, and the only document the editor holds is the one
+in front of it. This is #72's *"the app has no file tree and a part is not an
+addressable thing"*, arriving from the other direction.
+
+Left open, deliberately, and the order is written down: **#83, then #72's
+decision, then this.**
+
+### #83, found while looking, and it is the worse half
+
+Click a word on the page that came from an included chapter and the caret lands
+at that line number **in the parent**. Not ambiguous — simply wrong, and with no
+hint that it is wrong.
+
+The engine is right. `jump.rs:262` returns `{line, column, file}`, and
+`tests/includes.rs` fences it for diagnostics (`a_mistake_in_a_chapter_is_
+reported_at_that_chapters_line`, asserting `file == "פרק ב"` and `line == 2`,
+*"not the assembled line 4"*).
+
+The file is lost **at the wire reader**, `api.ts:1126`:
+
+```ts
+function readSpot(v: unknown): BodySpot | null {
+  const o = v as { line?: unknown; column?: unknown } | null;
+  …
+  return { line: o.line, column: … };
+}
+```
+
+So `rg "spot\." src/main.ts` returns `spot?.line` and `spot?.column` and nothing
+else — not because `main.ts` ignores the file, but because it was never in `spot`.
+
+Two things make this worse than a plain omission:
+
+**`Located` (`api.ts:704`) declares `file` and is imported nowhere.** `rg
+"Located" app/src` returns the declaration and nothing else, so the type that was
+written to say the file *is not decoration* is not decoration and not anything —
+it is dead.
+
+**`wire.test.mjs` cannot see it.** That fence reads the engine's `json!` literals
+and asks whether *an interface declares* each key. `Located` does declare `file`,
+so it passes. The failure is a **reader narrowing a response**, and that is the
+direction the fence does not run in. A declared key is not a read key, and the
+repository has a fence for the first and not the second.
+
+And the fix is already written, ten lines away, for the sibling case.
+`diagview.ts:74` does `const fromPart = !!d.file`;
+`diagview.ts:100` refuses to underline a chapter's line in the parent (*"would
+mark an innocent line"*); `diagview.ts:276` dispatches
+
+```ts
+file ? goToPart(file, line, column) : goToLine(line, column)
+```
+
+and `onGoToPart` (`main.ts:14847`) **opens the chapter and jumps to the line**.
+
+So the app knows exactly how to get inside a part, uses it for every diagnostic,
+and does not use it for the one gesture the setting is named after
+(`settings.clickToSource`). #83 also does not wait for #82: the ambiguity needs a
+part included **twice**; this happens the first time one is included **once**.
+
+### Fences
+
+`tests/includes.rs`, four tests. The one that matters is
+`line_of_is_the_first_of_lines_of_and_they_cannot_drift`, which sweeps every
+`(file, line)` in the document and asserts `line_of == lines_of.first()`, plus
+the counts the sweep cannot pin — the part is in twice, the main body once each,
+four positions for the part's two lines.
+
+`a_document_with_nothing_included_answers_for_the_whole_body` is the one I would
+have forgotten: `origins` is empty on the fast path, `line_of` answered `None`
+there before `lines_of` existed, and the new method had to agree rather than
+invent an answer for a document nothing was included into.
+
+Two of my own errors, both caught before they landed:
+
+- the first `twice()` fixture had a stray `\בין` where a newline belonged, and an
+  assertion that every match has length 2 — **false for the main body**, which is
+  once each. The sweep would have gone red on the fixture, not on the code, which
+  is the worst place for it to go red;
+- the invariant test's original shape asserted `all.len() == 2` whenever
+  `line_of` answered, which is a claim about the fixture rather than about the
+  property. Replaced with *"an answer implies at least one position"* — a list
+  shorter than the single answer is the bug this was opened for.
+
+### State at log write
+
+| item | state |
+|---|---|
+| #82 | engine half done, product half blocked on #83 and #72 — issue left **open** |
+| #83 | filed and placed in Phase 3, with the three-step loss and the existing fix |
+| #81, #72, #80, #73 | as logged above |
+
+### Mutations
+
+Two, and they are the two distinct properties rather than two spellings of one.
+
+| mutation | caught by |
+|---|---|
+| `line_of` answers `.last()` | 1 test, and the panic names it: `line_of Some(5) is not lines_of [2, 5]` |
+| `lines_of` given its own, broader predicate | **3** tests |
+
+The second is the one worth having. Giving `lines_of` its own predicate is exactly
+the drift the shared iterator exists to prevent, and it broke three separate
+assertions — `lines_of [4, 7]` where `line_of` said `None`, and `[1, 4, 7]` where
+the main body's line 1 was asked for. Three because the property is asserted from
+three directions, which is what I wanted and could not have predicted.
+
+### The one place I did not follow the gate, and why
+
+`gate.mjs`'s `engine` check is `cargo test --release` over **all 75 binaries**.
+I did not run all 75. Ten targets, chosen to cover what this change can reach:
+
+```
+src/lib.rs (249)        ← jump.rs is `line_of`'s only caller, and services.rs
+tests/includes.rs (19)  ← the change
+tests/assemble.rs (6)   tests/note_layout.rs (12)
+tests/assets.rs (13)    tests/pagetext.rs (12)
+tests/channels.rs (29)  tests/docfile_oracle.rs (7)
+tests/deep_link.rs (6)  tests/entry_address.rs (7)
+```
+
+**all green**, and `--lib` is the one that matters most: `line_of` has exactly one
+caller and it lives there.
+
+The reason is measured rather than chosen. This machine has 11 GB of RAM and the
+default job count runs ~9 concurrent `rustc`, each statically linking the whole of
+Typst; at `-j 9` the box fell to **1 GB available under load 27**, and single
+binaries sat at 65% CPU for 29 minutes. Dropping to `-j 3` freed 5 GB and took each
+to **~90%**. At that rate 75 binaries is roughly 4½ hours of linking for 65 of
+them that cannot reach `include.rs`. Ten targets is thorough where it matters and
+is not the same claim as all 75, so it is written down rather than rounded up.
+
+Also recorded: `cargo fmt --check` is **already red on a clean tree** under this
+machine's rustfmt 1.9.0 — `src/lib.rs` alone has 27 diffs, `include.rs` 6,
+`tests/includes.rs` 12. My change adds **zero** new diffs (same 6 and 12 before and
+after), so this is a toolchain-version question I cannot answer from here: CI
+installs its own rustfmt and I do not know whether it agrees with 1.9.0.
+
+Engine `#[test]` count 1,069 → **1,073** (`engineTests` is counted live off
+`#[test]`, so the README moved with it). Editor **7,858**, all green. `tsc` clean.
+
+### Next move
+
+#83. It is the smaller patch and it unblocks #82's product half.

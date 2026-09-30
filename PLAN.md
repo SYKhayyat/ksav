@@ -33,6 +33,23 @@ was actually there was smaller or larger than the report said, and the fix list 
 still right.
 
 ## Phase 3 — Correctness Highs
+- [ ] #83 a click on a word from an included chapter puts the caret at that line
+  number **in the parent**. (High, from #82) — The engine returns the file and a
+  test fences it; `readSpot` (`api.ts:1126`) drops it into a two-key `BodySpot`
+  **at the wire reader**, so `main.ts` never has it and `rg "spot\."` finds only
+  `line` and `column`. `Located` declares `file` and is imported nowhere, and
+  `wire.test.mjs` cannot see it — that fence checks an interface *declares* a key,
+  and a reader narrowing a response is the direction it does not run. Sharpest
+  part: **`diagview` already has the guard and the fix.** `show()` does
+  `const fromPart = !!d.file` (`diagview.ts:74`), `markedLines` refuses to mark a
+  chapter's line in the parent, and `diagview.ts:276` dispatches
+  `file ? goToPart(file, line, column) : goToLine(line, column)` — and
+  `onGoToPart` **opens the chapter and jumps to the line** (`main.ts:14847`). The
+  app knows how to get inside a part, uses it for every diagnostic, and not for
+  the gesture the setting is named after (`settings.clickToSource`). It does not
+  depend on #82 and does not wait for it: the ambiguity needs a part included
+  *twice*; this happens the first time one is included *once*.
+## Phase 3 — Correctness Highs
 - [x] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan).
   (Critical) — six of the audit's seven no longer reproduce; the deliverable is
   `engine/tests/note_layout.rs`, and what was left was a note sent to a
@@ -238,12 +255,24 @@ still right.
   beside the acceptance script's `assertFresh`, which already fences this class
   for the server binary. Removing the guard makes a stale `dist/` pass 13/13
   silently. (from #81)
-- [ ] #82 a part included twice: click goes to the first, a **second gesture offers all
-  of them**. (Low) — `line_of`'s comment calls the ambiguity real and says there is "no
-  better one available". True for a function returning one `usize`, wrong for the
-  product: a writer who wants to know where a chapter appears should see all of it and
-  choose. Needs `Expanded::lines_of`, with `line_of` fenced as its first element so the
-  two cannot drift. (from #63)
+- [~] #82 a part included twice: click goes to the first, a **second gesture offers all
+  of them**. (Low) — **The engine half is built; the product half has no site, and
+  that is the finding.** `Expanded::lines_of` (`include.rs`) returns every place a
+  `(file, line)` landed, ascending, and `line_of` is **its first element by
+  construction** rather than by a fence: both are made of one private `matching`
+  iterator, so the predicate cannot be written twice and drift. The fence is still
+  there (`tests/includes.rs`) because a thing true by construction today can be true
+  by accident tomorrow — and the rule worth holding is *"first is reading order"*,
+  not the identity. `line_of` stays **lazy**, because it is on the reveal path and it
+  is overwhelmingly the first match that answers, so it allocates nothing.
+  The other half is blocked, and not by effort. **`BodySpot` is `{line, column}` and
+  has no `file`** (`api.ts:670`), `reveal_request` reads `file` off the request and the
+  app never sends it, so `lines_of` is reached with `file: None` — and a main-body line
+  maps to exactly one expanded line, so the list is always length one. **There is no
+  ambiguity to offer until the app can address a place inside a part at all**, which is
+  #83 (filed from here: `jump` returns the file and `readSpot` drops it), and behind
+  that #72's *"the app has no file tree and a part is not an addressable thing"*.
+  Left open deliberately; the order is #83, then #72's decision, then this. (from #63)
 - [ ] #62 tokenizer quadratic,  #60 undecodable assets, #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
 - [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port, #21 styles walkers onto walkArgs.
 - [ ] #7 keyed updates (5× replaceChildren).

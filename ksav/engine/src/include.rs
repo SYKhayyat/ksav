@@ -72,18 +72,60 @@ impl Expanded {
         self.origins.get(line.checked_sub(1)?)
     }
 
+    /// Every place `(file, line)` became, in reading order.
+    ///
+    /// # The comment on `line_of` was right, and not enough
+    ///
+    /// `line_of` says *"the caller knows a file and a line, which is genuinely
+    /// ambiguous when the same chapter is pulled in at two places"*, and that is
+    /// true of a function that must return one `usize`. It is not true of the
+    /// product: a writer who wants to know where a chapter appears should see
+    /// all of it and choose. The ambiguity was named, and then the product did
+    /// nothing with the naming.
+    ///
+    /// **The list, beside the answer — not instead of it.** One click must keep
+    /// going where it goes today, because reading order is the right default and
+    /// because a cursor has one place to be. This is the second question.
+    pub fn lines_of(&self, file: Option<&str>, line: usize) -> Vec<usize> {
+        self.matching(file, line).collect()
+    }
+
     /// The inverse: which line of the expanded body a place in a file became.
     ///
     /// The *first* match, because a part included twice appears twice and the
     /// cursor can only be in one of them. First is the answer that agrees with
-    /// reading order, and there is no better one available — the caller knows a
-    /// file and a line, which is genuinely ambiguous when the same chapter is
-    /// pulled in at two places.
+    /// reading order.
+    ///
+    /// **Which is [`Self::lines_of`]'s first element, by construction.** The two
+    /// share one predicate — [`Self::matching`] — rather than each writing the
+    /// test, so they cannot drift and the invariant does not need a fence to hold
+    /// it. A fence is still there (`tests/includes.rs`), because a thing that is
+    /// true by construction today can be true by accident tomorrow, and the
+    /// sentence *"first is reading order"* is worth having something hold it.
+    ///
+    /// Lazy rather than `lines_of(..).into_iter().next()` on purpose: this is on
+    /// the reveal path and it is overwhelmingly the *first* match that answers,
+    /// so the lazy form allocates nothing on a keystroke.
     pub fn line_of(&self, file: Option<&str>, line: usize) -> Option<usize> {
+        self.matching(file, line).next()
+    }
+
+    /// The one predicate both of the above are made of.
+    ///
+    /// Yields 1-based lines of the expanded body, ascending, because it walks
+    /// `origins` in order. **Reading order, and not an arbitrary order**, is the
+    /// property that makes the list presentable: a writer choosing between four
+    /// places wants them top to bottom as they would read them.
+    fn matching<'a>(
+        &'a self,
+        file: Option<&'a str>,
+        line: usize,
+    ) -> impl Iterator<Item = usize> + 'a {
         self.origins
             .iter()
-            .position(|o| o.line == line && o.file.as_deref() == file)
-            .map(|i| i + 1)
+            .enumerate()
+            .filter(move |(_, o)| o.line == line && o.file.as_deref() == file)
+            .map(|(i, _)| i + 1)
     }
 }
 

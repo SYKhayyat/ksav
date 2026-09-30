@@ -113,6 +113,111 @@ fn a_document_with_no_parts_is_untouched() {
     assert_eq!(plain["pages_svg"], with_empty["pages_svg"]);
 }
 
+// ---------------------------------------------------------------- #82, the list
+
+/// Two inclusions of one part, so the same `(file, line)` becomes two places.
+///
+/// The same shape as `a_part_included_twice_is_not_a_loop` in `include.rs`, from
+/// the other end: that test holds that the *expansion* survives it, and this one
+/// asks what the expansion knows about where the result went.
+fn twice() -> include::Expanded {
+    include::expand(
+        "לפני\n#כלול(\"מתבנית\")\nבין\n#כלול(\"מתבנית\")\nאחרי",
+        &[("מתבנית".to_string(), "שורה אחת\nשורה שניה".to_string())]
+            .into_iter()
+            .collect(),
+        include::Limits::default(),
+    )
+}
+
+#[test]
+fn a_part_included_twice_is_reachable_from_both_places() {
+    // The feature. A writer who wants to know where a chapter appears gets every
+    // place it appears, and not only the one a cursor can be in.
+    let out = twice();
+    assert_eq!(
+        out.lines_of(Some("מתבנית"), 1),
+        vec![2, 5],
+        "the part's first line landed at both inclusions: {:?}",
+        out.origins
+    );
+    assert_eq!(out.lines_of(Some("מתבנית"), 2), vec![3, 6]);
+}
+
+#[test]
+fn line_of_is_the_first_of_lines_of_and_they_cannot_drift() {
+    // The invariant the whole change rests on, and the one that makes *"first is
+    // reading order"* one rule rather than two.
+    //
+    // `line_of` and `lines_of` share a predicate in `include.rs`, so this is true
+    // by construction — which is exactly why it is worth a test: a fence that
+    // only checks what the compiler already guarantees is a fence nobody reads,
+    // and the day somebody "simplifies" the shared iterator into two copies this
+    // is the assertion that notices.
+    let out = twice();
+    for file in [None, Some("מתבנית")] {
+        for line in 1..=8 {
+            let first = out.line_of(file, line);
+            let all = out.lines_of(file, line);
+            assert_eq!(
+                first,
+                all.first().copied(),
+                "file={file:?} line={line}: line_of {first:?} is not lines_of {all:?}"
+            );
+            // **An answer implies at least one position.** A list shorter than
+            // the single answer is the bug this was opened for: a place the
+            // writer cannot choose is a place they cannot be told about.
+            assert!(
+                first.is_none() || !all.is_empty(),
+                "file={file:?} line={line}: line_of said {first:?} and the list is {all:?}"
+            );
+        }
+    }
+    // And the counts, which the sweep above cannot pin: the part is in twice, the
+    // main body once each. Four positions for the part's two lines.
+    assert_eq!(out.lines_of(Some("מתבנית"), 1).len(), 2);
+    assert_eq!(out.lines_of(Some("מתבנית"), 2).len(), 2);
+    assert_eq!(out.lines_of(None, 1), vec![1]);
+    assert_eq!(out.lines_of(None, 3), vec![4]);
+    assert_eq!(out.lines_of(None, 5), vec![7]);
+}
+
+#[test]
+fn the_list_is_in_reading_order_and_lines_that_do_not_land_are_empty() {
+    // Ascending, because that is what makes it presentable: a writer choosing
+    // between four places wants them top to bottom as they would read them, and a
+    // `HashMap` iteration order would be the alternative.
+    let out = twice();
+    assert!(out
+        .lines_of(Some("מתבנית"), 1)
+        .windows(2)
+        .all(|w| w[0] < w[1]));
+    // A line in the part that exists, and a line in a part that does not.
+    assert_eq!(out.lines_of(Some("מתבנית"), 99), Vec::<usize>::new());
+    assert_eq!(out.lines_of(Some("פרק שאינו"), 1), Vec::<usize>::new());
+    // The main body answers for itself, as `None` rather than a name.
+    assert_eq!(out.lines_of(None, 1), vec![1]);
+}
+
+#[test]
+fn a_document_with_nothing_included_answers_for_the_whole_body() {
+    // The fast path. `origins` is empty when nothing was expanded, and `line_of`
+    // answered `None` for that before `lines_of` existed — its one caller falls
+    // back to the line it was given. So `lines_of` must be empty too, and the
+    // fence that would catch it getting that wrong is this.
+    let out = include::expand(
+        "#כותרת1[שלום]\n\nעולם",
+        &HashMap::new(),
+        include::Limits::default(),
+    );
+    assert!(
+        !out.expanded && out.origins.is_empty(),
+        "the fast path, reached"
+    );
+    assert_eq!(out.line_of(None, 1), None);
+    assert_eq!(out.lines_of(None, 1), Vec::<usize>::new());
+}
+
 #[test]
 fn a_bare_include_mid_sentence_says_what_is_wrong() {
     // The one failure mode of the whole-line rule. Without the prelude's fallback

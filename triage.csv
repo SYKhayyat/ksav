@@ -1,0 +1,49 @@
+number,title,url,D,R,why,risk
+7,Replace full DOM rebuilds with stable keyed updates for large panels,https://github.com/SYKhayyat/ksav/issues/7,3,3,Keyed reconcile + scroll preserve; wrong keys reset UI visibly,Visible UI reset
+8,Provide a first-class LibreOffice-style document workflow,https://github.com/SYKhayyat/ksav/issues/8,4,3,Toolbar+keyboard+focus design; wrong workflow blocks editing visibly,Visible edit block
+9,Overhaul the UI for intuitive LibreOffice-style editing,https://github.com/SYKhayyat/ksav/issues/9,5,3,Systemic UX reorganization with RTL kept; wrong layout confuses visibly,Visible confusion
+11,Adopt Leo editor-style node workflow for document structure,https://github.com/SYKhayyat/ksav/issues/11,5,4,Outline+clones+directives; wrong clone propagation corrupts doc silently,Silent doc corruption
+14,User acceptance test (UAT): a real writer's first hours in Ksav,https://github.com/SYKhayyat/ksav/issues/14,1,1,Human scripted session only; no code change reversible,No code change
+19,Move the front-end lexer spans.ts to a Rust/WASM scan service,https://github.com/SYKhayyat/ksav/issues/19,5,4,Port 1590-line lexer for 31 importers; wrong tokens corrupt downstream silently,Silent corruption
+20,Move deferred.ts and numbering.ts whole-document scans to Rust services,https://github.com/SYKhayyat/ksav/issues/20,4,3,Port doc scans to WASM; wrong resequence numbers visibly wrong,Visible mis-number
+21,Consolidate duplicate argument-walkers in styles.ts onto spans.walkArgs,https://github.com/SYKhayyat/ksav/issues/21,2,2,Replace splitArgs dupes with shared walker; edit-time hygiene test-guarded,Hygiene only
+22,Split the ~15000-line main.ts monolith,https://github.com/SYKhayyat/ksav/issues/22,3,3,Mechanical module split by domain; wrong move breaks editor visibly,Visible editor break
+23,Hoist i18n.ts translation data out of the 164 KB module,https://github.com/SYKhayyat/ksav/issues/23,1,1,Move tables to JSON or per-language; ergonomics reversible,Reversible
+31,Ksav Lamdan 10: the decision record has metastasized,https://github.com/SYKhayyat/ksav/issues/31,1,1,Retire monoliths to git log + LOG table; docs only reversible,Docs only
+32,Ksav Lamdan 11: the test/documentation tower is the most expensive guard,https://github.com/SYKhayyat/ksav/issues/32,2,2,Remove duplicate sweep add engine oracles; test-only redirect,Test-only
+33,Ksav Lamdan 12: chrome.test.mjs still carries the positional-slice disease,https://github.com/SYKhayyat/ksav/issues/33,2,2,Export functions and assert properties; test hygiene no product risk,Test hygiene
+34,Ksav Lamdan 13: the audit/ directory is a committed test-shaped morgue,https://github.com/SYKhayyat/ksav/issues/34,1,1,Replace 118 files with README; untracking reversible via history,Reversible
+35,Ksav Lamdan 14: notes-corpus fine-grained claims remain asserted by zero tests,https://github.com/SYKhayyat/ksav/issues/35,2,2,Parameterize structural claims as tests; test-only no behavior change,Test-only
+36,Ksav Lamdan 15: watch.forget has no caller,https://github.com/SYKhayyat/ksav/issues/36,1,2,Wire teardown caller or retire method; small lifecycle fix,Small lifecycle
+37,Ksav Interop A: the prose-tax finding is the same disease,https://github.com/SYKhayyat/ksav/issues/37,4,2,Shared prose convention across repos; docs decision test-guarded,Docs decision
+38,Ksav Interop B: cite the compiler not the prose (the shared seam),https://github.com/SYKhayyat/ksav/issues/38,3,2,Emit Typst truth once and cross-check; seam hygiene test-guarded,Test-guarded
+39,Ksav Interop C: product-identity questions only you can answer,https://github.com/SYKhayyat/ksav/issues/39,4,1,Owner calls on WASM plus seam plus signing; decisions only,Decisions only
+42,100% Rust rewrite: replace TypeScript/Tauri editor with native Rust UI,https://github.com/SYKhayyat/ksav/issues/42,5,3,Replace TS editor with native UI; wrong port breaks editing visibly,Visible break
+43,Proposal: top/bottom independent streams as two half-page documents merged,https://github.com/SYKhayyat/ksav/issues/43,4,3,Two half-page docs merged page-aligned; wrong merge shows visibly,Visible layout error
+44,Print/export: nikud/taamim stripping + shemos kedoshim replacement options,https://github.com/SYKhayyat/ksav/issues/44,2,4,Three per-export toggles; wrong shemos handling violates print halacha silently,Silent halachic violation
+45,Writer tools: gematria calculator + gematria search,https://github.com/SYKhayyat/ksav/issues/45,2,2,Selected-text value plus phrase lookup; additive tool easily verified,Additive tool
+46,Writer tools: rashei-teivos expander + Hebrew/Aramaic dictionary lookup,https://github.com/SYKhayyat/ksav/issues/46,2,2,Caret-word lookup hook plus JSON data; wrong entry is bounded metadata,Bounded metadata
+47,Writer tools: Hebrew-date / zmanim insertion for kesubah get siddur,https://github.com/SYKhayyat/ksav/issues/47,3,5,Tested luach plus insert command; wrong date invalidates kesubah or get,Invalidates kesubah/get
+48,Writer tools: shiurim measurement converter (amos/tefachim to cm),https://github.com/SYKhayyat/ksav/issues/48,1,4,Pure palette converter; wrong factor silently corrupts every shiur,Silent shiur corruption
+54,[Medium/bug] Wasm timeout message contradicts engine kills unrelated calls,https://github.com/SYKhayyat/ksav/issues/54,2,3,Scope timeout to compile and reword; wrong failAll kills spell visibly,Visible spell kill
+55,[Medium/perf] Reserve cache single global slot keyed body+sheet only,https://github.com/SYKhayyat/ksav/issues/55,2,3,Bounded map keyed by doc; ping-pong eviction pays full scan visibly,Visible perf cost
+56,[Medium/bug] Shared asset cache keyed on 32-bit hash writable by header-less,https://github.com/SYKhayyat/ksav/issues/56,2,5,Key on SHA-256 with digest compare; collision plants wrong printed image,Wrong printed image
+57,[Medium/bug] named_arg quote-blind while closing_paren quote-aware,https://github.com/SYKhayyat/ksav/issues/57,2,4,Quote-aware arg walk; string contents silently undercount foot reserve,Silent undercount
+58,[Medium/bug] Inline-reserve scan matches prose comments strings,https://github.com/SYKhayyat/ksav/issues/58,2,4,Resolve off parsed tree; prose mention silently rewrites page reserve,Silent page rewrite
+59,[Medium/bug] pdf_pages 0 or garbage silently exports everything,https://github.com/SYKhayyat/ksav/issues/59,1,3,Validate spec and error naming token; typo silently exports all pages,Silent over-export
+60,[Medium/bug+perf] Undecodable assets silently dropped; only base64-STANDARD,https://github.com/SYKhayyat/ksav/issues/60,2,4,Try URL_SAFE and warn naming asset; one bad byte silently loses image,Silent image loss
+61,[Low/bug] Spell is_command exempts prose word(/word[,https://github.com/SYKhayyat/ksav/issues/61,1,2,Restrict skip to hash prefix; missing squiggles are bounded metadata,Bounded metadata
+62,[Medium/perf] Tokenizer quadratic via run_of_letters,https://github.com/SYKhayyat/ksav/issues/62,2,2,Cap lookahead or precompute runs; pure tokenizer perf,Perf only
+64,Proposal: linked commentary ordering — sort a peirush into reference order,https://github.com/SYKhayyat/ksav/issues/64,4,3,Stable sort by linker rank with preview; needs syntax plus scope decisions,Needs decisions
+65,Proposal: commentary wrapped around a central block (Vilna wrap),https://github.com/SYKhayyat/ksav/issues/65,5,3,Obstacle plus measured knees flow; new layout primitive visible on failure,Visible layout failure
+66,Smart navigation — type what you mean get what you need,https://github.com/SYKhayyat/ksav/issues/66,4,3,Shared parser plus fuzzy aliases; wrong parse inserts wrong text visibly,Visible wrong insert
+68,Proposal: transfer source headings into sorted commentary,https://github.com/SYKhayyat/ksav/issues/68,4,3,Copy headings at sort boundaries with regenerate; wrong inject shows visibly,Visible inject error
+69,Proposal: templated headings and lists — per-level prefix and auto number,https://github.com/SYKhayyat/ksav/issues/69,3,3,Per-level prefix plus counter via Typst; wrong template numbers visibly wrong,Visible mis-number
+72,Decision: a sefer cannot read the disk — give it a root or ship @local alone,https://github.com/SYKhayyat/ksav/issues/72,4,5,Sefer-as-tree plus git plus UI choice; wrong root breaks sandbox security,Sandbox break
+73,Decision: bundle real Typst libraries starting with meander?,https://github.com/SYKhayyat/ksav/issues/73,4,3,Measure threading then vendor decision; wrong dep adds permanent weight,Permanent weight
+77,n independent flows each continuing into the same position on the next page,https://github.com/SYKhayyat/ksav/issues/77,5,3,Typst has no Flow element; needs primitive design visible on failure,Visible failure
+78,A stream can hold a note but not arbitrary content,https://github.com/SYKhayyat/ksav/issues/78,3,2,Measure paragraph versus figure in stream; probe first no layout risk,Probe only
+79,Streams live in the read-only footer — can a stream occupy the page body?,https://github.com/SYKhayyat/ksav/issues/79,4,2,Body versus footer probe plus cost call; product fork probe only,Probe only
+80,Research: reledmac + reledpar for Hebrew RTL text-critical editions,https://github.com/SYKhayyat/ksav/issues/80,3,1,Verify second-engine claims; research only no code change,Research only
+81,A notice raised in one language stays in that language,https://github.com/SYKhayyat/ksav/issues/81,2,1,Extend language sweep to notice host; cosmetic banner language only,Cosmetic
+82,A part included twice: click goes to the first a second gesture should offer all,https://github.com/SYKhayyat/ksav/issues/82,4,3,Add lines_of plus chooser UI; needs display decision wrong jump shows visibly,Visible wrong jump

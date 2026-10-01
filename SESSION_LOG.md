@@ -3082,6 +3082,16 @@ cosmetic:
   it is paint. This is whitespace the writer reads, deletes, and git diffs, so it
   has to be a count. And the *side* question disappears with it — whitespace is not
   directional.
+
+And a third correction when he asked whether I had understood the ask: **I had
+mislabelled one of his three dials.** He said *"by percentage used"* and I had been
+calling that dial "depth" and reaching for `MAX_LEVEL = 9` as its precedent. Same
+control, but the **percentage** is the point — the ceiling is a *share*, so one
+setting behaves whether a document nests 2 deep or 20. `MAX_LEVEL` is a fixed count
+and is therefore the wrong precedent; I had mistaken a constant for the idea.
+
+So the three are **amount**, **percentage used**, **size from side**, and the fourth
+is the one he added: **minimum words**, below which a tag is not touched at all.
 - **a minimum word count becomes load-bearing**, because without it every
   `#נטוי[מילה]` in a sefer becomes three lines nobody asked for, and the source
   churns under the caret. Below the threshold a tag is not touched **at all** — no
@@ -3104,11 +3114,23 @@ dropping a pair of quotes, and `deferred.ts:1372` records a tidy losing idempote
 to a single wrong offset. Both are about *re-running* the transform, which a
 formatter does constantly.
 
-The one question I genuinely cannot answer is **`#כלול`**: a chapter is a separate
-file, so it is indented at depth 0 in its own right, two files can disagree and
-nothing catches it, and the preview is laid out from *spliced* text. Probably
-per-file and never across an inclusion — but that is a product call and it is
-Shaul's, so #84 asks it rather than answering it.
+The one question I genuinely cannot answer is **`#כלול`**, and he asked me to re-explain
+it without jargon, which was fair — I had answered it in the language of frames and
+splices.
+
+Plainly: a chapter is its own file, read from the top, so it always starts at the far
+left. But **on the page** a chapter can land inside a note and print inset. So either
+the indenter treats every chapter as starting at zero, or it knows how deep that chapter
+ends up and matches.
+
+The cost of matching is the thing to weigh, and it is not a technical cost: **moving
+one chapter out of a note would rewrite a different file**, hundreds of lines of
+indentation shifting, for a change made somewhere else entirely — and then again when
+it moves back. In git that is noise on every rearrangement.
+
+So: **indent each file on its own.** The file is what you write in; the page is what
+Ksav draws for you; a formatter that makes one depend on the other is how writers stop
+trusting a formatter. Recorded as a recommendation, not a decision — it is his.
 
 ### State at log write
 

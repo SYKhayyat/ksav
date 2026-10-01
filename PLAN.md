@@ -307,12 +307,12 @@ still right.
   and `MAX_LEVEL = 9` is the existing precedent for a ceiling — *"A limit the page
   can honour beats a promise it cannot."* So this is **a view over existing state**,
   not new parsing, and `#הגדרות_כותרות`'s `הזחה`/`הזחה_מרבית` (`ksav.typ:7024`) is
-  already a step-and-a-cap shape. Three knobs because three questions: **depth**
-  (how many levels, `MAX_LEVEL`'s job), **width** (how much per level — in
-  characters, see below), **side** (`padding-inline-start`, not `margin-left`: RTL is
-  the default here, and `.pm-rtl`/`.pm-ltr` is the existing precedent). A guide is
-  one `Decoration.line` plugin over `scan().frames`, viewport-only for `focus.ts:48`'s
-  reason — but that is the *reading* half only.
+  already a step-and-a-cap shape. Three knobs as Shaul named them: **amount** (how wide each step is),
+  **percentage used** (the ceiling is a *share* rather than a count of levels, so one
+  setting behaves whether a document nests 2 deep or 20 — I had been calling this
+  "depth" and reaching for `MAX_LEVEL`, which is the same dial by another name),
+  **size from side** (how far in from the edge the whole thing starts). Plus the one
+  that makes it work: **minimum words**, below which a tag is not touched at all.
   **It is the SOURCE that gets indented**, per Shaul — *"of course it is the source
   doc that would be indented, it is to make writing easier"* — and my argument against it
   was optimising for the failure I could imagine instead of asking what the feature is
@@ -327,10 +327,14 @@ still right.
   (`editDoc` at `main.ts:8544` dispatches once, so it is free provided nothing dispatches
   per line), **idempotence** (`deferred.ts:1416` — *"tidy twice leaves one separator and
   not two"*) and **the caret survives** (`Edit {text, caret}`, `headings.ts:170`). The
-  one genuinely open question is **`#כלול`**: a chapter is indented in its own file at
-  depth 0, two files can disagree and nothing catches it, and the preview is laid out
-  from spliced text — so probably indent per-file and never across an inclusion, but that
-  is a product call and Shaul's.
+  one genuinely open question is **`#כלול`**: a chapter is a separate file read from the
+  top, so it always starts at depth 0, while **on the page** it can land inside a note
+  and print inset. Either indent each file on its own — a chapter looks the same however
+  you move it, and moving one never rewrites another's file — or indent by where the
+  chapter ends up, which makes the file match the page at the price of *moving one
+  chapter rewriting a different one's every line*. Recommend the former: the file is what
+  you write in and the page is what Ksav draws for you, and a formatter that makes one
+  depend on the other is how writers stop trusting a formatter. Shaul's call.
   Filed with a **second list** — the broader "put IDE features in" half, ordered by
   what a *Hebrew* sefer writer loses: (1) hover scope preview, which is the hard one
   and is *not* a tab bar — a 40-tab apparatus is worse than a status line answering

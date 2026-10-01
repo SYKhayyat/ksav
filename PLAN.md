@@ -320,6 +320,22 @@ still right.
   `structure.ts:structureAt` both read it — so this is a view over existing state.
   Defaults are mine: **2 spaces** (`table.ts:258`, the one place here that already
   pretty-prints), **50 percent** (as named), and a minimum-words number to be chosen.
+  **The family, and what makes it one:** *presentation* — re-present the source without
+  changing it. "No change to the real file" is not a caveat on #84, it is the *test*, and
+  hover/diagnostics/navigation are a different tool (**analysis** — they tell you about
+  the text) which is what I kept answering with. The siblings, all over the same
+  `scan()`, and **none needs a new scan — that is the honest test for belonging**:
+  (1) **dim outside the innermost tag** — `focus.ts` already dims outside the *paragraph*,
+  and this answers "which `#הערה[` am I inside?" with no hover at all; (2) **click a bracket,
+  select the whole tag** — the reverse of #84, legible vs *grabbable*, and `bracketMatching`
+  is already wired so the range is known; (3) **tag length in the fold placeholder**
+  (`#הערה[… 480 אותיות]`, `close − open`) so you can tell whether folding is worth it;
+  (4) **whitespace rendering** — after #84 indentation *is* whitespace, and
+  `highlightSpecialChars` is already imported and used for bidi marks; (5) **a minimap**,
+  which I wrongly skipped first time — the ruler answers *where*, a minimap answers *how
+  much*, and it is the only thing showing a chapter went 3 pages to 40. **Line numbers
+  stay absent on purpose**: in a sefer the address is the *siman*, which `numbering.ts`
+  maintains, and the gutters are already hidden in page mode.
 
 - [ ] #66 smart navigation — type any sefer+location (Hebrew/English/phonetic), insert the text; parenthesized list → combined source-sheet block. Works for every sefer, shared parser with Girsa.
 - [ ] Writer tools: #48 shiurim, #47 zmanim/dates, #46 rashei-teivos/dict, #45 gematria, #44 nikud/shemos toggles.

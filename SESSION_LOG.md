@@ -6164,10 +6164,40 @@ the thing measured, after #81's stale `dist/`, #82's unreachable product half, a
 `wire.test.mjs` checking declarations rather than reads. The common shape: I found a
 nearby thing that shared a name, and answered from it.
 
-**Left standing, and it is small:** when you type inside an indented block, does the
-text carry the indentation with it? Yes and the file changes on save; no and it is a
-layer over your text. Leaning no — it is the one reading under which the file really
-is untouched — but that is the difference between a view and an edit, so #84 asks.
+### The family, asked for afterwards: *"you see what I mean by IDE features?"*
+
+I did not, and the answer is one line long. **#84 is not the same kind of thing as the
+features I had been listing.** It is *presentation* — it re-lays-out your text in front of
+you and never touches the document — so **"no change to the real file" is not a caveat on
+that feature, it is the definition of the family.**
+
+Hover info, diagnostics and navigation are **analysis**: they tell you something *about*
+the text. Real, useful, and a different tool — and it is what I kept answering with when
+the question was about this.
+
+The test for belonging is one sentence: **does this re-present the source without changing
+it?** And the sharper test for whether an idea is in the family at all is **if it needs a
+new scan, it probably isn't.** Every sibling below is a `Decoration` over `scan()`, which
+is already paid for on every keystroke by `modeAt`, `legalAt`, `insertionAt` and the
+outline — and that is `ruler.ts`'s stated design (*"Nothing here computes a mark; the
+producers are unchanged and none of them knows this file exists"*), which is why it could
+be added at all.
+
+| | what it does | why it is nearly free |
+|---|---|---|
+| **dim outside the innermost tag** | the answer to *"which `#הערה[` am I inside?"* with **no hover** | `focus.ts` already dims outside the *paragraph*; one function over `framesAt` |
+| **click a bracket, select the tag** | the **reverse** of #84 — legible vs *grabbable* | `bracketMatching` is wired; `Frame` carries `open` and `close` |
+| **tag length in the placeholder** | `#הערה[… 480 אותיות]` — is folding worth it? | `close − open`, and `close` is already `text.length` when unclosed |
+| **whitespace rendering** | after #84 indentation *is* whitespace | `highlightSpecialChars` already imported, already used for bidi marks |
+| **a minimap** | **which I wrongly skipped first time** — the ruler answers *where*, this answers *how much*, and it is the only thing showing a chapter went 3 pages to 40 | CodeMirror's own |
+
+Checked before listing, so it is not a fifth guess: present and working are
+`drawSelection`, `highlightActiveLine`, folding and `foldGutter`, `bracketMatching`, the
+highlighter, the ruler, bidi marks, six lints, the change gutter and focus dimming.
+**Absent**: whitespace rendering, a minimap, structural selection, any enclosing-chain
+view. And **line numbers stay absent on purpose** — in a sefer the address is the
+*siman*, which `numbering.ts` maintains; a line number is a code-editor tic and the
+gutters are already hidden in page mode.
 
 ### State at log write
 

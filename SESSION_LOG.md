@@ -3053,11 +3053,62 @@ The pre-existing `assets_are_read_from_a_request_with_or_without_a_data_url_pref
 
 Undecodable bytes and empty bytes are two different mistakes — a broken transfer or a wrong paste, versus a client that sent a name and no content — and one sentence covering both would send a writer to the wrong place. Neither is worth refusing a compile over, which is why this **reports and continues**, exactly as a refused *name* does.
 
-### Also filed: #84, the indent idea
+### Also filed: #84, the indent idea — and the argument I made that was wrong
 
 Shaul's proposal, measured against the tree before it was written down — and the finding is that **nesting is already understood and simply not shown**. `spans.ts:scan()` produces `frames` outermost-first, `mode.ts:enclosing` and `structure.ts:structureAt` both read it, and `MAX_LEVEL = 9` already argues the case for a ceiling. So it is a view over existing state rather than new parsing, and `#הגדרות_כותרות`'s `הזחה`/`הזחה_מרבית` is already the step-and-a-cap shape this asks for.
 
 Placed in Phase 5 per the routing rule, with the broader "put IDE features in" half as a second list ordered by what a *Hebrew* sefer writer loses. **Hover scope preview is the top of it, and it is deliberately not a tab bar** — a forty-tab apparatus is worse than one status line answering *"which `#הערה[` am I inside?"*, which `framesAt` can already answer.
+
+### The argument I made in #84, and why it was the wrong shape of argument
+
+I filed #84 arguing **against** indenting the source: Typst has no indentation
+semantics, so it would "lie about the language and make every saved sefer disagree
+with what was typed."
+
+Shaul's reply: *"of course it is the source doc that would be indented — it is to
+make writing easier, no?"*
+
+He is right, and the reason I was wrong is the same one that has come up three
+times in this session: **I optimised for the failure I could imagine instead of
+asking what the feature is for.** A guide at the margin is a *reading* aid. Indenting
+the source is a *writing* aid — and finding the place to type next inside a
+900-character line you wrote yourself is the hard part of writing a sefer. The
+preview already shows you the page; the page was never what was hard.
+
+Two things changed in the design because of the correction, and both are more than
+cosmetic:
+
+- **the width is characters, not `em`.** The heading indent can be `1em` because
+  it is paint. This is whitespace the writer reads, deletes, and git diffs, so it
+  has to be a count. And the *side* question disappears with it — whitespace is not
+  directional.
+- **a minimum word count becomes load-bearing**, because without it every
+  `#נטוי[מילה]` in a sefer becomes three lines nobody asked for, and the source
+  churns under the caret. Below the threshold a tag is not touched **at all** — no
+  indent, no inserted breaks. That knob is the difference between a formatter and
+  something that fights you.
+
+Reading the tree for it turned up the three properties a formatter here must hold,
+and **the tree names all three without being asked**:
+
+| property | where it is already argued |
+|---|---|
+| one undo step | `editDoc` (`main.ts:8544`) dispatches once; free, provided nothing dispatches per line |
+| idempotence | `deferred.ts:1416` — *"tidy twice leaves one separator and not two"* |
+| the caret survives | `Edit { text, caret }` (`headings.ts:170`) |
+
+And the two precedents to read first are **both warnings**: `table.ts:274` is the
+only place that pretty-prints, and `spans.ts:92` says so and gives the reason;
+`deferred.ts:1520` records a rewriter that **reshaped a writer's own source** by
+dropping a pair of quotes, and `deferred.ts:1372` records a tidy losing idempotence
+to a single wrong offset. Both are about *re-running* the transform, which a
+formatter does constantly.
+
+The one question I genuinely cannot answer is **`#כלול`**: a chapter is a separate
+file, so it is indented at depth 0 in its own right, two files can disagree and
+nothing catches it, and the preview is laid out from *spliced* text. Probably
+per-file and never across an inclusion — but that is a product call and it is
+Shaul's, so #84 asks it rather than answering it.
 
 ### State at log write
 

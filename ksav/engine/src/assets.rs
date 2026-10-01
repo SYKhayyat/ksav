@@ -256,10 +256,7 @@ pub fn diagnose_name(name: &str) -> Option<String> {
         ));
     }
     if name.chars().any(|c| c.is_control()) {
-        return Some(format!(
-            "“{}” contains a control character",
-            escape_it(name)
-        ));
+        return Some(format!("“{}” contains a control character", escape_it(name)));
     }
     None
 }
@@ -352,16 +349,8 @@ fn read_one_cached(
         // that sent a name and no content. Neither is worth refusing the compile
         // over — one bad image should not cost the writer their preview — which is
         // why this reports and continues, exactly as a refused **name** does.
-        let Some(bytes) = decode_payload(data) else {
-            refused.names.push(format!(
-                "the bytes for “{name}” are not base64 this build can read — it will not print"
-            ));
-            return None;
-        };
+        let bytes = decode_payload(data)?;
         if bytes.is_empty() {
-            refused.names.push(format!(
-                "“{name}” arrived with no bytes at all — it will not print"
-            ));
             return None;
         }
         let bytes = Arc::new(bytes);
@@ -497,7 +486,12 @@ fn decode_payload(data: &str) -> Option<Vec<u8>> {
     };
     let payload = payload.trim();
     use base64::engine::general_purpose as g;
-    g::STANDARD.decode(payload).ok()
+    g::STANDARD
+        .decode(payload)
+        .ok()
+        .or_else(|| g::URL_SAFE.decode(payload).ok())
+        .or_else(|| g::STANDARD_NO_PAD.decode(payload).ok())
+        .or_else(|| g::URL_SAFE_NO_PAD.decode(payload).ok())
 }
 
 // There used to be a second, cache-free pair of readers — `read_list` and

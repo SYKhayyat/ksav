@@ -308,12 +308,29 @@ still right.
   can honour beats a promise it cannot."* So this is **a view over existing state**,
   not new parsing, and `#הגדרות_כותרות`'s `הזחה`/`הזחה_מרבית` (`ksav.typ:7024`) is
   already a step-and-a-cap shape. Three knobs because three questions: **depth**
-  (how many levels, `MAX_LEVEL`'s job), **width** (how much per level — the
-  writer's column), **side** (`padding-inline-start`, not `margin-left`: RTL is the
-  default here, and `.pm-rtl`/`.pm-ltr` is the existing precedent). One `Decoration.line`
-  plugin over `scan().frames`, viewport-only for `focus.ts:48`'s reason.
-  **Not indenting the source**: Typst has no indentation semantics, so it would lie
-  about the language and make every saved sefer disagree with what was typed.
+  (how many levels, `MAX_LEVEL`'s job), **width** (how much per level — in
+  characters, see below), **side** (`padding-inline-start`, not `margin-left`: RTL is
+  the default here, and `.pm-rtl`/`.pm-ltr` is the existing precedent). A guide is
+  one `Decoration.line` plugin over `scan().frames`, viewport-only for `focus.ts:48`'s
+  reason — but that is the *reading* half only.
+  **It is the SOURCE that gets indented**, per Shaul — *"of course it is the source
+  doc that would be indented, it is to make writing easier"* — and my argument against it
+  was optimising for the failure I could imagine instead of asking what the feature is
+  for. A guide is a *reading* aid; the source rewrite is a *writing* aid, and finding the
+  place to type next inside a line you wrote is the hard part of writing a sefer. **Two
+  knobs change with that:** the width is **characters, not `em`** — it is whitespace the
+  writer sees, deletes and git diffs — and the load-bearing one is a **minimum word
+  count**, below which a tag is not touched at all, because without it every
+  `#נטוי[מילה]` becomes three lines the writer did not ask for. Typst ignores leading
+  whitespace, so an indented source still compiles identically.
+  Three properties it must hold, and the tree names all three: **one undo step**
+  (`editDoc` at `main.ts:8544` dispatches once, so it is free provided nothing dispatches
+  per line), **idempotence** (`deferred.ts:1416` — *"tidy twice leaves one separator and
+  not two"*) and **the caret survives** (`Edit {text, caret}`, `headings.ts:170`). The
+  one genuinely open question is **`#כלול`**: a chapter is indented in its own file at
+  depth 0, two files can disagree and nothing catches it, and the preview is laid out
+  from spliced text — so probably indent per-file and never across an inclusion, but that
+  is a product call and Shaul's.
   Filed with a **second list** — the broader "put IDE features in" half, ordered by
   what a *Hebrew* sefer writer loses: (1) hover scope preview, which is the hard one
   and is *not* a tab bar — a 40-tab apparatus is worse than a status line answering

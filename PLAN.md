@@ -300,25 +300,26 @@ still right.
 - [ ] #7 keyed updates (5× replaceChildren).
 
 ## Phase 5 — Features / proposals (Info/Low, after engine is safe)
-- [ ] #84 indent nested tags in the source view — amount, percent used, size from side.
-  (Proposal) — **A view, not an edit: the file on disk is never touched.** Every
-  `#…[…]` is displayed with its contents on their own lines, indented one step per `[`
-  entered. Three dials as Shaul named them: **amount** (the step — **2 spaces**,
-  matching the one place here that already pretty-prints, `table.ts:258`), **percent
-  used** (*"nothing should indent more than 50 percent of the page"* — a share of the
-  **width**, not a count of levels, so it self-adjusts and there is no maximum depth to
-  argue about: the width runs out first), **size from side**. Plus the fourth and the one
-  that makes it safe: **minimum words**, below which the tag is left completely alone, no
-  indent and no breaks, because `#נטוי[מילה]` is most of a sefer's emphasis.
-  Nesting is already computed — `scan()` gives `frames` outermost-first (`spans.ts:247`),
-  `mode.ts:enclosing` and `structure.ts:structureAt` both read it — so this is a view over
-  existing state. **I wasted three paragraphs on `#כלול`** (does a chapter's indentation
-  follow it in and out of a note?) which is an artefact of my own wrong reading: it only
-  matters if indenting *writes files*. It does not, each document is shown on its own from
-  its own first line, and there is no cross-file question. Left open, and small: **when you
-  type inside an indented block, does the text carry the indentation with it?** Yes and the
-  file changes on save; no and it is a layer. Leaning no, since that is the one that leaves
-  the file alone.
+- [ ] #84 indent nested tags in the source **view** — a toggle; the file is never
+  changed. (Proposal) — **Shaul's spec, five lines, which supersedes everything I
+  inferred:** every `][` in its own line, indented; the amount is a user-set value; the
+  point at which indenting stops is defined **either** by amount from side (**in RTL,
+  from the left** — the opposite of what `padding-inline-start` gives, and noted so
+  nobody "fixes" it) **or** by percent used; a minimum-words setting; and **paragraph
+  breaks within an indented paragraph share that indent level**.
+  **A view, not an edit — so there is nothing to save, undo, keep idempotent, or worry
+  about in `git`.** All four of my earlier concerns were about a rewrite that does not
+  happen; the last line of the spec answers the one question I was going to ask (does
+  typed text carry the indentation? — no, there is no file change at all).
+  **Line 5 is the part that is easy to get wrong and it is a rule, not a detail:** a
+  blank line inside a note has no content to hang an indent off, so indenting each line
+  by its own depth makes the block visibly fall apart at the first gap in the prose.
+  Carrying the level across the blank line is what makes a `#הערה[…]` read as one block.
+  Nesting is already computed — `scan()` gives `frames` outermost-first with
+  `{open, close, ctx, name}` (`spans.ts:247`), and `mode.ts:enclosing` /
+  `structure.ts:structureAt` both read it — so this is a view over existing state.
+  Defaults are mine: **2 spaces** (`table.ts:258`, the one place here that already
+  pretty-prints), **50 percent** (as named), and a minimum-words number to be chosen.
 
 - [ ] #66 smart navigation — type any sefer+location (Hebrew/English/phonetic), insert the text; parenthesized list → combined source-sheet block. Works for every sefer, shared parser with Girsa.
 - [ ] Writer tools: #48 shiurim, #47 zmanim/dates, #46 rashei-teivos/dict, #45 gematria, #44 nikud/shemos toggles.

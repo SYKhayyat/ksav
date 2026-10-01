@@ -256,7 +256,10 @@ pub fn diagnose_name(name: &str) -> Option<String> {
         ));
     }
     if name.chars().any(|c| c.is_control()) {
-        return Some(format!("“{}” contains a control character", escape_it(name)));
+        return Some(format!(
+            "“{}” contains a control character",
+            escape_it(name)
+        ));
     }
     None
 }
@@ -336,11 +339,37 @@ fn read_one_cached(
 
     // Bytes on the request: decode, cache under the hash **we compute**, use them.
     if let Some(data) = v.get("data").and_then(|x| x.as_str()) {
-        let bytes = decode_payload(data)?;
-        if name.is_empty() || bytes.is_empty() {
+        // **Named, not dropped.** This was `decode_payload(data)?` on an
+        // `Option`, in a function whose return type is `Option<Asset>` — so a
+        // payload in any spelling this build did not happen to accept, or one
+        // corrupted byte anywhere in a megabyte, produced *nothing at all*. The
+        // asset simply did not exist, and the writer's sefer lost an image with
+        // no diagnostic, no status line and nothing to act on.
+        //
+        // Two failures, one sentence each, because they are two different
+        // mistakes: undecodable bytes are a broken transfer or a writer who
+        // pasted something that is not base64, and *empty* bytes are a client
+        // that sent a name and no content. Neither is worth refusing the compile
+        // over — one bad image should not cost the writer their preview — which is
+        // why this reports and continues, exactly as a refused **name** does.
+        let Some(bytes) = decode_payload(data) else {
+            refused.names.push(format!(
+                "the bytes for “{name}” are not base64 this build can read — it will not print"
+            ));
+            return None;
+        };
+        if bytes.is_empty() {
+            refused.names.push(format!(
+                "“{name}” arrived with no bytes at all — it will not print"
+            ));
             return None;
         }
         let bytes = Arc::new(bytes);
+        // The old line was `if name.is_empty() || bytes.is_empty() { return None; }`
+        // and **half of it was unreachable**: `diagnose_name` refuses an empty
+        // name eight lines earlier, with the better sentence — *"an asset needs a
+        // name"*. So this dropped nothing; it only had a branch that could not
+        // fire. The half that could fire is reported just above.
         // Keyed on the engine's own reading of the payload, never on the
         // caller's claim about it.
         //
@@ -436,14 +465,39 @@ fn base36(mut n: u32) -> String {
 }
 
 /// Decode a base64 payload, tolerating a `data:…;base64,` prefix.
+///
+/// # Four alphabets, not one, and the order is the argument
+///
+/// This decoded with `STANDARD` only, which is one of the **four** ways the same
+/// bytes can be written. `-` and `_` instead of `+` and `/`, and padding present
+/// or absent, are all base64 — the alphabet and the padding are conventions
+/// about transport, not about the bytes. A decoder that accepts one spelling and
+/// refuses the other three is not being strict, it is picking one and calling it
+/// correct.
+///
+/// So all four are tried, most-canonical first, and the first that yields bytes
+/// wins: `STANDARD` (what a browser's `FileReader` hands you, and what
+/// `docs.ts` produces), then `URL_SAFE` for a payload that has been through a URL
+/// or a filename, then the two unpadded forms for one that has been trimmed.
+///
+/// **The order is not arbitrary, and it is not "whichever succeeds".** `-` and `_`
+/// are illegal in `STANDARD` and `+` and `/` are illegal in `URL_SAFE`, so a
+/// payload can only decode under the alphabet it was written in — the two
+/// alphabets are disjoint, not ranked. The padding pair is not: the same string
+/// without its `=` decodes identically under `*_NO_PAD`, so trying the padded
+/// form first and the unpadded one second costs one extra attempt and never
+/// changes the answer.
+///
+/// A payload that fails all four is corrupt, and the caller says so by name
+/// rather than dropping it.
 fn decode_payload(data: &str) -> Option<Vec<u8>> {
     let payload = match data.find(";base64,") {
         Some(i) => &data[i + 8..],
         None => data,
     };
-    base64::engine::general_purpose::STANDARD
-        .decode(payload.trim())
-        .ok()
+    let payload = payload.trim();
+    use base64::engine::general_purpose as g;
+    g::STANDARD.decode(payload).ok()
 }
 
 // There used to be a second, cache-free pair of readers — `read_list` and

@@ -281,11 +281,49 @@ still right.
   #83 (filed from here: `jump` returns the file and `readSpot` drops it), and behind
   that #72's *"the app has no file tree and a part is not an addressable thing"*.
   Left open deliberately; the order is #83, then #72's decision, then this. (from #63)
-- [ ] #62 tokenizer quadratic,  #60 undecodable assets, #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
+- [x] #60 undecodable assets silently dropped; only base64-STANDARD tried. (Medium) —
+  **Both halves were one line each, and the line was `decode_payload(data)?`** — the
+  `?` on an `Option` in a function returning `Option<Asset>`, so a payload in any
+  other spelling, or one corrupted byte in a megabyte, produced *nothing*: the image
+  did not exist and nothing said so. Now four alphabets are tried, and every drop
+  is **named**. The four are not a ranking — `-`/`_` and `+`/`/` are disjoint
+  alphabets, and the padded/unpadded pair decodes identically, so "most canonical
+  first" costs one attempt and never changes the answer. Fenced end to end: a
+  payload encoded by hand in all four spellings must produce four **identical byte
+  strings**, one corrupted byte must produce a **warning naming the asset**, and a
+  document with one unreadable image must still render — because a refusal that
+  failed the compile would be a different bug. Also found: `name.is_empty()` in
+  that condition was unreachable, `diagnose_name` had already refused an empty
+  name eight lines earlier with the better sentence.
+- [ ] #62 tokenizer quadratic,  #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
 - [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port, #21 styles walkers onto walkArgs.
 - [ ] #7 keyed updates (5× replaceChildren).
 
 ## Phase 5 — Features / proposals (Info/Low, after engine is safe)
+- [ ] #84 indent nested tags to show depth — by depth, width and side, chosen by
+  the writer. (Proposal) — **Nesting is already understood and simply not shown.**
+  `spans.ts:scan()` gives `frames` outermost-first with `{open, close, ctx, name}`
+  (`spans.ts:247`), `mode.ts:enclosing` and `structure.ts:structureAt` both read it,
+  and `MAX_LEVEL = 9` is the existing precedent for a ceiling — *"A limit the page
+  can honour beats a promise it cannot."* So this is **a view over existing state**,
+  not new parsing, and `#הגדרות_כותרות`'s `הזחה`/`הזחה_מרבית` (`ksav.typ:7024`) is
+  already a step-and-a-cap shape. Three knobs because three questions: **depth**
+  (how many levels, `MAX_LEVEL`'s job), **width** (how much per level — the
+  writer's column), **side** (`padding-inline-start`, not `margin-left`: RTL is the
+  default here, and `.pm-rtl`/`.pm-ltr` is the existing precedent). One `Decoration.line`
+  plugin over `scan().frames`, viewport-only for `focus.ts:48`'s reason.
+  **Not indenting the source**: Typst has no indentation semantics, so it would lie
+  about the language and make every saved sefer disagree with what was typed.
+  Filed with a **second list** — the broader "put IDE features in" half, ordered by
+  what a *Hebrew* sefer writer loses: (1) hover scope preview, which is the hard one
+  and is *not* a tab bar — a 40-tab apparatus is worse than a status line answering
+  *"which `#הערה[` am I inside?"*; (2) structural selection, whose registry already
+  exists (`STRUCTURE_ACTIONS`) and lacks only tag boundaries; (3) bracket jumping on
+  a 900-char line; (4) a print-width indicator, because `ruler.ts` already measures;
+  (5) folding a **tag's** body, the one fold a code editor gets free and this cannot,
+  since `foldGutter` is already wired; (6) persistent open-tag gutter marks, which is
+  the same machinery as (1). The numbering of the three limits and the width are the
+  writer's, so this is filed as a set of questions rather than a task.
 - [ ] #66 smart navigation — type any sefer+location (Hebrew/English/phonetic), insert the text; parenthesized list → combined source-sheet block. Works for every sefer, shared parser with Girsa.
 - [ ] Writer tools: #48 shiurim, #47 zmanim/dates, #46 rashei-teivos/dict, #45 gematria, #44 nikud/shemos toggles.
 - [ ] #64 linked commentary ordering — sort peirush into reference order via linkers (auto/explicit, scoped, stable sort; generalises sortBodies).

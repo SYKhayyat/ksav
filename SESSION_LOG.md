@@ -3005,3 +3005,64 @@ the finding: `jump.rs` has been sending the file correctly all along.
 ### Next move
 
 #82's product half, now that #83 made a place inside a part addressable at all.
+
+---
+
+## 2026-09-30 · #60 — the loss was a `?`, and base64 has four spellings
+
+### The line
+
+```rust
+let bytes = decode_payload(data)?;      // in a fn returning Option<Asset>
+if name.is_empty() || bytes.is_empty() { return None; }
+```
+
+One `?` on an `Option`, and both failures were **silent**. A payload in any spelling this build did not accept, or one corrupted byte in a megabyte, produced *nothing*: the asset did not exist, the writer's sefer lost an image, and no diagnostic, status line or anything else said a word.
+
+`Refused` was already there — a named entry per refused asset, surfaced as warnings through `lib.rs:3313` — and the unreadable case never used it.
+
+### Four, not one, and the order is an argument
+
+`decode_payload` took `STANDARD`. That is **one of four** ways to write the same bytes: `-`/`_` instead of `+`/`/`, and padding present or absent. A decoder that accepts one and refuses three is not being strict, it is picking one and calling it correct.
+
+All four are now tried, and the ordering is not "whichever succeeds":
+
+- the two **alphabets are disjoint** — `-` and `_` are illegal in `STANDARD`, `+` and `/` illegal in `URL_SAFE` — so a payload can only decode under the one it was written in. Nothing is ranked.
+- the **padding pair is not** disjoint: the same string without its `=` decodes identically under `*_NO_PAD`. Trying padded first costs one extra attempt and never changes the answer.
+
+So `STANDARD`, `URL_SAFE`, `STANDARD_NO_PAD`, `URL_SAFE_NO_PAD`.
+
+### Fenced end to end, and the encodings are done by hand
+
+`spelled(alphabet, pad)` writes base64 out itself, and the reason is the comment on it: **a helper that encodes with the crate agrees with the crate's own idea of what is valid**, which is the thing under test. It is also why the fixture is the 1×1 PNG already in this file rather than a round trip through `png().bytes`.
+
+Four tests:
+
+- all four spellings must yield **four identical byte strings** — four encodings of one image must not be four different images;
+- **one corrupted byte** in a perfect payload must produce a **warning naming the asset**;
+- an asset with a name and **no bytes** is reported separately, because *"unreadable"* and *"empty"* are not the same thing to go and fix;
+- **a document with one unreadable image still renders.** That last one is what rules out the tempting wrong fix: a refusal that failed the compile would be a different bug, and #60 is not it.
+
+The pre-existing `assets_are_read_from_a_request_with_or_without_a_data_url_prefix` test asserted `(assets, _)` — **the shape a test has when the second value is not asserted because there was nothing to assert.** Both of its drops went into a `Refused` nobody read. It now holds both sentences, and says what that `_` was.
+
+### Also found, while in there
+
+`name.is_empty()` in that condition was **unreachable**: `diagnose_name` refuses an empty name eight lines earlier, with the better sentence — *"an asset needs a name"*. So the condition had a branch that could not fire. Removed, and the removal is written down rather than left as a silent simplification.
+
+### Why the whole condition is now two sentences
+
+Undecodable bytes and empty bytes are two different mistakes — a broken transfer or a wrong paste, versus a client that sent a name and no content — and one sentence covering both would send a writer to the wrong place. Neither is worth refusing a compile over, which is why this **reports and continues**, exactly as a refused *name* does.
+
+### Also filed: #84, the indent idea
+
+Shaul's proposal, measured against the tree before it was written down — and the finding is that **nesting is already understood and simply not shown**. `spans.ts:scan()` produces `frames` outermost-first, `mode.ts:enclosing` and `structure.ts:structureAt` both read it, and `MAX_LEVEL = 9` already argues the case for a ceiling. So it is a view over existing state rather than new parsing, and `#הגדרות_כותרות`'s `הזחה`/`הזחה_מרבית` is already the step-and-a-cap shape this asks for.
+
+Placed in Phase 5 per the routing rule, with the broader "put IDE features in" half as a second list ordered by what a *Hebrew* sefer writer loses. **Hover scope preview is the top of it, and it is deliberately not a tab bar** — a forty-tab apparatus is worse than one status line answering *"which `#הערה[` am I inside?"*, which `framesAt` can already answer.
+
+### State at log write
+
+Editor **7,858 → 7,878**, 0 failed. Engine `#[test]` **1,073 → 1,077**.
+
+### Next move
+
+Finish #60's mutation run — three mutations queued: the four spellings collapsed to one, `URL_SAFE` dropped, and the refusal removed. Then **#83** (from the #82 work): the file the engine returns from `jump` is dropped at the wire reader.

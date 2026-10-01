@@ -211,13 +211,205 @@ fn assets_are_read_from_a_request_with_or_without_a_data_url_prefix() {
             { "name": "", "data": PNG_B64 },
         ]
     });
-    let (assets, _) = Assets::from_json(&v);
+    let (assets, refused) = Assets::from_json(&v);
     let names: Vec<&str> = assets.files.iter().map(|a| a.name.as_str()).collect();
     // Both encodings are accepted; the undecodable and the unnamed are dropped
     // rather than failing the whole compile — one bad image must not cost the
     // writer their preview.
     assert_eq!(names, vec!["bare.png", "prefixed.png"]);
     assert_eq!(assets.files[0].bytes, assets.files[1].bytes);
+    // …and **both drops are now said out loud.** The last half of this test used
+    // to be `(assets, _)`, which is the shape a test has when the second thing is
+    // not asserted because there was nothing to assert: `broken.png` and the
+    // unnamed entry were dropped into a `Refused` nobody read. See #60.
+    let said: Vec<&str> = refused.names.iter().map(String::as_str).collect();
+    assert_eq!(
+        said.len(),
+        2,
+        "two entries refused, two sentences: {said:?}"
+    );
+    ok_name(&said[0], "broken.png", "base64");
+    ok_name(&said[1], "", "name");
+}
+
+/// Whether a refusal sentence names what it is about.
+fn ok_name(said: &str, name: &str, word: &str) {
+    // An empty `name` is contained by every string, so it cannot be evidence of
+    // anything. The unnamed entry is held to its own sentence instead.
+    if name.is_empty() {
+        assert!(said.contains(word), "“{said}” does not say {word:?}");
+        return;
+    }
+    assert!(
+        said.contains(name) && said.contains(word),
+        "“{said}” does not name {name:?} or say {word:?}",
+    );
+}
+
+// ── #60: four base64 spellings, and a corrupt one is named ────────────────────
+//
+// `decode_payload` took `STANDARD` only, which is one of four ways to write the
+// same bytes: `-`/`_` instead of `+`/`/`, and padding present or absent. And the
+// call site was `decode_payload(data)?` in a function returning `Option<Asset>` —
+// so a payload in any other spelling, or one corrupted byte in a megabyte,
+// produced **nothing at all**. The image did not exist and nothing said so.
+
+/// Encode the test PNG in one of the four spellings, by hand rather than by
+/// asking a decoder — a helper that encodes with the crate would agree with the
+/// crate's own idea of what is valid, which is the thing under test.
+fn spelled(alphabet: &str, pad: bool) -> String {
+    let std = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    // The 62-and-63 pair is what `-`/`_` exist for; every other position is
+    // shared, so this is the whole alphabet difference rather than a table of
+    // sixty-four.
+    let c = |six: u32| -> char {
+        let i = six as usize;
+        if alphabet == "url" {
+            match std[i] {
+                b'+' => '-',
+                b'/' => '_',
+                other => other as char,
+            }
+        } else {
+            std[i] as char
+        }
+    };
+    // Bound, not a temporary: `png()` returns an owned `Asset`, and
+    // `png().bytes.as_ref()` inside the loop is a temporary that would die before
+    // the first chunk is read.
+    let image = png();
+    let bytes = image.bytes.as_ref();
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        // 4 sextets per 3 bytes, minus the ones that carry no data at the end.
+        let keep = match chunk.len() {
+            1 => 2,
+            2 => 3,
+            _ => 4,
+        };
+        for i in 0..4 {
+            if i < keep {
+                out.push(c((n >> (18 - 6 * i)) & 0x3f));
+            }
+        }
+    }
+    if pad && out.len() % 4 != 0 {
+        out.push_str(&"=".repeat(4 - out.len() % 4));
+    }
+    out
+}
+
+#[test]
+fn every_spelling_of_the_same_bytes_is_the_same_image() {
+    let spellings: Vec<serde_json::Value> = [("std", true), ("url", true), ("std", false), ("url", false)]
+        .iter()
+        .enumerate()
+        .map(|(i, (alphabet, pad))| {
+            serde_json::json!({ "name": format!("a{i}.png"), "data": spelled(alphabet, *pad) })
+        })
+        .collect();
+    let v = serde_json::json!({ "assets": spellings });
+    let (assets, refused) = Assets::from_json(&v);
+    assert!(
+        refused.is_empty(),
+        "four spellings of one payload and three of them were refused: {:?}",
+        refused.names
+    );
+    assert_eq!(
+        assets.files.len(),
+        4,
+        "all four are accepted: {:?}",
+        assets.files
+    );
+    // And they are the **same bytes**, which is the claim: an encoding is a
+    // convention about transport, so four encodings of one image must not be
+    // four different images.
+    for a in &assets.files[1..] {
+        assert_eq!(a.bytes, assets.files[0].bytes, "{} differs", a.name);
+    }
+}
+
+#[test]
+fn a_corrupt_payload_is_reported_by_name_rather_than_dropped() {
+    // **One corrupted byte** in an otherwise perfect payload — which is what a
+    // truncated transfer looks like, and it is the case that used to vanish.
+    let mut corrupt: Vec<char> = spelled("std", true).chars().collect();
+    let mid = corrupt.len() / 2;
+    corrupt[mid] = '!';
+    let corrupt: String = corrupt.into_iter().collect();
+
+    let v = serde_json::json!({
+        "assets": [
+            { "name": "logo.png", "data": spelled("std", true) },
+            { "name": "torn.png", "data": corrupt },
+        ]
+    });
+    let (assets, refused) = Assets::from_json(&v);
+    // The good one is unaffected: one bad image must not cost the writer theirs.
+    assert_eq!(assets.files.len(), 1);
+    assert_eq!(assets.files[0].name, "logo.png");
+    // And the bad one is **named**, which is the whole of #60.
+    assert_eq!(refused.names.len(), 1, "one refusal, one sentence");
+    ok_name(&refused.names[0], "torn.png", "base64");
+    // …and it is a **warning**, not an error: the document still lays out.
+    let diags = refused.diagnostics();
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].severity, "warning", "not a failure of the compile");
+}
+
+#[test]
+fn an_asset_with_no_bytes_at_all_is_reported_too() {
+    // A different mistake with the same silence: a client that sent a name and
+    // no content. Reported separately, because "unreadable" and "empty" are not
+    // the same thing to go and fix.
+    let v = serde_json::json!({
+        "assets": [{ "name": "empty.png", "data": "" }]
+    });
+    let (assets, refused) = Assets::from_json(&v);
+    assert!(assets.files.is_empty());
+    assert_eq!(refused.names.len(), 1);
+    ok_name(&refused.names[0], "empty.png", "no bytes");
+}
+
+#[test]
+fn a_document_with_one_unreadable_image_still_renders() {
+    // End to end, because the two halves of #60 are only worth anything together:
+    // the engine must keep the picture the writer can read **and** say something
+    // about the one it cannot. A refusal that failed the compile would be a
+    // different bug, and this is what rules it out.
+    let mut corrupt: Vec<char> = spelled("std", true).chars().collect();
+    corrupt[3] = '!';
+    let request = serde_json::json!({
+        "body": "#image(\"logo.png\")",
+        "assets": [
+            { "name": "logo.png", "data": spelled("std", true) },
+            { "name": "torn.png", "data": corrupt.into_iter().collect::<String>() },
+        ]
+    });
+    // **Through the request path**, not through `compile_with`: the refusals
+    // reach a writer through `compile_request`'s diagnostics, and a test that
+    // built its `Assets` by hand would not be able to see whether they do.
+    let out: serde_json::Value =
+        serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap();
+    assert_eq!(
+        out["ok"], true,
+        "one unreadable image costs the preview: {out:?}"
+    );
+    let said = out["diagnostics"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .any(|d| {
+            d["severity"] == "warning" && d["message"].as_str().unwrap_or("").contains("torn.png")
+        });
+    assert!(said, "the writer was never told: {out:?}");
 }
 
 #[test]

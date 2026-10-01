@@ -300,51 +300,26 @@ still right.
 - [ ] #7 keyed updates (5× replaceChildren).
 
 ## Phase 5 — Features / proposals (Info/Low, after engine is safe)
-- [ ] #84 indent nested tags to show depth — by depth, width and side, chosen by
-  the writer. (Proposal) — **Nesting is already understood and simply not shown.**
-  `spans.ts:scan()` gives `frames` outermost-first with `{open, close, ctx, name}`
-  (`spans.ts:247`), `mode.ts:enclosing` and `structure.ts:structureAt` both read it,
-  and `MAX_LEVEL = 9` is the existing precedent for a ceiling — *"A limit the page
-  can honour beats a promise it cannot."* So this is **a view over existing state**,
-  not new parsing, and `#הגדרות_כותרות`'s `הזחה`/`הזחה_מרבית` (`ksav.typ:7024`) is
-  already a step-and-a-cap shape. Three knobs as Shaul named them: **amount** (how wide each step is),
-  **percentage used** (the ceiling is a *share* rather than a count of levels, so one
-  setting behaves whether a document nests 2 deep or 20 — I had been calling this
-  "depth" and reaching for `MAX_LEVEL`, which is the same dial by another name),
-  **size from side** (how far in from the edge the whole thing starts). Plus the one
-  that makes it work: **minimum words**, below which a tag is not touched at all.
-  **It is the SOURCE that gets indented**, per Shaul — *"of course it is the source
-  doc that would be indented, it is to make writing easier"* — and my argument against it
-  was optimising for the failure I could imagine instead of asking what the feature is
-  for. A guide is a *reading* aid; the source rewrite is a *writing* aid, and finding the
-  place to type next inside a line you wrote is the hard part of writing a sefer. **Two
-  knobs change with that:** the width is **characters, not `em`** — it is whitespace the
-  writer sees, deletes and git diffs — and the load-bearing one is a **minimum word
-  count**, below which a tag is not touched at all, because without it every
-  `#נטוי[מילה]` becomes three lines the writer did not ask for. Typst ignores leading
-  whitespace, so an indented source still compiles identically.
-  Three properties it must hold, and the tree names all three: **one undo step**
-  (`editDoc` at `main.ts:8544` dispatches once, so it is free provided nothing dispatches
-  per line), **idempotence** (`deferred.ts:1416` — *"tidy twice leaves one separator and
-  not two"*) and **the caret survives** (`Edit {text, caret}`, `headings.ts:170`). The
-  one genuinely open question is **`#כלול`**: a chapter is a separate file read from the
-  top, so it always starts at depth 0, while **on the page** it can land inside a note
-  and print inset. Either indent each file on its own — a chapter looks the same however
-  you move it, and moving one never rewrites another's file — or indent by where the
-  chapter ends up, which makes the file match the page at the price of *moving one
-  chapter rewriting a different one's every line*. Recommend the former: the file is what
-  you write in and the page is what Ksav draws for you, and a formatter that makes one
-  depend on the other is how writers stop trusting a formatter. Shaul's call.
-  Filed with a **second list** — the broader "put IDE features in" half, ordered by
-  what a *Hebrew* sefer writer loses: (1) hover scope preview, which is the hard one
-  and is *not* a tab bar — a 40-tab apparatus is worse than a status line answering
-  *"which `#הערה[` am I inside?"*; (2) structural selection, whose registry already
-  exists (`STRUCTURE_ACTIONS`) and lacks only tag boundaries; (3) bracket jumping on
-  a 900-char line; (4) a print-width indicator, because `ruler.ts` already measures;
-  (5) folding a **tag's** body, the one fold a code editor gets free and this cannot,
-  since `foldGutter` is already wired; (6) persistent open-tag gutter marks, which is
-  the same machinery as (1). The numbering of the three limits and the width are the
-  writer's, so this is filed as a set of questions rather than a task.
+- [ ] #84 indent nested tags in the source view — amount, percent used, size from side.
+  (Proposal) — **A view, not an edit: the file on disk is never touched.** Every
+  `#…[…]` is displayed with its contents on their own lines, indented one step per `[`
+  entered. Three dials as Shaul named them: **amount** (the step — **2 spaces**,
+  matching the one place here that already pretty-prints, `table.ts:258`), **percent
+  used** (*"nothing should indent more than 50 percent of the page"* — a share of the
+  **width**, not a count of levels, so it self-adjusts and there is no maximum depth to
+  argue about: the width runs out first), **size from side**. Plus the fourth and the one
+  that makes it safe: **minimum words**, below which the tag is left completely alone, no
+  indent and no breaks, because `#נטוי[מילה]` is most of a sefer's emphasis.
+  Nesting is already computed — `scan()` gives `frames` outermost-first (`spans.ts:247`),
+  `mode.ts:enclosing` and `structure.ts:structureAt` both read it — so this is a view over
+  existing state. **I wasted three paragraphs on `#כלול`** (does a chapter's indentation
+  follow it in and out of a note?) which is an artefact of my own wrong reading: it only
+  matters if indenting *writes files*. It does not, each document is shown on its own from
+  its own first line, and there is no cross-file question. Left open, and small: **when you
+  type inside an indented block, does the text carry the indentation with it?** Yes and the
+  file changes on save; no and it is a layer. Leaning no, since that is the one that leaves
+  the file alone.
+
 - [ ] #66 smart navigation — type any sefer+location (Hebrew/English/phonetic), insert the text; parenthesized list → combined source-sheet block. Works for every sefer, shared parser with Girsa.
 - [ ] Writer tools: #48 shiurim, #47 zmanim/dates, #46 rashei-teivos/dict, #45 gematria, #44 nikud/shemos toggles.
 - [ ] #64 linked commentary ordering — sort peirush into reference order via linkers (auto/explicit, scoped, stable sort; generalises sortBodies).

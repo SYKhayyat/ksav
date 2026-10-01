@@ -18,8 +18,13 @@
 //     dividing by it cancels both.
 
 import { check, ok, notOk } from "./harness.mjs";
-import { pointInPage, pixelInPage, isPlainClick } from "../.tmp-test/jump.mjs";
+import { pointInPage, pixelInPage, isPlainClick, clickedChapter } from "../.tmp-test/jump.mjs";
 import { pageBox, pageAspect } from "../.tmp-test/preview.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
+
+const APP = path.resolve(dirOf(import.meta.url), "..");
 
 // A4 as Typst writes it into every page's `viewBox`.
 const A4 = { width: 595.28, height: 841.89 };
@@ -117,4 +122,75 @@ export function run() {
   ok("no selection at all is a plain click", isPlainClick(null));
   ok("a collapsed selection is a plain click", isPlainClick({ isCollapsed: true }));
   notOk("a dragged selection is not", isPlainClick({ isCollapsed: false }));
+
+  // ------------------------------------------------------- which document
+  //
+  // A word printed on the page came out of *some* document, and in a sefer with
+  // chapters that is not always the open one. This is the whole of #83's client
+  // half, and it is here rather than inline in `main.ts` for the reason the rest
+  // of this file is: `jumpFromClick` is not importable and a click cannot be
+  // pressed from Node, so a decision made there is a decision nothing holds.
+  //
+  // `diagview.show` asks the same question for diagnostics and has answered it
+  // correctly all along. One function, because the two answering it differently
+  // is what let this sit unnoticed while the diagnostic path was right.
+
+  check("the sefer's own text is not a chapter", clickedChapter(null, "ספר בראשית"), null);
+  check("a named chapter is", clickedChapter("פרק ב", "ספר בראשית"), "פרק ב");
+
+  // **`undefined` as well as `null`.** The engine sends `null`, but `readSpot`
+  // normalises a missing key to `null` and a caller may hold a spot it built
+  // itself. Three ways of saying "no chapter" would be three branches.
+  check("an absent file is not a chapter", clickedChapter(undefined, "ספר בראשית"), null);
+  check("and neither is an empty one", clickedChapter("", "ספר בראשית"), null);
+
+  // The case that would otherwise open the *same* document by name: a chapter
+  // whose title is the open document's. Opening the sefer instead is the smaller
+  // surprise, and it means the ordinary case needs no branch of its own.
+  check("a chapter named like the open document stays here", clickedChapter("פסחים", "פסחים"), null);
+  check("an unnamed open document still yields a chapter", clickedChapter("פרק ב", null), "פרק ב");
+
+  // And the answer is never the open document, whatever else it may be: this
+  // function exists so that a caret is placed in the document the line is from.
+  notOk(
+    "the answer is never the open document's own name",
+    ["פסחים", "בראשית"].some((t) => clickedChapter(t, t) === t),
+  );
+
+  // # And the caller actually asks
+  //
+  // A correct function nothing calls answers no question, which is **exactly what
+  // `Located` was**: declared, documented with a comment saying the file "is not
+  // decoration", and unreachable — `rg "Located" app/src` returned its own
+  // declaration and nothing else. It stood for the whole time this bug was live,
+  // reading like a contract.
+  //
+  // So the assertions above are necessary and not sufficient: they hold just as
+  // happily while `jumpFromClick` goes on not asking. That is why this is here,
+  // and it is the second time today a fence of mine passed while guarding nothing
+  // — the first was an `indexOf` that found a function's *declaration* instead
+  // of its call.
+  {
+    const src = readFileSync(path.join(APP, "src", "main.ts"), "utf8");
+    // Comments stripped first, and on the same rule `prohibitions.test.mjs`
+    // uses: a block comment must begin its own line, because `i18n.ts` holds a
+    // `/*` inside a Hebrew string and a greedy strip deletes three hundred lines.
+    // A sweep that silently eats the region it sweeps reports green — which is
+    // the failure with the worst shape.
+    const code = src
+      .replace(/^[ \t]*\/\*[\s\S]*?\*\//gmu, "")
+      .replace(/^\s*(\/\/|#).*$/gmu, "")
+      .replace(/\s(\/\/|#)\s.*$/gmu, "");
+    // A **floor**, not an exact count: the import is one occurrence and the call
+    // is another, and a third is nobody's business.
+    ok(
+      "main.ts names it twice — imported and called",
+      [...code.matchAll(/\bclickedChapter\b/g)].length >= 2,
+      `${[...code.matchAll(/\bclickedChapter\b/g)].length} in stripped code`,
+    );
+    // And it is the click path that uses it, by handing the answer to the one
+    // function that opens a chapter. Without this the two assertions above are
+    // satisfied by a dead export.
+    ok("…and the click path opens the chapter it named", /gotoPart\(\s*chapter\s*,/.test(code));
+  }
 }

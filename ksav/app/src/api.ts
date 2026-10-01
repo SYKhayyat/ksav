@@ -934,7 +934,7 @@ export interface Backend {
    * currently compile. The caller leaves the cursor alone in every one of those
    * cases, which is why they need not be told apart.
    */
-  jump(body: string, cfg: DocConfig, at: PagePoint, assets?: RequestAssets): Promise<BodySpot | null>;
+  jump(body: string, cfg: DocConfig, at: PagePoint, assets?: RequestAssets): Promise<Located | null>;
   /**
    * Forward search: where on the page did this land?
    *
@@ -1122,11 +1122,32 @@ export function sourcesOf(b: Backend | undefined): Sources | null {
  * landed on a margin, and the compile-shaped `{ok: false, diagnostics: […]}` a
  * busy or timed-out server returns. Both mean "leave the cursor alone", so both
  * are read as `null` here rather than being told apart by three call sites.
+ *
+ * # It returns `Located`, and that is the fix rather than a type
+ *
+ * This used to return `BodySpot`, which is `{line, column}` — and the engine
+ * sends three keys. **`BodySpot` is the shape a *request* carries**, so naming it
+ * here was wrong in a way the compiler could not see: the field was dropped at
+ * the type, and every caller downstream had no way to know it existed. A click on
+ * a word that came from an included chapter therefore put the caret at that line
+ * number **in the parent document** — a different sentence, placed without
+ * hesitation. `jump.rs` returns `file` and `tests/includes.rs` fences it.
+ *
+ * Returning `Located` makes the omission a **compile error** rather than a habit:
+ * a reader that forgets a field will not type-check against a shape that has it.
+ * That is the whole fence for this class, and it costs one interface.
  */
-function readSpot(v: unknown): BodySpot | null {
-  const o = v as { line?: unknown; column?: unknown } | null;
+function readSpot(v: unknown): Located | null {
+  const o = v as { line?: unknown; column?: unknown; file?: unknown } | null;
   if (!o || typeof o.line !== "number" || o.line < 1) return null;
-  return { line: o.line, column: typeof o.column === "number" ? o.column : 1 };
+  return {
+    line: o.line,
+    column: typeof o.column === "number" ? o.column : 1,
+    // `null` and not `undefined`: the engine sends `null` for the main document,
+    // and a caller asking "which file is this from" wants one falsy answer rather
+    // than two that mean the same thing and are not the same thing to `===`.
+    file: typeof o.file === "string" && o.file.length > 0 ? o.file : null,
+  };
 }
 
 /**
@@ -1378,7 +1399,7 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
     }, assets);
   }
 
-  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
+  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
     try {
       return readSpot(await this.ask("jump", { body, ...cfg, ...assets, ...at }));
     } catch {
@@ -1601,7 +1622,7 @@ export class WasmBackend extends ServiceClient implements Backend {
   /** Bounded by the same timeout a compile gets, because it *is* a compile: a
    *  runaway document must not pin the one engine worker just because somebody
    *  clicked on it. A killed worker surfaces here as "no answer". */
-  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
+  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
     try {
       return readSpot(
         JSON.parse(
@@ -1710,7 +1731,7 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
       clearTimeout(timer!);
     }
   }
-  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<BodySpot | null> {
+  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
     try {
       return readSpot(await this.ask("jump", { body, ...cfg, ...assets, ...at }));
     } catch {

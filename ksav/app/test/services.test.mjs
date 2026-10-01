@@ -37,7 +37,7 @@ const settle = async () => {
 import { SERVICE, SERVICES, SERVICE_PATH } from "../.tmp-test/services.gen.mjs";
 import { HEADER_ONLY, metaPolicy } from "../../policy/meta.mjs";
 import { readFile } from "node:fs/promises";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 
@@ -170,6 +170,80 @@ export async function run() {
     // service, two questions, and the flag is in the body where it always was.
     const search = asked.find((a) => a.input?.includes("\"search\":true"));
     ok("asking Girsa to search is the mekoros service with a flag", !!search);
+  }
+
+  // ---------------------------------------- `jump` and the file it answers with
+  //
+  // The rows above drive every method and assert the **path, the verb and the
+  // name** — the wire. Nothing asserted what came *back*, because for fifteen of
+  // them there was nothing to assert: a request that completes is the whole
+  // claim. `jump` is the exception, and it is the one where a silent loss is a
+  // wrong answer rather than a missing one.
+  //
+  // `readSpot` returned `BodySpot` — `{line, column}` — while `jump.rs` answers
+  // three keys and `wire.test.mjs`'s own seam row names all three in `Located`.
+  // So the file was dropped *at the reader*, `jump()`'s declared return type was
+  // the two-key shape, and `main.ts` could not have used it. Click a word that
+  // came from `#כלול("פרק ב")` and the caret went to that line number **in the
+  // parent** — a different sentence, placed without a word of complaint.
+  //
+  // Asserted through the three real transports rather than against `readSpot`,
+  // which is module-private: what a writer gets is the answer after the reader,
+  // and that is the thing that was wrong.
+  for (const [what, engine, want] of [
+    ["a line from an included chapter", { line: 2, column: 1, file: "פרק ב" }, { line: 2, column: 1, file: "פרק ב" }],
+    ["a line of the sefer itself", { line: 12, column: 3, file: null }, { line: 12, column: 3, file: null }],
+    // **No `file` at all**, which is not the same as `file: null`. The engine
+    // sends `null` for the main document, but a backend that answered `{}` — the
+    // miss `readSpot`'s own comment describes — must not produce `undefined`,
+    // which is a third answer for a two-way question.
+    ["no answer at all", {}, null],
+  ]) {
+    const spot = async (backend) => backend.jump("שלום", {}, { page: 0, x_pt: 1, y_pt: 1 });
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => answer(engine);
+    const overHttp = await spot(new HttpBackend());
+    globalThis.fetch = realFetch;
+
+    const desktop = new TauriBackend();
+    desktop.invoke = async () => JSON.stringify(engine);
+    const overTauri = await spot(desktop);
+
+    const browser = new WasmBackend();
+    browser.worker = {
+      postMessage: (msg) => {
+        browser.pending.get(msg.id)?.resolve(JSON.stringify(engine));
+        browser.pending.delete(msg.id);
+      },
+      terminate: () => {},
+    };
+    const overWasm = await spot(browser);
+
+    check(`${what}: over HTTP`, overHttp, want);
+    check(`${what}: over the desktop command`, overTauri, want);
+    check(`${what}: in the browser`, overWasm, want);
+  }
+
+  // The declaration itself, because the three answers above would also pass with
+  // a reader that happened to keep `file` while the **type** still said two keys.
+  // That was the original defect: `Located` was declared, unused, and correct,
+  // while `jump()` promised `BodySpot`.
+  {
+    const api = readFileSync(path.join(HERE, "..", "src", "api.ts"), "utf8");
+    ok(
+      "jump declares it answers with Located, not the request's own shape",
+      /jump\([^)]*\): Promise<Located \| null>/.test(api) &&
+        !/jump\([^)]*\): Promise<BodySpot \| null>/.test(api),
+      api.slice(api.indexOf("jump(body"), api.indexOf("jump(body") + 120),
+    );
+    // And `BodySpot` is the *request*. Saying so is cheap now and load-bearing
+    // later: the two used to be the same interface, which is how a response lost
+    // a field without anything noticing.
+    ok(
+      "…and BodySpot is the shape a request carries",
+      /\/\*\* A place in the body that was sent[\s\S]{0,400}export interface BodySpot/.test(api),
+    );
   }
 
   // ----------------------------------------------------- the browser build

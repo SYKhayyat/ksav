@@ -2895,3 +2895,113 @@ Engine `#[test]` count 1,069 → **1,073** (`engineTests` is counted live off
 ### Next move
 
 #83. It is the smaller patch and it unblocks #82's product half.
+
+---
+
+## 2026-09-30 · #83 — the file was dropped at the reader, and the fix is a type
+
+### Three steps, and the loss is in the first
+
+1. `engine/src/jump.rs:262` answers `{line, column, file}`. Fenced for diagnostics
+   by `a_mistake_in_a_chapter_is_reported_at_that_chapters_line`, which asserts
+   `file == "פרק ב"` and `line == 2`, *"not the assembled line 4"*.
+2. `readSpot` returned `BodySpot` — `{line, column}` — and `BodySpot` is **the shape
+   a request carries**. So the loss is at the *type*: naming a request shape as a
+   response type is something neither compiler nor reader can see.
+3. `main.ts` therefore had nothing to use. It is not that `jumpFromClick` ignored
+   the file; `rg "spot\."` found only `line` and `column` because the file was
+   never in `spot`.
+
+### And the fence is a type, not a test
+
+`readSpot` now returns `Located`. That is the whole fence for this class: a
+reader that forgets a field **does not type-check**. Proven, not asserted —
+
+```
+src/api.ts(1143,3): error TS2741: Property 'file' is missing in type
+  '{ line: number; column: number; }' but required in type 'Located'.
+```
+
+which is the old bug, spelled out by the compiler.
+
+### One question, one function
+
+`diagview.show` has asked *"did this line come from another document?"* for
+diagnostics all along (`const fromPart = !!d.file`, `diagview.ts:74`), and
+`diagview.ts:276` has dispatched `file ? goToPart(...) : goToLine(...)`. The click
+path did not ask. So the question is now `clickedChapter(file, openTitle)` in
+`jump.ts`, and `gotoPart` — extracted from the inline body of the boot wiring —
+is the one thing that opens a chapter. Two paths to a chapter, one function.
+
+`gotoPart` answers **nowhere rather than at the top**: `offsetOf` returns `null`
+for a line past the end, and the old `?? 0` would have put the caret on line 1 of
+the *right* document — the same class of wrong as the bug, one step further from
+the truth.
+
+### Fences, and a second fence that could not have failed
+
+- **`services.test.mjs`** — all three transports, three engine answers: a line
+  from a chapter, a line of the sefer, and **no answer at all**. The third is why
+  the test says what it means: `{}` must not produce `undefined`, because
+  `undefined` is a third answer to a two-way question. Plus the declaration
+  itself, so a reader that keeps `file` while the *type* still says two keys is
+  also caught.
+- **`jump.test.mjs`** — the decision, and that `main.ts` calls it.
+- **`tsc`** — the field cannot be dropped.
+
+Mutations, five, all caught:
+
+| mutation | caught by |
+|---|---|
+| reader keeps the type, discards `file` | every transport |
+| `jump`'s declared type reverted to `BodySpot` | the declaration check |
+| `clickedChapter` ignores the open document | 2 |
+| the click branch removed from `main.ts` | 2 |
+| the branch hands over raw `file`, not the decision | 1 |
+
+**The last two exist because the first three did not cover `main.ts` at all**, and
+that is the second time today a fence of mine passed while guarding nothing (the
+first: an `indexOf` that found a function's *declaration*). `clickedChapter` could
+have been correct, tested, and never called — which is **exactly what `Located`
+was**. So there is now an assertion that `main.ts` names it twice and hands the
+answer to `gotoPart`, with comments stripped on `prohibitions.test.mjs`'s rule
+(a block comment must begin its own line, because `i18n.ts` holds a `/*` inside a
+Hebrew string and a greedy strip deletes three hundred lines).
+
+### One fence caught me, and it was right
+
+`asyncaction.test.mjs` went red on the new `void gotoPart(…)`:
+
+> *every bare `void f(` is accounted for — add src/main.ts:gotoPart to INVENTORY
+> above with its reason, or call voidAction(doing, …)*
+
+Both offered answers were wrong: an inventory entry saying "guarded" when it is
+not, and `void`. `gotoPart` awaits `enterDoc`, so the promise can reject — and
+`jumpFromClick` is an event handler, so a rejection there is an unhandled one.
+`action(...)` on the awaited path and `voidAction(...)` on the diagnostic path,
+both reported rather than swallowed. `Doing` is a closed union, so `"general"`,
+and the reason is written down rather than left to look like a default.
+
+### What I did not fence, and why that is a decision
+
+**`wire.test.mjs` checks that a shape is *declared*. It cannot check that a shape is
+*read*.** Measured across every seam row: **five** more wire interfaces are
+declared and named nowhere outside their own declaration — `ClipboardSource`,
+`Linkified`, `RefreshResult`, `Revealed`, `ServiceRow`.
+
+So a blanket "a declared wire shape must be named somewhere" rule would be red on
+five innocent ones, and I did not add it. All five are single-field or flat shapes
+read structurally (`readPoints` returns `PagePoint[]`, not `Revealed`), so the rule
+would be *wrong*, not merely noisy. `Located` was the only shape where a reader
+returned a **different interface**, and that is now a compile error — which is the
+honest fence for it.
+
+### State at log write
+
+Editor **7,858 → 7,878** across 112 files, 0 failed. `tsc` clean. Engine
+untouched — this was a client-side fix and the engine was already right, which is
+the finding: `jump.rs` has been sending the file correctly all along.
+
+### Next move
+
+#82's product half, now that #83 made a place inside a part addressable at all.

@@ -33,22 +33,30 @@ was actually there was smaller or larger than the report said, and the fix list 
 still right.
 
 ## Phase 3 — Correctness Highs
-- [ ] #83 a click on a word from an included chapter puts the caret at that line
+- [x] #83 a click on a word from an included chapter puts the caret at that line
   number **in the parent**. (High, from #82) — The engine returns the file and a
-  test fences it; `readSpot` (`api.ts:1126`) drops it into a two-key `BodySpot`
-  **at the wire reader**, so `main.ts` never has it and `rg "spot\."` finds only
-  `line` and `column`. `Located` declares `file` and is imported nowhere, and
-  `wire.test.mjs` cannot see it — that fence checks an interface *declares* a key,
-  and a reader narrowing a response is the direction it does not run. Sharpest
-  part: **`diagview` already has the guard and the fix.** `show()` does
-  `const fromPart = !!d.file` (`diagview.ts:74`), `markedLines` refuses to mark a
-  chapter's line in the parent, and `diagview.ts:276` dispatches
-  `file ? goToPart(file, line, column) : goToLine(line, column)` — and
-  `onGoToPart` **opens the chapter and jumps to the line** (`main.ts:14847`). The
-  app knows how to get inside a part, uses it for every diagnostic, and not for
-  the gesture the setting is named after (`settings.clickToSource`). It does not
-  depend on #82 and does not wait for it: the ambiguity needs a part included
-  *twice*; this happens the first time one is included *once*.
+  test fences it; `readSpot` dropped it into a two-key `BodySpot` **at the wire
+  reader**, so `main.ts` never had it. **`Located` declared `file` and was imported
+  nowhere** — `rg "Located" app/src` returned its own declaration and nothing
+  else, for the whole life of the bug, reading like a contract. The fence for it
+  is **the type, not a test**: `readSpot` now returns `Located`, so a reader that
+  forgets a field does not type-check (proven — `TS2741`). `jumpFromClick` asks
+  the question `diagview.show` has always asked for a diagnostic, through one
+  shared `clickedChapter`, and hands the answer to the one `gotoPart` that opens
+  a chapter — so the two paths cannot come to disagree about what a chapter is.
+  **Five mutations, all caught, across three fences:** the reader keeping the type
+  and discarding the file (goes red on every transport), `jump`'s declared type
+  reverted to `BodySpot`, the decision ignoring the open document, the click
+  branch removed from `main.ts`, and the branch handing over the raw `file`
+  instead of the decision it made.
+  **What it did not fix, and why it is not in this fence:** `wire.test.mjs` checks
+  that a shape is *declared* and cannot check that it is *read* — measured, **five**
+  more wire interfaces are declared and never named (`ClipboardSource`,
+  `Linkified`, `RefreshResult`, `Revealed`, `ServiceRow`). All five are
+  single-field or flat shapes read structurally, so a blanket "must be named"
+  rule would be red on five innocent ones and is not the fence. `Located` was the
+  only shape where a reader returned a **different interface**, and that is now a
+  compile error.
 ## Phase 3 — Correctness Highs
 - [x] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan).
   (Critical) — six of the audit's seven no longer reproduce; the deliverable is

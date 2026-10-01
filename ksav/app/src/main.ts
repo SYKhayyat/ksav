@@ -204,7 +204,7 @@ import {
   rememberPages,
   type LineWindow,
 } from "./preview";
-import { drawMark, isPlainClick, pageUnder, pixelInPage, pointInPage } from "./jump";
+import { clickedChapter, drawMark, isPlainClick, pageUnder, pixelInPage, pointInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
 import { changeGutter, changeHighlight, changes, nameMarks, setBaseline } from "./changes";
 import { focusCompartment, focusExtension, paragraphAt } from "./focus";
@@ -4803,6 +4803,36 @@ function wirePreviewClicks(host: HTMLElement) {
  * common rather than exotic — so a miss says nothing rather than putting up a
  * message about every click on white space.
  */
+/**
+ * Open an included chapter and put the cursor on one of its lines.
+ *
+ * **One function, because there is one way to go to a place inside a part**, and
+ * the app already had it: a diagnostic reported against a chapter has always
+ * offered *"פרק ב · שורה 12"* and jumped there. It lived inline in the boot
+ * wiring for `onGoToPart`, which made it reachable only from a diagnostic — and
+ * so left a *click* in the preview, the gesture `settings.clickToSource` exists
+ * for, landing on the same line number in the wrong document. Extracted rather
+ * than duplicated, because a second way to open a chapter is how the two would
+ * come to disagree about what happens when the chapter is not in the library.
+ *
+ * Says nothing when the name resolves to nothing. That is not a shrug: an engine
+ * answer naming a document this library does not hold is a real possibility (a
+ * `#כלול` of a part the writer then deleted), and the alternative to silence is
+ * the thing this replaced — a caret at a line number that means nothing here.
+ */
+async function gotoPart(file: string, line: number | null, column: number | null): Promise<boolean> {
+  const entry = docs.library().find((e) => e.title === file);
+  if (!entry || line == null) return false;
+  await enterDoc(entry.id);
+  const at = offsetOf(runtime.view, line, column);
+  // **And nowhere rather than at the top.** `offsetOf` answers `null` for a line
+  // past the end, and `?? 0` would have put the caret on line 1 of the *right*
+  // document, which is the same class of wrong as the bug above and one step
+  // further from the truth.
+  if (at != null) runtime.jumpTo(at);
+  return true;
+}
+
 async function jumpFromClick(e: MouseEvent) {
   // The direction that had no switch. Every other piece of the sync could be
   // turned off and this one could not, which is why the request named it.
@@ -4820,6 +4850,34 @@ async function jumpFromClick(e: MouseEvent) {
 
   const { body, offset } = bodyOnScreen();
   const spot = await runtime.backend.jump(body, docConfig(), at, docs.requestAssets(runtime.currentDoc?.assets ?? []));
+
+  // # The line belongs to a chapter, so the caret belongs in the chapter
+  //
+  // This branch is the whole of #83 and it is three lines, because everything
+  // needed was already here. The engine answered `file`, because a word printed
+  // from `#כלול("פרק ב")` came out of **פרק ב** and not out of the sefer that
+  // included it — and the line number it sent is that chapter's own line, which
+  // is why subtracting this document's preamble offset from it below was not
+  // merely unnecessary but wrong: it moved the number by exactly the amount the
+  // chapter never had.
+  //
+  // What happened without this: click a word in a chapter, and the caret went to
+  // that line number **in the parent**. A different sentence, no message, and a
+  // reader who has just been told *"you are here"* by a click.
+  //
+  // `clickedChapter` is the same question `diagview.show` already asks for a
+  // diagnostic, and it is one function because the two answering it differently
+  // is what let this sit unnoticed.
+  const chapter = clickedChapter(spot?.file, runtime.currentDoc?.title);
+  if (chapter) {
+    // `action` rather than a bare `await`, and the reason is the same one in
+    // `asyncaction.ts`: this is an event handler, so a rejection from
+    // `enterDoc` would become an unhandled rejection with nothing to show. A
+    // chapter that will not open is reported, and the caret stays where it was.
+    await action("general", () => gotoPart(chapter, spot!.line, spot!.column));
+    return;
+  }
+
   // The engine counts lines in the body it was sent, which carries the preamble
   // this client put in front. Same subtraction as a diagnostic's, same function.
   const line = lineInDocument(spot?.line ?? null, offset);
@@ -14844,14 +14902,20 @@ async function boot() {
     },
   });
   // An error in an included chapter opens *that* chapter and goes to the line.
-  onGoToPart((file, line, column) => {
-    const entry = docs.library().find((e) => e.title === file);
-    if (!entry) return;
-    void (async () => {
-      await enterDoc(entry.id);
-      runtime.jumpTo(offsetOf(runtime.view, line, column) ?? 0);
-    })();
-  });
+  // `voidAction` and not `void`: opening a chapter awaits the document it is
+  // switching to, and a failure there is a real one that the writer would
+  // otherwise meet as a silent no-op. The fence in `asyncaction.test.mjs`
+  // asked for exactly this answer rather than an inventory entry.
+  // `voidAction` and not `void`: opening a chapter awaits the document it is
+  // switching to, and a failure there is a real one the writer would otherwise
+  // meet as a silent no-op. The fence in `asyncaction.test.mjs` asked for
+  // exactly this answer rather than an inventory entry.
+  //
+  // `general` and not a new `Doing`: switching documents is not a compile, a
+  // save, Girsa or a linkify, and `Doing` is a closed union on purpose — every
+  // variant costs a sentence in both catalogues and earns its place by naming a
+  // failure the writer could confuse with another kind.
+  onGoToPart((file, line, column) => voidAction("general", () => gotoPart(file, line, column)));
   registerServiceWorker();
   voidAction("save_file", () => openSharedIfLinked());
   // Rescue the text before anything else, then say what happened.

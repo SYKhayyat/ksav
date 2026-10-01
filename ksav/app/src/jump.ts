@@ -108,6 +108,36 @@ export function isPlainClick(sel: { isCollapsed: boolean } | null): boolean {
   return !sel || sel.isCollapsed;
 }
 
+// ------------------------------------------------------- which document, if any
+//
+// A word printed on a page came out of *some* document, and in a sefer with
+// chapters that is not always the one in front of you. `#כלול("פרק ב")` splices
+// פרק ב's own text into the sefer, so a click on one of its words is a click in
+// a chapter — and the line number the engine sends is **פרק ב's** line, which is
+// why the caller must not also subtract the sefer's preamble offset from it.
+//
+// `diagview.show` has been answering the same question for diagnostics
+// (`const fromPart = !!d.file`). This is that question, as one function, because
+// the two disagreeing is exactly how it went wrong for so long: the diagnostic
+// path asked whether the line belonged to another document and acted on the
+// answer, and the click path did not ask at all.
+
+/**
+ * The chapter a click landed in, or `null` when it landed in the open document.
+ *
+ * **`!==` and not a truthiness test on `file`**, so the ordinary case needs no
+ * case of its own: the engine sends `null` for the sefer's own text, which is
+ * falsy, and a *named* chapter equal to the open document's own title is treated
+ * as this one — the only way to reach it is a document that includes another with
+ * the same name, and opening it rather than the sefer would be a small surprise.
+ */
+export function clickedChapter(
+  file: string | null | undefined,
+  openTitle: string | null | undefined,
+): string | null {
+  return file && file !== openTitle ? file : null;
+}
+
 // ------------------------------------------------------------------- the mark
 //
 // Forward search needs to say *there* about a spot on a page that is otherwise

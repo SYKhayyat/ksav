@@ -9371,6 +9371,70 @@ So: **indent each file on its own.** The file is what you write in; the page is 
 Ksav draws for you; a formatter that makes one depend on the other is how writers stop
 trusting a formatter. Recorded as a recommendation, not a decision — it is his.
 
+### #60's mutation run, and the one that was **not** caught
+
+| mutation | caught |
+|---|---|
+| the four spellings collapsed to `STANDARD` | 1 test |
+| **`URL_SAFE` (and both `*_NO_PAD`) dropped** | **nothing — 17 passed** |
+| the refusal removed, silent drop restored | 4 tests |
+
+So two of three mutations were caught and **one was not**, and the reason is the sixth
+instance of the failure mode that has run through this whole day.
+
+## The fixture could not distinguish the cases
+
+`every_spelling_of_the_same_bytes_is_the_same_image` encoded the **1×1 PNG** in four ways
+and required all four to decode. Measured:
+
+```
+png bytes: 70
+STANDARD: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==
+URL-safe : iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg
+identical? false
+contains + or / ? false
+```
+
+**The PNG contains no `+` and no `/`.** So its URL-safe encoding is byte-for-byte its
+standard one — the only difference is the `==`. Four "spellings" of that payload are
+therefore **two distinct strings**, and a decoder that had forgotten `URL_SAFE` entirely
+would have decoded all four and passed.
+
+**The test was a tautology, and every other assertion in it was true for that reason.**
+
+## The fix is the fence, not the fixture alone
+
+A 256-byte `0x00..=0xFF` payload encodes to `////////////////` under `STANDARD` and
+`________________` under `URL_SAFE`, so the alphabets cannot be confused. And the new
+assertion is the part that matters:
+
+```rust
+assert!(
+    four_spellings_can_differ(),
+    "the four spellings are not four different strings, so this test cannot fail"
+);
+```
+
+**A fixture that cannot distinguish the cases under test is not a fixture**, and nothing
+else in the file would have noticed. That assertion is the fence, and it runs *before* the
+property rather than beside it.
+
+This is the same shape as #81's stale `dist/`, #82's unreachable half, `wire.test.mjs`
+checking declarations rather than reads, `Located` being imported by nobody, and #88's
+extension list — **and it is the first one that reached an engine test.** Six times in one
+day, and the sixth was a fence that had been green for hours.
+
+### Also, and this one is mine
+
+**I committed a mutation.** `375e352` was a `plan:`-only commit that ran `git add -A` while
+a background mutation script was mutating `ksav/engine/src/assets.rs`, and it captured the
+tree mid-mutation. The four-alphabet fix survived; **the naming of the failure did not**, and
+so `main` carried the silent drop for six commits — the exact defect #60 was filed about.
+
+`git add -A` is the wrong tool when anything else is writing to the tree. Caught because
+the editor suite and this diff disagreed, and it is recorded rather than quietly fixed,
+because the *reason* it happened is the part that would happen again.
+
 ### State at log write
 
 Editor **7,858 → 7,878**, 0 failed. Engine `#[test]` **1,073 → 1,077**.
@@ -9378,3 +9442,53 @@ Editor **7,858 → 7,878**, 0 failed. Engine `#[test]` **1,073 → 1,077**.
 ### Next move
 
 Finish #60's mutation run — three mutations queued: the four spellings collapsed to one, `URL_SAFE` dropped, and the refusal removed. Then **#83** (from the #82 work): the file the engine returns from `jump` is dropped at the wire reader.
+
+## #87 — the length on a collapsed fold
+
+The chip said what a fold was ("הערה …") and never how big. Approved, so it says
+both now: `⋯ הערה … 480 תווים ⋯`.
+
+**What is counted, and why it was not the body.** The folded range — command,
+brackets and prose. That is what disappears when the chip appears, so it is the
+number a reader can check by unfolding. Counting the body alone would need a
+second scan to answer a question nobody asks.
+
+**The one way to be wrong.** An opener that never closes folds to the end of the
+document. The subtraction succeeds, and the chip cheerfully prints the length of
+everything after it — a true number and a useless one, on the one fold where it
+means nothing.
+
+And the obvious rule for detecting it is wrong: "does the range reach the end of
+the document?" cannot tell an unclosed tag from a tag closed by the **file's final
+`]`**. `Frame.close` is already `doc.length` for both (`spans.ts:250`), and the
+first version of this function asked exactly that question.
+
+So the question goes to the thing that already answers it — `brackets.analyze`,
+which reports `{kind: "unclosed", pos}` — and the fold asks *that*. One judgement
+of "unclosed" in the repository; a second one next to it would be free to disagree
+with the red lint that is already telling the writer the same thing.
+
+**A false claim, caught before it shipped.** The first draft of the comment said
+the lint walks strings and comments, so a `[` inside quotes is not an opener. I
+believed that and wrote a test for it. The test failed: `analyze("#הערה[\"[\"]")`
+reports `unclosed@5`. The lint does not track quotes. The comment and the test
+were both wrong, and the comment was the dangerous one — it would have told the
+next reader that the lint is smarter than it is, which is how the second opinion
+gets written. Both cut.
+
+**Verified:** 9 new assertions, 7,916 across 113 files, `tsc` clean. Four
+mutations, all caught:
+
+| # | mutation | caught by |
+|---|---|---|
+| M1 | drop the unclosed guard, always subtract | 2 assertions |
+| M2 | pin the opener to `range.from` | 1 assertion |
+| M3 | chip stops printing the number | the wiring fence |
+| M4 | none — | — |
+
+M3 is the one worth naming. Everything about `foldLength` is a pure function, and
+a chip that computed the right number and never printed it passes all of it —
+and looks *right* in a screenshot, because the "…" is still there, only smaller.
+No test in this suite builds a `DOM`, so the fence is on the source: the chip's
+own interpolation, checked against `src/ksav-lang.ts`. A fence that cannot fail
+on "this is not used" is not a fence.

@@ -12,6 +12,8 @@ import { StateEffect, StateField } from "@codemirror/state";
 import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
 import { FOLD_OPEN, FOLD_CLOSE } from "./hiding";
+import { analyze } from "./brackets";
+import { t } from "./i18n";
 import { bothSpellings, withAliases } from "./engine.gen";
 import {
   DEFER_BODY_COMMANDS,
@@ -1127,21 +1129,76 @@ export const ksavFold = foldService.of((state, lineStart) => {
 // A collapsed fold shows a meaningful label instead of a bare "…": the fold's
 // name, the heading title, or the command being folded. This is what makes a
 // collapsed block still readable — you see what you named it.
-function foldLabelText(state: EditorState, range: { from: number; to: number }): string {
+function foldLabelText(state: EditorState, range: { from: number; to: number }): FoldLabel {
   const line = state.doc.lineAt(range.from);
   const text = line.text;
-  const named = text.match(/\/\/\{\s*(.*)$/); // //{ label
-  if (named) return named[1].trim() || "…";
-  const s = scanDoc(state.doc);
-  const head = s.nodes.find(
-    (n) => n.role === "heading" && n.from >= line.from && n.from <= line.to,
+  const label = (() => {
+    const named = text.match(/\/\/\{\s*(.*)$/); // //{ label
+    if (named) return named[1].trim() || "…";
+    const s = scanDoc(state.doc);
+    const head = s.nodes.find(
+      (n) => n.role === "heading" && n.from >= line.from && n.from <= line.to,
+    );
+    if (head) return titleOf(s.text, head) || "…";
+    const star = text.match(/\/\*\s*(.*)$/); // /* comment
+    if (star) return (star[1].replace(/\*\/.*$/, "").trim() || "הערה") + " …";
+    const cmd = text.match(/#([A-Za-z֐-׿_][\w֐-׿]*)/u);
+    if (cmd) return cmd[1] + " …";
+    return "…";
+  })();
+  return { label, ...foldLength(state.doc.toString(), range) };
+}
+
+/** A folded chip's label, and how much it is hiding. */
+export interface FoldLabel {
+  label: string;
+  /**
+   * Characters inside the fold, or `null` when there is no honest number to give.
+   *
+   * `null` is **not** `0` and not "unknown, use zero". `foldLength` returns it for
+   * the case that matters: an opener the lint already calls unclosed.
+   */
+  length: number | null;
+}
+
+/**
+ * How many characters a fold is hiding — and `null` when it is not a number worth
+ * printing.
+ *
+ * # The case that makes this a function and not a subtraction
+ *
+ * `Frame.close` is already `text.length` when nothing closes it (`spans.ts:250`), so
+ * "is this opener unclosed?" cannot be answered by asking whether the range reaches
+ * the end of the document: a tag closed by the **last `]` in the file** answers that
+ * question the same way. Subtract and you would print *"8,400 characters"* on the one
+ * fold where the number means nothing.
+ *
+ * So the question is asked of the thing that already answers it. `brackets.analyze`
+ * reports `{kind: "unclosed", pos}` for the openers that never close, and the fold asks
+ * **that** rather than writing a second opinion next to the first. One judgement of
+ * "unclosed" in the repository; when the lint gets better about where a `[` is an
+ * opener, the fold chip gets it for free and cannot disagree.
+ *
+ * On a tag that is **broken**, the length is the rest of the document. That is a true
+ * number and a useless one, so it is not printed — a writer whose note is unclosed
+ * should be told that by the red lint, not handed a length that looks like a
+ * measurement.
+ *
+ * What is counted is the folded range: the whole construct, brackets and `#הערה`
+ * included, because that is what disappears when the chip appears. Not the body alone,
+ * which would need a second scan and would report a number no reader could check.
+ */
+export function foldLength(
+  doc: string,
+  range: { from: number; to: number },
+): { length: number | null } {
+  // The opener is the first `[` at or inside the fold. A fold on a `//{ … //}`
+  // region has none, and measures as itself, which is right.
+  const opener = doc.indexOf("[", range.from);
+  const unclosed = analyze(doc).problems.some(
+    (p) => p.kind === "unclosed" && p.pos === opener,
   );
-  if (head) return titleOf(s.text, head) || "…";
-  const star = text.match(/\/\*\s*(.*)$/); // /* comment
-  if (star) return (star[1].replace(/\*\/.*$/, "").trim() || "הערה") + " …";
-  const cmd = text.match(/#([A-Za-z֐-׿_][\w֐-׿]*)/u);
-  if (cmd) return cmd[1] + " …";
-  return "…";
+  return { length: unclosed ? null : range.to - range.from };
 }
 
 /** codeFolding wired to show the region/heading/list label on the collapsed chip. */
@@ -1150,7 +1207,11 @@ export const ksavFolding = codeFolding({
   placeholderDOM: (_view, onclick, prepared) => {
     const s = document.createElement("span");
     s.className = "cm-foldPlaceholder ksav-fold-label";
-    s.textContent = "⋯ " + (typeof prepared === "string" ? prepared : "") + " ⋯";
+    const { label, length } =
+      typeof prepared === "object" && prepared !== null
+        ? (prepared as FoldLabel)
+        : { label: typeof prepared === "string" ? prepared : "", length: null };
+    s.textContent = "⋯ " + label + (length == null ? "" : ` ${length} ${t("foldChars")}`) + " ⋯";
     s.title = "לחצו כדי לפרוש · click to unfold";
     s.setAttribute("aria-label", "folded");
     s.onclick = onclick;

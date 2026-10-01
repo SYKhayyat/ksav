@@ -807,6 +807,25 @@ body.dragging-pane * { cursor: grabbing !important; }
    a file without and behaves differently — which is the whole argument for
    showing them. Small, low-contrast and inline: it is a thing you look for, not
    a thing you should have to look past. */
+/* Showing whitespace — a `Decoration.mark`, so these are `::after` pseudo-elements
+   and never text. That is deliberate: a pseudo-element costs nothing in the
+   accessibility tree, survives no copy, and — the reason it is a mark and not a
+   `highlightSpecialChars` — composes with prose mode and with visible bidi marks
+   instead of colliding with them. `bidi.ts` records what a replacement over an
+   overlapping range does: *"CodeMirror rejects the decoration set outright
+   ('Ran out of text content') and the editor goes blank."*
+   Low contrast on purpose, for the same reason as the bidi chip below: it is a
+   thing you look for, not a thing you should have to look past. */
+.cm-ws-space::after {
+  content: "\00b7";
+  color: color-mix(in srgb, var(--muted) 60%, transparent);
+  font-size: 0.85em;
+}
+.cm-ws-tab::after {
+  content: "\2192";
+  color: var(--accent);
+  font: 600 0.85em/1 var(--mono);
+}
 .cm-specialChar.ksav-bidi-mark {
   font: 600 9px/1 var(--mono); vertical-align: 2px;
   padding: 1px 2px; margin: 0 1px; border-radius: 3px;

@@ -156,6 +156,19 @@ export interface Settings {
   /** The same for `"` and `'`. Off: see `pairedDelimiters` in `main.ts`. */
   autoPairQuotes?: boolean;
   /**
+   * Draw the spaces and tabs that are otherwise invisible.
+   *
+   * **Off by default, and that is a readability decision rather than a
+   * completeness one.** A space between two words is prose; a paragraph of Hebrew
+   * with every one of them dotted is unreadable. What this shows is the
+   * whitespace that is *not* prose — a run, a leading space, a trailing one, any
+   * tab — which is what `whitespace.ts` explains.
+   *
+   * It is here beside the pairing switches because both are "what the editor does
+   * while you type", and neither is about the document.
+   */
+  showWhitespace?: boolean;
+  /**
    * Reopen a menubar menu scrolled where it was left, rather than at the top.
    *
    * Off, so menus open at the top — which is what was asked for and what a menu
@@ -578,6 +591,7 @@ export const DEFAULTS: Settings = {
   autocomplete: true,
   autoPairBrackets: true,
   autoPairQuotes: false,
+  showWhitespace: false,
   keepMenuPosition: false,
   proseStrip: false,
   spellcheck: true,

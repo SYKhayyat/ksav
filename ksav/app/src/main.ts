@@ -188,6 +188,7 @@ import { action, voidAction } from "./asyncaction";
 import * as save from "./save";
 import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, compileNow, supersedeCompiles, onStale, onAfterCompile, onSchedule, bodyOnScreen, preambleOffset } from "./compile";
+import * as whitespace from "./whitespace";
 import * as commands from "./commands";
 import * as find from "./find";
 import {
@@ -1536,6 +1537,28 @@ function pairExtension() {
   return EditorState.languageData.of(() => [{ closeBrackets: { brackets } }]);
 }
 
+/** Draw the whitespace that is not prose, or nothing at all. */
+function whitespaceExtension() {
+  return settings.showWhitespace ? whitespace.whitespaceMarks() : [];
+}
+
+/**
+ * A compartment for the above, and not a flag read inside the plugin.
+ *
+ * The plugin is a `ViewPlugin`, so a setting read inside it would be read once at
+ * construction and then never again — the marks would keep showing, or keep not
+ * showing, until the document was swapped. `pairExtension` above has the same
+ * requirement and the same answer, which is why this sits beside it rather than
+ * inventing a second arrangement.
+ *
+ * **Its own compartment, and not one shared with the pairing switches** — which is
+ * the whole point of `whitespace.ts`. Those two replace ranges and this one does
+ * not, so all three are free together. `bidi.ts:452` is why that is worth writing
+ * down: two replacements over one range blanks the editor rather than merely
+ * looking wrong.
+ */
+const whitespaceCompartment = new Compartment();
+
 // ---------------------------------------------------------------- spell check
 //
 // The engine holds the lexicons and does the checking (see engine/src/spell/);
@@ -1990,6 +2013,7 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       // swallows whole tables. Off is a default, not a refusal — see
       // `pairExtension`.
       pairCompartment.of(pairExtension()),
+      whitespaceCompartment.of(whitespaceExtension()),
       search({ top: true }),
       phraseCompartment.of(EditorState.phrases.of(searchPhrases())),
       // The hydra is *not* here, and that is the fix rather than an omission.
@@ -8021,6 +8045,8 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("autoPairBracketsLabel", "autoPairBrackets"),
     checkRow("autoPairQuotesLabel", "autoPairQuotes"),
+    checkRow("showWhitespaceLabel", "showWhitespace"),
+    el("div", { class: "set-note" }, [t("showWhitespaceNote")]),
     // Off by default, and the note says why rather than leaving a writer to
     // discover it by fighting their own gershayim for an hour.
     el("div", { class: "set-note" }, [t("autoPairQuotesNote")]),
@@ -13811,6 +13837,12 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     forceFullSpellCheck();
   } else if (key === "autoPairBrackets" || key === "autoPairQuotes") {
     runtime.view.dispatch({ effects: pairCompartment.reconfigure(pairExtension()) });
+  } else if (key === "showWhitespace") {
+    // `[]` rather than the plugin emptied: reconfigure **is** the toggle, so there
+    // is no state to clear and nothing to leave behind.
+    runtime.view.dispatch({
+      effects: whitespaceCompartment.reconfigure(whitespaceExtension()),
+    });
   } else {
     scheduleCompile();
   }

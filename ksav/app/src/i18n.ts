@@ -1224,6 +1224,9 @@ const HE: Dict = {
   autocompleteLabel: "השלמה אוטומטית (#)",
   autoPairBracketsLabel: "סגירת סוגריים אוטומטית",
   autoPairQuotesLabel: "סגירת מרכאות אוטומטית",
+  showWhitespaceLabel: "הצגת רווחים וטאבים",
+  showWhitespaceNote:
+    "כבוי כברירת מחדל: רווח בין שתי מילים הוא טקסט, ומילים מנוקדות הן לא נראות עם נקודות ביניהן. מה שמסומן הוא רק מה שאינו טקסט — רווחים כפולים, רווח בסוף שורה, רווח בראש שורה, וכל טאב.",
   keepMenuPositionLabel: "תפריטים נפתחים במקום שבו הושארו",
   proseStripLabel: "רצועת ההקשר מופיעה גם בטקסט רגיל",
   proseStripNote:
@@ -2707,6 +2710,9 @@ const EN: Dict = {
   autocompleteLabel: "Autocomplete (#)",
   autoPairBracketsLabel: "Close brackets automatically",
   autoPairQuotesLabel: "Close quotes automatically",
+  showWhitespaceLabel: "Show spaces and tabs",
+  showWhitespaceNote:
+    "Off by default: a space between two words is prose, and a paragraph of Hebrew is unreadable with a dot between every pair. What is marked is only what is not prose — runs of spaces, a trailing space, a leading one, and any tab.",
   keepMenuPositionLabel: "Menus reopen where they were left",
   proseStripLabel: "Show the context strip in plain prose too",
   proseStripNote:

@@ -6191,6 +6191,41 @@ be added at all.
 | **whitespace rendering** | after #84 indentation *is* whitespace | `highlightSpecialChars` already imported, already used for bidi marks |
 | **a minimap** | **which I wrongly skipped first time** — the ruler answers *where*, this answers *how much*, and it is the only thing showing a chapter went 3 pages to 40 | CodeMirror's own |
 
+### All five approved, split into their own issues — and the reason #4 moved up the list
+
+#85 dim outside the innermost tag · #86 click a bracket to select the tag · #87 length in
+the fold placeholder · #88 show whitespace · #89 a minimap. One per session, which is this
+repository's rule, and each a different piece of work with a different risk.
+
+**Then #88 stopped being the odd one out**, and I had it in the wrong place on the list for
+a reason I did not think to check. Going to explain #4, I read `main.ts` for what
+whitespace *means* here rather than what it looks like, and:
+
+> *"Typst turns a newline into a **space** and a blank line into a **paragraph break**, so
+> the writer who breaks a long line for the sake of reading the source pays for it on the
+> page."* — `main.ts:5910`
+
+So `first⏎second` prints `first second`. A blank line prints two paragraphs. Runs of
+spaces collapse. **Three different things produce different pages and none of them is
+visible** — no trailing space before a `]` is seeable, no way to see two spaces where one
+was meant.
+
+Two consequences I had not connected before:
+
+- **It is why #84's "paragraph breaks share an indent level" is a rule and not a nicety.** A
+  blank line in a note is a *typographic event*, so the indent view is showing blank lines
+  that mean something different from the line breaks around them. Any view that treats a
+  blank line as just an empty line is wrong.
+- **It is the one place where "it is only a view" is doing real work** rather than
+  expressing a taste. A line break inside a tag's body *prints as a space*, so if the view
+  ever stopped being a view, indenting a note would insert spaces into the output.
+
+And **bidi marks are already a solved instance of #88** — `bidi.ts:467` renders them with
+`highlightSpecialChars`, which `main.ts:2` already imports. An invisible character that
+changes meaning, solved by rendering the character rather than guessing at it, and scoped
+(`ksav-bidi-mark`) so it is not on permanently. That is the working answer for the hardest
+case, sitting in the tree.
+
 Checked before listing, so it is not a fifth guess: present and working are
 `drawSelection`, `highlightActiveLine`, folding and `foldGutter`, `bracketMatching`, the
 highlighter, the ruler, bidi marks, six lints, the change gutter and focus dimming.

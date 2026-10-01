@@ -300,6 +300,49 @@ still right.
 - [ ] #7 keyed updates (5× replaceChildren).
 
 ## Phase 5 — Features / proposals (Info/Low, after engine is safe)
+- [ ] #88 show the invisible characters. (Presentation, from #84) — **Whitespace in Ksav
+  source is not decoration: it prints.** `main.ts:5910` — *"Typst turns a newline into a
+  **space** and a blank line into a **paragraph break**"* — so `first⏎second` prints
+  `first second`, a blank line prints two paragraphs, and runs of spaces collapse. Three
+  different things produce **different pages** and none is visible. And after #84 the whole
+  left margin is invisible characters, so it is also how the indent **shows its own work**.
+  Not new: `highlightSpecialChars` is imported at `main.ts:2` and **bidi marks are already
+  a solved instance of this exact feature** (`bidi.ts:467`) — an invisible character that
+  changes meaning, solved by rendering the character. Off by default: a sefer is full of
+  spaces. Not rendering line-break glyphs either; the *meaning* is worth marking and a `·`
+  cannot.
+- [ ] #89 a minimap. (Presentation, from #84) — the ruler answers **where** (*"knowing that
+  there are four problems somewhere is not knowledge"*, `ruler.ts:7`), this answers **how
+  much**, and it is the only view that shows a chapter went 3 pages to 40. CodeMirror's own,
+  over producers that already know their line numbers. **The one proposal here I am not
+  confident about**, and the reasons are written down in the issue: 100px of a split pane in
+  a product writers live in daily, and **RTL** — `bidi.ts` exists because a per-line
+  direction is easy to get wrong, and a minimap is that at 100px scale. If it is wrong the
+  cost is one unused toggle.
+- [ ] #87 a folded tag says how long it is. (Presentation, from #84) — `#הערה[… 480
+  אותיות]`. **The only item that removes a step rather than adding a view**: it answers
+  *"is folding this worth it?"*, which you must answer *before* folding, and a 900-char note
+  and a 20-char one currently fold to the same chip. The label machinery is already there
+  (`ksav-lang.ts:1147`) and the length is `close − open` over a `Frame`. **A trap worth
+  naming:** `Frame.close` is already `text.length` when nothing closes it
+  (`spans.ts:250`), so an **unclosed** tag reports the rest of the document — correct and
+  useless, on exactly the tag that is broken. Characters or printed lines is a real choice;
+  leaning characters.
+- [ ] #86 click a bracket, select the whole tag. (Presentation, from #84) — **the reverse of
+  #84: legible vs *grabbable*.** `bracketMatching` is wired (`main.ts:2035`) so the pair is
+  known, and `Frame` carries both ends. **The open part is a product decision, not
+  engineering:** a selection crossing a tag's own brackets will not compile, so either the
+  body is selected, or a whole-call selection **restores** the brackets on typing —
+  *silently losing a bracket is the single worst moment this application has*
+  (`brackets.ts:3`), which is what makes restoring the better default.
+- [ ] #85 dim every line outside the tag the caret is in. (Presentation, from #84) —
+  **focus mode one level up**: `focus.ts:28` already dims outside the *paragraph* and
+  `dimDecorations` already builds over the viewport for the stated reason. The range is a
+  `Frame` instead. It answers *"which `#הערה[` am I inside?"* — which was on my list as a
+  **hover** and does not need to be one. Two things are genuinely open and are in the issue:
+  whether dimming is right for dense Hebrew (maybe de-emphasise less and emphasise more), and
+  **how this composes with focus mode**, since they are the same idea at two granularities.
+
 - [ ] #84 indent nested tags in the source **view** — a toggle; the file is never
   changed. (Proposal) — **Shaul's spec, five lines, which supersedes everything I
   inferred:** every `][` in its own line, indented; the amount is a user-set value; the
@@ -320,6 +363,18 @@ still right.
   `structure.ts:structureAt` both read it — so this is a view over existing state.
   Defaults are mine: **2 spaces** (`table.ts:258`, the one place here that already
   pretty-prints), **50 percent** (as named), and a minimum-words number to be chosen.
+  **Approved**, and the siblings split into their own issues per the one-per-session rule:
+  **#85** dim outside the innermost tag, **#86** click a bracket to select the tag, **#87**
+  length in the fold placeholder, **#88** show whitespace, **#89** a minimap. Each gets its
+  own toggle, like this one.
+  **The thing worth knowing, found while writing #88:** whitespace here is not decoration —
+  `main.ts:5910`, *"Typst turns a newline into a **space** and a blank line into a
+  **paragraph break**"*. So a line break inside a tag's body **prints as a space**, which
+  means (a) it is why #84's "paragraph breaks share an indent level" is a rule about
+  typography and not about layout — a blank line is a typographic event — and (b) it is the
+  one place where "it is only a view" is doing real work rather than expressing a
+  preference. The escape for it exists and **appears in no menu, no palette and no
+  document**, which `main.ts:5914` calls *"a feature nobody can find"*.
   **The family, and what makes it one:** *presentation* — re-present the source without
   changing it. "No change to the real file" is not a caveat on #84, it is the *test*, and
   hover/diagnostics/navigation are a different tool (**analysis** — they tell you about

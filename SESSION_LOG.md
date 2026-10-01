@@ -6226,6 +6226,44 @@ changes meaning, solved by rendering the character rather than guessing at it, a
 (`ksav-bidi-mark`) so it is not on permanently. That is the working answer for the hardest
 case, sitting in the tree.
 
+### Two of them he could not follow — and both were my prose, not his question
+
+He read the list and answered **1 yes · 2 yes (way to turn on and off) · 3 yes · 4 "i dont
+get it, but sure" · 5 yes**, and then came back with **"i dont get q on 86. i definitely
+dont get q on 89. use ppl words"**.
+
+That is the sharpest possible criticism of both issues and it is the fifth time today, and
+the pattern is now unmistakable: **I write in the vocabulary of the mechanism rather than
+the vocabulary of the person using it.** `#כלול` was "spliced text"; the indent view was
+"margin guides"; and #86's question was *"a selection crossing a tag's own brackets will not
+compile"* — which is a sentence about the compiler, to answer a question about a person
+wanting to move a note.
+
+So both were rewritten in concrete Hebrew. #86: *you have written
+`בסד גמור#הערה[זה הטקסט של ההערה] ועוד משהו`; you click the `[`; does the **words** go
+blue or does the **whole note** go blue?** #89: *a minimap is a tiny picture of your whole
+document down the side, like a scrollbar that shows your text.*
+
+And **asking him to explain it changed both answers**, which is the part worth keeping:
+
+- **#86 became three ways in rather than one.** A setting for what a bare click means,
+  **`Alt`+click for the other**, and two keys. I had treated the body-vs-whole question as
+  *the* question when it was one of two axes. And Alt was checked rather than assumed —
+  `main.ts:10810` and `:14235` already let modified keys through deliberately (*"Mod-S while
+  a hydra is up should still save"*), and **Shift was the wrong pick** because
+  `Shift`+click already selects a range in the preview.
+- **#89 became something you open**, which removed my width objection entirely — a panel
+  that costs nothing when unwanted answers that better than defending a permanent strip. And
+  the RTL question I had worried about **needs no work at all**: `main.ts:678` puts
+  `docConfig().dir` on the editor and `bidi.ts` resolves **per line**, so a minimap that
+  inherits from the editor gets both directions free. My worry was about the wrong layer.
+
+The permanent fence that survived both: `visibility.test.mjs` runs `planFor(PANELS)` and
+`tools/surfaces.mjs:36` has **deliberately no default** — *"An unclassified panel throws with
+its own name in the message rather than falling back to the cheapest probe, because a
+fallback is the silent skip one level up."* A minimap panel must declare the gesture that
+opens it.
+
 Checked before listing, so it is not a fifth guess: present and working are
 `drawSelection`, `highlightActiveLine`, folding and `foldGutter`, `bracketMatching`, the
 highlighter, the ruler, bidi marks, six lints, the change gutter and focus dimming.

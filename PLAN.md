@@ -311,14 +311,20 @@ still right.
   changes meaning, solved by rendering the character. Off by default: a sefer is full of
   spaces. Not rendering line-break glyphs either; the *meaning* is worth marking and a `·`
   cannot.
-- [ ] #89 a minimap. (Presentation, from #84) — the ruler answers **where** (*"knowing that
-  there are four problems somewhere is not knowledge"*, `ruler.ts:7`), this answers **how
-  much**, and it is the only view that shows a chapter went 3 pages to 40. CodeMirror's own,
-  over producers that already know their line numbers. **The one proposal here I am not
-  confident about**, and the reasons are written down in the issue: 100px of a split pane in
-  a product writers live in daily, and **RTL** — `bidi.ts` exists because a per-line
-  direction is easy to get wrong, and a minimap is that at 100px scale. If it is wrong the
-  cost is one unused toggle.
+- [ ] #89 a minimap, **opened rather than permanent**. (Presentation, from #84) — Shaul:
+  *"a minimap you can open that basically shows everything in small"*. **Opened removes my
+  width objection entirely** — it costs nothing when unwanted, which answers it better than
+  defending a permanent strip could. `panels.ts:148`'s `PANELS` registry and
+  `overlayPanel` are the home, and `settings.panelPlacement` decides float vs pane for free.
+  **The fence, and it is real:** `visibility.test.mjs` runs `planFor(PANELS)` and
+  `tools/surfaces.mjs:36` has **deliberately no default** — *"An unclassified panel throws with
+  its own name… a fallback is the silent skip one level up."* So the gesture that opens it
+  must be declared. **RTL/ LTR needs no work:** `main.ts:678` puts `docConfig().dir` on the
+  editor via `contentAttributes`, and `bidi.ts` resolves **per line** — so a minimap that
+  inherits from the editor rather than being told a direction gets both free, and my earlier
+  RTL worry was the wrong worry. Open: where it sits (lean **pane**, it is about the editor),
+  which way it opens a target, and **marks or no marks** — leaning marks, since without them
+  it is the outline at a smaller size.
 - [ ] #87 a folded tag says how long it is. (Presentation, from #84) — `#הערה[… 480
   אותיות]`. **The only item that removes a step rather than adding a view**: it answers
   *"is folding this worth it?"*, which you must answer *before* folding, and a 900-char note
@@ -328,13 +334,22 @@ still right.
   (`spans.ts:250`), so an **unclosed** tag reports the rest of the document — correct and
   useless, on exactly the tag that is broken. Characters or printed lines is a real choice;
   leaning characters.
-- [ ] #86 click a bracket, select the whole tag. (Presentation, from #84) — **the reverse of
-  #84: legible vs *grabbable*.** `bracketMatching` is wired (`main.ts:2035`) so the pair is
-  known, and `Frame` carries both ends. **The open part is a product decision, not
-  engineering:** a selection crossing a tag's own brackets will not compile, so either the
-  body is selected, or a whole-call selection **restores** the brackets on typing —
-  *silently losing a bracket is the single worst moment this application has*
-  (`brackets.ts:3`), which is what makes restoring the better default.
+- [ ] #86 click a bracket, select the whole tag — **a setting, a modifier, and two keys.**
+  (Presentation, from #84) — *"should be a setting. and maybe there can be a click and a click
+  while holding alt or something. there could be kbd ways to select either also."* The
+  setting is **what a bare click means** (`body` = the words, `whole` = the tag), leaning
+  `whole` because moving a note has no other way while retyping is not what a click is for.
+  **`Alt`+click is the other one**, and Alt was checked rather than assumed: it is what
+  `main.ts:10810` and `:14235` deliberately let through so *"Mod-S while a hydra is up should
+  still save"*, and **`Shift` is the wrong pick** because `Shift`+click already selects a
+  range in the preview (`jump.ts:isPlainClick`) — the one modifier that already has a click
+  job. Two keys from `keybindings()`; the selection actions join `STRUCTURE_ACTIONS`
+  (`structure.ts:988`) and its `Prec.high` keymap, which returns `false` when it has nothing
+  to do — *"exactly how Enter stays Enter in ordinary prose."* **Typing over a whole-tag
+  selection restores the brackets**, because *silently losing a bracket is the single worst
+  moment this application has* (`brackets.ts:3`) happening as a feature. The fence is
+  **differential**: the same text typed into both selections must give the same document,
+  which is the only assertion that catches both a missing and a doubled bracket.
 - [ ] #85 dim every line outside the tag the caret is in. (Presentation, from #84) —
   **focus mode one level up**: `focus.ts:28` already dims outside the *paragraph* and
   `dimDecorations` already builds over the viewport for the stated reason. The range is a

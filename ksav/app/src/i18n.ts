@@ -1224,6 +1224,11 @@ const HE: Dict = {
   autocompleteLabel: "השלמה אוטומטית (#)",
   autoPairBracketsLabel: "סגירת סוגריים אוטומטית",
   autoPairQuotesLabel: "סגירת מרכאות אוטומטית",
+  "sc.selectTagWhole": "בחירת התג כולו",
+  "sc.selectTagBody": "בחירת גוף התג",
+  clickSelectsTagLabel: "לחיצה על סוגר פותח:",
+  clickSelectsBody: "גוף התג",
+  clickSelectsWhole: "התג כולו",
   foldChars: "תווים",
   showWhitespaceLabel: "הצגת רווחים וטאבים",
   showWhitespaceNote:
@@ -2711,6 +2716,11 @@ const EN: Dict = {
   autocompleteLabel: "Autocomplete (#)",
   autoPairBracketsLabel: "Close brackets automatically",
   autoPairQuotesLabel: "Close quotes automatically",
+  "sc.selectTagWhole": "Select the whole tag",
+  "sc.selectTagBody": "Select the tag body",
+  clickSelectsTagLabel: "Click on an opening bracket selects:",
+  clickSelectsBody: "the tag body",
+  clickSelectsWhole: "the whole tag",
   foldChars: "characters",
   showWhitespaceLabel: "Show spaces and tabs",
   showWhitespaceNote:

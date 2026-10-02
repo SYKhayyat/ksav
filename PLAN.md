@@ -325,7 +325,7 @@ still right.
   RTL worry was the wrong worry. Open: where it sits (lean **pane**, it is about the editor),
   which way it opens a target, and **marks or no marks** — leaning marks, since without them
   it is the outline at a smaller size.
-- [ ] #87 a folded tag says how long it is. (Presentation, from #84) — `#הערה[… 480
+- [x] #87 a folded tag says how long it is. (Presentation, from #84) — `#הערה[… 480
   אותיות]`. **The only item that removes a step rather than adding a view**: it answers
   *"is folding this worth it?"*, which you must answer *before* folding, and a 900-char note
   and a 20-char one currently fold to the same chip. The label machinery is already there

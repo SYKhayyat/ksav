@@ -26,6 +26,11 @@
 
 /** Every action's shipped binding. */
 export const DEFAULT_KEYS: Record<string, string> = {
+  // #86 — two bindings, one per answer, because a click cannot reach both and the
+  // setting is a preference rather than the only path. `Alt-Shift` is deliberate:
+  // these act on the tag at the caret, with no click involved at all.
+  selectTagWhole: "Mod-Shift-]",
+  selectTagBody: "Mod-Shift-[",
   bold: "Mod-b",
   italic: "Mod-i",
   underline: "Mod-u",

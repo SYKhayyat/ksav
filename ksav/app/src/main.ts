@@ -30,6 +30,7 @@ import {
   setRevealAll,
   outline,
 } from "./ksav-lang";
+import { tagSelectExtension, tagContaining, selectTag, type TagSelection } from "./tagselect";
 import { bracketLint, healAll } from "./bracket-lint";
 import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
@@ -1982,6 +1983,10 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       ksavFolding,
       foldGutter(),
       bracketMatching(),
+      // #86 — click an opening `[` and the tag selects. `Alt`+click gives the other
+      // answer, so the setting below is about what a bare click means and not about
+      // which of the two is reachable.
+      tagSelectExtension(() => settings.clickSelectsTag ?? "whole"),
       // The answer to "three characters is too many to type all day". A fold's
       // marks have to be comments or the page would print them, Typst's comment
       // is `//`, and one brace after it is the shortest brace-like thing that
@@ -8047,6 +8052,14 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("autoPairQuotesLabel", "autoPairQuotes"),
     checkRow("showWhitespaceLabel", "showWhitespace"),
     el("div", { class: "set-note" }, [t("showWhitespaceNote")]),
+    // #86 — what a bare click on a `[` means. A select and not a checkbox, because
+    // there is no off: clicking a bracket does something either way, and the only
+    // question is which of the two. `Alt`+click is the other, so this is a
+    // preference about the bare hand rather than a switch between capabilities.
+    selectRow("clickSelectsTagLabel", "clickSelectsTag", [
+      ["body", t("clickSelectsBody")],
+      ["whole", t("clickSelectsWhole")],
+    ]),
     // Off by default, and the note says why rather than leaving a writer to
     // discover it by fighting their own gershayim for an hour.
     el("div", { class: "set-note" }, [t("autoPairQuotesNote")]),
@@ -10345,6 +10358,27 @@ function structureKeymap() {
     const want = columnStepFor(a.id);
     const act = want === a.id ? a : structure.actionById(want);
     if (act) out.push({ key, run: () => runStructureAction(act) });
+  }
+  // #86 — the two tag selections. Not in `STRUCTURE_ACTIONS`, which is generated
+  // from the list, table and heading registries and whose `structure` field has
+  // nothing to say about a note; they read the same `keybindings()` registry, so a
+  // rebind in Settings moves the click's keyboard twin with it.
+  //
+  // Returning `false` when the caret is not in a tag is the arrangement
+  // `structureKeymap` already uses, and the reason `Mod-Shift-]` stays unbound in
+  // ordinary prose rather than eating a bracket.
+  for (const mode of ["whole", "body"] as const) {
+    const key = kb[mode === "whole" ? "selectTagWhole" : "selectTagBody"];
+    if (!key) continue;
+    out.push({
+      key,
+      run: (view) => {
+        const tag = tagContaining(view.state.doc.toString(), view.state.selection.main.head);
+        if (!tag) return false;
+        selectTag(view, tag, mode as TagSelection);
+        return true;
+      },
+    });
   }
   return out;
 }

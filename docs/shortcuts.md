@@ -13,6 +13,8 @@ rather than leaving two actions on one key.
 
 | Keys · מקשים | What it does | מה זה עושה |
 |---|---|---|
+| `Ctrl+Shift+]` | Select the whole tag | בחירת התג כולו |
+| `Ctrl+Shift+[` | Select the tag body | בחירת גוף התג |
 | `Ctrl+B` | Bold | מודגש |
 | `Ctrl+I` | Italic | נטוי |
 | `Ctrl+U` | Underline | קו תחתון |

@@ -70,7 +70,7 @@ Prepared 2026-08-27 from the open issue bodies and repository audit. These notes
 
 **Root cause:** README rewrite removed the generated binding-count claim while the documentation test intentionally checks it against `Object.keys(DEFAULT_KEYS).length`.
 
-**Recommended implementation:** retain the source-derived claim or replace the hard-coded count with generated documentation if the project wants to eliminate drift. Current local fix restored `all 97 bindings`; #12 is a PR duplicating that fix. Leave issue/PR state unchanged per request.
+**Recommended implementation:** retain the source-derived claim or replace the hard-coded count with generated documentation if the project wants to eliminate drift. Current local fix restored `all 99 bindings`; #12 is a PR duplicating that fix. Leave issue/PR state unchanged per request.
 
 **Regression coverage:** documentation test computes the count from bindings and checks README/docs claims; add a generation/check command if hard-coded text is retained.
 

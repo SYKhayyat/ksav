@@ -9492,3 +9492,80 @@ and looks *right* in a screenshot, because the "…" is still there, only smalle
 No test in this suite builds a `DOM`, so the fence is on the source: the chip's
 own interpolation, checked against `src/ksav-lang.ts`. A fence that cannot fail
 on "this is not used" is not a fence.
+
+## #86 — click a bracket, select the tag
+
+`#84` makes nesting legible. This makes it grabbable. Click an opening `[` and
+the tag selects; `Alt`+click selects the other one; two keys, one per answer.
+
+**The issue's own resolving test, written before the feature existed.** `scan()`
+pairs delimiters into `Frame { open, close }`. `delimiters()` walks the same
+document independently and reports every bracket with an `opener` flag. Both know
+which `]` closes which `[`, and `deferred.ts:1520` records what happens when two
+answers to "where does this end?" sit beside each other — a rewriter silently
+reshaped the writer's own source.
+
+So `tagselect.ts` reads **one** of them, and `tagselect.test.mjs` pairs the other
+with its own stack and its own logic and requires it to land in the same place for
+**every frame in every fixture**. The count compared is held against the number of
+frames the fixtures actually contain, because an assertion that passes because it
+compared nothing reads as agreement forever.
+
+**Three data-shape mistakes, all of them mine, all of them caught by a failing
+test rather than by reading the code:**
+
+- `Delimiter.structural`, not `.structure`. I wrote the wrong field, every
+  structural opener was skipped, and the agreement test "passed" having compared
+  zero pairs — which is why that test now asserts it compared *everything*.
+- `Node.bodies` is the **body** range, not the bracket positions: `from` is one
+  past the `[` and `to` is the `]`. I looked for `group.from === pos`, which is
+  the character *after* the bracket.
+- `Node.to` is one past the `]`, while `Frame.close` is the `]` itself. Two
+  conventions for one bracket; each range above is only right because each uses
+  the one its own source uses.
+
+**And one the tests could not have found: an unclosed tag has no body.**
+`#הערה[לא נסגר` scans to `bodies: []` while its frame runs `open 5 → close 13`. A
+body range that a half-written note does not have cannot answer "where am I?" —
+and `spans.ts:250` is explicit that half of `#רשימה(` is the *normal state of a
+document being written*. So the geometry reads `frames`, and the right-hand
+boundary is inclusive exactly when `group.to === doc.length`, which puts a caret at
+the very end of the document **inside** the note whose words run up against it.
+
+**`Node.to` stops at the `[` for an unclosed tag** — measured, `0…5` — so
+`Math.max(owner.to, frame.close)` is not defensive coding. The node cannot know the
+end of a tag that does not end yet; the frame can.
+
+**Typing over a whole-tag selection puts the brackets back**, as decided. The test
+is not "the brackets are still there", which a string comparison proves while the
+selection has quietly become a cursor. It applies the replacement and checks the
+result is **still a tag with the same shape** — so undo, re-select and delete all
+still work. Body mode deliberately does *not* wrap: wrapping a retyped word would
+put a note inside every note the writer ever corrected, which is not a restore, it
+is a second edit nobody asked for. And an unclosed tag is not given a `]` it never
+had — inventing structure is the mirror of the bug the rule prevents.
+
+**Verified:** 30 assertions, 7,945 across 114 files, `tsc` clean. Six mutations.
+
+| # | mutation | caught by |
+|---|---|---|
+| M1 | click ignores `Alt` | the `Alt` fence |
+| M2 | never restore brackets on type | 1 assertion |
+| M3 | body mode wraps too | 1 assertion |
+| M4 | extension dropped from `main.ts` — **the feature is dead code** | the wiring fence |
+| M5 | unclosed boundary made exclusive | threw |
+| M6 | `[`-only filter removed | **survived** |
+
+**M5 was a no-op I reported as a mutation.** My replacement anchor was a line that
+a rewrite had already deleted, `str.replace` found nothing, wrote the file
+unchanged, and the suite reported green. The second run now asserts the anchor
+appears exactly once and prints `NO-OP` and exits 9 otherwise. A mutation harness
+that cannot tell "the edit applied" from "nothing happened" is the same instrument
+failure as a test that cannot tell "green" from "compared nothing" — and it was
+mine, in the harness, on the day I was writing about that exact bug.
+
+**M6 survived, and it was a real gap.** Removing the `[`-only filter changed
+nothing because every fixture is square brackets, so the branch had nothing to fail
+on. Found by the instrument, not by reading. Fixed by adding a `#let זוג =
+("אלף", "בית")` and an `#if true { … }`, and asserting a `(` and a `{` are not
+tags — which is the rule the issue states and nothing had checked.

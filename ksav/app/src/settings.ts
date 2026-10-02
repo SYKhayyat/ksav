@@ -169,6 +169,15 @@ export interface Settings {
    */
   showWhitespace?: boolean;
   /**
+   * What a plain click on a tag's opening `[` selects.
+   *
+   * `whole` by default, because moving a note is the thing there is no other way
+   * to do, and retyping the words inside one is what a click has never been for.
+   * It is a setting and not an answer because it is a preference, and because
+   * `Alt`+click already selects the other one — so neither is ever out of reach.
+   */
+  clickSelectsTag?: "body" | "whole";
+  /**
    * Reopen a menubar menu scrolled where it was left, rather than at the top.
    *
    * Off, so menus open at the top — which is what was asked for and what a menu
@@ -592,6 +601,7 @@ export const DEFAULTS: Settings = {
   autoPairBrackets: true,
   autoPairQuotes: false,
   showWhitespace: false,
+  clickSelectsTag: "whole",
   keepMenuPosition: false,
   proseStrip: false,
   spellcheck: true,

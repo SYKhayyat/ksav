@@ -33,6 +33,7 @@ import {
 import { tagSelectExtension, tagContaining, selectTag, type TagSelection } from "./tagselect";
 import { indentView, DEFAULT_INDENT } from "./indent";
 import { tagDim } from "./tagdim";
+import { minimapExtension } from "./minimap";
 import { bracketLint, healAll } from "./bracket-lint";
 import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
@@ -1992,6 +1993,12 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       // #85 — dim every line outside the tag the caret is in, with the fade
       // graded by nesting. `0` means off, and off is free.
       tagDim(() => (settings.dimOutsideTag ?? 0) / 100),
+      // #89 — the minimap. It lives in *this* editor and draws on a canvas, so
+      // there is no second copy of the document; `null` is a closed panel.
+      minimapExtension(() => ({
+        on: !!settings.minimap,
+        colors: !!settings.minimapColors,
+      })),
       // #84 — the indent view. Every dial is the writer's own number, read per
       // rebuild so the toggle and the settings reconfigure rather than being
       // captured once at construction.
@@ -8068,6 +8075,9 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("showWhitespaceLabel", "showWhitespace"),
     // #85 — a dial rather than a checkbox: the feature is "how much", not "whether".
     numberRow("dimOutsideTagLabel", "dimOutsideTag", 0, 100, 5),
+    checkRow("minimapLabel", "minimap"),
+    checkRow("minimapColorsLabel", "minimapColors"),
+    el("div", { class: "set-note" }, [t("minimapNote")]),
     checkRow("indentViewLabel", "indentView"),
     el("div", { class: "set-note" }, [t("indentViewNote")]),
     // The three dials, all of them the writer's own number. **Minimum words is the

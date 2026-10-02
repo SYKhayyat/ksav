@@ -190,6 +190,10 @@ export interface Settings {
    * viewport walk is not entered at all.
    */
   dimOutsideTag?: number;
+  /** #89 — the minimap. Off by default; it is a panel you open. */
+  minimap?: boolean;
+  /** #89 — paint problems and spellings in the minimap, or leave it plain shape. */
+  minimapColors?: boolean;
   /** Spaces of indent per level. `2`, matching `table.ts:258`. */
   indentAmount?: number;
   /** Bodies below this many words are left completely alone. */
@@ -623,6 +627,8 @@ export const DEFAULTS: Settings = {
   clickSelectsTag: "whole",
   indentView: false,
   dimOutsideTag: 55,
+  minimap: false,
+  minimapColors: false,
   indentAmount: 2,
   indentMinWords: 4,
   indentPercent: 50,

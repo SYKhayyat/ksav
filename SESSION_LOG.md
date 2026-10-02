@@ -9938,3 +9938,76 @@ file is not evidence of anything.
 With the caret inside a note it is plainly working: the caret's paragraph and the rest
 of its tag read at full strength, and the line outside reads grey where the earlier
 baseline had it black. `EXIT=0`, 8,015 assertions.
+
+## #89 — the minimap, and the answer I had backwards
+
+Shaul: *"only shape, with a setting to turn on colours"*; *"dock it or float it and
+drag"*; and *"i have internet."*
+
+**My network claim was wrong.** `npm ping` answers from here — my first check used
+`@codemirror/lang` unencoded, which npm 404s, and I concluded there was no network. So
+the "we cannot install it" half of my recommendation was never true.
+
+**And the premise was still false.** CodeMirror 6 ships **no** minimap. Of what exists,
+the widely-cited `codemirror-minimap` declares `peerDependencies: {codemirror: ">=5.15.0"}`
+— that is **CodeMirror 5** — and was last published in 2020. Only
+`@replit/codemirror-minimap` (MIT, ~100 KB, correct CM6 peers) is viable.
+
+### What I got wrong in the other direction
+
+I recommended **writing it** on the grounds that a minimap needs a **second
+`EditorView`** over the same document, and that this application already has two. I had
+read the package's README, which builds one, and generalised from it.
+
+It does not. The package is a `ViewPlugin` that draws on a **canvas** and appends a
+container into the gutter of whatever view it is given — **there is no `new EditorView`
+anywhere in it.** So it goes in the **main** editor's extension list and there is **no
+second copy of the sefer at all**, open or shut.
+
+Which answers the question better than I answered it. I said *"not quite when open, and
+it turns out not to need asking"* — the truthful version is **no loss, ever**: a canvas
+the width of a strip and a redraw per change, in an editor that already exists.
+
+The `packet`-level check for this is now a fence rather than my memory:
+
+```js
+ok("the package never builds an editor of its own", !pkg.includes("new EditorView"),
+   "a second EditorView would mean a second copy of the sefer");
+```
+
+### And #84's lesson, applied before it cost me a day
+
+The options cannot be read in the field's `create` — that runs inside
+`EditorState.create`, which here runs at module scope, which is **exactly the temporal
+dead zone that silently deleted the #84 plugin**. So the field defaults to **off** and a
+plugin fills it one frame later, and `update` never dispatches synchronously.
+
+`compute`'s slots must be **state references, not closures** — passing `read()`'s result
+would rebuild the minimap on every configuration, which is the opposite of what a
+closed panel should cost. So the slots are the two **primitives**, `on` and `colors`.
+
+### Mutations
+
+| # | mutation | caught by |
+|---|---|---|
+| M1 | closed builds an empty strip instead of nothing | 1 assertion |
+| M2 | colours on also switches to rendered text | 1 assertion — `displayText` must not move |
+| M3 | extension dropped from `main.ts` — dead code | 2 fence assertions |
+
+M2 is the one worth having: turning colours on must **only** add gutters. A
+"just rebuild the config" implementation changes `displayText` too, and the test says so.
+
+## What is NOT done, and #89 stays open
+
+**It is docked in the editor's gutter, not floatable and draggable.** The answer was
+*"dock it or float it and drag"*, and only the first half ships. The panel registry
+(`PANELS`, `settings.panelPlacement`) is the mechanism for the second, and a minimap
+panel must also be declared in `tools/surfaces.mjs` with a gesture that opens it — that
+sentence is deliberately not defaulted, because *"an unclassified panel throws with its
+own name rather than falling back to the cheapest probe"*.
+
+**And one thing nobody has decided: which side in Hebrew.** The package puts it in the
+**right** gutter. In a `dir="rtl"` document the right edge is where the text *starts*, so
+the strip is now sitting on the reading edge — visible in the screenshot, with the line
+numbers pushed to its left. That is either right or wrong, and it is not a detail I
+should choose alone.

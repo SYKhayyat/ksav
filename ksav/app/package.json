@@ -29,6 +29,7 @@
     "@codemirror/view": "6.38.8",
     "@lezer/highlight": "^1.2.1",
     "@replit/codemirror-emacs": "^6.1.0",
+    "@replit/codemirror-minimap": "^0.5.2",
     "@replit/codemirror-vim": "^6.4.0",
     "@tauri-apps/api": "^2.11.1"
   },

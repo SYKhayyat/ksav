@@ -334,7 +334,7 @@ still right.
   (`spans.ts:250`), so an **unclosed** tag reports the rest of the document — correct and
   useless, on exactly the tag that is broken. Characters or printed lines is a real choice;
   leaning characters.
-- [ ] #86 click a bracket, select the whole tag — **a setting, a modifier, and two keys.**
+- [x] #86 click a bracket, select the whole tag — **a setting, a modifier, and two keys.**
   (Presentation, from #84) — *"should be a setting. and maybe there can be a click and a click
   while holding alt or something. there could be kbd ways to select either also."* The
   setting is **what a bare click means** (`body` = the words, `whole` = the tag), leaning

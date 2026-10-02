@@ -311,7 +311,7 @@ still right.
   changes meaning, solved by rendering the character. Off by default: a sefer is full of
   spaces. Not rendering line-break glyphs either; the *meaning* is worth marking and a `·`
   cannot.
-- [ ] #89 a minimap, **opened rather than permanent**. (Presentation, from #84) — Shaul:
+- [x] #89 a minimap, **opened rather than permanent**. (Presentation, from #84) — Shaul:
   *"a minimap you can open that basically shows everything in small"*. **Opened removes my
   width objection entirely** — it costs nothing when unwanted, which answers it better than
   defending a permanent strip could. `panels.ts:148`'s `PANELS` registry and

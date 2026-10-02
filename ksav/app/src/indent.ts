@@ -221,3 +221,313 @@ export function planIndent(doc: string, opts: IndentOptions, width: number): Vis
   }
   return out;
 }
+// ------------------------------------------------------------------ rendering
+//
+// The planner above says *what*; this says how it is drawn. Two widgets and two
+// kinds of decoration, and the whole design is one sentence: **a line break in this
+// view is a block element, not a character.** Nothing here writes to the document,
+// which is what makes rule 6 true rather than aspirational — there is no code path
+// from this module to a `Transaction` with changes.
+
+import { EditorView, WidgetType, Decoration, ViewPlugin } from "@codemirror/view";
+import type { DecorationSet, ViewUpdate } from "@codemirror/view";
+import { RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import type { Extension, EditorState } from "@codemirror/state";
+
+/** The `[` or `]`, drawn as a block so the text after it starts a line. */
+class BracketBlock extends WidgetType {
+  constructor(readonly ch: string) {
+    super();
+  }
+  eq(other: BracketBlock) {
+    return other.ch === this.ch;
+  }
+  toDOM() {
+    const s = document.createElement("span");
+    s.className = "ksav-indent-bracket";
+    s.textContent = this.ch;
+    return s;
+  }
+}
+
+/**
+ * The indent, as padding on the line's first character.
+ *
+ * `padding-inline-start` is right in **both** directions, and that is not luck: in
+ * RTL it is the right edge, which is where a Hebrew line is indented from, and in
+ * LTR it is the left. The opposite-of-`padding-inline-start` warning in the issue
+ * is about the **ceiling** — in RTL the space that runs out is on the left — and the
+ * ceiling is arithmetic in `indentBudget`, not CSS.
+ */
+class IndentPad extends WidgetType {
+  constructor(
+    readonly level: number,
+    readonly amount: number,
+    /** The character this widget stands in for, so the line does not lose one. */
+    readonly text: string,
+  ) {
+    super();
+  }
+  eq(other: IndentPad) {
+    return other.level === this.level && other.amount === this.amount && other.text === this.text;
+  }
+  toDOM() {
+    const s = document.createElement("span");
+    s.className = "ksav-indent-pad";
+    s.style.paddingInlineStart = `${this.level * this.amount}ch`;
+    s.textContent = this.text;
+    return s;
+  }
+}
+
+/**
+ * One spec per decoration rather than one shared spec with a factory.
+ *
+ * The obvious `Decoration.widget({ widget: (v) => ... })` cannot work: that factory
+ * is handed the **view**, not the data, so a level computed per line has nowhere to
+ * arrive. CodeMirror compares widgets with `eq`, which is why a fresh spec per
+ * decoration costs nothing at redraw.
+ */
+function blockAt(ch: string) {
+  return Decoration.replace({ widget: new BracketBlock(ch), block: true });
+}
+/**
+ * The indent, as a **replace** over the line's first character rather than a widget
+ * inserted before it.
+ *
+ * `Decoration.widget({ side: -1 })` at the position just after a block replacement
+ * builds cleanly and renders **nothing** — the mark is counted, the field is
+ * correct, and there is no `.ksav-indent-pad` in the DOM. An inline widget landing on
+ * the first position of a block's content is absorbed into that block.
+ *
+ * So the pad replaces one character and draws that character itself, with the
+ * padding in front of it. One character in, one character out, and the indent is
+ * part of the same node as the text it indents — which also means it cannot be
+ * dropped without the text going with it.
+ */
+function padAt(level: number, amount: number, text: string) {
+  return Decoration.replace({ widget: new IndentPad(level, amount, text) });
+}
+
+/**
+ * How many characters wide the editor is, for the ceiling.
+ *
+ * Measured, not assumed: the ceiling is a fraction of the pane, so an estimate that
+ * is 20% out moves the cap by 20%.
+ */
+export function charsWide(view: EditorView): number {
+  const dom = view.dom.querySelector(".cm-content") as HTMLElement | null;
+  if (!dom) return 0;
+  const width = dom.clientWidth;
+  if (!width) return 0;
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre";
+  probe.textContent = "0".repeat(100);
+  dom.appendChild(probe);
+  const ch = probe.getBoundingClientRect().width / 100 || 1;
+  probe.remove();
+  return Math.max(1, Math.floor(width / ch));
+}
+
+// ------------------------------------------------------------------ the state
+//
+// # Why a `StateField` and not a `ViewPlugin`
+//
+// The obvious implementation is a `ViewPlugin` returning `Decoration.replace({
+// block: true })`, and CodeMirror **refuses it**:
+//
+// > `RangeError: Block decorations may not be specified via plugins`
+//
+// A block widget changes how the lines are laid out rather than marking a range of
+// one, so it cannot be recomputed outside the state without the block structure and
+// the state disagreeing. The same argument as every other "derive it from one place"
+// decision in this repository, arrived at by a thrown exception.
+//
+// # And why the declarations below are in this exact order
+//
+// A `ViewPlugin` constructor is allowed to dispatch, and a field's `create` runs
+// during `EditorState.create`. With code splitting, `main.ts`'s top-level editor
+// construction and the evaluation of *this* module can interleave, so anything a
+// field's `create` reaches for must already be initialised. The first version
+// declared `indentDecorations` **before** the `indentSettings` it reads and before
+// the `cfgOf` arrow it calls, and the result was:
+//
+// > `ReferenceError: Cannot access 'n' before initialization`
+//
+// thrown from inside `StateField.create` — in a *different* chunk, which is why it
+// arrived as a minified name with no local clue. Two things follow: the helpers are
+// `function` declarations so they are hoisted regardless of order, and every field
+// is declared after everything it reads.
+//
+// This is the eighth instrument-shaped failure of the session, and the only one
+// where the instrument was **my own eye**: the screenshot showed an indent view that
+// was not indenting, with every setting correctly in localStorage.
+
+const setIndentWidth = StateEffect.define<number>();
+const setIndentSettings = StateEffect.define<IndentOptions & { on: boolean }>();
+
+/** Nothing to compute from a state that has no settings yet. */
+function cfgOf(state: EditorState): IndentOptions & { on: boolean } {
+  return state.field(indentSettings, false) ?? { ...DEFAULT_INDENT, on: false };
+}
+
+/** The pane width, carried **in the state**, because that is where decorations come from. */
+const indentWidth = StateField.define<number>({
+  create: () => 0,
+  update(w, tr) {
+    for (const e of tr.effects) if (e.is(setIndentWidth)) return e.value;
+    return w;
+  },
+});
+
+/**
+ * The current settings, kept **on the state** rather than read through a closure.
+ *
+ * A closure would have worked and been wrong: the field would read a setting the
+ * writer has since changed, and the change would appear only when something else
+ * happened to dispatch a transaction.
+ */
+const indentSettings = StateField.define<IndentOptions & { on: boolean } | null>({
+  create: () => null,
+  update(v, tr) {
+    for (const e of tr.effects) if (e.is(setIndentSettings)) return e.value;
+    return v;
+  },
+});
+
+const indentDecorations = StateField.define<DecorationSet>({
+  create(state) {
+    return build(state, state.field(indentWidth, false) ?? 0, cfgOf(state));
+  },
+  update(deco, tr) {
+    const cfg = cfgOf(tr.state);
+    const w = tr.state.field(indentWidth, false) ?? 0;
+    const before = cfgOf(tr.startState);
+    if (tr.docChanged || cfg !== before || w !== (tr.startState.field(indentWidth, false) ?? 0)) {
+      return build(tr.state, w, cfg);
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+function build(
+  state: EditorState,
+  width: number,
+  cfg: IndentOptions & { on: boolean },
+): DecorationSet {
+  if (!cfg.on || !width) return Decoration.none;
+  const b = new RangeSetBuilder<Decoration>();
+  const doc = state.doc.toString();
+  const plan = planIndent(doc, cfg, width);
+  const breaksAt = new Set(plan.filter((l) => l.viewBreak).map((l) => l.from));
+  const s = scan(doc);
+
+  // # One sorted pass, not "blocks first, then padding"
+  //
+  // `RangeSetBuilder` requires strictly increasing positions and throws otherwise.
+  // Adding every block and then every pad walks the document **backwards** the
+  // moment a tag has a body — positions 5, 15, then 6 — and the throw is swallowed
+  // by CodeMirror's field machinery, which keeps the previous (empty) set. The
+  // symptom is the exact one this module had for an hour: no decorations, no error,
+  // every setting correct.
+  //
+  // So both kinds are collected first and added in one order. Sorting by `from` and
+  // then by `to` also puts an insertion at a position before a range starting there,
+  // which is the order `RangeSetBuilder` wants for the two.
+  const marks: { from: number; to: number; deco: Decoration }[] = [];
+  for (const f of s.frames) {
+    if (doc[f.open] !== "[" || !breaksAt.has(f.open + 1)) continue;
+    // Rule 1: a block at the opener and a block at the closer. The closer is
+    // omitted for a tag that never closes, because `close` is the end of the
+    // document and there is nothing after it to begin a line.
+    marks.push({ from: f.open, to: f.open + 1, deco: blockAt("[") });
+    if (f.close < doc.length) marks.push({ from: f.close, to: f.close + 1, deco: blockAt("]") });
+  }
+  for (const line of plan) {
+    if (line.level > 0 && line.from > 0 && line.from < doc.length) {
+      marks.push({
+        from: line.from,
+        to: line.from + 1,
+        deco: padAt(line.level, cfg.amount, doc[line.from]),
+      });
+    }
+  }
+  marks.sort((a, c) => a.from - c.from || a.to - c.to);
+  for (const m of marks) b.add(m.from, m.to, m.deco);
+  return b.finish();
+}
+
+/**
+ * The indent view: the fields above, plus the one thing the state cannot know.
+ *
+ * Width needs the **view** and a `StateField` cannot see one, so the measurement
+ * goes in as an effect. The settings go in the same way, because a `ViewPlugin`'s
+ * constructor is not the only place they can change and a compartment rebuild is
+ * too coarse to rely on.
+ */
+export function indentView(read: () => IndentOptions & { on: boolean }): Extension {
+  return [
+    indentWidth,
+    indentSettings,
+    indentDecorations,
+    ViewPlugin.fromClass(
+      class {
+        // # Nothing happens in the constructor. That is the whole fix.
+        //
+        // The first version dispatched `setIndentSettings.of(read())` here, and
+        // `read()` is `main.ts`'s closure over the live `settings` binding. A
+        // `ViewPlugin` constructor runs **inside `EditorState.create`**, which runs
+        // inside `new EditorView`, which `boot()` calls at module scope — so the
+        // closure read a binding that was not initialised yet:
+        //
+        // > `CodeMirror plugin crashed: ReferenceError: Cannot access 'n' before initialization`
+        //
+        // And CodeMirror **catches a plugin constructor error and silently disables
+        // that plugin**. No throw reaches the page, `update` is never called again,
+        // the settings never arrive, `cfgOf` hands `build` the default `on: false`,
+        // and the feature renders nothing while every setting in `localStorage` is
+        // correct. `ctor: 1, update: 0, destroy: 0` was the whole fingerprint.
+        //
+        // Two faults were stacked here and either one alone hides the other: the
+        // width was measured before layout (`clientWidth` is 0), and the settings
+        // were read before the module graph finished. Both are "too early", so both
+        // are deferred by one frame, and the constructor is left empty.
+        constructor(view: EditorView) {
+          requestAnimationFrame(() => {
+            view.dispatch({ effects: setIndentSettings.of(read()) });
+            this.measure(view);
+          });
+        }
+        measure(view: EditorView) {
+          const w = charsWide(view);
+          if (w && w !== view.state.field(indentWidth, false)) {
+            view.dispatch({ effects: setIndentWidth.of(w) });
+          }
+        }
+        update(u: ViewUpdate) {
+          const now = read();
+          const cur = u.state.field(indentSettings, false);
+          if (!cur || cur.amount !== now.amount || cur.minWords !== now.minWords ||
+              cur.percent !== now.percent || cur.on !== now.on) {
+            // **Never dispatch from `update`.** CodeMirror is mid-update and says so:
+            //
+            // > Calls to EditorView.update are not allowed while an update is in progress
+            //
+            // One frame later is late enough for the writer and early enough that no
+            // frame is drawn with the old settings, which is the same trick the
+            // constructor uses for the same underlying reason.
+            requestAnimationFrame(() => u.view.dispatch({ effects: setIndentSettings.of(now) }));
+          }
+          // Re-measure whenever the width is still unknown. "No decoration" and
+          // "not ready yet" are otherwise indistinguishable, which is how this
+          // rendered nothing at all while every setting was correct.
+          if (u.geometryChanged || !u.state.field(indentWidth, false)) {
+            requestAnimationFrame(() => this.measure(u.view));
+          }
+        }
+      },
+      {},
+    ),
+  ];
+}

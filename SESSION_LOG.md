@@ -9741,3 +9741,72 @@ imported by nobody, and I have written three issues this session about exactly t
 The next step is to find what re-creates the editor state, rather than to work around
 it with a closure — a closure would make the settings right on the first build and
 wrong the moment the writer changed one, which is the quieter version of the same bug.
+
+## #84 — the renderer, and the fifth fault
+
+`eyes.mjs` said `#` was not landed. It now is. **Five faults, and every one of them
+invisible to the text suite** — 46 planner assertions were green throughout.
+
+1. **`RangeError: Block decorations may not be specified via plugins`.** Block
+   widgets change line layout, so they must come from a `StateField`. Which means
+   the pane width — only measurable from a view — has to travel into the state.
+2. **A temporal dead zone across a code-split boundary**, thrown from inside
+   `StateField.create`, in a *different* chunk, arriving as a minified name.
+3. **`charsWide` returned 0** in the plugin constructor: the constructor runs before
+   the editor is laid out.
+4. **`RangeSetBuilder` requires strictly increasing positions.** Adding all blocks
+   then all pads walks the document *backwards* the moment a tag has a body — 5, 15,
+   then 6 — CodeMirror swallows the throw and keeps the previous empty set.
+5. **The constructor read a binding that did not exist yet.**
+
+### The fifth one, and it is the interesting one
+
+> `CodeMirror plugin crashed: ReferenceError: Cannot access 'n' before initialization`
+
+**CodeMirror catches a plugin constructor error and silently disables that plugin.**
+No throw reaches the page, no red in the console, no failed test. The plugin is gone
+from the working set, so `update` is never called again.
+
+`read()` is `main.ts`'s closure over its live `settings` binding. A `ViewPlugin`
+constructor runs inside `EditorState.create`, inside `new EditorView`, which `boot()`
+calls at module scope — so the closure read a binding still in its temporal dead zone.
+
+The fingerprint was `ctor: 1, update: 0, destroy: 0`: constructed once, never updated,
+never destroyed, while the `StateField` alongside it rebuilt happily on every
+transaction. **Fields update and plugins do not, for the same transaction** — that
+asymmetry is the whole diagnosis, and I spent several turns assuming a lifecycle
+problem instead of reading it.
+
+The constructor is now **empty**. Both the settings dispatch and the width
+measurement are one frame later, and `update` never dispatches synchronously either:
+
+> `Calls to EditorView.update are not allowed while an update is in progress`
+
+### And one more, found by looking rather than by reasoning
+
+`Decoration.widget({ side: -1 })` at the position just after a block replacement
+**builds correctly and renders nothing**. The mark is counted, the field is right,
+and there is no element in the DOM. An inline widget landing on the first position of
+a block's content is absorbed into that block.
+
+So the indent is a **`replace` over the line's first character**, and the widget draws
+that character with the padding in front of it: one character in, one character out,
+and the indent lives in the same node as the text it indents — so it cannot be
+dropped without the text going with it.
+
+## Verified
+
+`tools/eyes.mjs`, Chromium, the document with three nesting levels, a paragraph break
+inside a note and a deliberately short tag. Rule 1 holds — every `][` on its own
+line, body one step in from the right. **Rule 5 holds visually**: the wrapped and
+paragraph-broken lines of the note sit at the *same* indent, which is the whole rule.
+The short `#הערה[קצר]` is left alone, which is rule 4.
+
+`tsc` clean. **115 files, 7,992 assertions, 0 failed** — up from 7,946, the new
+settings rows and dials.
+
+**The tenth instrument-shaped failure of the session, and the second one found by
+looking rather than by an assertion.** Every previous one was a green test over a
+tautology or a missing fixture. This one was a plugin that CodeMirror deleted at
+birth and reported nothing about — which is why a whole test suite can be green over
+a feature that does not exist.

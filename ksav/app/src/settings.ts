@@ -178,6 +178,17 @@ export interface Settings {
    */
   clickSelectsTag?: "body" | "whole";
   /**
+   * #84 — the indent view. Off by default: it is a presentation choice, and
+   * nothing here ever writes to the document.
+   */
+  indentView?: boolean;
+  /** Spaces of indent per level. `2`, matching `table.ts:258`. */
+  indentAmount?: number;
+  /** Bodies below this many words are left completely alone. */
+  indentMinWords?: number;
+  /** Share of the pane width the indent may use, as 0-100. */
+  indentPercent?: number;
+  /**
    * Reopen a menubar menu scrolled where it was left, rather than at the top.
    *
    * Off, so menus open at the top — which is what was asked for and what a menu
@@ -602,6 +613,10 @@ export const DEFAULTS: Settings = {
   autoPairQuotes: false,
   showWhitespace: false,
   clickSelectsTag: "whole",
+  indentView: false,
+  indentAmount: 2,
+  indentMinWords: 4,
+  indentPercent: 50,
   keepMenuPosition: false,
   proseStrip: false,
   spellcheck: true,

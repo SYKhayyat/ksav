@@ -31,6 +31,7 @@ import {
   outline,
 } from "./ksav-lang";
 import { tagSelectExtension, tagContaining, selectTag, type TagSelection } from "./tagselect";
+import { indentView, DEFAULT_INDENT } from "./indent";
 import { bracketLint, healAll } from "./bracket-lint";
 import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
@@ -1987,6 +1988,16 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       // answer, so the setting below is about what a bare click means and not about
       // which of the two is reachable.
       tagSelectExtension(() => settings.clickSelectsTag ?? "whole"),
+      // #84 — the indent view. Every dial is the writer's own number, read per
+      // rebuild so the toggle and the settings reconfigure rather than being
+      // captured once at construction.
+      indentView(() => ({
+        ...DEFAULT_INDENT,
+        on: !!settings.indentView,
+        amount: settings.indentAmount ?? DEFAULT_INDENT.amount,
+        minWords: settings.indentMinWords ?? DEFAULT_INDENT.minWords,
+        percent: settings.indentPercent ?? DEFAULT_INDENT.percent,
+      })),
       // The answer to "three characters is too many to type all day". A fold's
       // marks have to be comments or the page would print them, Typst's comment
       // is `//`, and one brace after it is the shortest brace-like thing that
@@ -8051,6 +8062,14 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("autoPairBracketsLabel", "autoPairBrackets"),
     checkRow("autoPairQuotesLabel", "autoPairQuotes"),
     checkRow("showWhitespaceLabel", "showWhitespace"),
+    checkRow("indentViewLabel", "indentView"),
+    el("div", { class: "set-note" }, [t("indentViewNote")]),
+    // The three dials, all of them the writer's own number. **Minimum words is the
+    // one that matters** — it is what keeps `#נטוי[מילה]` on one line, hundreds of
+    // times over, without the writer having to ask for that every time.
+    numberRow("indentAmountLabel", "indentAmount", 1, 8, 1),
+    numberRow("indentMinWordsLabel", "indentMinWords", 0, 40, 1),
+    numberRow("indentPercentLabel", "indentPercent", 10, 90, 5),
     el("div", { class: "set-note" }, [t("showWhitespaceNote")]),
     // #86 — what a bare click on a `[` means. A select and not a checkbox, because
     // there is no off: clicking a bracket does something either way, and the only

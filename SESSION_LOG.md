@@ -9919,3 +9919,22 @@ missing"** — never once because the code was wrong in a way the tests could ha
 `EditorState.create({ big, … })` — the key is `doc`, so the document was empty and the
 caret was outside it. Found because the test **threw** rather than passed, which is the
 one failure shape that cannot be mistaken for green.
+
+## #85 — the visual check I said was owed, and what it turned up
+
+`tools/eyes.mjs` grew `--set=key:value` (the dimming is a **dial**, and `--toggle`
+would have set it to `true`, which is neither 0 nor a dial) and `--caret=0..1`.
+
+**The caret is the whole story, and the first screenshot was lying.** With the caret at
+position 0 — outside every tag — the feature's own rule ("a caret in no tag dims
+nothing") correctly leaves the document alone, and the picture is **identical to the
+feature being broken**. Those two states are indistinguishable in a screenshot, so
+`eyes` now places the caret deliberately and says why in its own header.
+
+That is a hazard for everything in this family: #85, and anything else that is a
+function of where the caret is. A picture of an editor with the caret at the top of the
+file is not evidence of anything.
+
+With the caret inside a note it is plainly working: the caret's paragraph and the rest
+of its tag read at full strength, and the line outside reads grey where the earlier
+baseline had it black. `EXIT=0`, 8,015 assertions.

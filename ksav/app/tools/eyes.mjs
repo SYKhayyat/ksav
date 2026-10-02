@@ -12,7 +12,7 @@
 // none of it is needed to look at the editor. `vite preview` serves the same
 // `dist`.
 //
-// Usage:  node tools/eyes.mjs <out.png> [--toggle=<settingKey>] [--doc=<fixtureKey>]
+// Usage:  node tools/eyes.mjs <out.png> [--toggle=<flagKey>] [--set=<key>:<value>] [--caret=<0..1>]
 //
 // Deliberately not a test. It writes a file and asserts nothing, because the thing
 // it is for is being looked at, and a harness that only reports pass/fail is the
@@ -64,7 +64,27 @@ const DOC = `#מדף_א[זהו המדף הראשון ובו מילים רבות 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--")) ?? "/tmp/ksavv/eyes.png";
 const toggle = (args.find((a) => a.startsWith("--toggle=")) ?? "").split("=")[1];
-const settings = toggle ? { [toggle]: true } : {};
+// `--set=key:value` for settings that are numbers, not flags. #85's dimming is a
+// dial (0-100) and `--toggle` would set it to `true`, which is neither 0 nor a dial.
+const sets = args.filter((a) => a.startsWith("--set=")).map((a) => a.slice("--set=".length));
+/**
+ * Where the caret goes, as a fraction of the document.
+ *
+ * Needed and not optional. Every feature in this family is a function of **where the
+ * caret is** — #85 dims outside the tag the caret is in, and its rule is that a caret
+ * in no tag dims nothing at all — so a screenshot taken with the caret at position 0
+ * shows an editor that looks completely un-dimmed, and it is indistinguishable from
+ * the feature being broken. It is not a bug report, it is the picture lying.
+ */
+const caretArg = (args.find((a) => a.startsWith("--caret=")) ?? "").split("=")[1];
+const caret = caretArg === undefined ? 0.5 : Number(caretArg);
+const settings = { ...(toggle ? { [toggle]: true } : {}) };
+for (const pair of sets) {
+  const i = pair.indexOf(":");
+  const key = pair.slice(0, i);
+  const raw = pair.slice(i + 1);
+  settings[key] = /^-?[0-9.]+$/.test(raw) ? Number(raw) : raw === "true";
+}
 
 if (!existsSync(DIST)) {
   console.error(`no build at ${DIST} — run: npm run build`);
@@ -134,10 +154,21 @@ try {
   await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
   await page.waitForSelector(".cm-content", { timeout: 30000 });
 
-  await page.evaluate((doc) => {
-    const view = document.querySelector(".cm-content").cmView?.view;
-    if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
-  }, DOC);
+  await page.evaluate(
+    ({ doc, caret }) => {
+      const view = document.querySelector(".cm-content").cmView?.view;
+      if (!view) return;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
+      view.dispatch({
+        selection: { anchor: Math.round(view.state.doc.length * caret) },
+        // The decorations above are rebuilt from the caret, and a selection dispatch
+        // is what makes them. `scrollIntoView` so the line is actually on screen —
+        // otherwise the screenshot shows the top of the file with the caret below it.
+        scrollIntoView: true,
+      });
+    },
+    { doc: DOC, caret },
+  );
   await page.waitForTimeout(500);
 
   const png = await page.screenshot({ fullPage: false });

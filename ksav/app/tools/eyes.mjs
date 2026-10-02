@@ -1,0 +1,160 @@
+// Eyes.
+//
+// Every instrument in this repository so far has measured text. None of them has
+// looked at the thing. `indent.test.mjs` can prove the planner indents level 2 by
+// two spaces and would still be perfectly happy if the renderer drew nothing at
+// all, which is the same class of failure as a green test over a tautology: the
+// instrument is measuring something adjacent to the thing.
+//
+// So: serve the built app, drive it in the Chromium that is already installed,
+// type a document into the editor, and write a PNG. No Rust server — `ksav serve`
+// embeds `dist` at *compile* time and takes an hour to link on this machine, and
+// none of it is needed to look at the editor. `vite preview` serves the same
+// `dist`.
+//
+// Usage:  node tools/eyes.mjs <out.png> [--toggle=<settingKey>] [--doc=<fixtureKey>]
+//
+// Deliberately not a test. It writes a file and asserts nothing, because the thing
+// it is for is being looked at, and a harness that only reports pass/fail is the
+// harness that reports green while measuring nothing.
+
+import { chromium } from "playwright-core";
+import { spawn } from "node:child_process";
+import { mkdtempSync, existsSync, writeFileSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const APP = join(dirname(fileURLToPath(import.meta.url)), "..");
+const DIST = join(APP, "dist");
+
+/** The Chromium on this machine, if there is one. Nix puts it somewhere unpickable. */
+function findChromium() {
+  const roots = ["/nix/store", "/usr/lib", "/usr/bin", "/opt"];
+  for (const root of roots) {
+    if (!existsSync(root)) continue;
+    if (root.endsWith("/bin")) {
+      if (existsSync(root)) return root;
+      continue;
+    }
+    try {
+      for (const d of readdirSync(root)) {
+        if (!d.includes("chrom")) continue;
+        for (const p of [join(root, d, "bin", "chromium"), join(root, d, "bin", "chrome")]) {
+          if (existsSync(p)) return p;
+        }
+      }
+    } catch {
+      /* unreadable root, keep looking */
+    }
+  }
+  return null;
+}
+
+/** A document with nesting worth looking at — three levels, a paragraph break, a short tag. */
+const DOC = `#מדף_א[זהו המדף הראשון ובו מילים רבות כדי שיהיה צריך להיפרד לשורות נפרדות ולהיות מקולט בעומק השורה הזו כאן עוד מילה]
+
+פסקה שנייה בתוך אותו מדף כדי לבדוק שהשורה הריקה משתפת את רמת ההזחה ולא נופלת לשוליים כאן עוד מילה שלישית]
+
+#הערה[הערה קצרה]
+
+#הדגשה[מילה אחת בלבד לא אמורה להיפרד כלל כי היא קצרה מדי]
+`;
+
+const args = process.argv.slice(2);
+const out = args.find((a) => !a.startsWith("--")) ?? "/tmp/ksavv/eyes.png";
+const toggle = (args.find((a) => a.startsWith("--toggle=")) ?? "").split("=")[1];
+
+if (!existsSync(DIST)) {
+  console.error(`no build at ${DIST} — run: npm run build`);
+  process.exit(1);
+}
+
+const executablePath = findChromium();
+if (!executablePath) {
+  console.error("no Chromium found under /nix/store or /usr — install one");
+  process.exit(1);
+}
+
+const port = 8731 + (process.pid % 200);
+const profile = mkdtempSync(join(tmpdir(), "eyes-"));
+const server = spawn(
+  "npx",
+  ["vite", "preview", "--port", String(port), "--strictPort", "--host", "127.0.0.1"],
+  { cwd: APP, stdio: "ignore", env: { ...process.env } },
+);
+
+const stop = () => {
+  try {
+    server.kill();
+  } catch {
+    /* already gone */
+  }
+};
+process.on("exit", stop);
+
+async function waitForServer() {
+  for (let i = 0; i < 100; i++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/`);
+      if (r.ok) return;
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`vite preview never answered on ${port}`);
+}
+
+try {
+  await waitForServer();
+  const browser = await chromium.launch({
+    executablePath,
+    headless: true,
+    args: ["--no-sandbox", "--disable-gpu", "--force-device-scale-factor=2"],
+  });
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+
+  // The editor, and the document in it.
+  await page.waitForSelector(".cm-content", { timeout: 20000 });
+  await page.evaluate(async (doc) => {
+    const view = document.querySelector(".cm-content").cmView?.view;
+    if (view) {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
+      return;
+    }
+    // No `cmView` handle: fall back to typing into the focused editor.
+    document.querySelector(".cm-content").focus();
+  }, DOC);
+  await page.waitForTimeout(400);
+
+  if (toggle) {
+    // The settings live in localStorage; a toggle is a checkbox with a known key.
+    await page.evaluate((key) => {
+      const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
+      raw[key] = true;
+      localStorage.setItem("ksav.settings", JSON.stringify(raw));
+    }, toggle);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector(".cm-content", { timeout: 20000 });
+    await page.evaluate(async (doc) => {
+      const view = document.querySelector(".cm-content").cmView?.view;
+      if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
+    }, DOC);
+    await page.waitForTimeout(600);
+  }
+
+  const png = await page.screenshot({ fullPage: false });
+  writeFileSync(out, png);
+  console.log(`wrote ${out}`);
+  const text = await page.evaluate(() => document.querySelector(".cm-content")?.innerText ?? "");
+  console.log("--- editor shows ---");
+  console.log(text.split("\n").slice(0, 14).join("\n"));
+  await browser.close();
+} catch (e) {
+  console.error(`eyes failed: ${e.message}`);
+  process.exitCode = 1;
+} finally {
+  stop();
+}

@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { minimapExtension, configFor, clampPlacement, defaultPlacement, KEEP_ONSCREEN } from "../.tmp-test/minimap.mjs";
-import { MINIMAP_WIDTH, minimapIsOpen } from "../.tmp-test/minimapstrip.mjs";
+import { MINIMAP_WIDTH, minimapIsOpen, wireMinimapPanel } from "../.tmp-test/minimapstrip.mjs";
 
 export async function run() {
 
@@ -140,5 +140,52 @@ export async function run() {
     // Nothing is open in a test, and `open` is module state — so this is also the
     // fence that a stray `openMinimap` in module scope has not happened.
     ok("no strip is open without somebody opening it", minimapIsOpen() === false);
+  }
+
+  // # The fence for "you can close it", which is the bug this had.
+  //
+  // The strip **could not be closed by anything** — not the `×`, not Escape, not the
+  // key — and every test in this file was green, because every one of them asked
+  // whether it *opens* or about the geometry of a drag. Nothing ever closed it.
+  //
+  // Two causes, both invisible from behaviour and both visible from source, which is
+  // why these are source assertions and not DOM ones:
+  //
+  //   1. the box carried no `id`, and `nodesOf` finds a surface by
+  //      `document.getElementById` — so `closePanel`, which the `×` and Escape both
+  //      call, found nothing;
+  //   2. the teardown was never wired into the registry with `wirePanel`.
+  {
+    const strip = readFileSync(new URL("../src/minimapstrip.ts", import.meta.url), "utf8");
+    ok("the strip's element carries the id the registry looks it up by",
+      /box\.id = "minimap"/u.test(strip),
+      "without it closePanel finds no element and nothing can close the strip");
+    ok("and the teardown is wired into the panel registry",
+      /wirePanel\("minimap"/u.test(strip),
+      "the × and Escape both go through closePanel, which runs this hook");
+    ok("with the re-entrancy guard actually set",
+      /closing = true/u.test(strip),
+      "a declared-but-never-assigned guard means closePanel recurses and nothing closes");
+    // And the key is not a chord with nothing behind it.
+    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    ok("the key has an action behind it",
+      /id: "minimap", run:/u.test(main),
+      "a chord in DEFAULT_KEYS with no action is a chord that silently does nothing");
+    ok("and the hook is wired before the strip is ever opened",
+      /wireMinimapPanel\(minimapDeps\(\)\)/u.test(main));
+    ok("and opening it at boot goes through the same wiring", /openMinimapIfSaved/u.test(main));
+  }
+
+  {
+    // `wirePanel` throws on a name that is not a declared surface, so this is also
+    // the assertion that the panel exists in the registry at all.
+    let threw = false;
+    try {
+      wireMinimapPanel({ dir: () => "rtl", saved: () => undefined, remember: () => {}, close: () => {} });
+    } catch {
+      threw = true;
+    }
+    ok("wiring a surface that is not declared throws", threw === false,
+      "wirePanel is supposed to throw on an unknown id");
   }
 }

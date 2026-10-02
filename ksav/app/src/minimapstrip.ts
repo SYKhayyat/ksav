@@ -19,7 +19,7 @@
 // window instead of closing it is the worst bug a draggable panel can have.
 
 import { minimapHost, clampPlacement, defaultPlacement, type Placement } from "./minimap";
-import { mountPanel, closePanel, panelHead } from "./panels";
+import { mountPanel, closePanel, panelHead, wirePanel } from "./panels";
 
 /** How wide the strip is, in pixels. Narrow on purpose: it is a picture, not a pane. */
 export const MINIMAP_WIDTH = 92;
@@ -46,10 +46,37 @@ export const minimapIsOpen = (): boolean => open !== null;
  * Idempotent on purpose: the key and the settings toggle both land here, and opening
  * twice must not leave two strips fighting over one canvas.
  */
+/**
+ * Wire the strip's teardown into the registry — **once**, at module load.
+ *
+ * # The bug this fixes, which is "you cannot close it"
+ *
+ * `panelHead`'s `×` and the Escape sweep both close a surface by calling the
+ * registry's `closePanel`. Before this hook existed, that removed the `open` class and
+ * ran no teardown, so **the strip stayed on screen after being closed** — and so did
+ * every attempt to close it: the `×`, Escape, and the key. All three "worked" and none
+ * of them closed anything.
+ *
+ * Three tests were green throughout, because every one of them asked whether the strip
+ * *opens* and about the geometry of a drag. None of them ever closed it.
+ *
+ * `wirePanel` is the registry's own answer and it throws on a name that is not a
+ * declared surface, so this cannot be wired to a panel that does not exist.
+ */
+export function wireMinimapPanel(deps: MinimapDeps): void {
+  wirePanel("minimap", { close: () => deps.close() });
+}
+
 export function openMinimap(deps: MinimapDeps): HTMLElement {
   if (open) return open;
   const box = document.createElement("div");
   box.className = "ksav-minimap";
+  // **`id` is not cosmetic.** `nodesOf` finds a surface by
+  // `document.getElementById(p.id)`, so a box without one is invisible to
+  // `closePanel` — which is what the `×` and the Escape sweep both call. With no id
+  // the strip could be *opened* and never closed, by anything, and every test was
+  // green because every one of them opened it.
+  box.id = "minimap";
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-label", "minimap");
 
@@ -79,11 +106,29 @@ export function openMinimap(deps: MinimapDeps): HTMLElement {
   return box;
 }
 
-/** Take it off the screen, for good. */
+/**
+ * Take it off the screen, for good.
+ *
+ * Calls `closePanel` rather than removing the element directly, so the registry is
+ * told the surface has gone — and `closePanel` runs this function back through the hook,
+ * which is guarded so the recursion stops.
+ */
+let closing = false;
 export function closeMinimap(): void {
-  closePanel("minimap");
-  open?.remove();
-  open = null;
+  if (closing) return;
+  // **The flag has to be set, not just declared.** The first version declared
+  // `let closing = false` and never assigned it, so closing recursed:
+  // the `×` → `closePanel` → the hook → `deps.close` → `closeMinimap` →
+  // `closePanel`, and the strip never came off the screen. The second version of this
+  // function is one line longer and is the one that closes anything.
+  closing = true;
+  try {
+    closePanel("minimap");
+    open?.remove();
+    open = null;
+  } finally {
+    closing = false;
+  }
 }
 
 /**
@@ -105,7 +150,16 @@ function makeDraggable(box: HTMLElement, head: HTMLElement, deps: MinimapDeps): 
   let originY = 0;
 
   head.addEventListener("pointerdown", (e) => {
-    if ((e.target as HTMLElement | null)?.classList.contains("ksav-minimap-close")) return;
+    // Any **control**, not one class name. `panelHead` puts the `×` inside the head,
+    // so a drag handler that `preventDefault`s on `pointerdown` **swallows the
+    // click** and the `×` does nothing — which is what happened, and it is why the
+    // `×` closed nothing while Escape and the key both worked.
+    //
+    // The rule is "anything you can press is not a handle", by tag, because that
+    // holds for a control nobody has heard of yet.
+    if ((e.target as HTMLElement | null)?.closest("button, a, input, select, textarea")) {
+      return;
+    }
     dragging = true;
     grabX = e.clientX;
     grabY = e.clientY;

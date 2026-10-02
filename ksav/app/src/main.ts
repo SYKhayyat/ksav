@@ -34,7 +34,7 @@ import { tagSelectExtension, tagContaining, selectTag, type TagSelection } from 
 import { indentView, DEFAULT_INDENT } from "./indent";
 import { tagDim } from "./tagdim";
 import { minimapExtension, type Placement } from "./minimap";
-import { openMinimap, closeMinimap, minimapIsOpen } from "./minimapstrip";
+import { openMinimap, closeMinimap, minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
 import { bracketLint, healAll } from "./bracket-lint";
 import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
@@ -1003,6 +1003,11 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // The one door in that table that places its command rather than splicing it
   // in. See `addContentsHere`.
   { id: "toc", run: () => addContentsHere() },
+  // #89 — the minimap strip. In `BUILT_IN` so the binding in `DEFAULT_KEYS`, the
+  // palette and the Settings list all resolve it: a chord in `DEFAULT_KEYS` with
+  // **no action behind it** is a chord that silently does nothing, which is how
+  // `Ctrl-Alt-Shift-M` appeared to be a dead key rather than a missing one.
+  { id: "minimap", run: () => (toggleMinimap(), true) },
   {
     id: "tieredNote",
     run: () => {
@@ -2549,23 +2554,7 @@ function toggleMinimap(): void {
     closeMinimap();
     settings.minimap = false;
   } else {
-    openMinimap({
-      dir: () => (docConfig().dir === "rtl" ? "rtl" : "ltr"),
-      saved: () => settings.minimapAt,
-      remember: (p: Placement) => {
-        settings.minimapAt = p;
-        // **Persisted, not just held.** Setting the field and forgetting to write it
-        // is the quietest version of this bug there is: the strip moves, the drag
-        // works, and the place is gone by the next session — so the writer re-does it
-        // every time and concludes the feature is broken. Found by driving a real drag
-        // and reading `localStorage` afterwards rather than trusting the drag.
-        saveSettings();
-      },
-      close: () => {
-        closeMinimap();
-        settings.minimap = false;
-      },
-    });
+    openMinimap(minimapDeps());
     settings.minimap = true;
   }
   saveSettings();
@@ -15301,7 +15290,33 @@ let arrivalsTaken: string[] = [];
  * that only runs on change. The setting is honoured here, once, after boot.
  */
 function openMinimapIfSaved(): void {
+  // Wired before the strip is ever opened, because the registry's own close — the
+  // `×` and Escape both go through it — is what has to run this teardown.
+  wireMinimapPanel(minimapDeps());
   if (settings.minimap && !minimapIsOpen()) toggleMinimap();
+}
+
+/**
+ * The strip's one set of dependencies.
+ *
+ * A function and not a literal so the hook and the opener cannot disagree about what
+ * closing means — which is exactly how it went wrong before, when the `×` closed
+ * through the registry and the opener closed through a closure.
+ */
+function minimapDeps() {
+  return {
+    dir: (): "rtl" | "ltr" => (docConfig().dir === "rtl" ? "rtl" : "ltr"),
+    saved: () => settings.minimapAt,
+    remember: (p: Placement) => {
+      settings.minimapAt = p;
+      saveSettings();
+    },
+    close: () => {
+      closeMinimap();
+      settings.minimap = false;
+      saveSettings();
+    },
+  };
 }
 
 boot().then(openMinimapIfSaved);

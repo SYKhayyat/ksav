@@ -10086,3 +10086,56 @@ The package draws its line-number strip **in the editor gutter** as well as insi
 floating box, so with the strip open there are two of them. Cosmetic, and not chased
 down here — but it is visible in the screenshot and it should be cleaned up before this
 is called done.
+
+## #89 — "is it easy to open and close it?" — no. It could not be closed at all
+
+Asked after shipping. The honest answer was **no**, and it was worse than awkward: the
+strip could be **opened and never closed, by anything**. Not the `×`, not Escape, not the
+key. Every test was green, because every one of them asked whether it *opens* or about the
+geometry of a drag. **Nothing in the suite ever closed it.**
+
+Three faults, each invisible from behaviour and visible from source:
+
+1. **The element had no `id`.** `nodesOf` finds a surface by
+   `document.getElementById(p.id)`, so `closePanel` — which the `×` and the Escape sweep
+   both call — found nothing and closed nothing.
+2. **The teardown was never wired into the registry.** `wirePanel` exists for exactly
+   this and I had not used it, so the registry's close ran no side effect.
+3. **The key had no action behind it.** A chord in `DEFAULT_KEYS` with nothing that
+   resolves it is a chord that silently does nothing, and it read as a *dead* key rather
+   than a *missing* one.
+
+And a fourth, found while fixing the third: **the drag handler swallowed the `×` click.**
+`panelHead` puts the `×` *inside* the head, so my `pointerdown` → `preventDefault()` ate
+the click before it happened. I had been guarding on a class name for a button I had
+deleted; the rule is now "anything you can **press** is not a handle", by tag, which holds
+for a control nobody has heard of yet.
+
+**And a guard that was declared but never assigned.** `let closing = false` with no
+`closing = true`, so closing recursed: `×` → `closePanel` → hook → `closeMinimap` →
+`closePanel`, and the strip never came off the screen. One line longer is the whole
+difference between closing and not.
+
+### Verified by driving every path
+
+```
+1. open at boot:            true
+2. after the ×, open:       false
+3. key reopens:             true
+4. after Escape, open:      false
+5. key reopens again:       true
+6. still draggable:         343px
+```
+
+### The fence, and why it is a source fence
+
+Six assertions that the box carries the id, the teardown is wired, the guard is
+**assigned**, the key has an action behind it, and boot goes through the same wiring.
+Source-level because that is where both causes lived — and because a DOM test would have
+needed the `DOM` this suite does not have.
+
+**The twelfth instrument-shaped failure, and in the most embarrassing shape yet: a
+feature that could be opened but not closed, behind a fully green suite.** Everything I
+have written in this file about tautologies and missing fixtures is a variation on it.
+The one thing none of them prepared me for is a test file that is 33 assertions long,
+about a panel, and never once closes it.

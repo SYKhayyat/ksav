@@ -9810,3 +9810,43 @@ looking rather than by an assertion.** Every previous one was a green test over 
 tautology or a missing fixture. This one was a plugin that CodeMirror deleted at
 birth and reported nothing about — which is why a whole test suite can be green over
 a feature that does not exist.
+
+## #84 — I reported a red suite as green, and the fence that caught it was working
+
+The assertion tally in `ksav/README.md` had drifted (7,928 / 113 files against a real
+7,992 / 115), I fixed it, and I recorded the suite as "7,992 passed, **0 failed**".
+
+It was red. `run.mjs` printed:
+
+```
+✗ the documentation disagrees with this run:
+  …
+  (7,992 assertions across 115 files)
+```
+
+and I missed it, because my grep was `^FAIL|threw|files ·|DONE` and that block starts
+with `✗`. **The tally line says how many assertions passed; it does not say the run
+succeeded.** Those are different claims, and I read the first and reported the second.
+
+The fence itself is the best piece of instrumentation in this repository and it did
+exactly its job — forward *and* backward, checking that the page states this run's
+number **and** that no living page states a different one:
+
+```js
+const measured = { appAssertions: pass + fail, appTestFiles: files.length };
+```
+
+It also documents why it lives in `run.mjs` and not in `documentation.test.mjs`: an
+assertion that counts itself is a number that can never settle. And it is skipped on a
+filtered run, deliberately, so that single-file runs do not teach people to ignore the
+one fence that catches a stale count.
+
+So the tally is fenced and the fence works. What was broken was **me reading a partial
+line**, which is the eleventh instrument-shaped failure in this project and the third
+that is mine. The pattern by now is worth stating plainly: nine were green tests over
+tautologies or missing fixtures, one was a plugin deleted at birth that reported
+nothing, and this one is a human being — or an agent — reading the first line of a
+report instead of the exit code.
+
+**The habit, fixed:** `node test/run.mjs` results are read from `EXIT=`, never from the
+tally. A green tally inside a red run is the exact shape of every other failure here.

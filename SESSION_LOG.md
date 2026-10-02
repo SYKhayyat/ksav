@@ -9569,3 +9569,69 @@ nothing because every fixture is square brackets, so the branch had nothing to f
 on. Found by the instrument, not by reading. Fixed by adding a `#let זוג =
 ("אלף", "בית")` and an `#if true { … }`, and asserting a `(` and a `{` are not
 tags — which is the rule the issue states and nothing had checked.
+
+## #84 — the indent view: the rules, without a renderer
+
+Six rules, all settled in the issue. This is rules 1–5, as **pure arithmetic over
+the document** — no `Decoration`, no `DOM`, nothing that draws. The split is
+deliberate: the rules are where this feature is right or wrong, and this suite
+cannot build a `DOM`, so the rules can be held and the rendering cannot yet be.
+
+- **rule 4, minimum words**, is the load-bearing one, and it is why the feature is
+  safe rather than a machine the writer fights. Below the threshold the tag is not
+  touched — not indented, not broken. `#נטוי[מילה]` is most of the emphasis in a
+  sefer. `0` is a real setting meaning "anything, however small", and must stay
+  reachable rather than excluded.
+- **rule 5, paragraph breaks share a level**, because a blank line has no content
+  to hang an indent off. And a blank line is **not an empty line**: `main.ts:5910`
+  says Typst turns a newline into a space and a *blank* line into a paragraph
+  break, so `blank` and `viewBreak` are separate fields. A view that treats them
+  alike looks right on screen and is wrong on the page.
+- **rule 3's side**: in RTL the indent grows from the right, so the space that runs
+  out is on the **left** — the opposite of `padding-inline-start`, which is what I
+  would have written unprompted.
+
+**Dead code I wrote, a persuasive comment attached, and a mutation found.**
+
+Rule 5 was implemented as an explicit `above` clause — take the level of the line
+above the blank one. A mutation removing it **passed every test**. The reason is
+worth more than the clause: the planner emits a line at *every* depth transition,
+including just after each `]`, so the line above a blank line is already at the
+depth `depthAt` computes for the blank line itself. They are not merely equal on my
+fixtures — a blank line cannot be reached without crossing a planned boundary.
+
+So the clause is gone, rule 5 is held by `depthAt` **and** by a test that fails when
+`depthAt` is made to ignore blank lines, and the nested case is in the file: a blank
+line after an *inner* note's `]` and still inside an outer one, which must hold the
+outer's single step and not the inner's two.
+
+**Two more surviving mutations, both real gaps:**
+
+- **The indent amount was never varied.** Every fixture used `2`, so hardcoding
+  `const step = 2` passed. A setting nobody has varied is a setting nobody has
+  tested, and a hardcoded default is the one thing a "user-set value" must never be.
+- **`(` and `{` were never in a fixture**, so the "only `[`" filter in #86 had
+  nothing to fail on.
+
+Both found by the instrument, not by reading. That is now four mutations today that
+passed because a fixture was missing rather than because the code was right.
+
+**My mutation harness, again.** `/tmp/ksavv/mut.py` asserts the anchor appears
+exactly once and exits 9 on a no-op. It caught one immediately: a stale anchor
+silently "passed" a mutation I had already reported.
+
+**Verified:** 46 assertions. Six mutations, five caught first time, two survived
+and were fixed by adding the fixtures they had been asking for.
+
+| # | mutation | caught by |
+|---|---|---|
+| M1 | blank lines pinned at the margin | **survived** → clause removed, test added |
+| M2 | minimum-words stops gating | 1 assertion |
+| M3 | the clamp is removed | 2 assertions |
+| M4 | percent becomes a fixed count | 9 assertions |
+| M5 | no break after `]` | 1 assertion |
+| M6 | indent amount hardcoded to 2 | **survived** → rule 2 tests added |
+
+**Not done:** the renderer. #84 stays open. What is here is the part that decides
+whether the feature is correct; turning a `VisualLine[]` into decorations is a
+separate piece of work and should not be claimed until something has looked at it.

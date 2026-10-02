@@ -194,6 +194,14 @@ export interface Settings {
   minimap?: boolean;
   /** #89 — paint problems and spellings in the minimap, or leave it plain shape. */
   minimapColors?: boolean;
+  /**
+   * Where the writer put the minimap, in pixels from the viewport's top-left.
+   *
+   * Remembered because the strip has no natural home — a convenience that has to be
+   * re-placed every session is a chore, and chores are how a feature gets switched
+   * off and left off.
+   */
+  minimapAt?: { x: number; y: number };
   /** Spaces of indent per level. `2`, matching `table.ts:258`. */
   indentAmount?: number;
   /** Bodies below this many words are left completely alone. */
@@ -629,6 +637,7 @@ export const DEFAULTS: Settings = {
   dimOutsideTag: 55,
   minimap: false,
   minimapColors: false,
+  minimapAt: undefined,
   indentAmount: 2,
   indentMinWords: 4,
   indentPercent: 50,

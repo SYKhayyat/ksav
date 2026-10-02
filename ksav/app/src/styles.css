@@ -1839,3 +1839,51 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
   display: inline-block;
   min-width: 0;
 }
+
+
+/* #89 — the floating, draggable minimap strip.
+ *
+ * `position: fixed` because it is dragged in **window** coordinates, which is what
+ * `clampPlacement` takes — a strip that measured against the editor would jump when
+ * the pane is resized, and the writer dragged it against the page they can see.
+ */
+.ksav-minimap {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--ksav-panel-bg, #fff);
+  border: 1px solid var(--ksav-line, #d7d7d7);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
+  overflow: hidden;
+  user-select: none;
+}
+
+.ksav-minimap.dragging { box-shadow: 0 6px 22px rgba(0, 0, 0, .2); }
+
+.ksav-minimap-head {
+  cursor: grab;
+  background: var(--ksav-chrome, #f4f4f4);
+  border-bottom: 1px solid var(--ksav-line, #d7d7d7);
+  min-height: 14px;
+  touch-action: none; /* a drag must not also scroll the page */
+}
+
+.ksav-minimap.dragging .ksav-minimap-head { cursor: grabbing; }
+
+.ksav-minimap-close {
+  float: inline-end;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 4px;
+  color: inherit;
+}
+
+/* The strip's canvas. A fixed width so a drag cannot resize it, and `display: block`
+ * so it does not leave a gap under itself. */
+.ksav-minimap-host { display: block; width: 90px; }
+.ksav-minimap-host canvas { display: block; }

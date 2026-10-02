@@ -10011,3 +10011,78 @@ own name rather than falling back to the cheapest probe"*.
 the strip is now sitting on the reading edge — visible in the screenshot, with the line
 numbers pushed to its left. That is either right or wrong, and it is not a detail I
 should choose alone.
+
+## #89 — floatable, draggable, and remembered
+
+*"finish it off, make it floatable and draggable. i expect the user mostly will drag it."*
+
+So drag is the **primary** interaction, and the design follows from that: the drag handle
+is the head **and** the whole strip, because the strip is mostly canvas and dragging a
+90-pixel target by a 20-pixel grab area is fiddly for somebody doing it once a session.
+The one thing that is never a handle is the `×`.
+
+**Remembered, because "drag it" means "drag it every time" otherwise.** A convenience
+that has to be re-placed every session is a chore, and chores are how a feature gets
+switched off and left off. The place is saved on release — the only moment the writer has
+finished deciding.
+
+**The clamp runs on every move, not on release.** The clamp is also what stops the strip
+being dragged somewhere it cannot be dragged back from, and clamping only at the end
+means it can be *put* there and then saved there — a minimap you cannot reach again
+without restarting the application. It is also idempotent, because a drag delivers
+hundreds of moves and a clamp that shifted the strip on each pass would walk it off the
+screen.
+
+**Default side: the far one from the reading edge.** Left in Hebrew, right in English,
+a quarter down. That was the question I asked and had no answer to; it is now the
+default and a drag overrides it.
+
+## Four fences caught me building a parallel panel
+
+The first version appended its own `div` to `document.body` with its own hand-built `×`.
+Four fences said no, and all four were right:
+
+- `no two actions ship on one combination` — `Mod-Alt-m` is **`addComment`**'s.
+- `minimap: is mounted when it is shown` and `its × is built through panelHead`
+- `every declared surface is used by the application` — a strip appended to `document.body`
+  is invisible to the Escape sweep, the one-popup-at-a-time rule and the chrome checks.
+
+So the head and its `×` come from `panelHead`, and the element goes through
+`mountPanel`. **A panel with its own close button is a second close path, and a second
+close path is how a surface ends up with one that forgets its own teardown.**
+
+## The fourth time this project: a saved preference read by a handler that only runs on change
+
+`setSetting` drives the per-key chain, and it runs on a **change**. A `minimap: true`
+restored from `localStorage` never reaches the `key === "minimap"` branch — so the
+setting said the minimap was on, the canvas drew in the gutter, and **no strip appeared**.
+A screenshot of that is indistinguishable from the feature being broken.
+
+Fixed by opening it once after `boot`. Caught by reading `localStorage` in the browser
+after a real drag, not by any assertion.
+
+**And `remember` set the field without persisting it** — the strip moved, the drag
+worked, and the place was gone by the next session, so the writer re-does it every time
+and concludes the feature is broken. Also only found by reading `localStorage`
+afterwards.
+
+## Verified by dragging it
+
+`tools/eyes.mjs`, Chromium, a real `mouse.down` → `move` → `up` on the head:
+
+```
+strip:      {"left":"12px","top":"225px","canvases":1}     ← RTL default, left, quarter down
+after drag: {"left":"573px","top":"291px","saved":{"x":573,"y":291}}
+```
+
+Floating, draggable, closable, and **remembered**.
+
+**117 files, 8,054 assertions, `EXIT=0`**, `tsc` clean. Six new mutations caught; the
+clamp, the default side and an idempotence failure all caught first time.
+
+## Known and not fixed
+
+The package draws its line-number strip **in the editor gutter** as well as inside the
+floating box, so with the strip open there are two of them. Cosmetic, and not chased
+down here — but it is visible in the screenshot and it should be cleaned up before this
+is called done.

@@ -94,10 +94,27 @@ const minimapOptions = StateField.define<MinimapOptions>({
 });
 
 /** A closed minimap is `null` to the facet, which is how it costs nothing. */
+export /**
+ * The element the strip draws into, created once and **moved** rather than recreated.
+ *
+ * `appendChild` moves a node, which is what lets one canvas serve both places this
+ * could plausibly live: the package appends its container into the editor's gutter, and
+ * a drag moves that same node into the floating panel. One canvas, one minimap, and no
+ * state to rebuild when the strip changes address.
+ */
+let host: HTMLElement | null = null;
+export function minimapHost(): HTMLElement {
+  if (!host) {
+    host = document.createElement("div");
+    host.className = "ksav-minimap-host";
+  }
+  return host;
+}
+
 export function configFor(opts: MinimapOptions): MinimapConfig | null {
   if (!opts.on) return null;
   const config: MinimapConfig = {
-    create: () => ({ dom: document.createElement("div") }),
+    create: () => ({ dom: minimapHost() }),
     // `blocks` is shape; `characters` is the actual text, which at this width is
     // unreadable and is not what "shows everything in small" asked for.
     displayText: "blocks",
@@ -131,4 +148,72 @@ export function minimapExtension(read: () => MinimapOptions): Extension {
       {},
     ),
   ];
+}
+
+// ------------------------------------------------------------------ placement
+//
+// # Draggable, because that is what it will mostly be used for
+//
+// A minimap has no natural home: not in the gutter, where it fights the text, and not
+// pinned to an edge, where it covers the thing it is helping you judge. So it is a
+// floating strip you put where you want it, and **where you put it is remembered** —
+// otherwise it is a setting to re-do every session, which is how a convenience becomes
+// a chore.
+//
+// The default is the **far** side from the reading edge: the **left** in a Hebrew
+// document, the right in an English one. That is the reading-safe choice and it is
+// only the default — a drag overrides it and the drag is what gets remembered.
+
+/** Where the strip sits, in pixels from the viewport's top-left. */
+export interface Placement {
+  x: number;
+  y: number;
+}
+
+/** How much of the strip must stay on screen. */
+export const KEEP_ONSCREEN = 24;
+
+/**
+ * Keep the strip reachable.
+ *
+ * A minimap dragged half off the bottom of the window is a minimap you cannot get
+ * back without restarting the application, so the strip is never allowed to go so far
+ * out that fewer than `KEEP_ONSCREEN` pixels of it remain. Not clamped fully inside —
+ * partly off is a legitimate thing to want — but never past the point of no return.
+ *
+ * Pure, so it can be held without a `DOM`.
+ */
+export function clampPlacement(
+  p: Placement,
+  size: { w: number; h: number },
+  bounds: { w: number; h: number },
+): Placement {
+  return {
+    x: Math.max(KEEP_ONSCREEN - size.w, Math.min(p.x, bounds.w - KEEP_ONSCREEN)),
+    y: Math.max(0, Math.min(p.y, bounds.h - KEEP_ONSCREEN)),
+  };
+}
+
+/**
+ * Where the strip starts, before anybody has dragged it.
+ *
+ * `dir` is the **document's**, not the panel's: this is the reading edge question, and
+ * `main.ts` already puts the document's direction on the editor
+ * (`EditorView.contentAttributes.of({dir})`, and `bidi.ts` then gives each line its own
+ * resolved direction). A strip on the far side leaves the reading edge alone.
+ */
+export function defaultPlacement(
+  size: { w: number; h: number },
+  bounds: { w: number; h: number },
+  dir: "rtl" | "ltr",
+): Placement {
+  const gap = 12;
+  return clampPlacement(
+    {
+      x: dir === "rtl" ? gap : bounds.w - size.w - gap,
+      y: Math.round(bounds.h * 0.25),
+    },
+    size,
+    bounds,
+  );
 }

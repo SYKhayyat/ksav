@@ -289,7 +289,10 @@ function everyPreferenceHasAControl() {
   // the arrangement itself — and `previewFrac` is where the divider between the
   // source and the page was left, which is set by dragging it. Naming them here
   // is the point: an exemption anybody can read beats a check nobody wrote.
-  const NOT_A_ROW = ["layout", "previewFrac"];
+  // `minimapAt` joins them for the same reason `previewFrac` is here: it is set by
+  // **dragging** (#89's strip), not by a control in a drawer. Naming it is the
+  // point — an exemption anybody can read beats a check nobody wrote.
+  const NOT_A_ROW = ["layout", "previewFrac", "minimapAt"];
   const missing = Object.keys(settings.DEFAULTS).filter(
     (key) => !NOT_A_ROW.includes(key) && !main.includes(`"${key}"`),
   );

@@ -246,6 +246,16 @@ export const PANELS: readonly Panel[] = [
   // surface, which is what gets it an Escape and a dismissing backdrop without
   // anybody remembering to add one.
   { id: "switcher", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
+
+  // #89 — the minimap. **Mounted**, so the strip's canvas only exists while it is
+  // open, and `escape: true` because it is transient: nothing else depends on it being
+  // there, and a strip left across the page is a strip covering the page.
+  //
+  // It takes a `head` exit rather than a `scrim` for a deliberate reason: there is no
+  // scrim behind it, because behind it is the document. A panel that dims the page to
+  // announce itself has decided it is a modal, and this is not one — it is a strip you
+  // put somewhere and drag around.
+  { id: "minimap", kind: "popup", presence: "mounted", escape: true, exits: [{ via: "head" }] },
   // The arrangements this application ships, as a picker. Replaces two chips
   // that cycled; see the comment on the chip in .
   { id: "arrangement", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },

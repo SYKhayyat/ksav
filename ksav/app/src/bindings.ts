@@ -30,6 +30,9 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // setting is a preference rather than the only path. `Alt-Shift` is deliberate:
   // these act on the tag at the caret, with no click involved at all.
   selectTagWhole: "Mod-Shift-]",
+  // #89 — the strip is opened by drag as much as by key, and a key that
+  // nobody has heard of is how a feature stays switched off.
+  minimap: "Mod-Alt-Shift-m",
   selectTagBody: "Mod-Shift-[",
   bold: "Mod-b",
   italic: "Mod-i",

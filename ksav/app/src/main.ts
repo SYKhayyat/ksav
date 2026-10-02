@@ -33,7 +33,8 @@ import {
 import { tagSelectExtension, tagContaining, selectTag, type TagSelection } from "./tagselect";
 import { indentView, DEFAULT_INDENT } from "./indent";
 import { tagDim } from "./tagdim";
-import { minimapExtension } from "./minimap";
+import { minimapExtension, type Placement } from "./minimap";
+import { openMinimap, closeMinimap, minimapIsOpen } from "./minimapstrip";
 import { bracketLint, healAll } from "./bracket-lint";
 import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
@@ -2535,6 +2536,41 @@ function primaryView(): EditorView | undefined {
  * recorded it too would build a second stack that diverges the moment anybody
  * undoes anything.
  */
+/**
+ * #89 — open or close the minimap strip.
+ *
+ * One function owns both directions and the placement memory, because three callers
+ * want them (the settings toggle, the key, and Escape) and the placement has to be
+ * remembered by whichever of them opened it. "Was it open before the toggle?" is the
+ * whole of a toggle's behaviour, and it cannot live in three places.
+ */
+function toggleMinimap(): void {
+  if (minimapIsOpen()) {
+    closeMinimap();
+    settings.minimap = false;
+  } else {
+    openMinimap({
+      dir: () => (docConfig().dir === "rtl" ? "rtl" : "ltr"),
+      saved: () => settings.minimapAt,
+      remember: (p: Placement) => {
+        settings.minimapAt = p;
+        // **Persisted, not just held.** Setting the field and forgetting to write it
+        // is the quietest version of this bug there is: the strip moves, the drag
+        // works, and the place is gone by the next session — so the writer re-does it
+        // every time and concludes the feature is broken. Found by driving a real drag
+        // and reading `localStorage` afterwards rather than trusting the drag.
+        saveSettings();
+      },
+      close: () => {
+        closeMinimap();
+        settings.minimap = false;
+      },
+    });
+    settings.minimap = true;
+  }
+  saveSettings();
+}
+
 function mirrorChange(from: EditorView, tr: Transaction) {
   if (!tr.docChanged || mirroring) return;
   mirroring = true;
@@ -13906,6 +13942,13 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     forceFullSpellCheck();
   } else if (key === "autoPairBrackets" || key === "autoPairQuotes") {
     runtime.view.dispatch({ effects: pairCompartment.reconfigure(pairExtension()) });
+  } else if (key === "minimap") {
+    // The strip is a **surface**, so the setting is a request to open or close it
+    // rather than something reconfigured in place. Two directions because a setting
+    // can be loaded as `true` at startup and must come up with the strip, not with a
+    // canvas nobody asked for.
+    if (settings.minimap && !minimapIsOpen()) toggleMinimap();
+    else if (!settings.minimap && minimapIsOpen()) toggleMinimap();
   } else if (key === "showWhitespace") {
     // `[]` rather than the plugin emptied: reconfigure **is** the toggle, so there
     // is no state to clear and nothing to leave behind.
@@ -15245,5 +15288,20 @@ async function takeArrivals(): Promise<boolean> {
  */
 let arrivalsTaken: string[] = [];
 
+/**
+ * #89 — open the strip if it was left open.
+ *
+ * `setSetting` is the only thing that drives the per-key chain above, and it runs on a
+ * **change**. A `minimap: true` restored from `localStorage` at startup therefore never
+ * reaches the `key === "minimap"` branch, so the setting says the minimap is on, the
+ * canvas draws in the gutter, and **no strip appears** — a screenshot of which is
+ * indistinguishable from the feature being broken.
+ *
+ * Which is the third time in this project that a saved preference is read by a handler
+ * that only runs on change. The setting is honoured here, once, after boot.
+ */
+function openMinimapIfSaved(): void {
+  if (settings.minimap && !minimapIsOpen()) toggleMinimap();
+}
 
-boot();
+boot().then(openMinimapIfSaved);

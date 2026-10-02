@@ -254,10 +254,64 @@ fn ok_name(said: &str, name: &str, word: &str) {
 // so a payload in any other spelling, or one corrupted byte in a megabyte,
 // produced **nothing at all**. The image did not exist and nothing said so.
 
-/// Encode the test PNG in one of the four spellings, by hand rather than by
-/// asking a decoder — a helper that encodes with the crate would agree with the
-/// crate's own idea of what is valid, which is the thing under test.
+/// A payload whose encoding **uses both alphabets' distinguishing characters**.
+///
+/// # Why this cannot be the 1×1 PNG
+///
+/// Measured, and it is the whole reason a mutation survived. That PNG's base64 is
+/// `iVBOR…Jggg==` and it **contains no `+` and no `/`**, so its URL-safe encoding is
+/// byte-for-byte its standard one — the two differ only in whether the `==` is there.
+/// Four "spellings" of it are therefore **two distinct strings**, and a decoder that had
+/// forgotten `URL_SAFE` entirely would still decode all four. The test passed for a
+/// reason that had nothing to do with the property.
+///
+/// A payload of `0xFF` bytes encodes to `////////////////` under `STANDARD` and
+/// `________________` under `URL_SAFE`, so the alphabets cannot be confused — and
+/// `four_spellings_can_differ` below fails the build if that ever stops being true.
+fn discriminating_payload() -> Vec<u8> {
+    (0u8..=255).collect()
+}
+
+/// The four spellings, as four **strings** — and the assertion that they are four
+/// different strings.
+///
+/// **This is the fence that was missing**, and it is the reason the mutation "drop
+/// `URL_SAFE`" stayed green. A fixture that cannot distinguish the cases under test is
+/// not a fixture, and nothing else in the file would have noticed.
+///
+/// It is also the general shape of the mistake this repository keeps finding: #81's
+/// stale `dist/`, #82's unreachable half, `wire.test.mjs` checking declarations rather
+/// than reads, and now a payload whose URL-safe spelling was its standard spelling.
+fn four_spellings_can_differ() -> bool {
+    let spellings = [
+        spelled("std", true),
+        spelled("url", true),
+        spelled("std", false),
+        spelled("url", false),
+    ];
+    let unique: std::collections::HashSet<&String> = spellings.iter().collect();
+    unique.len() == 4
+}
+
+/// The discriminating payload, in one of the four spellings.
 fn spelled(alphabet: &str, pad: bool) -> String {
+    encode(&discriminating_payload(), alphabet, pad)
+}
+
+/// The **real 1×1 PNG**, spelled.
+///
+/// For the tests that lay a document out: those need bytes Typst will decode as an
+/// image, and a 256-byte `0x00..=0xFF` run is not one. It is spelled rather than
+/// pasted so that the `data:`-prefix and padding paths are exercised on the same
+/// string the other tests corrupt.
+fn png_spelled() -> String {
+    encode(png().bytes.as_ref(), "std", true)
+}
+
+/// Encode `bytes` as base64, by hand rather than by asking a decoder — a helper
+/// that encodes with the crate would agree with the crate's own idea of what is
+/// valid, which is the thing under test.
+fn encode(bytes: &[u8], alphabet: &str, pad: bool) -> String {
     let std = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     // The 62-and-63 pair is what `-`/`_` exist for; every other position is
     // shared, so this is the whole alphabet difference rather than a table of
@@ -274,11 +328,6 @@ fn spelled(alphabet: &str, pad: bool) -> String {
             std[i] as char
         }
     };
-    // Bound, not a temporary: `png()` returns an owned `Asset`, and
-    // `png().bytes.as_ref()` inside the loop is a temporary that would die before
-    // the first chunk is read.
-    let image = png();
-    let bytes = image.bytes.as_ref();
     let mut out = String::new();
     for chunk in bytes.chunks(3) {
         let b = [
@@ -307,6 +356,14 @@ fn spelled(alphabet: &str, pad: bool) -> String {
 
 #[test]
 fn every_spelling_of_the_same_bytes_is_the_same_image() {
+    // **Before the property, the fixture.** If the four encodings were not four
+    // different strings then every assertion below would pass whatever the decoder
+    // did, because there was nothing to distinguish. This one line is the difference
+    // between a fence and a tautology.
+    assert!(
+        four_spellings_can_differ(),
+        "the four spellings are not four different strings, so this test cannot fail"
+    );
     let spellings: Vec<serde_json::Value> = [("std", true), ("url", true), ("std", false), ("url", false)]
         .iter()
         .enumerate()
@@ -339,14 +396,14 @@ fn every_spelling_of_the_same_bytes_is_the_same_image() {
 fn a_corrupt_payload_is_reported_by_name_rather_than_dropped() {
     // **One corrupted byte** in an otherwise perfect payload — which is what a
     // truncated transfer looks like, and it is the case that used to vanish.
-    let mut corrupt: Vec<char> = spelled("std", true).chars().collect();
+    let mut corrupt: Vec<char> = png_spelled().chars().collect();
     let mid = corrupt.len() / 2;
     corrupt[mid] = '!';
     let corrupt: String = corrupt.into_iter().collect();
 
     let v = serde_json::json!({
         "assets": [
-            { "name": "logo.png", "data": spelled("std", true) },
+            { "name": "logo.png", "data": png_spelled() },
             { "name": "torn.png", "data": corrupt },
         ]
     });
@@ -383,12 +440,12 @@ fn a_document_with_one_unreadable_image_still_renders() {
     // the engine must keep the picture the writer can read **and** say something
     // about the one it cannot. A refusal that failed the compile would be a
     // different bug, and this is what rules it out.
-    let mut corrupt: Vec<char> = spelled("std", true).chars().collect();
+    let mut corrupt: Vec<char> = png_spelled().chars().collect();
     corrupt[3] = '!';
     let request = serde_json::json!({
         "body": "#image(\"logo.png\")",
         "assets": [
-            { "name": "logo.png", "data": spelled("std", true) },
+            { "name": "logo.png", "data": png_spelled() },
             { "name": "torn.png", "data": corrupt.into_iter().collect::<String>() },
         ]
     });

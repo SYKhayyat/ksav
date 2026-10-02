@@ -349,8 +349,16 @@ fn read_one_cached(
         // that sent a name and no content. Neither is worth refusing the compile
         // over — one bad image should not cost the writer their preview — which is
         // why this reports and continues, exactly as a refused **name** does.
-        let bytes = decode_payload(data)?;
+        let Some(bytes) = decode_payload(data) else {
+            refused.names.push(format!(
+                "the bytes for “{name}” are not base64 this build can read — it will not print"
+            ));
+            return None;
+        };
         if bytes.is_empty() {
+            refused.names.push(format!(
+                "“{name}” arrived with no bytes at all — it will not print"
+            ));
             return None;
         }
         let bytes = Arc::new(bytes);

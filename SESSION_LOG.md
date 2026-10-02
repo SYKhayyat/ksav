@@ -9635,3 +9635,43 @@ and were fixed by adding the fixtures they had been asking for.
 **Not done:** the renderer. #84 stays open. What is here is the part that decides
 whether the feature is correct; turning a `VisualLine[]` into decorations is a
 separate piece of work and should not be claimed until something has looked at it.
+
+## #60 — the fourth alphabet, and the test that was a tautology
+
+`375e352` was a `plan:`-only commit that ran `git add -A` while a background
+mutation script was editing `ksav/engine/src/assets.rs`. It captured the tree
+mid-mutation. The four-alphabet fix survived; **the naming of the failure did not**,
+so `main` carried a silent drop for six commits — which is the exact defect #60
+was filed about, committed by the person fixing it.
+
+**And one of #60's mutations was never caught, and that is the real finding.**
+
+The test encoded the 1×1 PNG in four base64 "spellings". **That PNG contains no
+`+` and no `/`.** So its URL-safe encoding is byte-for-byte its standard one: four
+spellings, **two distinct strings**. Dropping `URL_SAFE` entirely still passed
+17/17. The test was a tautology — it asserted that two equal things are equal — and
+it was reporting green while measuring nothing.
+
+Fixed two ways: the payload is now `0x00..=0xFF`, which uses both alphabets, and
+`four_spellings_can_differ()` asserts the four encodings **are** four different
+strings *before* the property it guards. That assertion is the fence. A JS sanity
+check confirmed the encodings are distinct and that the URL-safe payload holds 11
+`-`/`_` and no `+`/`/`.
+
+**Verification, on the restored fix:**
+
+| run | result |
+|---|---|
+| V0 baseline | **17 passed, 0 failed** |
+| V1 `URL_SAFE` and both `NO_PAD` engines dropped | **caught** — `every_spelling_of_the_same_bytes_is_the_same_image` failed, 16/1 |
+| V2 the refusal message removed | queued |
+| V3 final confirmation on the restored fix | **17 passed, 0 failed** |
+
+V1 is the one that used to pass silently. It now fails, which is the entire point.
+
+**The seventh instrument of this shape, and the first one I built wrong.** My own
+mutation harness ran a `str.replace` against an anchor a rewrite had already
+deleted, found nothing, wrote the file unchanged and printed the suite as green.
+I had written a paragraph about exactly this failure earlier the same day and then
+made it in the tool. `/tmp/ksavv/mut.py` now counts the anchor, prints `NO-OP` and
+exits 9 — and it caught a second stale-anchor mutation the moment it existed.

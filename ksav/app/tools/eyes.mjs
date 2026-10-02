@@ -64,6 +64,7 @@ const DOC = `#מדף_א[זהו המדף הראשון ובו מילים רבות 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--")) ?? "/tmp/ksavv/eyes.png";
 const toggle = (args.find((a) => a.startsWith("--toggle=")) ?? "").split("=")[1];
+const settings = toggle ? { [toggle]: true } : {};
 
 if (!existsSync(DIST)) {
   console.error(`no build at ${DIST} — run: npm run build`);
@@ -114,36 +115,30 @@ try {
     args: ["--no-sandbox", "--disable-gpu", "--force-device-scale-factor=2"],
   });
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
-  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
 
-  // The editor, and the document in it.
-  await page.waitForSelector(".cm-content", { timeout: 20000 });
-  await page.evaluate(async (doc) => {
-    const view = document.querySelector(".cm-content").cmView?.view;
-    if (view) {
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
-      return;
-    }
-    // No `cmView` handle: fall back to typing into the focused editor.
-    document.querySelector(".cm-content").focus();
-  }, DOC);
-  await page.waitForTimeout(400);
-
-  if (toggle) {
-    // The settings live in localStorage; a toggle is a checkbox with a known key.
-    await page.evaluate((key) => {
-      const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
-      raw[key] = true;
-      localStorage.setItem("ksav.settings", JSON.stringify(raw));
-    }, toggle);
-    await page.reload({ waitUntil: "networkidle" });
-    await page.waitForSelector(".cm-content", { timeout: 20000 });
-    await page.evaluate(async (doc) => {
-      const view = document.querySelector(".cm-content").cmView?.view;
-      if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
-    }, DOC);
-    await page.waitForTimeout(600);
+  // Settings are put in place **before the first navigation**, via an init script,
+  // rather than by setting localStorage and reloading. The reload version worked
+  // right up until it did not: after `page.reload` the editor had not come back and
+  // the harness reported a selector timeout, which is indistinguishable from "the
+  // feature broke the app". One navigation, no second chance to lose the thing.
+  if (settings) {
+    await page.addInitScript((kv) => {
+      for (const [k, v] of Object.entries(kv)) {
+        const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
+        raw[k] = v;
+        localStorage.setItem("ksav.settings", JSON.stringify(raw));
+      }
+    }, settings);
   }
+
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "networkidle" });
+  await page.waitForSelector(".cm-content", { timeout: 30000 });
+
+  await page.evaluate((doc) => {
+    const view = document.querySelector(".cm-content").cmView?.view;
+    if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
+  }, DOC);
+  await page.waitForTimeout(500);
 
   const png = await page.screenshot({ fullPage: false });
   writeFileSync(out, png);

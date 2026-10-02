@@ -9675,3 +9675,69 @@ deleted, found nothing, wrote the file unchanged and printed the suite as green.
 I had written a paragraph about exactly this failure earlier the same day and then
 made it in the tool. `/tmp/ksavv/mut.py` now counts the anchor, prints `NO-OP` and
 exits 9 — and it caught a second stale-anchor mutation the moment it existed.
+
+## #60 — verification complete, all four runs
+
+| run | result |
+|---|---|
+| V0 baseline, restored fix | **17 passed, 0 failed** |
+| V1 `URL_SAFE` + both `NO_PAD` dropped | **caught** — `every_spelling_of_the_same_bytes_is_the_same_image` failed, 16/1 |
+| V2 the refusal message removed | **caught** — 2 assertions, including `a_corrupt_payload_is_reported_by_name_rather_than_dropped` |
+| V3 final confirmation | **17 passed, 0 failed** |
+
+V1 is the one that used to pass **silently**, because the fixture's four spellings were
+two identical strings. That is the whole of #60's real content: the bug was real, the
+fix was real, and the test that claimed to hold it was a tautology.
+
+## #84 — the renderer does not render, and I stopped rather than keep guessing
+
+**`tools/eyes.mjs` works.** It serves `dist`, drives the Chromium already on this
+machine, types a document in and writes a PNG. No Rust server — `ksav serve` embeds
+`dist` at *compile* time and takes an hour to link here, and none of that is needed to
+look at the editor. It is not a test and asserts nothing, because the thing it is for
+is being looked at, and a harness that only reports pass/fail is the harness that
+reports green while measuring nothing.
+
+It immediately paid for itself by finding four things no test in the suite could:
+
+1. **`RangeError: Block decorations may not be specified via plugins`.** CodeMirror
+   forbids `block: true` from a `ViewPlugin`; they must come from a `StateField`.
+   That means the pane width, which only a view can measure, has to travel into the
+   state as an effect.
+2. **`ReferenceError: Cannot access 'n' before initialization`**, thrown from inside
+   `StateField.create`, in a *different* chunk. A `ViewPlugin` constructor may
+   dispatch, and with code splitting `main.ts`'s top-level editor construction and
+   this module's evaluation interleave — so `indentDecorations`, declared **before**
+   the `indentSettings` it reads, saw a `const` still in its temporal dead zone. The
+   helpers are now `function` declarations (hoisted) and every field is declared
+   after everything it reads.
+3. **`charsWide` returned 0 at construction** because a plugin's constructor runs
+   before the editor is laid out, and the measurement was discarded by an `if (w)`
+   guard. Not a missing re-measure — a measurement taken too early to mean anything.
+   Now on `requestAnimationFrame`.
+4. **`RangeSetBuilder` requires strictly increasing positions.** Adding every block
+   and then every pad walks the document backwards the moment a tag has a body —
+   5, 15, then 6 — and CodeMirror swallows the throw and keeps the previous empty
+   set. Symptom: no decorations, no error, every setting correct.
+
+**And one thing is still wrong, and I am not going to paper over it.** After all
+four fixes the screenshot is unchanged: the settings arrive (`indentView: true` is in
+localStorage), `tsc` is clean, the code is in the bundle, `indentView(...)` is in the
+editor's extension list, and there are **zero** `.ksav-indent-bracket` and zero
+`.ksav-indent-pad` elements in the DOM.
+
+The remaining lead is the plugin's lifecycle: the `ViewPlugin` is constructed once,
+then `destroy` fires while the `StateField`s survive, and no second plugin instance
+ever appears — so `indentSettings` stays `null`, `cfgOf` hands `build` the default
+`on: false`, and it returns `Decoration.none`. Whatever re-creates the view there is
+not carrying the plugin across.
+
+**So the renderer is not landed.** The planner is — 46 assertions, committed in
+`794fde3` — and the settings, the CSS and the renderer are left **uncommitted** rather
+than committed as a feature that does nothing. Shipping "indent view" with a toggle
+that visibly does nothing is the same failure as `Located` sitting in the tree
+imported by nobody, and I have written three issues this session about exactly that.
+
+The next step is to find what re-creates the editor state, rather than to work around
+it with a closure — a closure would make the settings right on the first build and
+wrong the moment the writer changed one, which is the quieter version of the same bug.

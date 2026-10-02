@@ -350,7 +350,7 @@ still right.
   moment this application has* (`brackets.ts:3`) happening as a feature. The fence is
   **differential**: the same text typed into both selections must give the same document,
   which is the only assertion that catches both a missing and a doubled bracket.
-- [ ] #85 dim every line outside the tag the caret is in. (Presentation, from #84) —
+- [x] #85 dim every line outside the tag the caret is in. (Presentation, from #84) —
   **focus mode one level up**: `focus.ts:28` already dims outside the *paragraph* and
   `dimDecorations` already builds over the viewport for the stated reason. The range is a
   `Frame` instead. It answers *"which `#הערה[` am I inside?"* — which was on my list as a

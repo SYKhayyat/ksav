@@ -9850,3 +9850,72 @@ report instead of the exit code.
 
 **The habit, fixed:** `node test/run.mjs` results are read from `EXIT=`, never from the
 tally. A green tally inside a red run is the exact shape of every other failure here.
+
+## #85 — dim outside the tag, with the fade graded by nesting
+
+Focus mode dims outside the **paragraph**. This dims outside the **tag**, which answers
+a question a paragraph cannot — *"which `#הערה[` am I inside?"* — without a hover.
+
+**Shaul's three answers:** the strength is **customizable**; the levels are **graded**;
+and for the composition with focus mode, **either is fine** — so I picked and moved on.
+
+**Why the strength is a dial and not a switch.** Dimming is calibrated for code. In a
+Hebrew sefer a long line is *already* hard — RTL, Latin in the middle, gershayim — and
+dimming most of the screen adds a second burden to somebody already carrying the first.
+Focus mode is what you turn on when you want to be *elsewhere*; this is for when you are
+working inside a note and want the rest present but quiet. **One mechanism, two numbers**,
+not two mechanisms.
+
+**Why there are levels at all.** A caret three notes deep sits inside three tags. The
+lines of the *middle* one are outside the caret's tag but inside an enclosing one, and
+they should not be as faint as the lines outside every tag — otherwise the block you are
+in loses its shape at exactly the depth where the shape matters.
+
+**And with focus mode on, both rules are satisfied.** The caret's paragraph is inside the
+caret's tag, so the intersection is the paragraph: focus mode stays the strong rule, this
+the weak one, and neither has to know the other exists.
+
+## My grader was inverted, and a test is the only reason it was caught
+
+The first version computed `strength × (1 − 0.34 × gap)` — so the **further out** a line
+was, the **brighter** it got, and the outermost lines came out at zero. With the caret
+three deep, the text outside every tag was left at full strength.
+
+A screenshot at one nesting depth would not have shown it. What showed it was
+`ok("levels are strictly ordered inner to outer")` — a reversed grader cannot satisfy an
+ordering, and that assertion exists precisely because "it has levels" is not the claim,
+**"the order of the levels is right"** is.
+
+The fix normalises by the caret's own depth (`gap / caretDepth`), so the scale is
+relative: just-outside is always a fraction of the way out and outside-everything is
+always all the way out, at one tag deep or at nine. An absolute step per level made a
+single-tag document dim almost nothing at full strength.
+
+## "Off costs nothing" is a cost claim, so it needed a cost test
+
+`strength === 0` already fades to 0, so removing the early return leaves the answer
+**identical** — and a mutation that removed it **passed every assertion**. The early
+return buys exactly one thing: not entering `nestingAt`, which is a whole-document
+`scan()`.
+
+So it is measured, as a **ratio** over 400 lines — off against on, floor 3×, no absolute
+millisecond figure that has to hold on somebody else's machine. With the early return
+removed the ratio is **0.8**; with it, comfortably above. This is the same instrument as
+`structure.test.mjs`'s *"asking is far cheaper than doing"*, and the same reason: a
+performance promise cannot be held by an assertion about a return value.
+
+**Fourth time now in this project that the surviving mutations were all "the fixture was
+missing"** — never once because the code was wrong in a way the tests could have named.
+
+| # | mutation | caught by |
+|---|---|---|
+| M1 | the grader inverted again | 7 assertions, including the ordering |
+| M2 | off is no longer free | **survived** → the cost test |
+| M3 | dimming applies to prose too | threw |
+| M4 | the setting stops mattering | 5 assertions |
+
+## Also fixed while here
+
+`EditorState.create({ big, … })` — the key is `doc`, so the document was empty and the
+caret was outside it. Found because the test **threw** rather than passed, which is the
+one failure shape that cannot be mistaken for green.

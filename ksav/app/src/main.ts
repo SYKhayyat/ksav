@@ -32,6 +32,7 @@ import {
 } from "./ksav-lang";
 import { tagSelectExtension, tagContaining, selectTag, type TagSelection } from "./tagselect";
 import { indentView, DEFAULT_INDENT } from "./indent";
+import { tagDim } from "./tagdim";
 import { bracketLint, healAll } from "./bracket-lint";
 import { pairedDelimiters } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
@@ -1988,6 +1989,9 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
       // answer, so the setting below is about what a bare click means and not about
       // which of the two is reachable.
       tagSelectExtension(() => settings.clickSelectsTag ?? "whole"),
+      // #85 — dim every line outside the tag the caret is in, with the fade
+      // graded by nesting. `0` means off, and off is free.
+      tagDim(() => (settings.dimOutsideTag ?? 0) / 100),
       // #84 — the indent view. Every dial is the writer's own number, read per
       // rebuild so the toggle and the settings reconfigure rather than being
       // captured once at construction.
@@ -8062,6 +8066,8 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("autoPairBracketsLabel", "autoPairBrackets"),
     checkRow("autoPairQuotesLabel", "autoPairQuotes"),
     checkRow("showWhitespaceLabel", "showWhitespace"),
+    // #85 — a dial rather than a checkbox: the feature is "how much", not "whether".
+    numberRow("dimOutsideTagLabel", "dimOutsideTag", 0, 100, 5),
     checkRow("indentViewLabel", "indentView"),
     el("div", { class: "set-note" }, [t("indentViewNote")]),
     // The three dials, all of them the writer's own number. **Minimum words is the

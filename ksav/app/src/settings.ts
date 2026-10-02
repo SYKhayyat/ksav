@@ -182,6 +182,14 @@ export interface Settings {
    * nothing here ever writes to the document.
    */
   indentView?: boolean;
+  /**
+   * #85 — how far to dim every line outside the tag the caret is in, as 0-100.
+   *
+   * A dial and not a switch, because dimming is calibrated for code and a Hebrew
+   * sefer's lines are already hard to read. `0` is off, and off costs nothing: the
+   * viewport walk is not entered at all.
+   */
+  dimOutsideTag?: number;
   /** Spaces of indent per level. `2`, matching `table.ts:258`. */
   indentAmount?: number;
   /** Bodies below this many words are left completely alone. */
@@ -614,6 +622,7 @@ export const DEFAULTS: Settings = {
   showWhitespace: false,
   clickSelectsTag: "whole",
   indentView: false,
+  dimOutsideTag: 55,
   indentAmount: 2,
   indentMinWords: 4,
   indentPercent: 50,

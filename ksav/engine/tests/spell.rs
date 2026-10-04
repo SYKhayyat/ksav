@@ -670,6 +670,85 @@ fn an_opening_quote_after_a_prefix_is_not_part_of_the_word() {
     assert!(acronyms.contains(&"מהרש\"א"), "{acronyms:?}");
 }
 
+/// The token texts the tokenizer produces, in order.
+fn tokens(text: &str) -> Vec<String> {
+    spell::words(text).iter().map(|t| t.text.to_string()).collect()
+}
+
+/// #62's cap, held at the boundary it is only allowed to be wrong beyond.
+///
+/// The gershayim rule asks "how many letters follow you" and answers *yes* for
+/// one or two. `run_of_letters` is now **capped at three**, because three is
+/// the first answer that is indistinguishable from four — so a cap that stopped
+/// at two would break every two-letter tail, and one that stopped at three is
+/// exactly right.
+///
+/// These are the assertions that a wrong cap fails, and they are the reason the
+/// cap is safe to have at all:
+///
+/// | after the quote | tail | joins? |
+/// |---|---|---|
+/// | `ע` | 1 | yes — `שו"ע` |
+/// | `עא` | 2 | yes — `נפק"מ` |
+/// | `עאב` | 3 | **no** — the cap's first wrong answer, and the right one |
+/// | `עאבג` | 4 | no — and this is where the uncapped scan also said no |
+///
+/// The third row is the load-bearing one: if the cap were raised to 4, a
+/// four-letter tail would start joining and `שו"עיאדה` would become one token.
+/// If the cap were lowered to 2, `נפק"מ` would split in half and both halves
+/// would be flagged. Neither can happen without one of these failing.
+#[test]
+fn the_gershayim_cap_is_wrong_only_past_three_letters() {
+    // One letter, two letters: joined — the acronyms this rule exists for.
+    assert_eq!(tokens("שו\"ע"), vec!["שו\"ע"], "a one-letter tail split");
+    assert_eq!(tokens("נפק\"מ"), vec!["נפק\"מ"], "a two-letter tail split");
+    // Three letters: not joined. The cap's first wrong answer, which is also
+    // the answer the uncapped scan gave, so this is behaviour-preserving.
+    assert_eq!(
+        tokens("שו\"עאב"),
+        vec!["שו", "עאב"],
+        "a three-letter tail joined — the cap is too high"
+    );
+    // Four: still not joined, which is where the cap and the uncapped scan
+    // agree for the last time.
+    assert_eq!(
+        tokens("שו\"עאבג"),
+        vec!["שו", "עאבג"],
+        "a four-letter tail joined — the cap is far too high"
+    );
+    // And the lexemes themselves still resolve, which is the whole point of the
+    // rule existing: the tokens above are only useful if the joined form is a
+    // word.
+    let l = bundled();
+    assert!(l.contains("שו\"ע"), "the acronym stopped resolving");
+}
+
+/// The English half of #62's cap, same boundary, same reason.
+///
+/// `english::joins` counts a Latin alphabetic tail for a gershayim and caps the
+/// count at three. Without the cap the count ran over the rest of the word; with
+/// it, `zt"l` still holds together and `zt"lab` still splits. The two rows that
+/// matter are the two-letter tail (joins) and the three-letter tail (does not),
+/// exactly as on the Hebrew side.
+#[test]
+fn the_english_gershayim_cap_is_wrong_only_past_three_letters() {
+    assert_eq!(tokens("zt\"l"), vec!["zt\"l"], "a two-letter tail split");
+    assert_eq!(
+        tokens("zt\"lab"),
+        vec!["zt", "lab"],
+        "a three-letter tail joined — the cap is too high"
+    );
+    assert_eq!(
+        tokens("zt\"labc"),
+        vec!["zt", "labc"],
+        "a four-letter tail joined — the cap is far too high"
+    );
+    // And the abbreviation still resolves to nothing in the menu.
+    let en = ksav_engine::spell::english::Lexicon::bundled();
+    let misses = spell::Checker::new(None, Some(&en)).check("zt\"l");
+    assert!(misses.is_empty(), "zt\\\"l was flagged: {misses:?}");
+}
+
 #[test]
 fn ksavs_own_templates_are_not_underlined() {
     // The first thing a writer sees must not be covered in squiggles. This is

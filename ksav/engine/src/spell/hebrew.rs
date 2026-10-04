@@ -328,11 +328,33 @@ fn is_prefix_letter(c: char) -> bool {
     girsa_hebrew::PREFIX_LETTERS.contains(&c)
 }
 
-/// How many Hebrew letters begin `s`, ignoring the marks that hang off them.
-fn run_of_letters(s: &str) -> usize {
+/// How many Hebrew letters begin `s`, ignoring the marks that hang off them —
+/// but **never more than `cap`**, and never looking past the first character
+/// that is not part of the word at all.
+///
+/// # The cap is the whole point, and it was not here
+///
+/// [`joins`] is asked this question once for **every separator in the text**,
+/// because that is how the tokenizer decides whether a gershayim or a geresh
+/// stays inside the word it stands in. The scan used to run to the end of the
+/// word each time, so a document with separators in it was quadratic in the
+/// length of each word: a single token of letters and gershayim — `א"ב"ג"ד…`,
+/// which is what a mangled paste or a machine-generated acronym looks like — cost
+/// a full remaining-string scan per separator, and measured that way the
+/// tokenizer, the one thing every keystroke runs, went quadratic on input it
+/// cannot even tokenize.
+///
+/// Nothing needed that many letters. Every question [`joins`] asks is bounded:
+/// *is there a letter at all*, and, for gershayim, *is the tail one or two*. The
+/// answer past the third letter is never distinguished from the fourth, so the
+/// scan stops at the cap and the tokenizer is linear again. The cap is the
+/// first answer that is wrong for a tail of three or more, so `joins` asks for
+/// one more than it can distinguish.
+fn run_of_letters(s: &str, cap: usize) -> usize {
     s.chars()
         .take_while(|c| is_hebrew_letter(*c) || is_hebrew_mark(*c))
         .filter(|c| is_hebrew_letter(*c))
+        .take(cap)
         .count()
 }
 
@@ -361,15 +383,19 @@ fn run_of_letters(s: &str) -> usize {
 /// keyboard types keep joining at the end of the word, because that is where an
 /// abbreviation geresh lives and the lexicon stores them there.
 pub(crate) fn joins(c: char, rest: &str) -> bool {
-    let tail = run_of_letters(rest);
     if is_gershayim(c) {
-        return (1..=2).contains(&tail);
+        // A one- or two-letter tail is an acronym (`שו"ע`, `נפק"מ`). Capped at
+        // **three**, because the only four answers are 0, 1, 2 and 3-or-more,
+        // and 3-or-more is as far as this rule has ever distinguished.
+        return (1..=2).contains(&run_of_letters(rest, 3));
     }
     if !is_geresh(c) {
         return false;
     }
     if matches!(c, '\u{2018}' | '\u{2019}') {
-        return tail >= 1;
+        // A curly form is punctuation first, so it joins only mid-word. One
+        // letter is the whole question.
+        return run_of_letters(rest, 1) >= 1;
     }
     true
 }

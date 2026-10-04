@@ -363,7 +363,12 @@ pub(crate) fn joins(c: char, rest: &str) -> bool {
         return next.is_some_and(|n| n.is_alphabetic() && is_part(n));
     }
     if matches!(c, '"' | '\u{201C}' | '\u{201D}') {
-        let tail = rest.chars().take_while(|c| c.is_alphabetic()).count();
+        // `zt"l`, `shlit"a`. Capped at three letters for the reason the Hebrew
+        // side is: the tokenizer asks this once per separator, and the question
+        // has only four answers — 0, 1, 2, 3-or-more — so counting the rest of
+        // the word past the third letter bought nothing and cost a scan per
+        // quote. See `hebrew::run_of_letters`.
+        let tail = rest.chars().take_while(|c| c.is_alphabetic()).take(3).count();
         return (1..=2).contains(&tail);
     }
     false

@@ -127,6 +127,15 @@ pub struct DocConfig {
     /// serialise as the configuration it is.
     #[serde(skip)]
     pub refusals: Vec<Refusal>,
+    /// A **string** setting that could not be read as written, and what was done
+    /// with the token. Filled by `from_json`, read by `compile`.
+    ///
+    /// Separate from [`refusals`] because those are numeric by construction —
+    /// `asked` and `used` are `f64` and the sentence in `refusal_diagnostic` is
+    /// about centimetres. There is exactly one caller today (`pdf_pages`), and it
+    /// arrived because a token it could not read was **dropped in silence**.
+    #[serde(skip)]
+    pub spec_refusals: Vec<SpecRefusal>,
     pub font: String,
     pub size_pt: f64,
     pub margin_cm: f64,
@@ -418,45 +427,6 @@ fn named_arg(args: &str, keys: &[&str]) -> Option<String> {
     None
 }
 
-/// The byte offset just past the `(` that closes the one `s` opens with.
-///
-/// Depth-counted, so a nested tuple — which is what `גבהים` is — does not end the
-/// list at its own bracket. Quoted spans are skipped wholesale: `inject_
-/// reserve_into_writer_masmer` works on text that still carries its strings,
-/// and a value like `"a)b"` would otherwise close the scan one argument in —
-/// a channel or region missed there is a reserve under-counted, and the note
-/// it belonged to prints off the paper.
-fn closing_paren(s: &str) -> Option<usize> {
-    let mut depth = 0usize;
-    let mut chars = s.char_indices();
-    while let Some((i, c)) = chars.next() {
-        match c {
-            '"' => {
-                // To the closing quote, honouring backslash escapes. Typst has
-                // no single-quoted string; a `'` is content.
-                let mut escaped = false;
-                for (_, q) in chars.by_ref() {
-                    if escaped {
-                        escaped = false;
-                    } else if q == '\\' {
-                        escaped = true;
-                    } else if q == '"' {
-                        break;
-                    }
-                }
-            }
-            '(' => depth += 1,
-            ')' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
 
 /// A Typst length, in cm. `None` for anything font-relative — or for a
 /// percentage when the sheet it would be a percentage of is not known.
@@ -935,6 +905,7 @@ impl Default for DocConfig {
     fn default() -> Self {
         DocConfig {
             refusals: Vec::new(),
+            spec_refusals: Vec::new(),
             font: "Frank Ruhl Hofshi".to_string(),
             size_pt: 12.0,
             margin_cm: 2.5,
@@ -1084,6 +1055,81 @@ fn refusal_diagnostic(r: &Refusal) -> Diagnostic {
             key = r.key,
             asked = cm(r.asked),
             used = cm(r.used),
+        ),
+    )
+}
+
+/// One token of a string setting that could not be read, and what was done.
+///
+/// The twin of [`Refusal`] for the fields that are not lengths. Same argument:
+/// *"a setting that says nothing is the wrong answer"* — but the evidence here is
+/// worse than a clamped margin, because the old reading of a bad `pdf_pages`
+/// token did not quietly use a different number, it **quietly exported the whole
+/// document**. Naming the token is what turns that back into a setting the writer
+/// can fix.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct SpecRefusal {
+    /// The field as the request named it — always `pdf_pages` today.
+    pub key: String,
+    /// The token, quoted exactly as the writer wrote it.
+    pub asked: String,
+    /// What the field's other, readable tokens are being used for instead.
+    pub used: String,
+}
+
+/// Every string setting of `cfg` that could not be read, as refusals.
+///
+/// **Derived from the settings, not from what `from_json` happened to record.**
+/// `DocConfig` is a `pub` struct and is built by field in tests, in `binding.rs`
+/// and anywhere the engine is embedded as a library — a path that never goes
+/// near `from_json`. `from_json` fills `spec_refusals` so a *request* is
+/// self-describing, and this reads it, but it also recomputes from `pdf_pages`
+/// so a directly-built config cannot have a field it cannot read go unnamed.
+/// That is the same seam `page_spec` had: a property that holds only for one of
+/// the two ways to build the value is a property nobody can rely on.
+fn spec_refusals_of(cfg: &DocConfig) -> Vec<SpecRefusal> {
+    let mut out = cfg.spec_refusals.clone();
+    for token in parse_page_spec(&cfg.pdf_pages).bad {
+        if !out.iter().any(|e| e.key == "pdf_pages" && e.asked == token) {
+            out.push(page_spec_refusal(cfg, token));
+        }
+    }
+    out
+}
+
+/// The refusal for one unreadable `pdf_pages` token, saying what was used.
+fn page_spec_refusal(cfg: &DocConfig, asked: String) -> SpecRefusal {
+    let spec = parse_page_spec(&cfg.pdf_pages);
+    let used = if spec.ranges.is_empty() {
+        // Every token was refused, so there is nothing left to export.
+        "the export was refused rather than answered with every page".to_string()
+    } else {
+        format!(
+            "the {} page range(s) that did parse are being exported",
+            spec.ranges.len()
+        )
+    };
+    SpecRefusal {
+        key: "pdf_pages".into(),
+        asked,
+        used,
+    }
+}
+///
+/// Bilingual for the reason every sentence here is: the machine's half is never
+/// the sentence. The token is in it verbatim, because a writer who typed `9-2`
+/// and is told *"a token is invalid"* has no idea which one.
+fn spec_refusal_diagnostic(r: &SpecRefusal) -> Diagnostic {
+    Diagnostic::ours(
+        "warning",
+        format!(
+            concat!(
+                "ההגדרה {key} לא הבינה את \"{asked}\" — {used} · ",
+                "the {key} setting could not read \"{asked}\" — {used}"
+            ),
+            key = r.key,
+            asked = r.asked,
+            used = r.used,
         ),
     )
 }
@@ -1413,6 +1459,19 @@ impl DocConfig {
         }
         if let Some(p) = v.get("pdf_pages").and_then(|x| x.as_str()) {
             cfg.pdf_pages = p.to_string();
+            // **Recorded here, where the request is read, and not at export
+            // time.** Before, a token that named no page was dropped in silence
+            // and the empty result was read as "no restriction" — so `0` exported
+            // the whole sefer, and `0-5` exported pages 1–5, and neither said a
+            // word. A refusal only reachable on the export path is a refusal
+            // nobody sees until they have already printed.
+            //
+            // The sentence comes from `page_spec_refusal` so this and
+            // `spec_refusals_of` — which covers a `DocConfig` built without
+            // `from_json` — cannot say different things about the same token.
+            for token in parse_page_spec(p).bad {
+                cfg.spec_refusals.push(page_spec_refusal(&cfg, token));
+            }
         }
         if let Some(o) = v.get("prevent_orphans").and_then(|x| x.as_bool()) {
             cfg.prevent_orphans = o;
@@ -1467,41 +1526,187 @@ pub fn sanitize_head_align(a: &str) -> String {
     .to_string()
 }
 
+/// One page bound: `None` means "open" — the start of the document for a
+/// missing `from`, the end of it for a missing `to`.
+type PageBound = Option<std::num::NonZeroUsize>;
+/// What a `pdf_pages` spec turned out to mean.
+#[derive(Debug, Default, Clone, PartialEq)]
+struct PageSpec {
+    /// The ranges the writer named, in the order they were written. Empty when
+    /// every token was refused, which is **not** the same as "no restriction".
+    ranges: Vec<std::ops::RangeInclusive<PageBound>>,
+    /// The tokens that named no page, exactly as written, so a diagnostic can
+    /// quote the writer's own mistake back at them.
+    bad: Vec<String>,
+    /// Whether the request asked for a restriction at all. `false` for an
+    /// absent or blank `pdf_pages`, which is the one legitimate way to mean
+    /// every page.
+    restricted: bool,
+}
+
+/// One end of a page range, and it has **three** answers rather than two.
+///
+/// # Why two was the bug
+///
+/// The first version of this fix had `page_num` return `Option<NonZeroUsize>`,
+/// exactly like the parser it replaced — and reintroduced #59 on the way. `None`
+/// has to mean both *"there was no bound here"* (`5-`, an open end) and *"the
+/// bound here is not a page"* (`0`, `x`). A caller cannot tell them apart, so it
+/// read garbage as an open bound: `0-5` parsed as *pages 1 through 5*, which is
+/// the precise silent wrong-answer the issue was filed about, and its own test
+/// caught it on the first run.
+///
+/// The three answers are: a page, an open end, and **rubbish**. Rubbish is the
+/// one the two-valued version could not say.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Bound {
+    /// A real page. Pages are one-indexed, so never zero.
+    Page(std::num::NonZeroUsize),
+    /// No bound was written: `5-` runs to the end, `-9` runs from the first.
+    Open,
+    /// Something was written and it is not a page.
+    Rubbish,
+}
+
+/// Read one end of a range.
+///
+/// **Empty is `Open` and only empty is `Open`.** Everything else has to be a
+/// positive integer or it is `Rubbish` — and that is the distinction the whole of
+/// #59 rests on. `0` is `Rubbish` because page zero does not exist; `00` and
+/// `+5` and `٣` are `Rubbish` for the same reason `x` is.
+fn read_bound(s: &str) -> Bound {
+    let t = s.trim();
+    if t.is_empty() {
+        return Bound::Open;
+    }
+    match t.parse::<usize>() {
+        // `0` parses, so `NonZeroUsize::new` is the check that says no — and it
+        // says no *here*, where a caller can act on it, rather than by returning
+        // the same `None` an open bound returns.
+        Ok(0) => Bound::Rubbish,
+        Ok(n) => std::num::NonZeroUsize::new(n).map_or(Bound::Rubbish, Bound::Page),
+        Err(_) => Bound::Rubbish,
+    }
+}
+
+impl Bound {
+    /// The `Option` a `RangeInclusive` is built from, or `None` for rubbish.
+    fn as_page_bound(self) -> Option<PageBound> {
+        match self {
+            Bound::Page(n) => Some(Some(n)),
+            Bound::Open => Some(None),
+            Bound::Rubbish => None,
+        }
+    }
+}
+
 /// Parse `1,3,5-9` into Typst page ranges, one-indexed and inclusive.
 ///
 /// `5-` means "from 5 to the end" and `-9` means "up to 9", which is what makes
-/// `None` a legitimate bound rather than an error. Anything unparseable is
-/// dropped rather than refused: an export that silently omits a malformed range
-/// still produces the pages the writer *did* name, where refusing produces no
-/// PDF at all over a typo in one field.
-fn parse_page_ranges(spec: &str) -> Vec<std::ops::RangeInclusive<Option<std::num::NonZeroUsize>>> {
-    let num = |s: &str| {
-        s.trim()
-            .parse::<usize>()
-            .ok()
-            .and_then(std::num::NonZeroUsize::new)
+/// `None` a legitimate bound rather than an error.
+///
+/// # The grammar is `pagerange.ts`'s, deliberately
+///
+/// The editor has always parsed this field itself — `app/src/pagerange.ts` —
+/// and that parser keeps the tokens it cannot read in a `bad` list so somebody
+/// can be told. The two were the same grammar written twice and compared by
+/// nothing, which is how a client and a server come to disagree about what `5-`
+/// means. This is now the **same grammar as the app's**, so the two cannot drift
+/// again, and it fixes three cases the old one got silently wrong:
+///
+/// | spec | old | now |
+/// |---|---|---|
+/// | `0` | empty list → **every page** | refused, and named |
+/// | `0-5` | pages 1–5, no error | refused, and named |
+/// | `9-2` | an empty range → **no pages** | refused, and named |
+///
+/// A refused token is still dropped rather than fatal — an export that omits one
+/// malformed range still produces the pages the writer *did* name, where
+/// refusing produces no PDF at all over a typo in one field. But a spec in which
+/// **every** token is refused is no longer the same answer as an empty box: it
+/// is a mistake, it is named, and [`pdf_options`] refuses the export rather than
+/// answering it with every page.
+fn parse_page_spec(spec: &str) -> PageSpec {
+    let text = spec.trim();
+    if text.is_empty() {
+        return PageSpec::default();
+    }
+    let mut out = PageSpec {
+        restricted: true,
+        ..PageSpec::default()
     };
-    spec.split(',')
-        .filter_map(|part| {
-            let part = part.trim();
-            if part.is_empty() {
-                return None;
+    for raw in text.split(',') {
+        let part = raw.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let Some(dash) = part.find('-') else {
+            match read_bound(part).as_page_bound() {
+                Some(n) => out.ranges.push(n..=n),
+                None => out.bad.push(part.to_string()),
             }
-            match part.split_once('-') {
-                None => num(part).map(|n| Some(n)..=Some(n)),
-                Some((lo, hi)) => {
-                    let (lo, hi) = (num(lo), num(hi));
-                    // `-` on its own names nothing; without this it would parse
-                    // as "every page", quietly ignoring the rest of the spec.
-                    if lo.is_none() && hi.is_none() {
-                        None
-                    } else {
-                        Some(lo..=hi)
-                    }
-                }
-            }
-        })
-        .collect()
+            continue;
+        };
+        let (lo, hi) = (
+            read_bound(&part[..dash]),
+            read_bound(&part[dash + 1..]),
+        );
+        // Any rubbish end takes the whole token with it. `0-5` is **not** "up to
+        // 5" — it is a writer who typed a page that does not exist, and reading
+        // it as an open bound is the exact silent wrong-answer #59 opened with.
+        let (Some(lo), Some(hi)) = (lo.as_page_bound(), hi.as_page_bound()) else {
+            out.bad.push(part.to_string());
+            continue;
+        };
+        // A bare `-` names nothing; without this it would read as "every page"
+        // and quietly swallow the rest of the spec.
+        if lo.is_none() && hi.is_none() {
+            out.bad.push(part.to_string());
+        } else if matches!((lo, hi), (Some(a), Some(b)) if b < a) {
+            // Backwards. The old parser emitted `Some(9)..=Some(2)`, an empty
+            // range that matches no page — so `9-2` exported **nothing** and
+            // said nothing, which is the same failure as `0` in the other
+            // direction: a typo, silently, in either direction.
+            out.bad.push(part.to_string());
+        } else {
+            out.ranges.push(lo..=hi);
+        }
+    }
+    out
+}
+
+/// The ranges for [`pdf_options`], or `None` for "export every page".
+///
+/// The distinction is the whole of #59. `None` — every page — is only ever the
+/// answer to **no spec at all**, or to a spec that named at least one page. A
+/// spec that named pages and had every one of them refused is an `Err`, not a
+/// `None`: it used to be a `None`, and that is how a typo in one field exported
+/// the whole sefer.
+fn page_ranges_for_export(spec: &PageSpec) -> Result<Option<Vec<std::ops::RangeInclusive<PageBound>>>, String> {
+    if !spec.restricted {
+        return Ok(None);
+    }
+    if spec.ranges.is_empty() {
+        // **Quoted**, like every other place a token is quoted back. The
+        // `spec_refusals` warning says `"0-5"`, and an error saying `0-5` while
+        // the warning says `"0-5"` is two shapes for one fact. It also matters
+        // for legibility: `-` and `0` unquoted in a list of tokens is a
+        // sentence nobody can parse.
+        let named = if spec.bad.is_empty() {
+            "nothing".to_string()
+        } else {
+            spec.bad
+                .iter()
+                .map(|t| format!("{t:?}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        return Err(format!(
+            "pdf_pages named no page at all (offending token(s): {named}) — \
+             refusing to export the whole document"
+        ));
+    }
+    Ok(Some(spec.ranges.clone()))
 }
 
 pub use diagnostics::Diagnostic;
@@ -1878,58 +2083,36 @@ fn reserve_region_expr(body: &str, cfg: &DocConfig) -> String {
 /// a nested call, because the nested margin setup would still need the value.
 /// An explicit writer value is left exactly where it stands; policy answers
 /// to it live in `compile_doc_with`.
+///
+/// **Off the parse, for #58's reason.** This used to scan for a `#` and read
+/// the identifier after it, so a commented-out `#מסמך(` — which is what the
+/// editor's own "comment out" command writes, and is how a writer parks a
+/// wrapper while they decide about it — had an `אזור_הערות:` argument injected
+/// into the middle of a comment. The same disease as the two readers it sits
+/// beside, and the same single fix.
 fn inject_reserve_into_writer_masmer(body: &str, region_expr: &str) -> String {
-    let mut base = 0;
-    while let Some(i) = body[base..].find('#') {
-        let start = base + i;
-        base = start + 1;
-        let head: String = body[base..]
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        if head != "מסמך" {
-            continue;
-        }
-        // Where do its arguments begin?
-        let after_head = start + 1 + "מסמך".len();
-        let rest = &body[after_head..];
-        let trimmed = rest.trim_start();
-        if trimmed.starts_with('[') {
-            // `#מסמך[...]`: no argument list at all. One is minted ahead of
-            // the body bracket.
-            let at = after_head + (rest.len() - trimmed.len());
-            return format!(
-                "{}(אזור_הערות: {}){}",
-                &body[..at],
-                region_expr,
-                &body[at..]
-            );
-        }
-        let Some(open_rel) = trimmed.find('(') else {
-            continue;
-        };
-        let open = after_head + (rest.len() - trimmed.len()) + open_rel;
-        let Some(end_rel) = closing_paren(&body[open..]) else {
-            continue;
-        };
-        let args = &body[open + 1..open + end_rel];
-        let has_it = ["אזור_הערות", "notes_region"]
-            .iter()
-            .any(|k| named_arg(args, &[k]).is_some());
-        if has_it {
-            return body.to_string();
-        }
-        let at = open + 1;
-        let sep = if args.trim().is_empty() { "" } else { ", " };
-        return format!(
-            "{}אזור_הערות: {}{}{}",
-            &body[..at],
-            region_expr,
-            sep,
-            &body[at..]
-        );
+    let Some(m) = find_writer_masmer(body) else {
+        return body.to_string();
+    };
+    // A writer who named the reserve keeps their number, exactly.
+    if !m.reserve.is_empty() {
+        return body.to_string();
     }
-    body.to_string()
+    let at = m.args_open;
+    // Checked for the same reason `grow_inline_reserve` checks its own span:
+    // this rewrites a writer's document, so an out-of-range offset must leave
+    // the document alone rather than panic. `body.split_at` is the safe form of
+    // the same thing and returns the two halves on success.
+    let Some((head, tail)) = body.split_at_checked(at) else {
+        return body.to_string();
+    };
+    if !m.has_parens {
+        // The bare `#מסמך[…]` form has no argument list at all; one is minted
+        // ahead of the body bracket.
+        return format!("{head}(אזור_הערות: {region_expr}){tail}");
+    }
+    let sep = if tail.trim_start().is_empty() { "" } else { ", " };
+    format!("{head}אזור_הערות: {region_expr}{sep}{tail}")
 }
 
 /// What the compiler is actually handed: two lines and the writer's text.
@@ -1955,57 +2138,207 @@ fn inject_reserve_into_writer_masmer(body: &str, region_expr: &str) -> String {
 /// textually by the engine. So there is a prefix, it is two lines and a blank
 /// one, and [`diagnostics::body_offset_of`] measures it by subtraction off the
 /// two strings the caller already holds.
+/// Where the writer's own `#מסמך(…)` keeps its notes reserve, read off the
+/// **parsed** tree rather than off the text.
+///
+/// #58, and the whole of it
+///
+/// [`inline_reserve_cm`] and [`grow_inline_reserve`] used to `body.find("אזור_הערות")`
+/// and read a number after the colon. That found the name wherever it was, and
+/// the name is not a rare string — a writer explaining the setting, a `//` line
+/// parked while they think, or a string argument all contain it verbatim, and
+/// `find` cannot tell those from a call. A document that merely *mentions*
+/// `אזור_הערות:` had its page-foot reserve rewritten to whatever the apparatus
+/// scan wanted, silently, on every compile.
+///
+/// `auto_notes_region_cm` stopped having this bug years ago — its own test says
+/// *"with the parser now doing the lexing"* — so this is the last hand-rolled
+/// scan of its kind, and the right shape was already in the file.
+///
+/// # One resolution, three callers
+///
+/// The apparatus scan resolves off the tree and the inline reserve did not, so
+/// the same document could answer two different questions about one setting
+/// depending on which function ran first. All three of the functions that touch
+/// the writer's inline reserve — read it, grow it, and inject it when it is
+/// absent — now come through here, so there is one answer to "what does this
+/// writer's `#מסמך` say about the reserve", and it is the parsed one.
+#[derive(Debug, Clone)]
+struct WriterMasmer {
+    /// The value of the reserve argument as written — `3.5cm`, `2.5`, `auto`.
+    /// Empty when the call does not carry the argument at all, which is the
+    /// answer [`inject_reserve_into_writer_masmer`] needs.
+    reserve: String,
+    /// Byte offset of that value in the body, so it can be rewritten in place.
+    reserve_at: Option<(usize, usize)>,
+    /// Byte offset of the character just inside the argument list, so an absent
+    /// argument can be written there.
+    args_open: usize,
+    /// Whether the call had an argument list to write into, as opposed to the
+    /// bare `#מסמך[…]` form which has to be given one.
+    has_parens: bool,
+}
+
+/// The two spellings of the reserve argument, as the writer may write either.
+const RESERVE_ARGS: [&str; 2] = ["אזור_הערות", "notes_region"];
+/// The two spellings of the wrapper this reserve belongs to.
+const MASMER_NAMES: [&str; 2] = ["מסמך", "masmer"];
+
+/// The first `#מסמך(…)` in `body` that carries a reserve argument, resolved off
+/// the parse.
+///
+/// Returns `None` when there is no such call — including when there *is* a
+/// `#מסמך` but its argument list is still unbalanced and the parser could not
+/// read it. That is the honest answer rather than a fallback to the text scan,
+/// because the fallback is the bug.
+fn find_writer_masmer(body: &str) -> Option<WriterMasmer> {
+    use typst::syntax::{LinkedNode, SyntaxKind};
+    fn walk(node: &LinkedNode) -> Option<WriterMasmer> {
+        if node.kind() == SyntaxKind::FuncCall {
+            let mut kids = node.children().filter(|c| !c.kind().is_trivia());
+            if let Some(head) = kids.next() {
+                // The callee is an `Ident` in `#מסמך(…)`. A call through a
+                // variable (`#f(אזור_הערות: 3cm)`) names nothing this can
+                // read, so it is left alone rather than guessed at — which is
+                // what the old text scan did not do.
+                let is_masmer = head.kind() == SyntaxKind::Ident
+                    && MASMER_NAMES.contains(&head.get().leaf_text().as_str());
+                if is_masmer {
+                    if let Some(args) = kids.next() {
+                        if args.kind() == SyntaxKind::Args {
+                            // Just inside the `(`, or — for the bare `#מסמך[…]`
+                            // form, which has no argument list at all — the
+                            // front of the content block, which is where one
+                            // is minted. **The first non-trivia child**, not a
+                            // search for `LeftBracket`: the parser puts that
+                            // delimiter inside the `ContentBlock`, so an `Args`
+                            // node for `#f[…]` has no `LeftBracket` child of its
+                            // own and a search for one finds nothing at all.
+                            let first = args.children().find(|c| !c.kind().is_trivia());
+                            let has_parens =
+                                first.as_ref().is_some_and(|c| c.kind() == SyntaxKind::LeftParen);
+                            let open = match first {
+                                Some(c) if c.kind() == SyntaxKind::LeftParen => c.offset() + 1,
+                                Some(c) => c.offset(),
+                                None => args.offset() + args.get().leaf_text().len(),
+                            };
+                            for named in
+                                args.children().filter(|c| c.kind() == SyntaxKind::Named)
+                            {
+                                let parts: Vec<_> =
+                                    named.children().filter(|c| !c.kind().is_trivia()).collect();
+                                if parts.len() < 2 || parts[0].kind() != SyntaxKind::Ident {
+                                    continue;
+                                }
+                                if !RESERVE_ARGS
+                                    .contains(&parts[0].get().leaf_text().as_str())
+                                {
+                                    continue;
+                                }
+                                // Everything after the colon is the value. A
+                                // bare `אזור_הערות:` with nothing written after
+                                // it is a writer mid-keystroke: there is no
+                                // value node, `reserve` comes back empty and
+                                // `length_cm` declines it, so nothing is claimed
+                                // and nothing is rewritten — but the argument is
+                                // recognised, which is what stops `inject` from
+                                // writing a second copy of it.
+                                let value = parts.get(2);
+                                let text = value
+                                    .map(|v| v.get().leaf_text().to_string())
+                                    .unwrap_or_default();
+                                // **`range()`, not `offset() + leaf_text().len()`.**
+                                // A value is a `Measure`, `Ratio` or `Decimal`
+                                // — inner nodes with several children — and
+                                // `leaf_text` concatenates their *text* while
+                                // skipping the trivia between them. That sum is
+                                // not the source span, so slicing `body` with it
+                                // ran off the end of the string and panicked.
+                                // `range()` is the span the parser recorded, which
+                                // is the only thing safe to rewrite.
+                                let at = value.map(|v| {
+                                    let r = v.range();
+                                    (r.start, r.end)
+                                });
+                                return Some(WriterMasmer {
+                                    reserve: text.trim().to_string(),
+                                    // `trim_end` only: a value node's span
+                                    // starts at the value, so leading
+                                    // whitespace would be *outside* the span
+                                    // and there is nothing to strip. If it ever
+                                    // is inside, the number is dropped by
+                                    // `length_cm` rather than rewritten at a
+                                    // shifted offset.
+                                    reserve_at: at,
+                                    args_open: open,
+                                    has_parens,
+                                });
+                            }
+                            // A `#מסמך` with an argument list but no reserve
+                            // argument: the writer is entitled to have theirs
+                            // written in.
+                            return Some(WriterMasmer {
+                                reserve: String::new(),
+                                reserve_at: None,
+                                args_open: open,
+                                has_parens,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        node.children().find_map(|c| walk(&c))
+    }
+    let root = typst::syntax::parse(body);
+    walk(&LinkedNode::new(&root))
+}
+
 /// The reserve a writer fixed *inline* in the body — `#מסמך(אזור_הערות:
 /// 3.5cm)` — if there is one, in centimetres. Both inline policies read this:
 /// `"grow"` rewrites the number when it cannot hold the strips, and `"refuse"`
 /// compares against it before anything lays out, because a policy that only
 /// ever saw the configured value would silently set exactly when the writer
 /// had spoken in the document instead.
+///
+/// **Off the parse, not off the text.** See [`find_writer_masmer`] — the text
+/// scan found `אזור_הערות:` in prose, in comments and in strings, and silently
+/// rewrote the page-foot reserve because of it.
 fn inline_reserve_cm(body: &str) -> Option<f64> {
-    for name in ["אזור_הערות", "notes_region"] {
-        let Some(i) = body.find(name) else { continue };
-        let colon = i + name.len();
-        let rest = &body[colon..];
-        let Some(rest) = rest.strip_prefix(':') else {
-            continue;
-        };
-        let after = rest.trim_start();
-        let end = after
-            .find(|c: char| !(c.is_ascii_digit() || c == '.' || c.is_alphabetic()))
-            .unwrap_or(after.len());
-        return length_cm(&after[..end], None);
+    let m = find_writer_masmer(body)?;
+    if m.reserve.is_empty() {
+        return None;
     }
-    None
+    length_cm(&m.reserve, None)
 }
 
 fn grow_inline_reserve(body: &str, need_cm: f64) -> String {
-    for name in ["אזור_הערות", "notes_region"] {
-        let Some(i) = body.find(name) else { continue };
-        let colon = i + name.len();
-        let rest = &body[colon..];
-        let Some(rest) = rest.strip_prefix(':') else {
-            continue;
-        };
-        let ws = rest.len() - rest.trim_start().len();
-        let tok_start = colon + 1 + ws;
-        let after = rest.trim_start();
-        let end = after
-            .find(|c: char| !(c.is_ascii_digit() || c == '.' || c.is_alphabetic()))
-            .unwrap_or(after.len());
-        let token = &after[..end];
-        if let Some(w) = length_cm(token, None) {
-            if need_cm > w {
-                return format!(
-                    "{}{:.2}cm{}",
-                    &body[..tok_start],
-                    need_cm,
-                    &body[tok_start + token.len()..]
-                );
-            }
-        }
+    let Some(m) = find_writer_masmer(body) else {
+        return body.to_string();
+    };
+    // An argument the writer did not write is not rewritten — `inject_
+    // reserve_into_writer_masmer` is the one that writes it, and writing it
+    // twice is how the scanned value got into a call that never asked for it.
+    let Some((start, end)) = m.reserve_at else {
+        return body.to_string();
+    };
+    // **Checked, not trusted.** The span comes from the parser and should be
+    // inside `body` always, but this function *rewrites* a writer's own document
+    // — so the two operations that can be catastrophic here (a slice off the end,
+    // a splice at a shifted offset) are the ones that must be unable to happen
+    // even if that invariant is ever broken. Returning the body unchanged is
+    // always a legal answer; a panic during a keystroke is not, and there is no
+    // `catch_unwind` anywhere in this crate.
+    let Some(token) = body.get(start..end) else {
+        return body.to_string();
+    };
+    let Some(w) = length_cm(token, None) else {
+        return body.to_string();
+    };
+    if need_cm <= w {
         return body.to_string();
     }
-    body.to_string()
+    format!("{}{:.2}cm{}", &body[..start], need_cm, &body[end..])
 }
 
 pub fn main_source(body: &str, cfg: &DocConfig) -> String {
@@ -2071,6 +2404,91 @@ pub fn packages_root() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("packages")
 }
 
+// ------------------------------------------------------------------ the @local root
+//
+// #72, and the seam the issue said did not exist.
+//
+// The compile channel is `(name, String)` — no path, no `AppHandle`, nothing on
+// the request — so a *user* packages directory cannot arrive per-request, and
+// that is the correct shape rather than a limitation to work around: a root
+// that came on the request could be pointed at any directory by any client of
+// the loopback socket, or by the browser build, and the property at
+// `packages_root` above — *"its root **is** the package directory: a document
+// cannot reach anything else on the disk through it"* — would be gone.
+//
+// So the root is **set once, by the shell, at startup**. Two rules make that a
+// fence rather than a hope:
+//
+// 1. **Only a root that exists and looks like a package root is accepted.** A
+//    directory that is not there is not an error — a writer who has added no
+//    packages has none, and refusing to compile would be absurd — but a
+//    directory that is there and is not a package root is refused rather than
+//    adopted, so a mistyped path cannot silently become a compile that reads
+//    arbitrary files.
+// 2. **The first `set` wins.** `setup()` runs once per process, and a later call
+//    cannot quietly widen what an earlier one granted. If two callers disagree,
+//    the second is told so rather than being believed.
+
+/// A second root for packages, read-only, set once by the application at startup.
+///
+/// `None` — the ordinary state — means the shipped [`packages_root`] only, and
+/// a document's `@local/` imports fail the way any unresolvable import does.
+static LOCAL_ROOT: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// Point `@local` at `dir`, once, at startup.
+///
+/// The user's own Typst libraries: a `packages/` directory they can drop a
+/// `typst.toml` into, resolved through the same read-only resolver as the
+/// bundled ones and confined the same way. `dir` is the **root**, the directory
+/// whose children are namespaces — so `@local` is served from `<dir>/local/`,
+/// and `dir` should be something like `<app_data>/packages`.
+///
+/// Returns the root in force, and is idempotent: a second call is told what the
+/// first one set rather than being allowed to change it. An absent or
+/// non-directory leaves the process on the bundled root, which is the state that
+/// needs no configuration.
+pub fn set_local_packages_root(dir: &std::path::Path) -> std::path::PathBuf {
+    if !dir.is_dir() {
+        // Not an error. Nobody has added a package, and a missing directory is
+        // how that looks. The bundled root serves every `#import "@preview/…"`.
+        return packages_root();
+    }
+    // First `set` wins: a later caller is told what is in force rather than
+    // being believed, so two callers cannot disagree about what a document may
+    // read.
+    let _ = LOCAL_ROOT.set(dir.to_path_buf());
+    LOCAL_ROOT.get().cloned().unwrap_or_else(packages_root)
+}
+
+/// The `@local` root, if the application set one.
+///
+/// Deliberately separate from [`packages_root`]: that one is a constant baked in
+/// at build time, this one is a decision the shell makes once at startup. Both
+/// are read-only roots a document cannot escape.
+pub fn local_packages_root() -> Option<&'static std::path::Path> {
+    LOCAL_ROOT.get().map(std::path::PathBuf::as_path)
+}
+
+/// Every root a document may resolve a package from, bundled first.
+///
+/// **A list rather than one root**, which is the change #72 needs and the reason
+/// it is a change at all. `FileSystemResolver::new` takes one directory as *the*
+/// package root and both serves `@ns/name:ver` out of it **and** scopes
+/// `.local_package_root` to it, so a second root needs its own resolver — and
+/// the bundled one goes first so a user directory can never shadow what ships.
+pub fn package_resolvers() -> Vec<typst_as_lib::file_resolver::FileSystemResolver> {
+    let bundled = typst_as_lib::file_resolver::FileSystemResolver::new(packages_root())
+        .local_package_root(packages_root());
+    match local_packages_root() {
+        Some(local) => vec![
+            bundled,
+            typst_as_lib::file_resolver::FileSystemResolver::new(local.to_path_buf())
+                .local_package_root(local.to_path_buf()),
+        ],
+        None => vec![bundled],
+    }
+}
+
 /// The compiler, configured for one main source and the request's assets.
 ///
 /// The document has no file system to read from, so its images arrive as bytes on
@@ -2114,13 +2532,14 @@ pub(crate) fn engine_for(
         // behind it happened at the first compile of the process and will not
         // happen again. See `prelude_source`.
         .with_static_source_file_resolver([prelude_source().clone()])
-        .with_static_file_resolver(files)
-        // Bundled packages, off disk. Last in the chain, so nothing a document
-        // carries with it can be shadowed by one.
-        .add_file_resolver(
-            typst_as_lib::file_resolver::FileSystemResolver::new(packages_root())
-                .local_package_root(packages_root()),
-        );
+        .with_static_file_resolver(files);
+    // Bundled packages, off disk. Last in the chain, so nothing a document
+    // carries with it can be shadowed by one. A `@local` root, if the shell set
+    // one at startup, is a second resolver after it — see `package_resolvers`,
+    // which is where the confinement argument lives.
+    for resolver in package_resolvers() {
+        builder = builder.add_file_resolver(resolver);
+    }
     // Keep Typst's memoization cache alive across compiles instead of throwing it
     // away after each one. `typst-as-lib` defaults `comemo_evict_max_age` to
     // `Some(0)` — evict everything immediately — which is exactly the opposite of
@@ -2847,6 +3266,12 @@ pub fn compile_parts(
             // and got the old page back has to be told that here rather than
             // discovering it in print.
             diagnostics.extend(cfg.refusals.iter().map(refusal_diagnostic));
+            // The same for a setting that is not a length: a `pdf_pages` token
+            // the engine could not read, quoted back (#59). It rides the
+            // compile response rather than the export's, because that is the
+            // one place a writer is looking when they wonder why the range they
+            // typed did not happen.
+            diagnostics.extend(spec_refusals_of(cfg).iter().map(spec_refusal_diagnostic));
             // Whatever the export has to say, say it. These used to go into
             // `.ok()` and vanish, so a PDF that failed to export came back as
             // `ok: true` with no bytes and no explanation. It mattered little
@@ -2948,6 +3373,7 @@ pub fn compile_parts(
             // who cannot see which of their settings was dropped has nothing to
             // change.
             diagnostics.extend(cfg.refusals.iter().map(refusal_diagnostic));
+            diagnostics.extend(spec_refusals_of(cfg).iter().map(spec_refusal_diagnostic));
             use typst_as_lib::TypstAsLibError::*;
             match err {
                 TypstSource(diags) => diagnostics.extend(located.all(&diags, "error")),
@@ -2991,9 +3417,22 @@ fn pdf_options(cfg: &DocConfig) -> Result<(typst_pdf::PdfOptions, Vec<Diagnostic
         opts.standards =
             typst_pdf::PdfStandards::new(&[std]).map_err(|e| e.message().to_string())?;
     }
-    let ranges = parse_page_ranges(&cfg.pdf_pages);
-    if !ranges.is_empty() {
-        opts.page_ranges = Some(typst::layout::PageRanges::new(ranges));
+    // #59: the empty-result-means-everything rule is gone. `page_ranges_for_export`
+    // returns `None` **only** for a request that asked for no restriction, and
+    // an `Err` for a spec whose every token was refused. This used to be
+    // `if !ranges.is_empty()`, which read a typo as a full-document export.
+    //
+    // **Parsed here, from `pdf_pages`, rather than from something `from_json`
+    // left behind.** A `DocConfig` can be built either way — the struct literal
+    // is public, and the tests and `binding.rs` use it — so a cached parse would
+    // be `default()` for every one of those, which is *no restriction*, and
+    // `a_page_range_exports_fewer_pages` would have started exporting all three
+    // pages. Same seam `DocConfig::default()` is documented for, and the same
+    // rule applies: anything derived from a setting is derived from the setting.
+    match page_ranges_for_export(&parse_page_spec(&cfg.pdf_pages))? {
+        None => {}
+        Some(ranges) => {
+            opts.page_ranges = Some(typst::layout::PageRanges::new(ranges));
         // Typst refuses the combination outright: the accessibility tree spans
         // the whole document, so a subset of pages cannot carry a correct one.
         // Dropping the tags is what the writer wants — they asked for three pages,
@@ -3007,6 +3446,7 @@ fn pdf_options(cfg: &DocConfig) -> Result<(typst_pdf::PdfOptions, Vec<Diagnostic
                  Exporting a page range cannot carry PDF tags — tags were dropped"
                     .to_string(),
             ));
+        }
         }
     }
     Ok((opts, notes))
@@ -3436,6 +3876,51 @@ mod tests {
     // which is the worst answer a compiler can give: a page that looks like it
     // worked and is not what anybody asked for.
 
+    /// The byte offset just past the `(` that closes the one `s` opens with.
+    ///
+    /// **This used to be library code.** `inject_reserve_into_writer_masmer`
+    /// hand-walked a call's argument list to find out whether the writer had
+    /// already named `אזור_הערות`, and needed this to do it. That function now
+    /// resolves off the Typst parse (#58) — the parser already knows where the
+    /// `)` is, and knows it better than a character counter does — so the only
+    /// caller left was the test below and it moved here with them.
+    ///
+    /// Kept rather than deleted, because the test below is still worth having:
+    /// it is the counter's own answers on the shapes a string or a nested tuple
+    /// would confuse, and if anything ever walks a call's text again — which is
+    /// how #58 happened — these are the cases that counter gets wrong.
+    fn closing_paren(s: &str) -> Option<usize> {
+        let mut depth = 0usize;
+        let mut chars = s.char_indices();
+        while let Some((i, c)) = chars.next() {
+            match c {
+                '"' => {
+                    // To the closing quote, honouring backslash escapes. Typst has
+                    // no single-quoted string; a `'` is content.
+                    let mut escaped = false;
+                    for (_, q) in chars.by_ref() {
+                        if escaped {
+                            escaped = false;
+                        } else if q == '\\' {
+                            escaped = true;
+                        } else if q == '"' {
+                            break;
+                        }
+                    }
+                }
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
     fn cfg_from(json: serde_json::Value) -> DocConfig {
         DocConfig::from_json(&json)
     }
@@ -3602,6 +4087,169 @@ mod tests {
             auto_notes_region_cm("#כותרת_עליונה(\"ראה #מדף_א[שם]\")"),
             0.0
         );
+    }
+
+    /// #58: an inline `אזור_הערות:` that is not an argument is not a setting.
+///
+/// The reader used to `body.find("אזור_הערות")` and take the number after the
+/// colon, so all four of these read as the writer fixing the reserve — and
+/// `grow_inline_reserve` **rewrote** it, silently, on every compile:
+///
+/// | body | what `find` saw |
+/// |---|---|
+/// | a `//` line mentioning it | the comment's own number |
+/// | a `#block` string containing it | the string's number |
+/// | prose naming it | the next number in the sentence |
+/// | a `#מסמך` *without* it | nothing — but `inject` wrote one into a commented-out call |
+///
+/// This is the last hand-rolled scan of its kind: `auto_notes_region_cm` had
+/// been moved onto the parse long ago (its own test says *"with the parser now
+/// doing the lexing"*), and the inline reserve had not. The fence is the four
+/// shapes above plus the four that must still work, because a fix that simply
+/// stopped finding the name would pass the first half and silently drop every
+/// writer's real setting.
+#[test]
+    fn an_inline_reserve_is_only_read_from_a_call() {
+        // **Prose.** The number after the colon is the next one in the sentence.
+        assert_eq!(
+            inline_reserve_cm("אפשר לכתוב אזור_הערות: 12 ואז לסמן כאן."),
+            None,
+            "a prose mention set the reserve"
+        );
+        // **A line comment** — which is what the editor's own "comment out"
+        // command writes, so this is the shape a writer actually produces.
+        assert_eq!(
+            inline_reserve_cm("שלום\n// אזור_הערות: 9cm\nעולם"),
+            None,
+            "a commented-out reserve was read"
+        );
+        // **A block comment**, mid-line.
+        assert_eq!(
+            inline_reserve_cm("שלום /* אזור_הערות: 9cm */ עולם"),
+            None,
+            "a block-commented reserve was read"
+        );
+        // **A string.** A header or a note that quotes the argument name.
+        assert_eq!(
+            inline_reserve_cm("#כותרת_עליונה(\"אזור_הערות: 9cm\")"),
+            None,
+            "a string was read as a setting"
+        );
+        assert_eq!(
+            inline_reserve_cm("#let x = \"אזור_הערות: 9cm\""),
+            None,
+            "a let-binding string was read as a setting"
+        );
+        // **Raw text**, where `#` is not even a code marker.
+        assert_eq!(
+            inline_reserve_cm("טקסט ```אזור_הערות: 9cm``` יותר"),
+            None,
+            "raw text was read as a setting"
+        );
+
+        // ---- and the shapes that must still be read ----
+        // The paren form, both spellings, both units, alone and beside others.
+        assert_eq!(inline_reserve_cm("#מסמך(אזור_הערות: 3.5cm)[\nטקסט\n]"), Some(3.5));
+        assert_eq!(inline_reserve_cm("#מסמך(אזור_הערות: 2cm)[\nטקסט\n]"), Some(2.0));
+        assert_eq!(
+            inline_reserve_cm("#masmer(notes_region: 4cm)[\ntext\n]"),
+            Some(4.0)
+        );
+        // Not the first argument.
+        assert_eq!(
+            inline_reserve_cm("#מסמך(כותרת: \"שם\", אזור_הערות: 2.5cm)[\nטקסט\n]"),
+            Some(2.5)
+        );
+        // And a document that names no reserve at all has none.
+        assert_eq!(inline_reserve_cm("סתם טקסט"), None);
+        assert_eq!(inline_reserve_cm("#מסמך(כותרת: \"שם\")[\nטקסט\n]"), None);
+    }
+
+    /// #58's second half: `grow_inline_reserve` must rewrite a real call and
+    /// **nothing else**.
+    ///
+    /// This is the half that did damage rather than merely misreported. Reading
+    /// the wrong number was wrong; *writing over the wrong number* is what
+    /// silently shortened a writer's text block, because the page-foot reserve is
+    /// subtracted from every page.
+    #[test]
+    fn growing_the_inline_reserve_rewrites_a_call_and_nothing_else() {
+        // The real thing: raised, and only the number changed.
+        let grown = grow_inline_reserve("#מסמך(אזור_הערות: 1cm)[\nטקסט\n]", 4.0);
+        assert!(
+            grown.contains("אזור_הערות: 4.00cm"),
+            "the reserve was not raised: {grown}"
+        );
+        assert!(
+            !grown.contains("1cm"),
+            "the old number survived: {grown}"
+        );
+        // Already big enough: untouched, byte for byte.
+        let body = "#מסמך(אזור_הערות: 6cm)[\nטקסט\n]";
+        assert_eq!(grow_inline_reserve(body, 4.0), body);
+        // A mention in a comment is not rewritten — and this is the assertion
+        // that would have failed before the fix, because the text scan found the
+        // name in the comment and wrote the grown number over the comment's.
+        for mention in [
+            "שלום\n// אזור_הערות: 1cm\nעולם",
+            "שלום /* אזור_הערות: 1cm */ עולם",
+            "#כותרת_עליונה(\"אזור_הערות: 1cm\")",
+            "#let x = \"אזור_הערות: 1cm\"",
+            "אפשר לכתוב אזור_הערות: 1cm כאן.",
+        ] {
+            assert_eq!(
+                grow_inline_reserve(mention, 4.0),
+                mention,
+                "a mention was rewritten: {mention}"
+            );
+        }
+        // And a call with no reserve argument is *not* given one here — that is
+        // `inject_reserve_into_writer_masmer`'s job, and doing it in both places
+        // is how the scanned value got into a call that never asked for it.
+        let none = "#מסמך(כותרת: \"שם\")[\nטקסט\n]";
+        assert_eq!(grow_inline_reserve(none, 4.0), none);
+    }
+
+    /// #58's third reader: `inject_reserve_into_writer_masmer` must write into a
+    /// real call, and into nothing else.
+    ///
+    /// The old version scanned for a `#` and read the identifier after it, so a
+    /// commented-out `#מסמך(` had an `אזור_הערות:` argument injected into the
+    /// middle of the comment — which is the comment the editor writes when a
+    /// writer parks a wrapper to think about it.
+    #[test]
+    fn injecting_the_reserve_touches_a_call_and_not_a_comment() {
+        // A bare `#מסמך[…]` is given an argument list.
+        let injected = inject_reserve_into_writer_masmer("#מסמך[\nטקסט\n]", "3.00cm");
+        assert!(
+            injected.contains("#מסמך(אזור_הערות: 3.00cm)["),
+            "the bare form was not given an argument list: {injected}"
+        );
+        // A paren call without the argument gets it, before whatever is there.
+        let with_other =
+            inject_reserve_into_writer_masmer("#מסמך(כותרת: \"שם\")[\nטקסט\n]", "3.00cm");
+        assert!(
+            with_other.contains("#מסמך(אזור_הערות: 3.00cm, כותרת:"),
+            "the argument was not written: {with_other}"
+        );
+        // **A commented-out wrapper is not a wrapper.**
+        for parked in [
+            "// #מסמך[\nטקסט\n]",
+            "/* #מסמך(כותרת: \"שם\")[\nטקסט\n] */",
+            "#כותרת_עליונה(\"#מסמך(\")",
+            "#let tpl = \"#מסמך(\"",
+        ] {
+            assert_eq!(
+                inject_reserve_into_writer_masmer(parked, "3.00cm"),
+                parked,
+                "a commented-out or quoted wrapper was written into: {parked}"
+            );
+        }
+        // A writer who named the reserve keeps their number, exactly.
+        let own = "#מסמך(אזור_הערות: 1cm)[\nטקסט\n]";
+        assert_eq!(inject_reserve_into_writer_masmer(own, "3.00cm"), own);
+        let own_en = "#מסמך(notes_region: 1cm)[\nטקסט\n]";
+        assert_eq!(inject_reserve_into_writer_masmer(own_en, "3.00cm"), own_en);
     }
 
     #[test]
@@ -4785,10 +5433,16 @@ mod tests {
 
     /// A page range as the numbers it names, for readable assertions.
     fn ranges(spec: &str) -> Vec<(Option<usize>, Option<usize>)> {
-        parse_page_ranges(spec)
+        parse_page_spec(spec)
+            .ranges
             .into_iter()
             .map(|r| (r.start().map(|n| n.get()), r.end().map(|n| n.get())))
             .collect()
+    }
+
+    /// The tokens a spec refused, for readable assertions.
+    fn offcuts(spec: &str) -> Vec<String> {
+        parse_page_spec(spec).bad
     }
 
     #[test]
@@ -4821,6 +5475,78 @@ mod tests {
         assert_eq!(ranges(""), vec![]);
         // Page zero does not exist; NonZeroUsize is what says so.
         assert_eq!(ranges("0"), vec![]);
+    }
+
+    /// #59: the tokens the parser could not read, named.
+    ///
+    /// This is the half of the fix the other tests cannot see. `ranges("0")` is
+    /// `[]` **both** before the fix and after it — what changed is that `[]` now
+    /// means "every token was refused, and here they are" instead of "no
+    /// restriction, export everything". The end-to-end proof of that is in
+    /// `tests/binding.rs`, which measures exported bytes; this is the grammar
+    /// that decides it, and it is the same grammar `app/src/pagerange.ts`
+    /// implements.
+    #[test]
+    fn a_page_range_that_names_no_page_is_refused_by_name() {
+        // The four that used to fail silently.
+        assert_eq!(offcuts("0"), vec!["0"], "page zero was not named");
+        assert_eq!(offcuts("0-5"), vec!["0-5"], "`0-5` was not named");
+        assert_eq!(offcuts("9-2"), vec!["9-2"], "a backwards range was not named");
+        assert_eq!(offcuts("-"), vec!["-"], "a bare dash was not named");
+        assert_eq!(offcuts("x"), vec!["x"], "garbage was not named");
+        // A clean spec names nothing.
+        assert_eq!(offcuts("1-4"), Vec::<String>::new());
+        // And the good tokens in a partly-bad spec still come through — this is
+        // the "costs only itself" rule, with the offcuts now visible.
+        assert_eq!(offcuts("1,x,5"), vec!["x"]);
+        assert_eq!(
+            ranges("1,x,5"),
+            vec![(Some(1), Some(1)), (Some(5), Some(5))]
+        );
+        // A spec naming page zero alongside a real one keeps the real one.
+        assert_eq!(ranges("0,3"), vec![(Some(3), Some(3))]);
+        assert_eq!(offcuts("0,3"), vec!["0"]);
+    }
+
+    /// #59: an all-refused spec is **not** an export of everything.
+    ///
+    /// This is the assertion that does not exist anywhere else and the one that
+    /// was the bug. `pdf_options` used to read "no ranges" as "no restriction",
+    /// so `0` exported the whole sefer. The distinction now lives here:
+    ///
+    /// | spec | `restricted` | `ranges` | export |
+    /// |---|---|---|---|
+    /// | `""` | false | — | every page — **correct**, the writer asked for that |
+    /// | `"0"` | true | — | **refused** |
+    /// | `"1,x"` | true | one | page 1, and `x` named |
+    #[test]
+    fn an_all_refused_page_range_is_refused_rather_than_every_page() {
+        let named = |s: &str| -> usize {
+            s.trim().is_empty()
+                .then_some(0)
+                .unwrap_or_else(|| parse_page_spec(s).ranges.len())
+        };
+        assert_eq!(named(""), 0, "an empty box is not a restriction at all");
+        assert_eq!(named("0"), 0, "`0` produced no ranges");
+        assert_eq!(named("x"), 0, "`x` produced no ranges");
+        assert_eq!(named("9-2"), 0, "`9-2` produced no ranges");
+        assert_eq!(named("1"), 1);
+        // And the export decision itself, which is the thing that was wrong.
+        assert!(
+            page_ranges_for_export(&parse_page_spec("")).unwrap().is_none(),
+            "an empty spec is every page"
+        );
+        assert!(
+            page_ranges_for_export(&parse_page_spec("0")).is_err(),
+            "an all-refused spec must not export everything"
+        );
+        // The error names the offending token, because that is what the writer
+        // has to fix.
+        let err = page_ranges_for_export(&parse_page_spec("0")).unwrap_err();
+        assert!(err.contains("\"0\""), "the token was not named: {err}");
+        // …and a partly-good spec still exports what it named.
+        let ok = page_ranges_for_export(&parse_page_spec("1,x")).unwrap();
+        assert_eq!(ok.map(|r| r.len()), Some(1));
     }
 
     #[test]

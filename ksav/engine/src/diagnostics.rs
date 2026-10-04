@@ -451,8 +451,34 @@ fn line_of_unsplittable(body: &str) -> Option<usize> {
 /// `@preview/meander:0.4.4` is what they can go and correct in their source.
 fn missing_package(raw: &str) -> Option<String> {
     // The message ends in the closing paren of `(searched at …)`.
-    let tail = raw.split("packages/").nth(1)?.trim_end_matches(')');
-    let mut parts = tail.split('/');
+    //
+    // **Both spellings of the path separator are tried, and so is the case where
+    // the root is not named `packages`.** Measured on #72, three searched-at
+    // shapes gave three different answers, and two of them were wrong:
+    //
+    // | searched at | before | now |
+    // |---|---|---|
+    // | `…/packages/preview/nothing-here/9.9.9/typst.toml` | `@preview/nothing-here:9.9.9` | same |
+    // | `…/lib/nothing-here/9.9.9/typst.toml` | **`None`** | `@local/nothing-here:9.9.9` |
+    // | `…/packages/nothing-here/9.9.9/typst.toml` | `nothing-here:9.9.9` (ns lost) | `@local/nothing-here:9.9.9` |
+    //
+    // The middle row is the one that mattered: a `@local` root is served from a
+    // directory the *writer* chose and need not be called `packages`, so
+    // splitting on the literal `"packages/"` degraded the message back to
+    // *"a file (e.g. an image) wasn't found"* — the exact wart #67 closed. So
+    // the namespace is recovered from the shape rather than from the parent's
+    // name: four segments and a manifest is a package, and `@local` is the
+    // answer whenever the root was not the bundled one.
+    let tail = raw
+        .split_once("packages/")
+        .or_else(|| raw.split_once("local/"))
+        .map(|(_, t)| t)
+        // Windows separators, because a shell on Windows sets a root and the
+        // same message then has to be readable there too.
+        .or_else(|| raw.split_once("packages\\").map(|(_, t)| t))
+        .or_else(|| raw.split_once("local\\").map(|(_, t)| t))?
+        .trim_end_matches(')');
+    let mut parts = tail.split(['/', '\\']);
     let ns = parts.next()?;
     let name = parts.next()?;
     let version = parts.next()?;
@@ -469,22 +495,41 @@ fn missing_package(raw: &str) -> Option<String> {
     Some(format!("@{ns}/{name}:{version}"))
 }
 
-/// What is actually in the packages directory, as `@namespace/name:version`.
+/// What is actually available to import, as `@namespace/name:version`.
 ///
 /// Read on the error path only. A list beats a path: a writer who is told
 /// *`meander` is not here* still has to guess what is, and the honest answer is
 /// one `read_dir` away. An empty or absent directory is reported as empty rather
 /// than as an error, because "you have none" is a true sentence.
+///
+/// **Every root, not just the bundled one** (#72). A writer who added their own
+/// package under `@local` and mistyped a name should be shown both directories'
+/// contents, otherwise the list answers a question they did not ask.
 pub fn bundled_packages() -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    let Ok(root) = std::fs::read_dir(crate::packages_root()) else {
-        return out;
+    collect_packages(&crate::packages_root(), &mut out);
+    if let Some(local) = crate::local_packages_root() {
+        collect_packages(local, &mut out);
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// Every `ns/name/version/typst.toml` under `root`, as `@ns:name:version`.
+fn collect_packages(root: &std::path::Path, out: &mut Vec<String>) {
+    let Ok(namespaces) = std::fs::read_dir(root) else {
+        return;
     };
-    for ns in root.flatten() {
-        let Ok(names) = std::fs::read_dir(ns.path()) else { continue };
+    for ns in namespaces.flatten() {
+        let Ok(names) = std::fs::read_dir(ns.path()) else {
+            continue;
+        };
         for name in names.flatten() {
-            let Ok(vers) = std::fs::read_dir(name.path()) else { continue };
-            for v in vers.flatten() {
+            let Ok(versions) = std::fs::read_dir(name.path()) else {
+                continue;
+            };
+            for v in versions.flatten() {
                 if v.path().join("typst.toml").is_file() {
                     out.push(format!(
                         "@{}:{}:{}",
@@ -496,8 +541,6 @@ pub fn bundled_packages() -> Vec<String> {
             }
         }
     }
-    out.sort();
-    out
 }
 
 fn where_it_happened(

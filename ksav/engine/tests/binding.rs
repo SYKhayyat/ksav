@@ -365,6 +365,186 @@ fn a_page_range_exports_fewer_pages() {
     );
 }
 
+/// #59: a `pdf_pages` token that names no page must never read as *every page*.
+///
+/// The bug was one line. `parse_page_ranges` dropped any token it could not
+/// read, and `pdf_options` read an empty result as "no restriction" — so:
+///
+/// | the writer typed | what happened | what it means |
+/// |---|---|---|
+/// | `0` | empty result → **every page** | a typo exported the whole sefer |
+/// | `0-5` | `None..=Some(5)` → pages 1–5 | "from zero" quietly became "from one" |
+/// | `9-2` | `Some(9)..=Some(2)` → **no pages** | the same failure, other way |
+/// | `x` | empty result → **every page** | same as `0` |
+///
+/// Three of the four are silent over- or under-export, and the one the triage
+/// called "silent over-export" is the `0` row.
+///
+/// The fence is **byte counts, not parser state**. `parse_page_spec` is private,
+/// so a unit test beside it could assert whatever it was rewritten to do; these
+/// go through the same `pdf_of` the rest of this file uses and compare the
+/// exported file against a full export, which is the claim the writer cares
+/// about. A fix that made the parser return the right ranges while leaving
+/// `pdf_options` reading empties as "everything" would pass a unit test and fail
+/// these.
+#[test]
+fn a_pdf_pages_token_that_names_no_page_is_not_a_full_export() {
+    let all_len = pdf_of(&DocConfig::default()).pdf.expect("baseline").len();
+
+    // The headline case: page zero is not a page, and asking for it must not
+    // hand back the entire document.
+    let zero = pdf_of(&DocConfig {
+        pdf_pages: "0".into(),
+        ..DocConfig::default()
+    });
+    match &zero.pdf {
+        // Refused outright — the export failed and said so.
+        None => assert!(
+            zero.diagnostics.iter().any(|d| d.severity == "error"),
+            "the export was refused with no reason: {:?}",
+            zero.diagnostics
+        ),
+        // Or, if it produced anything, it must not be the whole sefer.
+        Some(bytes) => assert!(
+            bytes.len() < all_len,
+            "`0` exported the whole document ({}) — the bug is not fixed",
+            bytes.len()
+        ),
+    }
+    // And either way the writer is told which token.
+    assert!(
+        zero
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("\"0\"")),
+        "the offending token was not named: {:?}",
+        zero.diagnostics
+    );
+
+    // `0-5` is the silent one: it used to parse as an open start and export pages
+    // 1–5 as though the writer had typed `1-5`. Now the zero is refused.
+    let zero_five = pdf_of(&DocConfig {
+        pdf_pages: "0-5".into(),
+        ..DocConfig::default()
+    });
+    assert!(
+        zero_five
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("\"0-5\"")),
+        "`0-5` was not named: {:?}",
+        zero_five.diagnostics
+    );
+
+    // A backwards range is the under-export twin: `Some(9)..=Some(2)` matches no
+    // page, so it used to produce a PDF with nothing in it and no complaint.
+    let backwards = pdf_of(&DocConfig {
+        pdf_pages: "9-2".into(),
+        ..DocConfig::default()
+    });
+    assert!(
+        backwards
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("\"9-2\"")),
+        "`9-2` was not named: {:?}",
+        backwards.diagnostics
+    );
+
+    // Garbage, and a bare dash — the last two rows of the table.
+    for spec in ["x", "-"] {
+        let out = pdf_of(&DocConfig {
+            pdf_pages: spec.into(),
+            ..DocConfig::default()
+        });
+        assert!(
+            out.diagnostics.iter().any(|d| d.message.contains(spec)),
+            "{spec:?} was not named: {:?}",
+            out.diagnostics
+        );
+        assert!(
+            out.pdf.as_ref().is_none_or(|b| b.len() < all_len),
+            "{spec:?} exported the whole document"
+        );
+    }
+}
+
+/// The other half of #59, and the reason the fix is not just "refuse
+/// everything": a **readable range mixed with a bad token still exports**, and
+/// says which part it dropped.
+///
+/// The house rule for this parser — *"an export that silently omits a malformed
+/// range still produces the pages the writer did name, where refusing produces
+/// no PDF at all over a typo in one field"* — is unchanged. A fix that turned
+/// every typo into a dead export would be worse than the bug: a writer who typed
+/// `1,x,5` would get no file rather than pages 1 and 5.
+#[test]
+fn a_good_range_survives_a_bad_token_in_the_same_spec() {
+    let all_len = pdf_of(&DocConfig::default()).pdf.expect("baseline").len();
+    let out = pdf_of(&DocConfig {
+        pdf_pages: "1,x".into(),
+        ..DocConfig::default()
+    });
+    let pdf = out
+        .pdf
+        .unwrap_or_else(|| panic!("a partial spec must still export: {:?}", out.diagnostics));
+    assert!(pdf.starts_with(b"%PDF"), "the export is not a PDF");
+    assert!(
+        pdf.len() < all_len,
+        "`1,x` exported every page ({}) — the readable token was dropped too",
+        pdf.len()
+    );
+    assert!(
+        out.diagnostics.iter().any(|d| d.message.contains("\"x\"")),
+        "the dropped token was not named: {:?}",
+        out.diagnostics
+    );
+}
+
+/// The specs that were always right must still be right.
+///
+/// This is the fence for the other failure mode of a fix like this one: a
+/// stricter parser that refuses `5-` or `,` or whitespace, and a writer who
+/// cannot export the pages they can plainly name.
+#[test]
+fn the_readable_specs_still_export_the_pages_they_name() {
+    let all_len = pdf_of(&DocConfig::default()).pdf.expect("baseline").len();
+    for spec in ["2", "1,3", "1-2", " 1 , 3 ", "1,,3", "2-"] {
+        let out = pdf_of(&DocConfig {
+            pdf_pages: spec.into(),
+            ..DocConfig::default()
+        });
+        assert!(
+            out.pdf.is_some(),
+            "{spec:?} stopped exporting: {:?}",
+            out.diagnostics
+        );
+        assert!(
+            out.pdf.as_ref().unwrap().len() < all_len,
+            "{spec:?} exported every page"
+        );
+        assert!(
+            !out
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(spec)),
+            "{spec:?} was wrongly reported as unreadable: {:?}",
+            out.diagnostics
+        );
+    }
+    // And an empty spec is every page, which is the one case where that is the
+    // correct answer rather than a failure.
+    let blank = pdf_of(&DocConfig {
+        pdf_pages: "   ".into(),
+        ..DocConfig::default()
+    });
+    assert_eq!(
+        blank.pdf.expect("blank exports everything").len(),
+        all_len,
+        "a blank spec is every page"
+    );
+}
+
 #[test]
 fn metadata_reaches_the_file() {
     // Not a PDF parser: the title is written into the XMP packet as plain XML,

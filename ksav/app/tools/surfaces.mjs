@@ -113,6 +113,35 @@ export const RECIPES = new Map([
   ["settings-drawer", { how: HOW.chip, chip: "settings" }],
   ["outline-drawer", { how: HOW.chip, chip: "outline" }],
   ["notes-drawer", { how: HOW.chip, chip: "notesPane" }],
+  // #89 — driven, because the minimap is opened by a settings toggle and by a key,
+  // not by a chip in the header: there is nowhere in the chrome for a strip that the
+  // writer drags around to put in it. `undrive` puts the setting back so the checks
+  // after it are not looking at a document with a canvas over it.
+  [
+    "minimap",
+    {
+      how: HOW.driven,
+      drive: async (page) => {
+        await page.evaluate(() => {
+          const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
+          raw.minimap = true;
+          localStorage.setItem("ksav.settings", JSON.stringify(raw));
+        });
+        await page.reload({ waitUntil: "networkidle" });
+      },
+      undrive: async (page) => {
+        await page.evaluate(() => {
+          const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
+          raw.minimap = false;
+          localStorage.setItem("ksav.settings", JSON.stringify(raw));
+        });
+        await page.reload({ waitUntil: "networkidle" });
+      },
+      why:
+        "Opened by the Settings toggle and its key rather than a header chip, so there " +
+        "is no chrome control to click; the harness sets the setting and reloads.",
+    },
+  ],
   ["marks-drawer", { how: HOW.chip, chip: "marksPane" }],
   [
     "find-drawer",

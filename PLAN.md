@@ -125,12 +125,25 @@ still right.
   **delimited** — `#1234zz` is not, and *"write `rgb("#1234")`"* is advice that cannot
   work. It also produced **two** errors, the second being the parser blaming the comma
   around the hole it left, so one mistake is now one message. (from #70)
-- [ ] #72 a sefer cannot read the disk at all, and that was never a decision. `#import
+- [x] #72 a sefer cannot read the disk at all, and that was never a decision. `#import
   "helper.typ"`, `read()`, absolute paths — all refused; only bundled packages resolve.
   The sandbox is *right* (`packages_root()` is a root a document cannot escape), but it
   means a sefer is one file forever. Proposal: `packages_root()` a second time, per
   sefer. **Cheap half first:** `@local` alone in the `app_data_dir()` that already holds
   the dictionary. Decision, not a task — autosave, `git.rs` and the file tree all move. (from #15)
+  — **Shipped the cheap half, and the deferral was right first.** The blocker was not the
+  resolver but that the engine had **no way to be told where anything is**: the compile
+  channel is `(name, String)`, so a root on the request means any loopback client and the
+  browser build could point a compile at any directory. So the seam is the *first* of the
+  two versions the issue named — `set_local_packages_root`, called once from `.setup()`,
+  first `set` wins — and the sandbox property is preserved rather than traded. Two
+  measured warts closed with it: `missing_package` split on the literal `"packages/"`, so
+  a root **not** called `packages` degraded to *"a file (e.g. an image) wasn't found"*, and
+  the namespace was lost. Four fences, and the one that matters is
+  `a_local_root_does_not_open_the_disk` — a feature whose whole justification is *"still a
+  sandbox"* is not done until something says so. **A sefer is still one file**; the
+  multi-file decision is untouched and now starts from a working seam.
+  `decisions/2026-10-02-local-a-root-the-sandbox-survives.md`
 - [x] #77 parallel streams. (from #15) — **Decided (build it), and found mostly
   already built.** `הגדרות_זרמים(פריסה: "צד")` is side-by-side, a column per stream, with
   a per-stream `טורים` count, and measured over seven pages each stream **keeps its column
@@ -141,7 +154,7 @@ still right.
   `examples/streams.rs` proves the architecture — each stream its own band-sized document,
   pages zipped by index — and **duplicates what `פריסה: "צד"` does**, so it is evidence
   and must not become a second mechanism. (from #15)
-- [ ] #80 **reledmac + reledpar** for Hebrew RTL text-critical editions — forwarded
+- [x] #80 **reledmac + reledpar** for Hebrew RTL text-critical editions — forwarded
   research, **unverified, and a different shape from #73**. It is LaTeX, and #67's
   resolver takes Typst packages only, so this is not "bundle a dependency" but *read it
   for the knowledge* / *adopt a second engine* / *nothing*. The multi-stream half is
@@ -151,10 +164,40 @@ still right.
   "Bug C" is the most transferable claim in the set). The forwarded verdict, "the only
   system capable of handling it", is a claim of exactly the kind this repository measures
   first. (from #80)
-- [ ] #73 bundle real Typst libraries, starting with `meander`. #67 made it possible for
+  — **Verified: do not adopt. Six of seven claims are false.** Checked against the CTAN
+  page, both official manuals, `reledmac.dtx` (22,852 lines), the three official examples
+  and TeX.SE. **Five of the named macros do not exist** (`\Xbeforelemma`,
+  `\Xafterlemma`, `\Xledmacinit`, `\Xfootdir`, `\RTLpair` — **0 occurrences** each), so the
+  forwarded blueprint could not have been written against this package. The engine advice
+  is **inverted**: the manual says RTL `\sameword` *requires* LuaTeX, and the official RTL
+  example opens *"In this example, we use Lua\LaTeX."* The central claim — that bidi and
+  reledmac collide at the line-measuring level — is contradicted by the manual's **own**
+  bidi integration: `\if@RTL` is consumed, the RTL lemma bracket switches *automatically*
+  (so Claim 4's "fix" is the defect), footnote direction is automatic per note, and the
+  changelog is a decade of bidi fixes. The one real TeX.SE question (#630018) was a
+  diacritic pasted onto `\edtext`. And "several independent footnote registers" is
+  **already built and fenced** (`מספור` per-stream, `endnote_streams_side_by_side`). The
+  residue is exactly **line numbers and lemmata** — and neither is a port, because both
+  follow from owning the line, which is a question about Ksav's engine. Licence is LPPL
+  1.3: fine to depend on, not to vendor. `decisions/2026-10-02-reledmac-verified-the-claims-are-false.md`
+- [x] #73 bundle real Typst libraries, starting with `meander`. #67 made it possible for
   the first time; #70 has now **removed the main reason** (they thread cleanly). What
   remains is the uncomfortable one: page-breaking is what a typesetting app most needs
   to control. (from #15)
+  — **Read it, measured it, and the answer is no.** Fetched 0.4.4 and read the source:
+  **MIT**, so the licence objection is *gone*, and 26 KB, so the weight objection is moot.
+  But `reflow` threads **one ordered queue** around obstacles (`smart-fill-boxes` pops
+  `body-queue` in sequence) and the `query`/`tags` mechanism addresses a **placement**,
+  not a destination — so the **addressed routing** this issue was corrected to be about is
+  **not in the package**. What it does do, Ksav has measured and fenced: side notes,
+  named regions with per-stream numbering, content flowing across columns and pages. Both
+  named beneficiaries are settled without it (#70 for note spill; routing for the rest).
+  And the objection never answered — a third party in the page-breaking path — is the one
+  that decides it, because the overlap is *total*. **The durable output is a fence, not a
+  package**: `the_prelude_depends_on_no_third_party_package`, asserted on the *assembled*
+  document and covering `@preview` **and** `@local`, so "a Ksav without it is still a
+  complete Ksav" is now true rather than intended.
+  `decisions/2026-10-02-meander-read-measured-not-bundled.md`
 - [x] #15 two-document glue. (High) — **the seam is fixed; the premise is not.** The
   7 cm margin clamp was *silently* refusing a 21.7 cm seam, which is the bug the app
   already names one layer up; a margin is now bounded by the sheet and a refusal is
@@ -295,7 +338,40 @@ still right.
   failed the compile would be a different bug. Also found: `name.is_empty()` in
   that condition was unreachable, `diagnose_name` had already refused an empty
   name eight lines earlier with the better sentence.
-- [ ] #62 tokenizer quadratic,  #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
+- [x] #62 tokenizer quadratic,  #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
+  — **Three measured, three fixed, and one of the three was not the bug it was filed as.**
+  - **#62 — the quadratic is not real.** `run_of_letters` was asked once per separator and
+    scanned to the end of its word, which reads as O(n²) and was filed on that reading. It is
+    not: the scan terminates on the next character that is **not** part of a word, and that is
+    exactly the set of characters `joins` is called *for* — so the regions do not overlap and
+    their lengths sum to at most the text. `examples/bench-tokenize.rs` measures it at five
+    sizes across five shapes, work-normalised, and every shape reads **flat**; the one that
+    read `QUADRATIC` on a first run was **the shared box**, not the code, and taking the
+    minimum of seven runs turned the same shape into a dead-flat 3.88 → 3.88 ms/MB. So the cap
+    landed anyway — it makes the bound O(1) per separator *unconditionally* rather than by
+    argument about today's rules — and `english::joins` had the identical disease and got it
+    too. The correctness fence is the boundary the cap is only allowed to be wrong past:
+    `שו"ע` and `נפק"מ` hold, `שו"עאב` splits.
+  - **#59 — a typo exported the whole sefer.** `pdf_pages` dropped every token it could not
+    read and `pdf_options` read the empty result as *"no restriction"*, so `0` exported every
+    page, `0-5` silently meant pages 1–5, and `9-2` exported **nothing**. The editor's own
+    `pagerange.ts` already had this right and kept the offcuts — the engine was the copy that
+    did not, and the two were never compared. The engine now adopts **that** grammar and
+    fails **closed**: every token refused is an error naming them, not an empty range meaning
+    everything. A *partly* good spec still exports its readable tokens — refusing the whole
+    export over one typo would be worse than the bug. The fence is **exported bytes** in
+    `tests/binding.rs`, not parser state, because a fix that taught the parser the right
+    answers while leaving `pdf_options` reading empties as "everything" would pass a unit test.
+  - **#58 — the last hand-rolled scan of its kind.** The inline reserve reader did
+    `body.find("אזור_הערות")` and took the number after the colon, so **prose, a `//` comment,
+    a string and a raw block all read as the writer fixing the page-foot reserve** — and
+    `grow_inline_reserve` *wrote over* it, silently, shortening the text block of every page.
+    `auto_notes_region_cm` had been moved onto the Typst parse long ago (*"with the parser
+    now doing the lexing"*, in its own test); the inline reserve had not, and now all three
+    readers come through one `find_writer_masmer` off the parse. `inject_reserve_into_writer_masmer`
+    had the same disease and wrote an argument into a **commented-out** `#מסמך(` — which is
+    what the editor's own "comment out" writes.
+- [ ] #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
 - [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port, #21 styles walkers onto walkArgs.
 - [ ] #7 keyed updates (5× replaceChildren).
 

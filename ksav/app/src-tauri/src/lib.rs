@@ -542,6 +542,31 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager as _;
 
+            // The writer's own Typst libraries: `#import "@local/…"` resolved
+            // from a `packages/` directory beside the dictionary, which is
+            // where a person would look for it (#72).
+            //
+            // **Set here, once, at startup — and this is the only place it is
+            // set.** That is the whole of the sandbox argument: the compile
+            // channel is `(name, String)`, so nothing a document or a loopback
+            // client says can move this root. A root that arrived on the request
+            // could be pointed at any directory on the disk, and the property
+            // that earned the resolver its keep — *its root **is** the package
+            // directory, a document cannot reach anything else through it* —
+            // would be gone.
+            //
+            // Created if absent, because a writer who has added no packages
+            // should still find the directory waiting for them rather than have
+            // to guess its path. Nothing else is created inside it.
+            if let Ok(dir) = app.path().app_data_dir() {
+                let packages = dir.join("packages");
+                if let Err(e) = std::fs::create_dir_all(&packages) {
+                    log::warn!("no @local package root at {}: {e}", packages.display());
+                } else {
+                    ksav_engine::set_local_packages_root(&packages);
+                }
+            }
+
             // The loopback desk. A failure here costs the pairing and not the
             // editor: Ksav is a writing application first, and without it the
             // only thing that stops working is being handed a source.

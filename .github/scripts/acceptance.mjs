@@ -775,6 +775,34 @@ async function main() {
     waitFor: (sel, ms) => page.waitForSelector(sel, { timeout: ms }),
     rightClick: (sel) => page.click(sel, { button: "right", timeout: 15_000 }),
     escape: () => press("Escape"),
+    /**
+     * Set one editor setting and reload, for a surface with **no chrome control**.
+     *
+     * A named member rather than handing recipes the raw `page`, and the reason
+     * is that this run caught the alternative: the minimap recipe took a
+     * parameter it called `page` and called `.evaluate` on it, and the harness
+     * passes `driver` — so it failed with `page.evaluate is not a function`,
+     * a message naming a type the recipe believed it had been given and had
+     * not. **729 checks, and the one failure was the harness lying about its own
+     * interface.**
+     *
+     * `localStorage` before navigation rather than a settings call after it,
+     * because that is how a writer's own preference arrives: the same
+     * `addInitScript` reasoning `tools/eyes.mjs` uses, and the same reason —
+     * one navigation, no second chance to lose the thing.
+     */
+    setSetting: async (key, value) => {
+      await page.addInitScript(
+        ([k, v]) => {
+          const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
+          raw[k] = v;
+          localStorage.setItem("ksav.settings", JSON.stringify(raw));
+        },
+        [key, value],
+      );
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForSelector(".cm-content", { timeout: 30_000 });
+    },
   };
 
   /**

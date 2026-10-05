@@ -121,22 +121,20 @@ export const RECIPES = new Map([
     "minimap",
     {
       how: HOW.driven,
-      drive: async (page) => {
-        await page.evaluate(() => {
-          const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
-          raw.minimap = true;
-          localStorage.setItem("ksav.settings", JSON.stringify(raw));
-        });
-        await page.reload({ waitUntil: "networkidle" });
-      },
-      undrive: async (page) => {
-        await page.evaluate(() => {
-          const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
-          raw.minimap = false;
-          localStorage.setItem("ksav.settings", JSON.stringify(raw));
-        });
-        await page.reload({ waitUntil: "networkidle" });
-      },
+      // **`driver.setSetting`, not `page.evaluate`.** The recipe used to take a
+      // parameter it named `page` and call `.evaluate` and `.reload` on it, and
+      // the harness passes `driver` — which has neither. So the one failing check
+      // in a 729-check run was `page.evaluate is not a function`: a message that
+      // named a type the recipe had been *given* and had not.
+      //
+      // Two things wrong with it, and the second is why it went unnoticed. It
+      // assumed an interface, so the recipe was wrong in a way no type checker
+      // sees — `surfaces.mjs` is data, imported by the test suite and by the
+      // script. And a raw `evaluate` is the escape hatch this harness exists not
+      // to offer: every other recipe goes through a named member so that what it
+      // does to the application is legible in the recipe.
+      drive: async (driver) => driver.setSetting("minimap", true),
+      undrive: async (driver) => driver.setSetting("minimap", false),
       why:
         "Opened by the Settings toggle and its key rather than a header chip, so there " +
         "is no chrome control to click; the harness sets the setting and reloads.",

@@ -200,6 +200,77 @@ export async function run() {
     /no Chromium found/.test(eyes),
   );
 
+  // ------------------------------------------------------- what a recipe may call
+  //
+  // **The recipe interface is an interface, and nothing was checking it.**
+  //
+  // `surfaces.mjs` is *data* — imported by this suite and by the acceptance
+  // script — so a recipe that calls a method the harness does not have is not a
+  // type error, it is a runtime failure 700 checks later. The minimap recipe took
+  // a parameter it named `page` and called `.evaluate` on it; the harness passes
+  // `driver`, which has no `evaluate`. It failed with
+  //
+  //     FAIL minimap can be opened — page.evaluate is not a function
+  //
+  // which names a type the recipe had been *given* and had not. **The one
+  // failing check in a 729-check run was the harness lying about its own
+  // interface**, and nothing above could see it: the surfaces are reachable, each
+  // says why, and the selector is present in the file.
+  //
+  // So the members a recipe may call are named here, and a recipe that reaches
+  // for anything else fails. `page` is the interesting one — it is the name the
+  // failing recipe used, and it is the name a reader will reach for next.
+  {
+    const DRIVER_MEMBERS = [
+      "type", "newLine", "click", "press", "focus", "settled", "waitFor",
+      "rightClick", "escape", "setSetting",
+    ];
+    const recipes = [...RECIPES].filter(
+      ([, r]) => typeof r.drive === "function" || typeof r.undrive === "function",
+    );
+    ok("there are driven recipes to hold to the interface", recipes.length > 3, `${recipes.length}`);
+
+    // Every identifier a recipe body mentions after `d.`/`driver.`/`p.`, which is
+    // the whole of the call surface: recipes reach the driver through one of
+    // these three names in every recipe written so far.
+    const strays = [];
+    for (const [id, r] of recipes) {
+      for (const fn of ["drive", "undrive"]) {
+        const body = typeof r[fn] === "function" ? String(r[fn]) : "";
+        // **The parameter's own name, not a guess at it.**
+        //
+        // The first version hardcoded `driver|d|p` as the receiver, and a
+        // mutation that reintroduced the original bug — `async (page) => {
+        // await page.evaluate(…) }` — **survived**, because `\bp\.` does not match
+        // `page.evaluate`: there is `age` between the `p` and the dot. The check
+        // that existed specifically to catch a recipe believing it was handed a
+        // page could not see a recipe that believed it was handed a page.
+        //
+        // So read the name off the arrow function, and then any member it reaches
+        // for is a member the harness had better have.
+        const param = /^(?:async\s*)?\(\s*([A-Za-z_$][\w$]*)\s*\)/.exec(body)?.[1]
+          ?? /^(?:async\s*)?([A-Za-z_$][\w$]*)\s*=>/.exec(body)?.[1];
+        if (!param) continue;
+        for (const m of body.matchAll(
+          new RegExp(`\\b${param}\\.([A-Za-z_$][\\w$]*)`, "g"),
+        )) {
+          if (!DRIVER_MEMBERS.includes(m[1])) strays.push(`${id}.${fn}: ${param}.${m[1]}`);
+        }
+      }
+    }
+    check("no recipe calls a member the harness does not have", strays, []);
+    // **Both member syntaxes.** `type` and `newLine` are shorthand properties
+    // (`type,` on a line of their own) and the rest are `key: fn` pairs, so a
+    // check written for one form alone fails on the other two and looks like a
+    // missing member. First version did exactly that.
+    const declared = (m) =>
+      new RegExp(`\\b${m}:|\\n\\s*${m},`).test(script);
+    const missing = DRIVER_MEMBERS.filter((m) => !declared(m));
+    check("and the members it does have are the ones listed", missing, []);
+    // The name that misled the recipe, named so the failure reads as itself.
+    check("and no recipe believes it was handed a page", strays.filter((s) => s.includes("page")), []);
+  }
+
   // ---------------------------------------------------------------- the clicks
   //
   // Helpers above `step(0`, steps below it. Everything below has to go through

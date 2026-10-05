@@ -457,7 +457,19 @@ still right.
   reports the problem as solved. The fences are the only property a cache may have: **the
   answer must not change whatever order keys arrive in**, and the entry count stays
   bounded.
-- [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port, #21 styles walkers onto walkArgs.
+- [x] #21 styles walkers onto `walkArgs`. — **Was already done; closed on a mutation, not a
+  reading.** `styles.ts` holds **no** hand-rolled argument walker: every parse goes through
+  `splitArgs`/`splitArgsRaw`/`topLevelColon` from `spans.ts`, and there is no `depth` counter
+  in the file. The prelude says so at `spans.ts:57` — *"There were four of them in
+  `styles.ts` alone — none of which the survey that started this work counted"*.
+  The **"diverges over time"** half is fenced too: `spans.test.mjs` §1 prohibits by name
+  (`function matchBracket|matchGroup|…`) **and by shape** (a `depth` counter within 80 lines
+  of a bracket literal, which is what all ten historical scanners looked like), in every
+  module but `spans.ts`. Confirmed by putting a walker back into `styles.ts`: it fails with
+  `no module but spans.ts counts bracket depth — got ["styles.ts:310"]`, and passes once
+  removed. **The second time in two issues that the finding was "already shipped"** — see
+  #88 — which is worth noticing about this plan.
+- [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port.
 - [ ] #7 keyed updates (5× replaceChildren).
 
 ## Phase 5 — Features / proposals (Info/Low, after engine is safe)

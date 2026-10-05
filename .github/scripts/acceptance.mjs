@@ -428,7 +428,16 @@ async function main() {
   const since = () => problems.length;
   const newProblems = (mark) => problems.slice(mark);
 
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+  // **The navigation used to be here, above the probes below** — which meant the
+  // very first load never ran them, and `window.__ksavStatus` was undefined from
+  // the moment the run began. Changing the install from `evaluate` to
+  // `addInitScript` (so it survives a reload) is only correct once the *first*
+  // load is a navigation the init scripts apply to; it was the other half of the
+  // same fix, and missing it turned one broken probe into six.
+  //
+  // So the probes are installed first and the page is loaded second, which is the
+  // ordinary way round and the only order in which both the first load and every
+  // reload after it are instrumented.
 
   // The status recorder.
   //
@@ -437,7 +446,20 @@ async function main() {
   // replaced wholesale by `render()` when the chrome rebuilds, so this observes
   // the subtree of `#app` and reads the element by id each time rather than
   // holding a reference to one that may already have been discarded.
-  await page.evaluate(() => {
+  //
+  // **`addInitScript`, not `evaluate`.** It used to be `evaluate`, which runs once
+  // on the current `window` — and every `page.reload()` throws that window away.
+  //
+  // Nothing noticed, because **the minimap recipe is the only one that reloads**
+  // and it used to throw before reaching its reload. Fixing that (#729 checks, 1
+  // failure) let the reload actually happen for the first time, and every
+  // subsequent `compiles()` threw `Cannot read properties of undefined (reading
+  // 'filter')` — the run stopped after 465 checks instead of finishing.
+  //
+  // So this line was the real bug and the minimap recipe was only the thing that
+  // had never reached it. `addInitScript` re-runs on every navigation, which is
+  // the whole property wanted of a probe that has to survive one.
+  await page.addInitScript(() => {
     const w = /** @type {any} */ (window);
     w.__ksavStatus = [];
     const note = () => {
@@ -448,12 +470,26 @@ async function main() {
       if (last && last.text === entry.text && last.cls === entry.cls) return;
       w.__ksavStatus.push(entry);
     };
-    new MutationObserver(note).observe(document.getElementById("app") ?? document.body, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-    });
+    //
+    // **Fall back to `document`, not to nothing.** An init script runs at
+    // document-start, where `document.body` is still `null`, so
+    // `getElementById("app") ?? document.body` observed `null`, `observe` threw,
+    // and the rest of the install was abandoned — no observer, no statuses, and
+    // every `settled()` afterwards waiting for a compile that could never be seen.
+    // That is the 30-second timeout on the *first* compile, in a run that had not
+    // managed a single check.
+    //
+    // `document` exists at document-start and `subtree: true` reaches everything
+    // the other two would have.
+    new MutationObserver(note).observe(
+      document.getElementById("app") ?? document.body ?? document,
+      {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+      },
+    );
     note();
 
     // How many compiles asked which lines printed on which page.
@@ -473,11 +509,18 @@ async function main() {
     };
   });
 
+  // **After** the probes, so that this load and every reload are instrumented.
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+
   /** How many compiles have finished so far. */
   const compiles = () =>
     page.evaluate(() =>
-      /** @type {any} */ (window).__ksavStatus.filter((e) =>
-        e.cls === "ok" || e.cls === "warn" || e.cls === "err"
+      // **`?? []` rather than a bare field read.** "No compiles recorded yet" is a
+      // legitimate state — it is the state immediately after a reload, before the
+      // editor has asked for anything — and it was being reported as a crash of
+      // the run rather than as the number zero.
+      (/** @type {any} */ (window).__ksavStatus ?? []).filter(
+        (e) => e.cls === "ok" || e.cls === "warn" || e.cls === "err",
       ).length,
     );
 
@@ -1492,7 +1535,11 @@ async function main() {
   step(9, "a document with nothing in it still says something");
   current = "empty";
   await pressInEditor("Control+Alt+n");
-  await settled(await compiles()).catch(() => {});
+  // **The `.catch` belongs on `compiles()`, not on `settled(...)`.** `await
+  // compiles()` is evaluated as the argument, so a throw from it happens *before*
+  // `settled` is ever called and escapes the guard entirely — which is how the
+  // run above stopped dead on a line that was written to survive anything.
+  await settled(await compiles().catch(() => 0)).catch(() => {});
 
   let saidSomething = 0;
   for (const id of LISTS) {

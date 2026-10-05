@@ -261,9 +261,10 @@ preamble produced, and a `.ksav' is a file people are sent.
 
 The wording is this function's own rather than the engine's, and that is a
 known duplication: `DocFile::advisories' says the same thing for the CLI. The
-two answer "one sentence, produced once" only once there is a service the
+two answer \"one sentence, produced once\" only once there is a service the
 editor can ask, which is a protocol change rather than a sentence, so out of
-scope here — and the sentence here is therefore deliberately the short one.
+scope here — and the sentence here is deliberately the short one.
+
 
 It says only what is true, and that is worth the care: packages are bundled and
 never fetched, the resolver's root is the package directory so a document cannot

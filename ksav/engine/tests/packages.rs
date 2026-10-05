@@ -38,11 +38,8 @@ fn local_root() -> std::path::PathBuf {
              entrypoint = \"lib.typ\"\nlicense = \"MIT\"\n",
         )
         .expect("a @local manifest");
-        std::fs::write(
-            pkg.join("lib.typ"),
-            "#let greet(who) = [תוכם #who]\n",
-        )
-        .expect("a @local entrypoint");
+        std::fs::write(pkg.join("lib.typ"), "#let greet(who) = [תוכם #who]\n")
+            .expect("a @local entrypoint");
         ksav_engine::set_local_packages_root(&root);
         root
     })
@@ -127,11 +124,14 @@ fn a_wrong_version_names_the_version_that_was_asked_for() {
 /// list — so the answer to "what can I import?" is in the error itself.
 #[test]
 fn the_message_lists_what_is_bundled() {
-    let said = probe::layout("#import \"@preview/nothing-here:9.9.9\": x\n#x", &DocConfig::default())
-        .unwrap_err()
-        .pop()
-        .map(|d| d.message)
-        .unwrap_or_default();
+    let said = probe::layout(
+        "#import \"@preview/nothing-here:9.9.9\": x\n#x",
+        &DocConfig::default(),
+    )
+    .unwrap_err()
+    .pop()
+    .map(|d| d.message)
+    .unwrap_or_default();
     assert!(
         said.contains("@preview:ksavtest:0.1.0"),
         "the bundled package was not listed: {said}"
@@ -161,10 +161,7 @@ fn the_prelude_depends_on_no_third_party_package() {
     // "@local/…"` would make every sefer depend on a directory Ksav does not
     // ship — the same failure by a different spelling.
     for ns in ["@preview", "@local"] {
-        let hits: Vec<&str> = assembled
-            .lines()
-            .filter(|l| l.contains(ns))
-            .collect();
+        let hits: Vec<&str> = assembled.lines().filter(|l| l.contains(ns)).collect();
         assert!(
             hits.is_empty(),
             "the assembled document reaches for {ns} — a Ksav without that \
@@ -242,11 +239,14 @@ fn a_local_root_does_not_shadow_the_bundled_one() {
     // and what the message prints; the *import* is the slash form. Asserting the
     // wrong one of those two would fail while the feature worked perfectly,
     // which is the other thing this test is for.
-    let said = probe::layout("#import \"@local/nothing-here:9.9.9\": x\n#x", &DocConfig::default())
-        .unwrap_err()
-        .pop()
-        .map(|d| d.message)
-        .unwrap_or_default();
+    let said = probe::layout(
+        "#import \"@local/nothing-here:9.9.9\": x\n#x",
+        &DocConfig::default(),
+    )
+    .unwrap_err()
+    .pop()
+    .map(|d| d.message)
+    .unwrap_or_default();
     assert!(
         said.contains("@local:kavlocal:1.0.0"),
         "the @local package was not listed: {said}"
@@ -276,11 +276,14 @@ fn a_missing_local_package_is_named_from_a_root_not_called_packages() {
         Some("packages"),
         "this test is only meaningful on a root that is not named `packages`"
     );
-    let said = probe::layout("#import \"@local/nothing-here:9.9.9\": x\n#x", &DocConfig::default())
-        .unwrap_err()
-        .pop()
-        .map(|d| d.message)
-        .unwrap_or_default();
+    let said = probe::layout(
+        "#import \"@local/nothing-here:9.9.9\": x\n#x",
+        &DocConfig::default(),
+    )
+    .unwrap_err()
+    .pop()
+    .map(|d| d.message)
+    .unwrap_or_default();
     assert!(
         said.contains("@local/nothing-here:9.9.9"),
         "the @local package was not named: {said}"
@@ -307,10 +310,7 @@ fn a_local_root_does_not_open_the_disk() {
     let _ = local_root();
     for (what, doc) in [
         ("an absolute import", "#import \"/etc/hostname\"\n#x"),
-        (
-            "a relative sibling import",
-            "#import \"helper.typ\"\n#x",
-        ),
+        ("a relative sibling import", "#import \"helper.typ\"\n#x"),
         ("a read()", "#read(\"names.txt\")"),
         (
             "an escape out of the package root",

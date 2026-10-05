@@ -58,7 +58,14 @@ fn asset(name: &str) -> Assets {
 /// rather than a check on one field.
 #[test]
 fn a_name_that_steps_outside_the_folder_is_refused_rather_than_resolved() {
-    for name in ["../x.png", "a/../../b.png", "..\\x.png", "C:\\x.png", "C:/x.png", "/etc/passwd"] {
+    for name in [
+        "../x.png",
+        "a/../../b.png",
+        "..\\x.png",
+        "C:\\x.png",
+        "C:/x.png",
+        "/etc/passwd",
+    ] {
         let why = diagnose_name(name).unwrap_or_else(|| panic!("{name:?} was accepted"));
         assert!(
             why.contains("..") || why.contains("absolute") || why.contains("outside"),
@@ -78,11 +85,7 @@ fn the_two_that_panicked_are_refused_before_anything_is_read() {
     // panic. A gate placed *after* the resolver would be too late and this test
     // would find out the hard way.
     for name in ["../x.png", "C:\\x.png"] {
-        let out = compile_with(
-            "#שער[מסמך]\n\nשלום\n",
-            &DocConfig::default(),
-            &asset(name),
-        );
+        let out = compile_with("#שער[מסמך]\n\nשלום\n", &DocConfig::default(), &asset(name));
         assert!(out.ok, "{name:?}: the document should still typeset");
     }
 }
@@ -132,9 +135,7 @@ fn nothing_replaces_the_prelude() {
             "an asset named {name:?} reached the compiler as the prelude"
         );
         assert!(
-            out.diagnostics
-                .iter()
-                .any(|d| d.message.contains("attack")),
+            out.diagnostics.iter().any(|d| d.message.contains("attack")),
             "{name:?}: `#attack` should be reported as unknown, so the asset was shadowed"
         );
     }
@@ -156,7 +157,12 @@ fn a_refusal_is_announced() {
         ],
     });
     let (assets, missing, refused) = Assets::from_request(&v);
-    assert_eq!(assets.files.len(), 1, "the good one survives: {:?}", assets.files.len());
+    assert_eq!(
+        assets.files.len(),
+        1,
+        "the good one survives: {:?}",
+        assets.files.len()
+    );
     assert_eq!(assets.files[0].name, "logo.png");
     assert!(missing.is_empty());
     check_refusal(&refused);
@@ -183,7 +189,10 @@ fn check_refusal(refused: &Refused) {
     let diags = refused.diagnostics();
     assert_eq!(diags.len(), refused.names.len());
     for d in &diags {
-        assert_eq!(d.severity, "warning", "a refusal is a warning, not a broken sefer");
+        assert_eq!(
+            d.severity, "warning",
+            "a refusal is a warning, not a broken sefer"
+        );
         // Bilingual, because the client reads it in whichever language the writer
         // is working in, and a name in a diagnostic is the whole content.
         assert!(d.message.contains('“') || d.message.contains('"'));
@@ -227,4 +236,3 @@ fn the_gate_does_not_refuse_an_ordinary_document() {
     assert_eq!(assets.files.len(), 1, "the data: entry");
     assert_eq!(assets.fonts.len(), 1, "the font");
 }
-

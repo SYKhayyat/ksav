@@ -48,8 +48,7 @@ fn corpus() -> Vec<(&'static str, String)> {
     ));
     out.push((
         "text",
-        "#שער[דוגמה]\n\n#פסוק[בראשית א׳, א׳][בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ].\n"
-            .to_string(),
+        "#שער[דוגמה]\n\n#פסוק[בראשית א׳, א׳][בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ].\n".to_string(),
     ));
     out
 }
@@ -209,7 +208,11 @@ fn scan(svg: &str, into: &mut Seen) {
 fn main() {
     let mut seen = Seen::default();
     for (name, body) in corpus() {
-        let assets = if body.contains("logo.svg") { assets() } else { Default::default() };
+        let assets = if body.contains("logo.svg") {
+            assets()
+        } else {
+            Default::default()
+        };
         for page in pages(&body, assets) {
             scan(&page, &mut seen);
         }
@@ -225,7 +228,10 @@ fn main() {
     let mut out = serde_json::to_string_pretty(&doc).expect("serialise");
     out.push('\n');
 
-    let path = format!("{}/tests/fixtures/svg-vocabulary.json", env!("CARGO_MANIFEST_DIR"));
+    let path = format!(
+        "{}/tests/fixtures/svg-vocabulary.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
     std::fs::write(&path, &out).expect("write svg-vocabulary.json");
     println!(
         "wrote svg-vocabulary.json — {} elements, {} attributes, {} alarming",

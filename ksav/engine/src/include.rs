@@ -168,14 +168,20 @@ impl Default for Limits {
     /// keystroke and anything past that stops being interactive whatever the
     /// document says.
     fn default() -> Self {
-        Limits { warn: 100_000, refuse: 500_000 }
+        Limits {
+            warn: 100_000,
+            refuse: 500_000,
+        }
     }
 }
 
 impl Limits {
     /// A pair that never fires, for a caller that has no configuration.
     pub fn unlimited() -> Self {
-        Limits { warn: usize::MAX, refuse: usize::MAX }
+        Limits {
+            warn: usize::MAX,
+            refuse: usize::MAX,
+        }
     }
 }
 
@@ -271,7 +277,12 @@ pub fn expand(main: &str, parts: &HashMap<String, String>, limits: Limits) -> Ex
         ..Expanded::default()
     };
     let mut stack: Vec<String> = Vec::new();
-    let mut walk = Walk { limits, warned: false, stopped: false, said: Default::default() };
+    let mut walk = Walk {
+        limits,
+        warned: false,
+        stopped: false,
+        said: Default::default(),
+    };
     expand_into(main, None, parts, &mut stack, 0, &mut out, &mut walk);
     // The map is what everything downstream indexes by, so it has to agree with
     // the text exactly. `push_line` terminates each line rather than separating
@@ -516,7 +527,11 @@ mod tests {
         // The whole reason the expansion is here and not in Typst. A diagnostic
         // on line 3 of the assembled body means nothing to somebody looking at a
         // chapter; "perek-3, line 2" means everything.
-        let out = expand("א\n#כלול(\"ב\")\nג", &parts(&[("ב", "x\ny")]), Limits::default());
+        let out = expand(
+            "א\n#כלול(\"ב\")\nג",
+            &parts(&[("ב", "x\ny")]),
+            Limits::default(),
+        );
         assert_eq!(
             out.origin_of(1),
             Some(&Origin {
@@ -590,7 +605,11 @@ mod tests {
         // Only a part open *above* this one is a cycle. Including the same
         // boilerplate at the top of two chapters is completely ordinary, and an
         // over-eager check would refuse it.
-        let out = expand("#כלול(\"ב\")\n#כלול(\"ב\")", &parts(&[("ב", "שלום")]), Limits::default());
+        let out = expand(
+            "#כלול(\"ב\")\n#כלול(\"ב\")",
+            &parts(&[("ב", "שלום")]),
+            Limits::default(),
+        );
         assert_eq!(out.text, "שלום\nשלום\n");
         assert!(out.problems.is_empty());
     }
@@ -600,7 +619,11 @@ mod tests {
         // The rest of the sefer is still worth seeing, and a red marker is a far
         // better report than a blank preview. A silent gap would be discovered
         // when the sefer came back from the printer.
-        let out = expand("לפני\n#כלול(\"אין\")\nאחרי", &HashMap::new(), Limits::default());
+        let out = expand(
+            "לפני\n#כלול(\"אין\")\nאחרי",
+            &HashMap::new(),
+            Limits::default(),
+        );
         assert!(out.text.contains("לפני") && out.text.contains("אחרי"));
         assert!(out.text.contains("חסר"));
         assert_eq!(out.problems.len(), 1);

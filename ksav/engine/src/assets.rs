@@ -256,7 +256,10 @@ pub fn diagnose_name(name: &str) -> Option<String> {
         ));
     }
     if name.chars().any(|c| c.is_control()) {
-        return Some(format!("“{}” contains a control character", escape_it(name)));
+        return Some(format!(
+            "“{}” contains a control character",
+            escape_it(name)
+        ));
     }
     None
 }

@@ -130,8 +130,16 @@ fn the_region_spelling_reserves() {
         auto_notes_region_cm(body) > 0.0,
         "a note in a foot region reserves nothing, so its ink has no room"
     );
-    assert!(number.y < h, "page number at y={} on a {h}pt sheet", number.y);
-    assert!(note_y < number.y, "note ink at {note_y} is below the page number at {}", number.y);
+    assert!(
+        number.y < h,
+        "page number at y={} on a {h}pt sheet",
+        number.y
+    );
+    assert!(
+        note_y < number.y,
+        "note ink at {note_y} is below the page number at {}",
+        number.y
+    );
 }
 
 /// B2′ · the same family, the half the audit left open.
@@ -157,7 +165,10 @@ fn an_undeclared_destination_is_named() {
     let said = name_warnings(body);
     assert_eq!(said.len(), 1, "expected one warning, got {said:?}");
     let (message, line, column) = &said[0];
-    assert!(message.contains("טפים"), "the message must name it: {message}");
+    assert!(
+        message.contains("טפים"),
+        "the message must name it: {message}"
+    );
     assert!(
         message.contains("printed"),
         "the message must say the note is still printed, or the writer will \
@@ -165,7 +176,11 @@ fn an_undeclared_destination_is_named() {
     );
     // Located at the call, not at the document: line 3, column 6 is the `ה` of
     // `#הערה`.
-    assert_eq!((*line, *column), (3, 6), "the warning is not on the note's call");
+    assert_eq!(
+        (*line, *column),
+        (3, 6),
+        "the warning is not on the note's call"
+    );
 }
 
 /// The same warning must not fire on anything the product itself accepts.
@@ -176,7 +191,8 @@ fn an_undeclared_destination_is_named() {
 #[test]
 fn a_known_destination_is_not_named() {
     let tier = "#שער[מסמך]\n\nשורה#הערה(ערוץ: \"הערה_ב\")[גוף]\n";
-    let declared = "#שער[מסמך]\n\n#אזור(\"ידוע\", מיקום: \"רגל\")\n\nשורה#הערה(אזור: \"ידוע\")[גוף]\n";
+    let declared =
+        "#שער[מסמך]\n\n#אזור(\"ידוע\", מיקום: \"רגל\")\n\nשורה#הערה(אזור: \"ידוע\")[גוף]\n";
     let none = "#שער[מסמך]\n\nשורה#הערה[גוף]\n";
     let prose = "#שער[מסמך]\n\nשורה#הערה[גוף שמזכיר #סמן(\"טפים\") בתוכו]\n";
     // A declaration carries the same argument a note does, and is what makes the
@@ -214,7 +230,12 @@ fn two_side_regions_do_not_interleave() {
     let runs = runs(body);
     let first = runs
         .iter()
-        .filter(|r| r.x < 100.0 && ["אלףאלף", "ביתבית", "גימלגימל", "דלתדלת", "האהא"].iter().any(|w| r.text.contains(w)))
+        .filter(|r| {
+            r.x < 100.0
+                && ["אלףאלף", "ביתבית", "גימלגימל", "דלתדלת", "האהא"]
+                    .iter()
+                    .any(|w| r.text.contains(w))
+        })
         .map(|r| r.y)
         .collect::<Vec<_>>();
     let second = runs
@@ -222,14 +243,20 @@ fn two_side_regions_do_not_interleave() {
         .filter(|r| r.x < 100.0 && ["יודיוד", "ללמד", "סס"].iter().any(|w| r.text.contains(w)))
         .map(|r| r.y)
         .collect::<Vec<_>>();
-    assert!(first.len() >= 2 && second.len() >= 2, "both notes drew several lines: {first:?} {second:?}");
+    assert!(
+        first.len() >= 2 && second.len() >= 2,
+        "both notes drew several lines: {first:?} {second:?}"
+    );
 
     // The property: the last line of the first apparatus and the first line of
     // the second are one full line apart or more. A shared grid puts them closer
     // than the note's own line pitch, which is what "interleave" meant.
     let pitch = 13.2;
     let gap = second[0] - first[first.len() - 1];
-    assert!(gap >= pitch, "the two apparatuses interleave: {gap}pt apart at a {pitch}pt pitch");
+    assert!(
+        gap >= pitch,
+        "the two apparatuses interleave: {gap}pt apart at a {pitch}pt pitch"
+    );
 }
 
 /// B4 · a channel-declared `גובה` bypassed the clamp and desynchronised the
@@ -260,7 +287,10 @@ fn a_declared_height_is_clamped() {
     );
     let runs = runs(&body);
     let (_, y) = at(&runs, "גוף ההערה");
-    assert!(y > 0.0 && y < h, "the apparatus landed at y={y} on a {h}pt sheet");
+    assert!(
+        y > 0.0 && y < h,
+        "the apparatus landed at y={y} on a {h}pt sheet"
+    );
 }
 
 /// The same clamp, on the **channel** half rather than the region's own — the
@@ -415,7 +445,10 @@ fn a_lines_band_resolves_against_one_typography() {
     );
     // And it is that room, not some other: five lines at the shipped defaults
     // (12 pt body, 0.75 em leading) plus the footer's own band.
-    assert!(a > five_lines, "five lines reserved {a:.3}cm, which is less than the {five_lines:.3}cm asked for");
+    assert!(
+        a > five_lines,
+        "five lines reserved {a:.3}cm, which is less than the {five_lines:.3}cm asked for"
+    );
 }
 
 /// B11 · `closing_paren`'s premise was false for its channel-path caller.
@@ -435,7 +468,8 @@ fn a_quoted_paren_does_not_move_the_reserve() {
     // is opaque to the geometry — it is a label — so a paren inside one must
     // cost the document nothing.
     let plain = "#שער[מסמך]\n\n#אזור(\"רגל\", מיקום: \"רגל\")\n\nשורה#הערה(אזור: \"רגל\")[גוף]\n";
-    let with_paren = "#שער[מסמך]\n\n#אזור(\"רגל)\", מיקום: \"רגל\")\n\nשורה#הערה(אזור: \"רגל)\")[גוף]\n";
+    let with_paren =
+        "#שער[מסמך]\n\n#אזור(\"רגל)\", מיקום: \"רגל\")\n\nשורה#הערה(אזור: \"רגל)\")[גוף]\n";
     let a = auto_notes_region_cm(plain);
     let b = auto_notes_region_cm(with_paren);
     assert!(
@@ -445,5 +479,8 @@ fn a_quoted_paren_does_not_move_the_reserve() {
     // And the note in the second document is still drawn — a reserve that
     // survived is no use if the note went with it.
     let runs = runs(with_paren);
-    assert!(runs.iter().any(|r| r.text.contains("גוף")), "the note was lost");
+    assert!(
+        runs.iter().any(|r| r.text.contains("גוף")),
+        "the note was lost"
+    );
 }

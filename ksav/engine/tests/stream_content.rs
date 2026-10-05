@@ -95,7 +95,9 @@ fn a_stream_holds_arbitrary_content() {
     // A table. Wide on purpose: this is the case that has to *shrink*. A table
     // that overflowed would still print every word, so an assertion on presence
     // alone would pass on a document that runs over the main text.
-    let doc = with_stream("פסקה בגוף.\n\n#הערה_זרם(\"תוכן\")[#table(columns: 6, [א], [ב], [ג], [ד], [ה], [ו])]");
+    let doc = with_stream(
+        "פסקה בגוף.\n\n#הערה_זרם(\"תוכן\")[#table(columns: 6, [א], [ב], [ג], [ד], [ה], [ו])]",
+    );
     let runs = render(&doc);
     assert_prints(&runs, "א");
 }
@@ -115,7 +117,7 @@ fn wide_content_in_a_stream_stays_inside_its_column() {
     let page_width = probe::page_sizes(
         &probe::layout(&doc, &ksav_engine::DocConfig::default()).expect("compiles"),
     )[0]
-        .0;
+    .0;
     let widest = lines
         .iter()
         .map(|l| l.runs.iter().map(|r| r.x + r.width).fold(0.0, f64::max))

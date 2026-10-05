@@ -92,7 +92,11 @@ fn main() {
             }
         };
         let opts = typst_svg::SvgOptions::default();
-        let svgs: Vec<String> = doc.pages().iter().map(|p| typst_svg::svg(p, &opts)).collect();
+        let svgs: Vec<String> = doc
+            .pages()
+            .iter()
+            .map(|p| typst_svg::svg(p, &opts))
+            .collect();
         println!("  {name:>8}: {} page(s) of its own", svgs.len());
         pages_per_stream.push(svgs);
     }
@@ -100,7 +104,10 @@ fn main() {
 
     // ---- zip by index onto sheets
     let sheets = pages_per_stream.iter().map(Vec::len).max().unwrap_or(0);
-    println!("\nzipped into {sheets} sheet(s); layout took {:.0}ms", elapsed.as_millis());
+    println!(
+        "\nzipped into {sheets} sheet(s); layout took {:.0}ms",
+        elapsed.as_millis()
+    );
     for i in 0..sheets {
         let mut svg = String::new();
         svg.push_str(&format!(

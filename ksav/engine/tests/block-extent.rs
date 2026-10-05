@@ -94,11 +94,7 @@ fn a_breakable_block_refits_its_background_to_each_fragment() {
     assert!(pages.len() >= 2, "the block did not break: {pages:?}");
 
     for p in &pages {
-        let on: Vec<f64> = runs
-            .iter()
-            .filter(|r| r.page == *p)
-            .map(|r| r.y)
-            .collect();
+        let on: Vec<f64> = runs.iter().filter(|r| r.page == *p).map(|r| r.y).collect();
         let first = on.iter().cloned().fold(f64::INFINITY, f64::min);
         let last = on.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         let fills = probe::fills(&doc);
@@ -135,10 +131,7 @@ fn a_breakable_block_refits_its_background_to_each_fragment() {
 fn an_unbreakable_oversized_block_overflows_and_says_so() {
     let doc = probe::layout(&boxed("breakable: false, ", 24), &cramped()).expect("compiles");
     let runs = block_runs!(doc);
-    let last = runs
-        .iter()
-        .map(|r| r.y)
-        .fold(f64::NEG_INFINITY, f64::max);
+    let last = runs.iter().map(|r| r.y).fold(f64::NEG_INFINITY, f64::max);
     let sheet = probe::page_sizes(&doc)
         .first()
         .map(|(_, h)| *h)
@@ -154,7 +147,10 @@ fn an_unbreakable_oversized_block_overflows_and_says_so() {
     // called directly, because the hook into the success path is half the fix.
     let body = boxed("breakable: false, ", 24);
     let out = ksav_engine::compile(&body, &cramped());
-    assert!(out.ok, "the document stopped compiling, so there is nothing to report");
+    assert!(
+        out.ok,
+        "the document stopped compiling, so there is nothing to report"
+    );
     let said = out
         .diagnostics
         .iter()
@@ -162,11 +158,21 @@ fn an_unbreakable_oversized_block_overflows_and_says_so() {
         .unwrap_or_else(|| {
             panic!(
                 "the content went off the sheet and nothing said so: {:?}",
-                out.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+                out.diagnostics
+                    .iter()
+                    .map(|d| &d.message)
+                    .collect::<Vec<_>>()
             )
         });
-    assert_eq!(said.severity, "warning", "a lost block is a warning, not an error");
-    assert_eq!(said.line, Some(1), "the report does not name the writer's line");
+    assert_eq!(
+        said.severity, "warning",
+        "a lost block is a warning, not an error"
+    );
+    assert_eq!(
+        said.line,
+        Some(1),
+        "the report does not name the writer's line"
+    );
 }
 
 /// **The two things it must not do**, which is the honest half of the fence.
@@ -179,7 +185,11 @@ fn an_unbreakable_oversized_block_overflows_and_says_so() {
 fn the_overflow_report_is_silent_when_there_is_nothing_to_report() {
     let cases: [(&str, String, usize); 2] = [
         ("splittable, same long content", boxed("", 24), 0),
-        ("unsplittable, comfortably small", "#block(breakable: false)[שורה אחת]\n".to_string(), 0),
+        (
+            "unsplittable, comfortably small",
+            "#block(breakable: false)[שורה אחת]\n".to_string(),
+            0,
+        ),
     ];
     for (label, body, want) in cases {
         let out = ksav_engine::compile(&body, &cramped());
@@ -188,7 +198,10 @@ fn the_overflow_report_is_silent_when_there_is_nothing_to_report() {
             .iter()
             .filter(|d| d.message.contains("not printed at all"))
             .count();
-        assert_eq!(said, want, "{label}: {said} overflow reports, expected {want}");
+        assert_eq!(
+            said, want,
+            "{label}: {said} overflow reports, expected {want}"
+        );
     }
 }
 
@@ -205,6 +218,9 @@ fn a_document_with_no_unsplittable_block_is_never_audited() {
     assert!(
         out.diagnostics.is_empty(),
         "an ordinary document was warned about: {:?}",
-        out.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+        out.diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
     );
 }

@@ -54,9 +54,13 @@ fn measured() -> String {
     let mut attrs = BTreeSet::new();
     let mut alarming = BTreeSet::new();
     for (name, body) in corpus() {
-        let assets = if body.contains("logo.svg") { assets() } else { Default::default() };
-        for page in ksav_engine::compile_with(&body, &ksav_engine::DocConfig::default(), &assets)
-            .pages_svg
+        let assets = if body.contains("logo.svg") {
+            assets()
+        } else {
+            Default::default()
+        };
+        for page in
+            ksav_engine::compile_with(&body, &ksav_engine::DocConfig::default(), &assets).pages_svg
         {
             scan(&page, &mut seen, &mut attrs, &mut alarming);
         }
@@ -87,8 +91,7 @@ fn corpus() -> Vec<(&'static str, String)> {
     ));
     out.push((
         "text",
-        "#שער[דוגמה]\n\n#פסוק[בראשית א׳, א׳][בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ].\n"
-            .to_string(),
+        "#שער[דוגמה]\n\n#פסוק[בראשית א׳, א׳][בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ].\n".to_string(),
     ));
     out
 }
@@ -163,7 +166,12 @@ fn scan(
                 continue;
             }
             let start = k;
-            while k < rest.len() && !rest[k].is_whitespace() && rest[k] != '=' && rest[k] != '"' && rest[k] != '\'' {
+            while k < rest.len()
+                && !rest[k].is_whitespace()
+                && rest[k] != '='
+                && rest[k] != '"'
+                && rest[k] != '\''
+            {
                 k += 1;
             }
             let attr: String = rest[start..k].iter().collect();
@@ -216,10 +224,17 @@ fn the_committed_vocabulary_is_what_the_engine_emits() {
     // pages came back" is a claim about the machinery rather than about Typst.
     let mut pages = 0;
     for (name, body) in corpus() {
-        let assets = if body.contains("logo.svg") { assets() } else { Default::default() };
-        let got = ksav_engine::compile_with(&body, &ksav_engine::DocConfig::default(), &assets)
-            .pages_svg;
-        assert!(!got.is_empty(), "the {name} document produced no page at all");
+        let assets = if body.contains("logo.svg") {
+            assets()
+        } else {
+            Default::default()
+        };
+        let got =
+            ksav_engine::compile_with(&body, &ksav_engine::DocConfig::default(), &assets).pages_svg;
+        assert!(
+            !got.is_empty(),
+            "the {name} document produced no page at all"
+        );
         pages += got.len();
     }
     assert!(
@@ -249,23 +264,37 @@ fn the_committed_vocabulary_is_what_the_engine_emits() {
     let mut moved = Vec::new();
     for key in ["elements", "attributes", "prefixed", "alarming"] {
         if v.get(key) != w.get(key) {
-            let (Some(a), Some(b)) = (v.get(key).and_then(|x| x.as_array()), w.get(key).and_then(|x| x.as_array()))
-            else {
+            let (Some(a), Some(b)) = (
+                v.get(key).and_then(|x| x.as_array()),
+                w.get(key).and_then(|x| x.as_array()),
+            ) else {
                 moved.push(format!("`{key}` changed shape"));
                 continue;
             };
-            let gone: Vec<&str> = a.iter().filter_map(|x| x.as_str()).filter(|n| {
-                !b.iter().any(|y| y.as_str() == Some(n))
-            }).collect();
-            let new: Vec<&str> = b.iter().filter_map(|x| x.as_str()).filter(|n| {
-                !a.iter().any(|y| y.as_str() == Some(n))
-            }).collect();
+            let gone: Vec<&str> = a
+                .iter()
+                .filter_map(|x| x.as_str())
+                .filter(|n| !b.iter().any(|y| y.as_str() == Some(n)))
+                .collect();
+            let new: Vec<&str> = b
+                .iter()
+                .filter_map(|x| x.as_str())
+                .filter(|n| !a.iter().any(|y| y.as_str() == Some(n)))
+                .collect();
             moved.push(format!(
                 "`{key}`: {} gone, {} new ({}{})",
                 gone.len(),
                 new.len(),
-                if new.is_empty() { String::new() } else { format!("+{:?}. ", new) },
-                if gone.is_empty() { String::new() } else { format!("-{:?}", gone) },
+                if new.is_empty() {
+                    String::new()
+                } else {
+                    format!("+{:?}. ", new)
+                },
+                if gone.is_empty() {
+                    String::new()
+                } else {
+                    format!("-{:?}", gone)
+                },
             ));
         }
     }
@@ -289,16 +318,40 @@ fn nothing_the_engine_emits_is_refused_by_the_client() {
     let v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(artefact()).expect("read the fixture"))
             .expect("valid JSON");
-    let elements: Vec<&str> = v["elements"].as_array().expect("elements").iter().filter_map(|x| x.as_str()).collect();
-    let attributes: Vec<&str> = v["attributes"].as_array().expect("attributes").iter().filter_map(|x| x.as_str()).collect();
+    let elements: Vec<&str> = v["elements"]
+        .as_array()
+        .expect("elements")
+        .iter()
+        .filter_map(|x| x.as_str())
+        .collect();
+    let attributes: Vec<&str> = v["attributes"]
+        .as_array()
+        .expect("attributes")
+        .iter()
+        .filter_map(|x| x.as_str())
+        .collect();
 
     // Refused however they arrive, as a copy of `svgsafe.ts`'s
     // `DENIED_SVG_ELEMENTS`. Transcribed rather than read, and the assertion is
     // that the two never disagree about a name the engine actually emits — which
     // is the only disagreement that has a consequence.
     const DENIED: &[&str] = &[
-        "script", "foreignObject", "iframe", "object", "embed", "link", "style", "animate",
-        "animateTransform", "animateMotion", "set", "handler", "audio", "video", "base", "meta",
+        "script",
+        "foreignObject",
+        "iframe",
+        "object",
+        "embed",
+        "link",
+        "style",
+        "animate",
+        "animateTransform",
+        "animateMotion",
+        "set",
+        "handler",
+        "audio",
+        "video",
+        "base",
+        "meta",
     ];
     for name in &elements {
         assert!(
@@ -314,7 +367,10 @@ fn nothing_the_engine_emits_is_refused_by_the_client() {
         );
     }
     for name in &attributes {
-        assert!(!name.to_lowercase().starts_with("on"), "the engine emits {name}=");
+        assert!(
+            !name.to_lowercase().starts_with("on"),
+            "the engine emits {name}="
+        );
     }
 
     // The floors. A vocabulary that emptied is a measurement that stopped working,
@@ -336,7 +392,12 @@ fn nothing_the_engine_emits_is_a_payload() {
     let v: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(artefact()).expect("read the fixture"))
             .expect("valid JSON");
-    let alarming: Vec<&str> = v["alarming"].as_array().expect("alarming").iter().filter_map(|x| x.as_str()).collect();
+    let alarming: Vec<&str> = v["alarming"]
+        .as_array()
+        .expect("alarming")
+        .iter()
+        .filter_map(|x| x.as_str())
+        .collect();
     assert!(
         alarming.is_empty(),
         "the engine emitted {alarming:?} over the whole corpus. That is the finding \

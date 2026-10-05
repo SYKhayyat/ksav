@@ -53,7 +53,11 @@ fn a_margin_asks_for_as_much_of_the_page_as_it_wants() {
     // text. It was silently refused, and the issue built a compositor around it.
     let cfg = laid(json!({ "margin_top_cm": 21.7 }));
     assert_eq!(cfg.margin_top_cm, Some(21.7), "a legal seam was refused");
-    assert!(said(&cfg).is_none(), "and it was reported as one: {:?}", said(&cfg));
+    assert!(
+        said(&cfg).is_none(),
+        "and it was reported as one: {:?}",
+        said(&cfg)
+    );
 }
 
 /// The same for the other three edges, because each is bounded by a different
@@ -70,10 +74,22 @@ fn each_edge_is_bounded_by_its_own_dimension() {
     // this test then passed a 13cm top margin that had no room to exist. Now
     // that the pair is checked (#76), an absent edge is a real margin, so the
     // comparison has to say what is opposite it.
-    let top = DocConfig::from_json(&json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_top_cm": 13.0, "margin_bottom_cm": 0.0 }));
-    assert_eq!(top.margin_top_cm, Some(13.0), "a top margin within the height was refused");
-    let inner = DocConfig::from_json(&json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_inner_cm": 13.0, "margin_outer_cm": 0.0 }));
-    assert_eq!(inner.margin_inner_cm, Some(9.5), "an inner margin is bounded by the width, not the height");
+    let top = DocConfig::from_json(
+        &json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_top_cm": 13.0, "margin_bottom_cm": 0.0 }),
+    );
+    assert_eq!(
+        top.margin_top_cm,
+        Some(13.0),
+        "a top margin within the height was refused"
+    );
+    let inner = DocConfig::from_json(
+        &json!({ "page_width_cm": 10.5, "page_height_cm": 14.8, "margin_inner_cm": 13.0, "margin_outer_cm": 0.0 }),
+    );
+    assert_eq!(
+        inner.margin_inner_cm,
+        Some(9.5),
+        "an inner margin is bounded by the width, not the height"
+    );
     assert_eq!(inner.refusals.len(), 1, "and it is reported");
     assert!(sheet.get("page_height_cm").is_some());
 }
@@ -83,9 +99,15 @@ fn each_edge_is_bounded_by_its_own_dimension() {
 fn a_margin_that_leaves_no_text_is_refused_by_name() {
     let cfg = laid(json!({ "margin_top_cm": 40.0 })); // A4 is 29.7 cm tall
     let said = said(&cfg).expect("a 40cm margin on A4 must be reported");
-    assert!(said.contains("margin_top_cm"), "the message does not name the field: {said}");
+    assert!(
+        said.contains("margin_top_cm"),
+        "the message does not name the field: {said}"
+    );
     assert!(said.contains("40.00"), "nor what was asked for: {said}");
-    assert!(said.contains("28.70"), "nor what is in force instead: {said}");
+    assert!(
+        said.contains("28.70"),
+        "nor what is in force instead: {said}"
+    );
     // Bilingual, like every sentence this product shows a writer.
     assert!(said.contains("הגדרה"), "the Hebrew half is missing: {said}");
 }
@@ -98,7 +120,11 @@ fn an_explicit_sheet_is_the_bound() {
         "page_width_cm": 40.0, "page_height_cm": 50.0,
         "margin_top_cm": 45.0,
     }));
-    assert_eq!(cfg.margin_top_cm, Some(45.0), "a 45cm margin on a 50cm sheet was refused");
+    assert_eq!(
+        cfg.margin_top_cm,
+        Some(45.0),
+        "a 45cm margin on a 50cm sheet was refused"
+    );
     assert!(cfg.refusals.is_empty(), "and reported: {:?}", cfg.refusals);
 }
 
@@ -115,7 +141,11 @@ fn an_ordinary_document_is_not_warned_about() {
         json!({ "font": "Frank Ruhl Hofshi", "two_sided": true }),
     ] {
         let cfg = laid(v.clone());
-        assert!(cfg.refusals.is_empty(), "{v} was refused: {:?}", cfg.refusals);
+        assert!(
+            cfg.refusals.is_empty(),
+            "{v} was refused: {:?}",
+            cfg.refusals
+        );
         assert!(said(&cfg).is_none(), "{v} was reported: {:?}", said(&cfg));
     }
 }
@@ -129,7 +159,10 @@ fn a_refused_margin_is_not_also_honoured() {
     let asked = 40.0;
     let cfg = laid(json!({ "margin_top_cm": asked }));
     let used = cfg.margin_top_cm.expect("a bound value");
-    assert!(used < asked, "asked for {asked} and got {used} — that is not a refusal");
+    assert!(
+        used < asked,
+        "asked for {asked} and got {used} — that is not a refusal"
+    );
 
     // The text starts below the bound margin, not below the one asked for.
     let doc = probe::layout("#שער[מסמך]\n\nטקסט.\n", &cfg).expect("lays out");
@@ -157,10 +190,15 @@ fn a_refusal_does_not_stop_the_document() {
     assert!(
         out.diagnostics.iter().all(|d| d.severity != "error"),
         "and it raised an error: {:?}",
-        out.diagnostics.iter().map(|d| d.severity.as_str()).collect::<Vec<_>>()
+        out.diagnostics
+            .iter()
+            .map(|d| d.severity.as_str())
+            .collect::<Vec<_>>()
     );
     assert!(
-        out.diagnostics.iter().any(|d| d.message.contains("margin_top_cm")),
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("margin_top_cm")),
         "with no warning naming the field"
     );
 }
@@ -170,7 +208,10 @@ fn a_refusal_does_not_stop_the_document() {
 /// this and must not have been loosened by it.
 #[test]
 fn nan_and_infinity_are_still_not_clamped() {
-    for v in [json!({ "margin_top_cm": f64::NAN }), json!({ "margin_top_cm": f64::INFINITY })] {
+    for v in [
+        json!({ "margin_top_cm": f64::NAN }),
+        json!({ "margin_top_cm": f64::INFINITY }),
+    ] {
         let cfg = laid(v.clone());
         assert_eq!(cfg.margin_top_cm, None, "{v} was turned into a margin");
     }
@@ -205,9 +246,7 @@ fn a_uniform_margin_is_bounded_by_the_sheet_and_not_by_seven() {
     );
 
     // And the A5 figure is still the A5 figure, now derived rather than assumed.
-    let a5_twelve = DocConfig::from_json(
-        &json!({ "paper": "a5", "margin_cm": 12.0 }),
-    );
+    let a5_twelve = DocConfig::from_json(&json!({ "paper": "a5", "margin_cm": 12.0 }));
     assert!(
         a5_twelve.margin_cm < 12.0,
         "A5 is 14.8cm wide; 12cm all round was accepted: {}",
@@ -228,9 +267,7 @@ fn a_uniform_margin_is_bounded_by_the_sheet_and_not_by_seven() {
 /// sheet and 10.3cm taller than it.
 #[test]
 fn opposing_margins_that_cannot_both_fit_are_refused() {
-    let cfg = DocConfig::from_json(
-        &json!({ "margin_inner_cm": 20.0, "margin_outer_cm": 20.0 }),
-    );
+    let cfg = DocConfig::from_json(&json!({ "margin_inner_cm": 20.0, "margin_outer_cm": 20.0 }));
     let in_ = cfg.margin_inner_cm.expect("inner");
     let out = cfg.margin_outer_cm.expect("outer");
     assert!(
@@ -238,7 +275,9 @@ fn opposing_margins_that_cannot_both_fit_are_refused() {
         "the pair still consumes the page: {in_} + {out} on a 21cm sheet"
     );
     assert!(
-        cfg.refusals.iter().any(|r| r.key.starts_with("margin_") && r.key.ends_with("cm")),
+        cfg.refusals
+            .iter()
+            .any(|r| r.key.starts_with("margin_") && r.key.ends_with("cm")),
         "a margin was moved without saying so: {:?}",
         cfg.refusals
     );
@@ -277,9 +316,7 @@ fn an_edge_the_writer_did_not_set_is_never_the_one_moved() {
 /// the sheet to "be safe" would throw it away.
 #[test]
 fn an_asymmetric_pair_that_fits_is_untouched() {
-    let cfg = DocConfig::from_json(
-        &json!({ "margin_inner_cm": 2.0, "margin_outer_cm": 3.0 }),
-    );
+    let cfg = DocConfig::from_json(&json!({ "margin_inner_cm": 2.0, "margin_outer_cm": 3.0 }));
     assert_eq!(cfg.margin_inner_cm, Some(2.0));
     assert_eq!(cfg.margin_outer_cm, Some(3.0));
     assert!(
@@ -311,7 +348,9 @@ fn the_text_region_is_never_negative_on_either_axis() {
         let sheet = json.get("page_width_cm").and_then(|x| x.as_f64());
         let (w, h) = (
             sheet.unwrap_or(21.0),
-            json.get("page_height_cm").and_then(|x| x.as_f64()).unwrap_or(29.7),
+            json.get("page_height_cm")
+                .and_then(|x| x.as_f64())
+                .unwrap_or(29.7),
         );
         let g = cfg.gutter_cm;
         let inner = cfg.margin_inner_cm.unwrap_or(cfg.margin_cm);

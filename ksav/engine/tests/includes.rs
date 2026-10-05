@@ -6,9 +6,9 @@
 //! which is the entire justification for expanding in the engine rather than
 //! letting Typst's `include` do it.
 
+use ksav_engine::include;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use ksav_engine::include;
 
 fn compile(request: Value) -> Value {
     serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap()
@@ -282,7 +282,11 @@ fn the_places_service_answers_with_the_list_and_the_first_beside_it() {
 fn the_places_service_says_so_rather_than_inventing_an_answer() {
     for (file, line, why) in [
         (serde_json::Value::Null, 99u64, "a line in no part"),
-        (serde_json::json!("פרק שאינו"), 1u64, "a file not in the document"),
+        (
+            serde_json::json!("פרק שאינו"),
+            1u64,
+            "a file not in the document",
+        ),
     ] {
         let request = json!({
             "body": "לפני\n#כלול(\"מתבנית\")\nאחרי",
@@ -388,8 +392,16 @@ fn a_chapter_name_cannot_become_typst() {
         // person needs to see the name they typed. Escaping that would be a
         // different bug, and asserting on it would be testing the wrong string.
         let mut parts = std::collections::HashMap::new();
-        let body = format!("לפני\n#כלול({})\nאחרי", ksav_engine::escape::string_literal(name));
-        let expanded = ksav_engine::include::expand(&body, &mut parts, ksav_engine::include::Limits::default()).text;
+        let body = format!(
+            "לפני\n#כלול({})\nאחרי",
+            ksav_engine::escape::string_literal(name)
+        );
+        let expanded = ksav_engine::include::expand(
+            &body,
+            &mut parts,
+            ksav_engine::include::Limits::default(),
+        )
+        .text;
 
         // The marker is one call, and its *whole* body is the escaped name — said
         // as equality rather than as a search, because the escaped form contains
@@ -410,7 +422,8 @@ fn a_chapter_name_cannot_become_typst() {
         // marker exists for.
         let out = compile(json!({ "body": body, "parts": [] }));
         assert_eq!(
-            out["ok"], true,
+            out["ok"],
+            true,
             "the hostile name {name:?} broke the whole compile: {:?}",
             diagnostics(&out)
         );
@@ -440,7 +453,9 @@ fn the_missing_chapter_marker_escapes_every_markup_character() {
         .map(|c| c.to_string())
         .collect::<String>();
     let body = format!("#כלול({})\n", ksav_engine::escape::string_literal(&hostile));
-    let expanded = ksav_engine::include::expand(&body, &mut parts, ksav_engine::include::Limits::default()).text;
+    let expanded =
+        ksav_engine::include::expand(&body, &mut parts, ksav_engine::include::Limits::default())
+            .text;
 
     for c in ksav_engine::escape::MARKUP {
         assert!(
@@ -468,8 +483,15 @@ fn diamond(depth: usize, leaf_lines: usize) -> (String, HashMap<String, String>)
         (0..leaf_lines).map(|i| format!("שורה {i}\n")).collect(),
     );
     for d in (0..depth).rev() {
-        let next = if d == depth - 1 { "leaf".into() } else { format!("p{}", d + 1) };
-        parts.insert(format!("p{d}"), format!("#כלול(\"{next}\")\n#כלול(\"{next}\")\n"));
+        let next = if d == depth - 1 {
+            "leaf".into()
+        } else {
+            format!("p{}", d + 1)
+        };
+        parts.insert(
+            format!("p{d}"),
+            format!("#כלול(\"{next}\")\n#כלול(\"{next}\")\n"),
+        );
     }
     ("#כלול(\"p0\")\n".into(), parts)
 }
@@ -482,13 +504,25 @@ fn diamond(depth: usize, leaf_lines: usize) -> (String, HashMap<String, String>)
 #[test]
 fn the_soft_limit_warns_and_still_produces_the_document() {
     let (main, parts) = diamond(7, 2_000);
-    let out = ksav_engine::include::expand(&main, &parts, ksav_engine::include::Limits { warn: 100_000, refuse: 500_000 });
+    let out = ksav_engine::include::expand(
+        &main,
+        &parts,
+        ksav_engine::include::Limits {
+            warn: 100_000,
+            refuse: 500_000,
+        },
+    );
     assert!(
         out.text.lines().count() > 100_000,
         "the fixture did not pass the soft limit: {}",
         out.text.lines().count()
     );
-    assert_eq!(out.problems.len(), 1, "expected one warning: {:?}", out.problems);
+    assert_eq!(
+        out.problems.len(),
+        1,
+        "expected one warning: {:?}",
+        out.problems
+    );
     assert!(
         out.problems[0].contains("may be slow"),
         "the problem does not say the document may be slow: {:?}",
@@ -504,13 +538,25 @@ fn the_soft_limit_warns_and_still_produces_the_document() {
 #[test]
 fn the_hard_limit_stops_the_walk_at_the_limit() {
     let (main, parts) = diamond(7, 20_000);
-    let out = ksav_engine::include::expand(&main, &parts, ksav_engine::include::Limits { warn: 100_000, refuse: 500_000 });
+    let out = ksav_engine::include::expand(
+        &main,
+        &parts,
+        ksav_engine::include::Limits {
+            warn: 100_000,
+            refuse: 500_000,
+        },
+    );
     assert_eq!(
         out.text.lines().count(),
         500_000,
         "the walk did not stop exactly at the limit"
     );
-    assert_eq!(out.problems.len(), 2, "a warning and a stop: {:?}", out.problems);
+    assert_eq!(
+        out.problems.len(),
+        2,
+        "a warning and a stop: {:?}",
+        out.problems
+    );
     assert!(
         out.problems.iter().any(|p| p.contains("stopped")),
         "nothing said the expansion stopped: {:?}",
@@ -526,10 +572,17 @@ fn a_raised_budget_produces_the_whole_document() {
     let out = ksav_engine::include::expand(
         &main,
         &parts,
-        ksav_engine::include::Limits { warn: 40_000_000, refuse: 80_000_000 },
+        ksav_engine::include::Limits {
+            warn: 40_000_000,
+            refuse: 80_000_000,
+        },
     );
     assert_eq!(out.text.lines().count(), 2_560_000);
-    assert!(out.problems.is_empty(), "a raised budget still complained: {:?}", out.problems);
+    assert!(
+        out.problems.is_empty(),
+        "a raised budget still complained: {:?}",
+        out.problems
+    );
 }
 
 /// An ordinary document is untouched: no budget, no problems.
@@ -537,7 +590,11 @@ fn a_raised_budget_produces_the_whole_document() {
 fn an_ordinary_document_says_nothing() {
     let (main, parts) = diamond(3, 10);
     let out = ksav_engine::include::expand(&main, &parts, ksav_engine::include::Limits::default());
-    assert!(out.problems.is_empty(), "an ordinary document was warned: {:?}", out.problems);
+    assert!(
+        out.problems.is_empty(),
+        "an ordinary document was warned: {:?}",
+        out.problems
+    );
     assert_eq!(out.text.lines().count(), 80);
 }
 
@@ -574,6 +631,9 @@ fn a_refusal_named_once_is_reported_once_however_many_paths_reach_it() {
 #[test]
 fn the_default_budget_is_ordered_and_documented() {
     let d = ksav_engine::include::Limits::default();
-    assert!(d.warn < d.refuse, "the soft limit is not below the hard one");
+    assert!(
+        d.warn < d.refuse,
+        "the soft limit is not below the hard one"
+    );
     assert_eq!((d.warn, d.refuse), (100_000, 500_000));
 }

@@ -192,7 +192,10 @@ fn defined_let_names(preamble: &str) -> Vec<String> {
         // the advisory name commands the preamble does not define.
         let hashed = chars[i] == '#';
         let start = if hashed { i + 1 } else { i };
-        if i.checked_sub(1).and_then(|p| chars.get(p)).is_some_and(|c| ident(*c)) {
+        if i.checked_sub(1)
+            .and_then(|p| chars.get(p))
+            .is_some_and(|c| ident(*c))
+        {
             i += 1;
             continue;
         }
@@ -456,7 +459,9 @@ mod advisory_tests {
     /// forecloses, and it makes the real and smaller fact easy to wave away.
     #[test]
     fn a_file_that_defines_commands_says_so() {
-        let d = read(&wrapped("#let דגש(x) = strong(x)\n#let h2 = heading(level: 2)"));
+        let d = read(&wrapped(
+            "#let דגש(x) = strong(x)\n#let h2 = heading(level: 2)",
+        ));
         let said = d.advisories();
         assert_eq!(said.len(), 1, "{said:?}");
         let line = &said[0];
@@ -513,7 +518,10 @@ mod advisory_tests {
         assert_eq!(defined_let_names("let b = 1"), vec!["b"]);
         assert_eq!(defined_let_names("#let דגש(x) = strong(x)"), vec!["דגש"]);
         // A word containing `let`, and a `#` that introduces nothing.
-        assert_eq!(defined_let_names("#letter = 3\n#let = 4"), Vec::<String>::new());
+        assert_eq!(
+            defined_let_names("#letter = 3\n#let = 4"),
+            Vec::<String>::new()
+        );
         assert_eq!(
             defined_let_names("#let first = 1\n#let second = 2"),
             vec!["first", "second"]
@@ -580,7 +588,11 @@ mod refused_asset_tests {
         assert!(d.assets.files.is_empty(), "the asset must not survive");
         let said = d.advisories();
         assert_eq!(said.len(), 1, "{said:?}");
-        assert!(said[0].contains("evil.png"), "and must name it: {}", said[0]);
+        assert!(
+            said[0].contains("evil.png"),
+            "and must name it: {}",
+            said[0]
+        );
     }
 
     /// A plain file says nothing, and neither does one with an ordinary image.
@@ -594,8 +606,12 @@ mod refused_asset_tests {
             "name": "logo.png",
             "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
         })));
-        assert_eq!(d.assets.files.len(), 1, "the logo survives: {:?}", d.assets.files.len());
+        assert_eq!(
+            d.assets.files.len(),
+            1,
+            "the logo survives: {:?}",
+            d.assets.files.len()
+        );
         assert!(d.advisories().is_empty(), "{:?}", d.advisories());
     }
 }
-

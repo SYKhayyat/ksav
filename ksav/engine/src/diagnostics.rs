@@ -431,12 +431,10 @@ pub fn overflow_audit(doc: &typst_layout::PagedDocument, body: &str) -> Vec<Diag
 /// `breakable: falsey` does not match, and that costs a missed warning on a
 /// document whose block may not have been unsplittable anyway.
 fn line_of_unsplittable(body: &str) -> Option<usize> {
-    body.split('\n')
-        .enumerate()
-        .find_map(|(i, l)| {
-            let tight: String = l.chars().filter(|c| !c.is_whitespace()).collect();
-            tight.contains("breakable:false").then_some(i + 1)
-        })
+    body.split('\n').enumerate().find_map(|(i, l)| {
+        let tight: String = l.chars().filter(|c| !c.is_whitespace()).collect();
+        tight.contains("breakable:false").then_some(i + 1)
+    })
 }
 
 /// The `@namespace/name:version` a *file not found* message was really about.
@@ -488,7 +486,11 @@ fn missing_package(raw: &str) -> Option<String> {
         return None;
     }
     for seg in [ns, name, version] {
-        if seg.is_empty() || !seg.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)) {
+        if seg.is_empty()
+            || !seg
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
+        {
             return None;
         }
     }
@@ -1236,7 +1238,11 @@ fn rephrase(raw: &str, about_from_span: Option<String>, line_text: Option<&str>)
         let list = if have.is_empty() {
             "אין כרגע חבילות מצורפות · none are bundled yet".to_string()
         } else {
-            format!("המצורפות כרגע: {} · bundled here: {}", have.join(", "), have.join(", "))
+            format!(
+                "המצורפות כרגע: {} · bundled here: {}",
+                have.join(", "),
+                have.join(", ")
+            )
         };
         format!(
             "החבילה {spec} אינה מצורפת ל-Ksav — חבילות מגיעות עם התוכנה ולא מורדות ({list}) · \
@@ -1955,7 +1961,10 @@ mod end_to_end {
     /// `rgb()` was never broken and must not be told it was.
     #[test]
     fn the_working_form_still_compiles() {
-        let out = compile("#block(fill: rgb(\"#eef3ff\"))[טקסט]", &DocConfig::default());
+        let out = compile(
+            "#block(fill: rgb(\"#eef3ff\"))[טקסט]",
+            &DocConfig::default(),
+        );
         assert!(out.ok, "rgb() stopped working: {:?}", out.diagnostics);
     }
 
@@ -2422,9 +2431,7 @@ fn en_wrapper_command(call: &LinkedNode) -> Option<String> {
             // either form, so generation has to see both. A parenthesised
             // *group* rather than a name (`_en((a, b))`) contributes nothing.
             SyntaxKind::Parenthesized => {
-                let mut names = arg
-                    .children()
-                    .filter(|c| c.kind() == SyntaxKind::Ident);
+                let mut names = arg.children().filter(|c| c.kind() == SyntaxKind::Ident);
                 return match (names.next(), names.next()) {
                     (Some(one), None) => Some(one.get().leaf_text().to_string()),
                     _ => None,
@@ -2480,6 +2487,3 @@ fn named_pair(node: &LinkedNode) -> Option<(String, String)> {
     }
     Some((name.get().leaf_text().to_string(), hebrew.to_string()))
 }
-
-
-

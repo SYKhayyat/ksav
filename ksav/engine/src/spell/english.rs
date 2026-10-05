@@ -368,7 +368,11 @@ pub(crate) fn joins(c: char, rest: &str) -> bool {
         // has only four answers — 0, 1, 2, 3-or-more — so counting the rest of
         // the word past the third letter bought nothing and cost a scan per
         // quote. See `hebrew::run_of_letters`.
-        let tail = rest.chars().take_while(|c| c.is_alphabetic()).take(3).count();
+        let tail = rest
+            .chars()
+            .take_while(|c| c.is_alphabetic())
+            .take(3)
+            .count();
         return (1..=2).contains(&tail);
     }
     false

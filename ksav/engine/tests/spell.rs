@@ -672,7 +672,10 @@ fn an_opening_quote_after_a_prefix_is_not_part_of_the_word() {
 
 /// The token texts the tokenizer produces, in order.
 fn tokens(text: &str) -> Vec<String> {
-    spell::words(text).iter().map(|t| t.text.to_string()).collect()
+    spell::words(text)
+        .iter()
+        .map(|t| t.text.to_string())
+        .collect()
 }
 
 /// #62's cap, held at the boundary it is only allowed to be wrong beyond.

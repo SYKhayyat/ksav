@@ -146,6 +146,36 @@ it builds the wasm engine and runs it, it embeds the editor in the server and
 drives a real browser through the assembled application, and it runs the Emacs
 package's own suite against a live engine.
 
+### Cargo will not do two things at once, and there are three ways round it
+
+**Cargo takes one exclusive lock per build profile** — `target/debug/.cargo-lock`
+and `target/release/.cargo-lock` are different files, and every cargo subcommand
+blocks on its own. That is not a Nix limitation and not a slow disk; it is cargo
+assuming one build per target directory.
+
+It looks like a dead box when you queue yourself, which is the actual failure. A
+`cargo build --release` started to produce a CLI binary held the lock for **27
+minutes** while `cargo test --release` sat in `locks_lock_inode_wait` behind it,
+and a third command would have waited on both. Rust work on this repository is
+*not* serial — it is serial only if you use one profile for everything.
+
+| to | do | blocks |
+|---|---|---|
+| format | call `rustfmt` on the files | nothing — no lock at all |
+| iterate | `cargo test` (**debug**) | other debug runs |
+| gate | `cargo test --release` | other release runs |
+| a third lane | `CARGO_TARGET_DIR=/tmp/kt cargo …` | nothing |
+
+**Iterate in debug.** `target/debug` is already built, so a debug test run costs
+minutes; release is a whole-program pass per integration-test binary over the
+entire Typst compiler and costs tens of minutes. Paying release prices for
+feedback you can have immediately is the whole of the difference, and it is why a
+session can appear to make no progress for half an hour while producing nothing.
+
+`rustfmt` taking no lock is worth knowing on its own: formatting stayed possible
+throughout a period when every cargo command was blocked, which is how the
+`#92` formatting fix got made at all.
+
 ---
 
 ## 4 · The rules that bind every change

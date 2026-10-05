@@ -170,7 +170,9 @@ fn the_parameter_vocabulary_is_present() {
     let v: serde_json::Value =
         serde_json::from_str(&ksav_engine::facts::facts_json()).expect("valid JSON");
     let pe = &v["param_en"];
-    let global = pe["global"].as_array().expect("param_en.global is an array");
+    let global = pe["global"]
+        .as_array()
+        .expect("param_en.global is an array");
     let by_command = pe["by_command"]
         .as_array()
         .expect("param_en.by_command is an array");
@@ -180,18 +182,14 @@ fn the_parameter_vocabulary_is_present() {
     // The two ambiguities the prelude's own comments are about, asserted so a
     // walk that starts collecting the wrong dictionary fails here rather than
     // in an editor whose English panel offers Hebrew.
-    let colour = global
-        .iter()
-        .any(|p| p[0] == "colour" && p[1] == "צבע");
+    let colour = global.iter().any(|p| p[0] == "colour" && p[1] == "צבע");
     assert!(colour, "colour → צבע is not in param_en.global");
     let document = by_command
         .iter()
         .find(|row| row[0] == "מסמך")
         .expect("document carries an extra table");
     let pairs = document[1].as_array().expect("its pairs");
-    let columns = pairs
-        .iter()
-        .any(|p| p[0] == "columns" && p[1] == "טורים");
+    let columns = pairs.iter().any(|p| p[0] == "columns" && p[1] == "טורים");
     assert!(columns, "מסמך.extra.columns → טורים is missing");
 }
 
@@ -278,10 +276,7 @@ fn the_walk_only_opens_rows_for_real_en_wrappers() {
     );
     assert_eq!(
         t.by_command,
-        vec![(
-            "מסמך".into(),
-            vec![("columns".into(), "טורים".into())],
-        )],
+        vec![("מסמך".into(), vec![("columns".into(), "טורים".into())],)],
         "a trailing // note inside extra: must not hide the pair"
     );
 }
@@ -334,7 +329,11 @@ fn the_first_english_spelling_of_a_command_wins() {
     for (en, he) in ksav_engine::diagnostics::command_aliases(include_str!("../typst/ksav.typ")) {
         first.entry(he).or_insert(en);
     }
-    assert_eq!(first.get("אות").map(String::as_str), Some("os"), "declaration order decides");
+    assert_eq!(
+        first.get("אות").map(String::as_str),
+        Some("os"),
+        "declaration order decides"
+    );
     assert_eq!(first.get("הדגשה").map(String::as_str), Some("bold"));
     assert_eq!(first.get("מדור_בדרגה").map(String::as_str), Some("band"));
 }
@@ -357,7 +356,10 @@ fn the_alias_walk_only_opens_for_document_commands() {
     // A function-local `let` whose value is a bare Hebrew identifier. The
     // prelude really has this shape (`let _gmin = רשת_מרווח_מזערי`), and only
     // the `Code` parent separates it from a real alias.
-    assert_eq!(command_aliases("#let f(a) = {\n  let inner = a\n  inner\n}\n"), none);
+    assert_eq!(
+        command_aliases("#let f(a) = {\n  let inner = a\n  inner\n}\n"),
+        none
+    );
 
     // A Hebrew name bound to a Hebrew name is a Hebrew definition.
     assert_eq!(command_aliases("#let סימן = סימן_אחר\n"), none);
@@ -470,10 +472,12 @@ fn every_registry_command_agrees_with_the_preludes_spelling() {
     for c in ksav_engine::commands::COMMANDS {
         match aliases.get(c.he) {
             Some(en) => assert_eq!(
-                en.as_str(), c.en,
+                en.as_str(),
+                c.en,
                 "registry and prelude disagree about {}: the registry says \"{}\", \
                  the prelude aliases it to \"{en}\"",
-                c.he, c.en
+                c.he,
+                c.en
             ),
             None => {
                 // The registry's independently-defined twins — `#let hlevel(body,
@@ -498,4 +502,3 @@ fn every_registry_command_agrees_with_the_preludes_spelling() {
          generator's registry-only fallback is doing the work"
     );
 }
-

@@ -413,10 +413,7 @@ fn a_pdf_pages_token_that_names_no_page_is_not_a_full_export() {
     }
     // And either way the writer is told which token.
     assert!(
-        zero
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("\"0\"")),
+        zero.diagnostics.iter().any(|d| d.message.contains("\"0\"")),
         "the offending token was not named: {:?}",
         zero.diagnostics
     );
@@ -524,10 +521,7 @@ fn the_readable_specs_still_export_the_pages_they_name() {
             "{spec:?} exported every page"
         );
         assert!(
-            !out
-                .diagnostics
-                .iter()
-                .any(|d| d.message.contains(spec)),
+            !out.diagnostics.iter().any(|d| d.message.contains(spec)),
             "{spec:?} was wrongly reported as unreadable: {:?}",
             out.diagnostics
         );

@@ -490,7 +490,6 @@ fn named_arg(args: &str, keys: &[&str]) -> Option<String> {
     None
 }
 
-
 /// A Typst length, in cm. `None` for anything font-relative — or for a
 /// percentage when the sheet it would be a percentage of is not known.
 ///
@@ -1094,13 +1093,7 @@ fn margin_slot_mut<'a>(cfg: &'a mut DocConfig, key: &str) -> Option<&'a mut Opti
     }
 }
 
-fn clamped(
-    cfg: &mut DocConfig,
-    v: &serde_json::Value,
-    key: &str,
-    lo: f64,
-    hi: f64,
-) -> Option<f64> {
+fn clamped(cfg: &mut DocConfig, v: &serde_json::Value, key: &str, lo: f64, hi: f64) -> Option<f64> {
     let n = v.get(key)?.as_f64()?;
     if !n.is_finite() {
         return None;
@@ -1517,7 +1510,11 @@ impl DocConfig {
             if let Some(slot) = margin_slot_mut(&mut cfg, key) {
                 *slot = Some(used);
             }
-            cfg.refusals.push(Refusal { key: key.to_string(), asked, used });
+            cfg.refusals.push(Refusal {
+                key: key.to_string(),
+                asked,
+                used,
+            });
         }
 
         if let Some(g) = clamped(&mut cfg, v, "gutter_cm", 0.0, 5.0) {
@@ -1751,10 +1748,7 @@ fn parse_page_spec(spec: &str) -> PageSpec {
             }
             continue;
         };
-        let (lo, hi) = (
-            read_bound(&part[..dash]),
-            read_bound(&part[dash + 1..]),
-        );
+        let (lo, hi) = (read_bound(&part[..dash]), read_bound(&part[dash + 1..]));
         // Any rubbish end takes the whole token with it. `0-5` is **not** "up to
         // 5" — it is a writer who typed a page that does not exist, and reading
         // it as an open bound is the exact silent wrong-answer #59 opened with.
@@ -1786,7 +1780,9 @@ fn parse_page_spec(spec: &str) -> PageSpec {
 /// spec that named pages and had every one of them refused is an `Err`, not a
 /// `None`: it used to be a `None`, and that is how a typo in one field exported
 /// the whole sefer.
-fn page_ranges_for_export(spec: &PageSpec) -> Result<Option<Vec<std::ops::RangeInclusive<PageBound>>>, String> {
+fn page_ranges_for_export(
+    spec: &PageSpec,
+) -> Result<Option<Vec<std::ops::RangeInclusive<PageBound>>>, String> {
     if !spec.restricted {
         return Ok(None);
     }
@@ -2215,7 +2211,11 @@ fn inject_reserve_into_writer_masmer(body: &str, region_expr: &str) -> String {
         // ahead of the body bracket.
         return format!("{head}(אזור_הערות: {region_expr}){tail}");
     }
-    let sep = if tail.trim_start().is_empty() { "" } else { ", " };
+    let sep = if tail.trim_start().is_empty() {
+        ""
+    } else {
+        ", "
+    };
     format!("{head}אזור_הערות: {region_expr}{sep}{tail}")
 }
 
@@ -2319,24 +2319,21 @@ fn find_writer_masmer(body: &str) -> Option<WriterMasmer> {
                             // node for `#f[…]` has no `LeftBracket` child of its
                             // own and a search for one finds nothing at all.
                             let first = args.children().find(|c| !c.kind().is_trivia());
-                            let has_parens =
-                                first.as_ref().is_some_and(|c| c.kind() == SyntaxKind::LeftParen);
+                            let has_parens = first
+                                .as_ref()
+                                .is_some_and(|c| c.kind() == SyntaxKind::LeftParen);
                             let open = match first {
                                 Some(c) if c.kind() == SyntaxKind::LeftParen => c.offset() + 1,
                                 Some(c) => c.offset(),
                                 None => args.offset() + args.get().leaf_text().len(),
                             };
-                            for named in
-                                args.children().filter(|c| c.kind() == SyntaxKind::Named)
-                            {
+                            for named in args.children().filter(|c| c.kind() == SyntaxKind::Named) {
                                 let parts: Vec<_> =
                                     named.children().filter(|c| !c.kind().is_trivia()).collect();
                                 if parts.len() < 2 || parts[0].kind() != SyntaxKind::Ident {
                                     continue;
                                 }
-                                if !RESERVE_ARGS
-                                    .contains(&parts[0].get().leaf_text().as_str())
-                                {
+                                if !RESERVE_ARGS.contains(&parts[0].get().leaf_text().as_str()) {
                                     continue;
                                 }
                                 // Everything after the colon is the value. A
@@ -2958,10 +2955,7 @@ pub(crate) fn dangling_references(root: &typst::syntax::SyntaxNode, body: &str) 
 /// `#אזור(…)`. When a document declares none at all, the message says so rather
 /// than listing an empty set — the likeliest cause of a wrong name in a document
 /// that declares nothing is a name copied from another document.
-pub(crate) fn unknown_destinations(
-    body: &str,
-    shape: &parse::ApparatusShape,
-) -> Vec<Diagnostic> {
+pub(crate) fn unknown_destinations(body: &str, shape: &parse::ApparatusShape) -> Vec<Diagnostic> {
     let channels = channel_declarations(body, shape, CHANNEL_DECL);
     let regions = channel_declarations(body, shape, REGION_DECL);
     // A document full of `#הערה(ערוץ: "הערה_ב")` is one writer's ordinary sefer,
@@ -2982,7 +2976,8 @@ pub(crate) fn unknown_destinations(
         let Some((from, to)) = call.args else {
             continue;
         };
-        let Some(name) = named_arg(&body[from..to], REGION_ARG).or(named_arg(&body[from..to], CHANNEL_ARG))
+        let Some(name) =
+            named_arg(&body[from..to], REGION_ARG).or(named_arg(&body[from..to], CHANNEL_ARG))
         else {
             continue;
         };
@@ -3537,20 +3532,20 @@ fn pdf_options(cfg: &DocConfig) -> Result<(typst_pdf::PdfOptions, Vec<Diagnostic
         None => {}
         Some(ranges) => {
             opts.page_ranges = Some(typst::layout::PageRanges::new(ranges));
-        // Typst refuses the combination outright: the accessibility tree spans
-        // the whole document, so a subset of pages cannot carry a correct one.
-        // Dropping the tags is what the writer wants — they asked for three pages,
-        // not for an accessibility tree — but it is still a thing that happened to
-        // their export, so it is said out loud rather than done behind their back.
-        if opts.tagged {
-            opts.tagged = false;
-            notes.push(Diagnostic::ours(
-                "warning",
-                "ייצוא של טווח עמודים אינו יכול לשאת תגי נגישות — התגים הושמטו · \
+            // Typst refuses the combination outright: the accessibility tree spans
+            // the whole document, so a subset of pages cannot carry a correct one.
+            // Dropping the tags is what the writer wants — they asked for three pages,
+            // not for an accessibility tree — but it is still a thing that happened to
+            // their export, so it is said out loud rather than done behind their back.
+            if opts.tagged {
+                opts.tagged = false;
+                notes.push(Diagnostic::ours(
+                    "warning",
+                    "ייצוא של טווח עמודים אינו יכול לשאת תגי נגישות — התגים הושמטו · \
                  Exporting a page range cannot carry PDF tags — tags were dropped"
-                    .to_string(),
-            ));
-        }
+                        .to_string(),
+                ));
+            }
         }
     }
     Ok((opts, notes))
@@ -4050,7 +4045,7 @@ mod tests {
     ///   two must not be confused — the one a `%` height would expose.
     #[test]
     fn the_reserve_cache_does_not_change_an_answer() {
-// Ten distinct bodies, each declaring a different band height, so every one has
+        // Ten distinct bodies, each declaring a different band height, so every one has
         // a different correct answer and a mixed-up entry is visible rather than
         // coincidental.
         //
@@ -4152,7 +4147,10 @@ mod tests {
                 "the cache grew to {len} entries after {n} distinct bodies"
             );
         }
-        assert_eq!(RESERVE_CACHE_CAP, 8, "the cap moved — say so in the comment");
+        assert_eq!(
+            RESERVE_CACHE_CAP, 8,
+            "the cap moved — say so in the comment"
+        );
     }
 
     /// The built-in channels are the prelude's, and it says so once.
@@ -4407,25 +4405,25 @@ mod tests {
     }
 
     /// #58: an inline `אזור_הערות:` that is not an argument is not a setting.
-///
-/// The reader used to `body.find("אזור_הערות")` and take the number after the
-/// colon, so all four of these read as the writer fixing the reserve — and
-/// `grow_inline_reserve` **rewrote** it, silently, on every compile:
-///
-/// | body | what `find` saw |
-/// |---|---|
-/// | a `//` line mentioning it | the comment's own number |
-/// | a `#block` string containing it | the string's number |
-/// | prose naming it | the next number in the sentence |
-/// | a `#מסמך` *without* it | nothing — but `inject` wrote one into a commented-out call |
-///
-/// This is the last hand-rolled scan of its kind: `auto_notes_region_cm` had
-/// been moved onto the parse long ago (its own test says *"with the parser now
-/// doing the lexing"*), and the inline reserve had not. The fence is the four
-/// shapes above plus the four that must still work, because a fix that simply
-/// stopped finding the name would pass the first half and silently drop every
-/// writer's real setting.
-#[test]
+    ///
+    /// The reader used to `body.find("אזור_הערות")` and take the number after the
+    /// colon, so all four of these read as the writer fixing the reserve — and
+    /// `grow_inline_reserve` **rewrote** it, silently, on every compile:
+    ///
+    /// | body | what `find` saw |
+    /// |---|---|
+    /// | a `//` line mentioning it | the comment's own number |
+    /// | a `#block` string containing it | the string's number |
+    /// | prose naming it | the next number in the sentence |
+    /// | a `#מסמך` *without* it | nothing — but `inject` wrote one into a commented-out call |
+    ///
+    /// This is the last hand-rolled scan of its kind: `auto_notes_region_cm` had
+    /// been moved onto the parse long ago (its own test says *"with the parser now
+    /// doing the lexing"*), and the inline reserve had not. The fence is the four
+    /// shapes above plus the four that must still work, because a fix that simply
+    /// stopped finding the name would pass the first half and silently drop every
+    /// writer's real setting.
+    #[test]
     fn an_inline_reserve_is_only_read_from_a_call() {
         // **Prose.** The number after the colon is the next one in the sentence.
         assert_eq!(
@@ -4466,8 +4464,14 @@ mod tests {
 
         // ---- and the shapes that must still be read ----
         // The paren form, both spellings, both units, alone and beside others.
-        assert_eq!(inline_reserve_cm("#מסמך(אזור_הערות: 3.5cm)[\nטקסט\n]"), Some(3.5));
-        assert_eq!(inline_reserve_cm("#מסמך(אזור_הערות: 2cm)[\nטקסט\n]"), Some(2.0));
+        assert_eq!(
+            inline_reserve_cm("#מסמך(אזור_הערות: 3.5cm)[\nטקסט\n]"),
+            Some(3.5)
+        );
+        assert_eq!(
+            inline_reserve_cm("#מסמך(אזור_הערות: 2cm)[\nטקסט\n]"),
+            Some(2.0)
+        );
         assert_eq!(
             inline_reserve_cm("#masmer(notes_region: 4cm)[\ntext\n]"),
             Some(4.0)
@@ -4497,10 +4501,7 @@ mod tests {
             grown.contains("אזור_הערות: 4.00cm"),
             "the reserve was not raised: {grown}"
         );
-        assert!(
-            !grown.contains("1cm"),
-            "the old number survived: {grown}"
-        );
+        assert!(!grown.contains("1cm"), "the old number survived: {grown}");
         // Already big enough: untouched, byte for byte.
         let body = "#מסמך(אזור_הערות: 6cm)[\nטקסט\n]";
         assert_eq!(grow_inline_reserve(body, 4.0), body);
@@ -5808,7 +5809,11 @@ mod tests {
         // The four that used to fail silently.
         assert_eq!(offcuts("0"), vec!["0"], "page zero was not named");
         assert_eq!(offcuts("0-5"), vec!["0-5"], "`0-5` was not named");
-        assert_eq!(offcuts("9-2"), vec!["9-2"], "a backwards range was not named");
+        assert_eq!(
+            offcuts("9-2"),
+            vec!["9-2"],
+            "a backwards range was not named"
+        );
         assert_eq!(offcuts("-"), vec!["-"], "a bare dash was not named");
         assert_eq!(offcuts("x"), vec!["x"], "garbage was not named");
         // A clean spec names nothing.
@@ -5839,7 +5844,8 @@ mod tests {
     #[test]
     fn an_all_refused_page_range_is_refused_rather_than_every_page() {
         let named = |s: &str| -> usize {
-            s.trim().is_empty()
+            s.trim()
+                .is_empty()
                 .then_some(0)
                 .unwrap_or_else(|| parse_page_spec(s).ranges.len())
         };
@@ -5850,7 +5856,9 @@ mod tests {
         assert_eq!(named("1"), 1);
         // And the export decision itself, which is the thing that was wrong.
         assert!(
-            page_ranges_for_export(&parse_page_spec("")).unwrap().is_none(),
+            page_ranges_for_export(&parse_page_spec(""))
+                .unwrap()
+                .is_none(),
             "an empty spec is every page"
         );
         assert!(

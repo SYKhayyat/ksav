@@ -344,14 +344,8 @@ const COVERED: &[(&str, &[&str])] = &[
         "endnotes in two independently numbered streams, side by side",
         &["#הערות_בסוף_צד(", "#הערתסיום(זרם:"],
     ),
-    (
-        "the source index",
-        &["#מפתח_מקורות()", "#ציון_מקור("],
-    ),
-    (
-        "the topic index",
-        &["#מפתח_ענינים()", "#ערך("],
-    ),
+    ("the source index", &["#מפתח_מקורות()", "#ציון_מקור("]),
+    ("the topic index", &["#מפתח_ענינים()", "#ערך("]),
 ];
 
 /// The name a probe is asserting about, read off its leading `#identifier`.
@@ -462,7 +456,6 @@ fn the_covered_set_is_not_empty_and_names_real_commands() {
     );
 }
 
-
 // ------------------------------------------------- the two translated pairs
 
 /// One declared difference between a translated pair, and why it is allowed.
@@ -541,11 +534,7 @@ const TRANSLATED_PAIRS: &[(&str, &str, &[Allowed])] = &[
                  a right-to-left document and the right in a left-to-right one, so \
                  the two copies use *opposite* alignment commands for one gesture",
             ),
-            only(
-                "שמאל",
-                "right_",
-                "…and again for the date under it",
-            ),
+            only("שמאל", "right_", "…and again for the date under it"),
         ],
     ),
     (
@@ -613,7 +602,10 @@ fn the_translated_templates_keep_their_hebrew_originals_in_step() {
         let mut he_as_en = Vec::new();
         let mut he_names = Vec::new();
         for c in commands_in(he_body) {
-            if c.chars().next().is_some_and(|c| ('\u{05D0}'..='\u{05EA}').contains(&c)) {
+            if c.chars()
+                .next()
+                .is_some_and(|c| ('\u{05D0}'..='\u{05EA}').contains(&c))
+            {
                 match english_of(&c) {
                     Some(en) => he_as_en.push(en),
                     None => {
@@ -634,8 +626,11 @@ fn the_translated_templates_keep_their_hebrew_originals_in_step() {
             he_names.push(c);
         }
         let en = commands_in(en_body);
-        if en.iter().any(|c| c.chars().next().is_some_and(|c| ('\u{05D0}'..='\u{05EA}').contains(&c)))
-        {
+        if en.iter().any(|c| {
+            c.chars()
+                .next()
+                .is_some_and(|c| ('\u{05D0}'..='\u{05EA}').contains(&c))
+        }) {
             drift.push(format!("{en_id} is written in Hebrew"));
             continue;
         }
@@ -685,7 +680,10 @@ fn the_translated_templates_keep_their_hebrew_originals_in_step() {
         let mut unclaimed_he = extra_in_he.clone();
         let mut unclaimed_en = extra_in_en.clone();
         let mut used = 0;
-        for a in allowed.iter().filter(|a| !a.he.is_empty() && !a.en.is_empty()) {
+        for a in allowed
+            .iter()
+            .filter(|a| !a.he.is_empty() && !a.en.is_empty())
+        {
             if let (Some(hi), Some(ei)) = (
                 unclaimed_he.iter().position(|x| *x == a.he),
                 unclaimed_en.iter().position(|x| *x == a.en),
@@ -695,13 +693,19 @@ fn the_translated_templates_keep_their_hebrew_originals_in_step() {
                 used += 1;
             }
         }
-        for a in allowed.iter().filter(|a| !a.he.is_empty() && a.en.is_empty()) {
+        for a in allowed
+            .iter()
+            .filter(|a| !a.he.is_empty() && a.en.is_empty())
+        {
             if let Some(hi) = unclaimed_he.iter().position(|x| *x == a.he) {
                 unclaimed_he.remove(hi);
                 used += 1;
             }
         }
-        for a in allowed.iter().filter(|a| a.he.is_empty() && !a.en.is_empty()) {
+        for a in allowed
+            .iter()
+            .filter(|a| a.he.is_empty() && !a.en.is_empty())
+        {
             if let Some(ei) = unclaimed_en.iter().position(|x| *x == a.en) {
                 unclaimed_en.remove(ei);
                 used += 1;

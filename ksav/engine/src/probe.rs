@@ -10,9 +10,9 @@
 //! assert *where words actually landed*. It is the only honest way to test a
 //! typesetting apparatus.
 
+use typst::layout::Size;
 use typst::layout::{Frame, FrameItem, Point};
 use typst::text::FontStyle;
-use typst::layout::Size;
 use typst::visualize::{Geometry, Paint};
 use typst_layout::PagedDocument;
 

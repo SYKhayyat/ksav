@@ -55,11 +55,8 @@ use ksav_engine::{compile, DocConfig};
 /// fifty names is a list that goes stale, and a stale list is a fence that has
 /// quietly stopped sweeping.
 fn setters() -> Vec<String> {
-    let prelude = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/typst/ksav.typ"
-    ))
-    .expect("the prelude");
+    let prelude = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/typst/ksav.typ"))
+        .expect("the prelude");
     let mut out: Vec<String> = Vec::new();
     for line in prelude.lines() {
         if let Some(rest) = line.strip_prefix("#let הגדרות_") {
@@ -96,7 +93,11 @@ const TYPO: &str = "טיפא_שגיאה";
 #[test]
 fn every_settings_command_refuses_an_unknown_knob() {
     let all = setters();
-    assert!(all.len() >= 45, "the sweep found only {} setters", all.len());
+    assert!(
+        all.len() >= 45,
+        "the sweep found only {} setters",
+        all.len()
+    );
     let mut unreported: Vec<String> = Vec::new();
     for name in &all {
         // `#הגדרות_מונה` takes a positional name before its knobs; asking it
@@ -107,13 +108,16 @@ fn every_settings_command_refuses_an_unknown_knob() {
             format!("#{name}({TYPO}: true)")
         };
         let (ok, messages) = says(&format!("#שער[מסמך]\n\n{call}\n\nטקסט.\n"));
-        let named = messages
-            .iter()
-            .any(|m| m.contains(TYPO) && (m.contains("unrecognised argument") || m.contains("אין הגדרה בשם")));
+        let named = messages.iter().any(|m| {
+            m.contains(TYPO) && (m.contains("unrecognised argument") || m.contains("אין הגדרה בשם"))
+        });
         if ok || !named {
             unreported.push(format!(
                 "{name}: ok={ok} {}",
-                messages.first().map(|m| m.chars().take(60).collect::<String>()).unwrap_or_default()
+                messages
+                    .first()
+                    .map(|m| m.chars().take(60).collect::<String>())
+                    .unwrap_or_default()
             ));
         }
     }
@@ -136,8 +140,13 @@ fn every_settings_command_refuses_an_unknown_knob() {
 /// at the boundary.
 #[test]
 fn the_refusal_does_not_wait_for_something_to_read_the_state() {
-    let (ok, messages) = says(&format!("#שער[מסמך]\n\n#הגדרות_טקסט_הערות({TYPO}: true)\n\nטקסט.\n"));
-    assert!(!ok, "a document with no notes compiled with a misspelled knob");
+    let (ok, messages) = says(&format!(
+        "#שער[מסמך]\n\n#הגדרות_טקסט_הערות({TYPO}: true)\n\nטקסט.\n"
+    ));
+    assert!(
+        !ok,
+        "a document with no notes compiled with a misspelled knob"
+    );
     assert!(
         messages.iter().any(|m| m.contains(TYPO)),
         "and the message does not name the key: {messages:?}"
@@ -169,9 +178,7 @@ fn every_knob_the_refusal_offers_is_a_knob_it_accepts() {
         let Some((_, offered)) = said.split_once("· ") else {
             panic!("{name} refused without saying what it does accept: {said}");
         };
-        let (_, offered) = offered
-            .split_once("— ")
-            .unwrap_or((offered, ""));
+        let (_, offered) = offered.split_once("— ").unwrap_or((offered, ""));
         let keys: Vec<&str> = offered
             .split('·')
             .next()
@@ -186,7 +193,10 @@ fn every_knob_the_refusal_offers_is_a_knob_it_accepts() {
         // refuses is worse than no list, because the writer trusts it.
         for key in &keys {
             let (ok, messages) = says(&format!("#שער[מסמך]\n\n{name}({key}: none)\n\nטקסט.\n"));
-            assert!(ok, "{name} offered {key:?} and then refused it: {messages:?}");
+            assert!(
+                ok,
+                "{name} offered {key:?} and then refused it: {messages:?}"
+            );
         }
     }
 }
@@ -195,11 +205,16 @@ fn every_knob_the_refusal_offers_is_a_knob_it_accepts() {
 /// through the reference for a key the engine already knows.
 #[test]
 fn the_refusal_offers_the_legal_knobs() {
-    let (ok, messages) = says(&format!("#שער[מסמך]\n\n#הגדרות_רשימות({TYPO}: true)\n\nטקסט.\n"));
+    let (ok, messages) = says(&format!(
+        "#שער[מסמך]\n\n#הגדרות_רשימות({TYPO}: true)\n\nטקסט.\n"
+    ));
     assert!(!ok);
     let said = messages.concat();
     assert!(said.contains(TYPO), "the key is not named: {said}");
-    assert!(said.contains("— "), "the message offers no legal knob: {said}");
+    assert!(
+        said.contains("— "),
+        "the message offers no legal knob: {said}"
+    );
 }
 
 /// A global key is still global: `_cfg_validate` adds `_cfg_global_keys` to every
@@ -210,9 +225,17 @@ fn a_global_knob_is_accepted_by_every_apparatus() {
     // `כפה` is the whole of `_cfg_global_keys`, and `_cfg_validate` adds it to
     // every schema. A global key refused by the apparatus that happens to be
     // strictest would be a knob that works in one document and not another.
-    for name in ["#הגדרות_רשימות", "#הגדרות_טבלאות", "#הגדרות_סקירה", "#הגדרות_כותרת1"] {
+    for name in [
+        "#הגדרות_רשימות",
+        "#הגדרות_טבלאות",
+        "#הגדרות_סקירה",
+        "#הגדרות_כותרת1",
+    ] {
         let (ok, messages) = says(&format!("#שער[מסמך]\n\n{name}(כפה: true)\n\nטקסט.\n"));
-        assert!(ok, "{name}(כפה: true) — the one global knob — was refused: {messages:?}");
+        assert!(
+            ok,
+            "{name}(כפה: true) — the one global knob — was refused: {messages:?}"
+        );
     }
 }
 
@@ -231,11 +254,8 @@ fn a_global_knob_is_accepted_by_every_apparatus() {
 /// that cries wolf on the first thing it reads gets deleted, so it reads bodies.
 #[test]
 fn no_settings_command_skips_the_key_check() {
-    let prelude = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/typst/ksav.typ"
-    ))
-    .expect("the prelude");
+    let prelude = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/typst/ksav.typ"))
+        .expect("the prelude");
 
     // A `#let`'s whole statement: to the end of its line when that line is
     // balanced, and otherwise to the brace that closes it. Both shapes are
@@ -310,7 +330,11 @@ fn no_settings_command_skips_the_key_check() {
     // this one out by name — *"count what was actually checked and assert a floor
     // under it"* — because the assertions live inside a loop it cannot see.
     let all = setters();
-    assert!(all.len() >= 45, "the sweep found only {} settings commands", all.len());
+    assert!(
+        all.len() >= 45,
+        "the sweep found only {} settings commands",
+        all.len()
+    );
 
     let mut unchecked: Vec<String> = Vec::new();
     for name in all {
@@ -330,7 +354,10 @@ fn no_settings_command_skips_the_key_check() {
             .and_then(&body_of)
             .is_some_and(|b| checks(&b));
         if !delegated {
-            unchecked.push(format!("{name}: {}", body.lines().next().unwrap_or("").trim()));
+            unchecked.push(format!(
+                "{name}: {}",
+                body.lines().next().unwrap_or("").trim()
+            ));
         }
     }
     assert!(

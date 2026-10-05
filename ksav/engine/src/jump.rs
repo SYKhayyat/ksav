@@ -252,7 +252,11 @@ pub fn jump_request(input_json: &str) -> String {
     // walked — and the answer then has to be translated back, or a click on
     // chapter three would send the cursor to a line number in a concatenation
     // the writer has never seen.
-    let expanded = crate::include::expand(body, &crate::include::from_request(&v), crate::include::Limits::default());
+    let expanded = crate::include::expand(
+        body,
+        &crate::include::from_request(&v),
+        crate::include::Limits::default(),
+    );
     match to_source(&expanded.text, &DocConfig::from_json(&v), &assets, at) {
         Some(s) => {
             let origin = expanded.origin_of(s.line);
@@ -276,7 +280,11 @@ pub fn reveal_request(input_json: &str) -> String {
         return r#"{"points":[]}"#.to_string();
     };
     let (assets, _, _) = Assets::from_request(&v);
-    let expanded = crate::include::expand(body, &crate::include::from_request(&v), crate::include::Limits::default());
+    let expanded = crate::include::expand(
+        body,
+        &crate::include::from_request(&v),
+        crate::include::Limits::default(),
+    );
     // The caller names a line in the file the cursor is actually in, which is the
     // only line number it has; the layout knows the expanded body's.
     let asked = v.get("line").and_then(|x| x.as_u64()).unwrap_or(1).max(1) as usize;

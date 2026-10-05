@@ -520,7 +520,10 @@ fn a_parenthetical_in_prose_is_still_checked() {
     assert_eq!(flagged("hello(world)"), Vec::<String>::new());
     // A registered command in the bare form is still a call, and still not a word.
     for bare in ["headcell[Posek]", "headcell(Posek)"] {
-        assert!(flagged(bare).is_empty(), "a bare call head was flagged: {bare}");
+        assert!(
+            flagged(bare).is_empty(),
+            "a bare call head was flagged: {bare}"
+        );
     }
     // …while a *misspelling* of one is a word worth flagging, because it is not
     // in the registry. Before the fix both of these passed silently.

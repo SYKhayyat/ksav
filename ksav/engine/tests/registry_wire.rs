@@ -106,11 +106,14 @@ fn wire_strings() -> Vec<(&'static str, &'static str, &'static str)> {
 /// the house style.
 #[test]
 fn a_second_sentence_on_the_wire_is_a_deprecation_notice() {
-    let sentence_boundary =
-        |s: &str| s.char_indices().any(|(i, c)| ".?!".contains(c) && {
-            let rest = &s[i + c.len_utf8()..];
-            rest.starts_with(' ') && rest[1..].starts_with(|c: char| c.is_alphabetic())
-        });
+    let sentence_boundary = |s: &str| {
+        s.char_indices().any(|(i, c)| {
+            ".?!".contains(c) && {
+                let rest = &s[i + c.len_utf8()..];
+                rest.starts_with(' ') && rest[1..].starts_with(|c: char| c.is_alphabetic())
+            }
+        })
+    };
 
     let mut with_a_second_sentence = Vec::new();
     for c in COMMANDS {
@@ -179,7 +182,11 @@ fn no_description_on_the_wire_is_longer_than_ui_copy() {
          name must have stopped matching the arms above",
         COMMANDS.len() * 3
     );
-    assert_eq!(checked, COMMANDS.len() * 3, "every command contributes three strings");
+    assert_eq!(
+        checked,
+        COMMANDS.len() * 3,
+        "every command contributes three strings"
+    );
 }
 
 /// The wire carries no field the palette does not read.

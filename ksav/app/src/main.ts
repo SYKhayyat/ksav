@@ -741,11 +741,16 @@ async function closeOpenDoc(id: string) {
   // reopened is opened at its own caret. Keeping the rows would put a pane back
   // at a place in a sefer measured against a text edited since.
   paneplaces.forgetDoc(id);
-  // And the file stamp, whose comment has always said this is when it happens:
-  // *"Forget a document — on close, or when its binding is replaced."* Nothing
-  // called it. The leak is small — one stamp per document ever opened, keyed by
-  // an id that is never reused — but a comment that describes a call nobody
-  // makes is the defect, not the bytes.
+  // And the file stamp — one of the two callers `watch.forget`'s comment names,
+  // the other being the delete path below.
+  //
+  // **This comment used to say "Nothing called it", and it was wrong by the time
+  // anyone read it** — the call is the next line. It described the state before
+  // the fix, in the present tense, which is how #36 came to be filed: an audit
+  // read `watch.forget`, found the call sites in the same file, and filed the
+  // claim a second time against a comment that agreed with it. A note recording
+  // what used to be true is worse than no note, because it is the kind that gets
+  // believed.
   watch.forget(id);
   const next = opendocs.close(id);
   if (next) {

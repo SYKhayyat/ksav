@@ -4050,21 +4050,24 @@ mod tests {
     ///   two must not be confused — the one a `%` height would expose.
     #[test]
     fn the_reserve_cache_does_not_change_an_answer() {
-        // Ten distinct bodies, each declaring a different band height, so every one has
+// Ten distinct bodies, each declaring a different band height, so every one has
         // a different correct answer and a mixed-up entry is visible rather than
         // coincidental.
         //
-        // The band has to be **called**, not merely configured: the shapes are
-        // `גובהים: …` **and** `#מדף_א[…]`. An earlier version of this test wrote
-        // `#הערות_במדפים` and every body reserved the same height, so the guard
-        // below caught a fence that could not see a mix-up — which is the whole
-        // reason the guard is there.
+        // Two shapes have to be right or this fence measures nothing:
+        //
+        // * the band has to be **called**, not merely configured — the shapes are
+        //   `גובהים: …` **and** `#מדף_א[…]`. An earlier version wrote
+        //   `#הערות_במדפים` and every body reserved the same height, so the guard
+        //   below caught a fence that could not see a mix-up.
+        // * the interpolated `{n}` stays **out of the content block**. A `#name[…{`
+        //   is the shape `prohibitions.test.mjs` refuses anywhere in
+        //   `engine/src/` (#50's injection class), and a test fixture is not
+        //   exempt from a fence that reads the file rather than the intent. The
+        //   number goes in the declared height instead, which is what the reserve
+        //   is read from, and the band's own body is a literal.
         let bodies: Vec<String> = (1..=10)
-            .map(|n| {
-                format!(
-                    "#הגדרות_מדפים(גבהים: ({n}cm,))\n\n#מדף_א[גוף {n}]"
-                )
-            })
+            .map(|n| format!("#הגדרות_מדפים(גבהים: ({n}cm,))\n\n#מדף_א[גוף]"))
             .collect();
 
         // The uncached answer, from the scan itself — the oracle.

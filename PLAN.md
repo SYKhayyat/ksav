@@ -371,7 +371,42 @@ still right.
     readers come through one `find_writer_masmer` off the parse. `inject_reserve_into_writer_masmer`
     had the same disease and wrote an argument into a **commented-out** `#מסמך(` — which is
     what the editor's own "comment out" writes.
-- [ ] #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
+- [ ] #56 32-bit asset cache, writable by a header-less caller. **Deliberately not
+  done in this round, and the reason is the fix's shape rather than the bug's doubt.**
+  The claim is sound — `client_hash` is two 32-bit FNV lanes over a payload the attacker
+  controls, so a collision is a ~2^32 birthday walk, and `server.rs`'s `origin_allowed`
+  lets a no-`Origin` caller through, which is any process on the machine. But the fix
+  the issue names (**SHA-256 of the decoded bytes**) is a **protocol change**, not an edit:
+  the hash is **persisted in every `.ksav`** (`docs.ts:345`, read back by `docfile.rs`), so
+  it is a file-format break; it must be computed identically in **Rust and in JavaScript**,
+  where a synchronous SHA-256 is ~70 hand-written lines because `crypto.subtle` is async
+  and `assetHash` is sync and WeakMap-cached; and `engine/tests/assets.rs` holds the two
+  implementations against each other, which is the only instrument that makes the change
+  safe. A half-migrated hash is worse than a 64-bit one: old files' assets would re-send
+  once (fine) but any client and engine out of step would silently stop deduplicating.
+  Worth doing whole, with the two sides landing together.
+- [x] #61 `is_command` exempted prose before a paren — the checker's best case being
+  **absent** rather than wrong.
+- [x] #57 named_arg was quote-blind while its neighbour `closing_paren` was not. Two
+  scanners disagreeing about where a string is is how an argument list whose first
+  string contained `גובה:` answered with the *string's* number, returned before the real
+  argument, and sized the foot band from a string — notes off the page, no diagnostic.
+  **`code_ranges` is now the only walk in the crate that knows how Typst quotes work**,
+  and both scanners use it. The value scan skips strings too: `"מקורות, ביאורים"` used to
+  be cut at the comma inside it.
+- [x] #55 the one-slot reserve cache, measured before it was touched.
+  `examples/bench-reserve-cache` times `parse::apparatus_shape` on real sefer-sized text:
+  a miss costs **~3.9 ms at 64 KB, ~17.5 ms at 256 KB, ~72 ms at 1 MB** — past the ~59 ms
+  keystroke budget at a megabyte. Two open windows alternate two keys and each call
+  evicts the entry the next one wants. Now eight entries, evicting **least-recently-used**,
+  because the pattern that breaks a one slot is a *cycle* and any map that drops an
+  arbitrary entry turns a 2-cycle into a 100% miss forever. **The instrument got it wrong
+  twice first** and both are written into the file: it built both alternating bodies from
+  the same template, so they hashed to one key and the "miss" row measured a *hit*
+  (3.5 µs where the truth is 72 ms) — an instrument that cannot tell a hit from a miss
+  reports the problem as solved. The fences are the only property a cache may have: **the
+  answer must not change whatever order keys arrive in**, and the entry count stays
+  bounded.
 - [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port, #21 styles walkers onto walkArgs.
 - [ ] #7 keyed updates (5× replaceChildren).
 

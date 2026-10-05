@@ -396,7 +396,7 @@ export async function run() {
       `every release engine check turns link-time optimisation off` +
         (missing.length
           ? `\n    ${missing.join("\n    ")}\n    Without ${LTO_OFF}: "false" that step links forty` +
-            " test binaries with thin LTO, which measured seventy-five minutes."
+            " test binaries with thin LTO, which measured seventy-six minutes."
           : ""),
       missing.length === 0,
     );

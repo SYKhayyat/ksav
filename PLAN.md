@@ -154,6 +154,34 @@ still right.
   `examples/streams.rs` proves the architecture — each stream its own band-sized document,
   pages zipped by index — and **duplicates what `פריסה: "צד"` does**, so it is evidence
   and must not become a second mechanism. (from #15)
+- [x] #78 arbitrary content in a stream. (from #77, from #15) — **Measured, and the premise
+  was false: a stream has held arbitrary content the whole time.** The issue asked the right
+  question and correctly refused to design before measuring — *"is the constraint the
+  **command**, or the fact that streams are populated by the read-only footer apparatus?"* —
+  and the answer is **neither**. A paragraph, a `#figure` with its caption, a
+  `#דיבור_המתחיל` lemma, a `#table`, a coloured `#block`, a nested `#הערה`, and even a
+  `#כותרת2` all compile and print inside `#הערה_זרם`, and a six-column table **shrinks to
+  the column** rather than running over the text beside it. One line of the prelude says
+  why: `_sf_stream_note` (`ksav.typ:5511`) forwards to `_ap_note`, the notes apparatus, and an
+  apparatus entry is a **content block**. Being a note command constrains the **name**, not
+  the payload.
+
+  **What the apparatus really does constrain is placement**, and that is the half worth a
+  test: a stream entry is **anchored to the main flow**. It prints on the page its anchor
+  lands on and stream order is anchor order — measured, an entry anchored after a third of a
+  four-page document prints on page 2 and one anchored last prints on page 4.
+
+  So the gap was never "a stream may hold arbitrary content". It is **content with no
+  anchor** — a column filled from somewhere other than the main flow's note positions — and
+  that is **#79's** question, not this one.
+
+  `engine/tests/stream_content.rs` pins all of it, each case mutation-checked: the four
+  content kinds, the table staying inside its column, the anchoring with its page numbers
+  **in the assertions** (a change here is the moment to argue about it), and stream
+  numbering being independent of the body. The numbering test's first version asserted on
+  the text run and failed, because an apparatus entry prints its number as a **separate run
+  at a smaller size** — so it reads `Line::reading`, which is the line as a reader sees it.
+
 - [x] #80 **reledmac + reledpar** for Hebrew RTL text-critical editions — forwarded
   research, **unverified, and a different shape from #73**. It is LaTeX, and #67's
   resolver takes Typst packages only, so this is not "bundle a dependency" but *read it

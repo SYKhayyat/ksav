@@ -804,7 +804,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
 | `editor` | both | the typechecker, then 8,141 assertions across 118 files |
-| `engine` | both | formatting, lints, then 1102 tests across 75 binaries |
+| `engine` | both | formatting, lints, then 1106 tests across 76 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 

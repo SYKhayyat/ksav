@@ -472,6 +472,91 @@ fn a_command_head_is_not_a_word() {
     assert_eq!(flagged("entirley"), vec!["entirley".to_string()]);
 }
 
+/// #61: a parenthetical in prose is not a command call.
+///
+/// `is_command` was `… || text[end..].starts_with(['[', '('])`, so **any** word
+/// followed by a bracket was exempted. In Typst markup `hello(world)` is a word
+/// in parentheses — a call needs the `#` — so every aside in an English document
+/// lost its squiggles. The checker's best case being *absent* is the one failure
+/// a writer cannot notice, which is why this is worth the registry scan.
+///
+/// The other half of the fix is that the bracket form is **not** dropped:
+/// `headcell[…]` is a bare call head that never carries a `#`, and the test
+/// above holds it. So the question the bracket half now asks is "is this name a
+/// command?", not "is a bracket next".
+#[test]
+fn a_parenthetical_in_prose_is_still_checked() {
+    // A misspelling **inside** the parenthetical, which is the ordinary case a
+    // writer would notice and could not report. The issue writes its evidence as
+    // `hello(world)` — the point is not that `hello` is wrong, it is that the
+    // token before the paren was being exempted, and the only way to see that is
+    // with a token that *should* have been flagged.
+    assert_eq!(
+        flagged("see the note (erro) for details"),
+        vec!["erro".to_string()],
+        "the word inside the parenthetical was not checked"
+    );
+    // …and the word before the bracket, which the old rule exempted outright.
+    assert_eq!(
+        flagged("recieve(world)"),
+        vec!["recieve".to_string()],
+        "a prose word before a paren was exempted"
+    );
+    // Square brackets, which the rule also claimed.
+    assert_eq!(
+        flagged("see [erro] here"),
+        vec!["erro".to_string()],
+        "a word before a square bracket was exempted"
+    );
+    // …and the *word before the bracket* is checked even when the bracketed text
+    // is perfectly fine, which is the subtle half.
+    assert_eq!(
+        flagged("mispeling [correct]"),
+        vec!["mispeling".to_string()],
+        "a typo before a bracket went unchecked"
+    );
+    // A correct word in that position is still correct — the fix is about
+    // exemption, not about inventing squiggles.
+    assert_eq!(flagged("hello(world)"), Vec::<String>::new());
+    // A registered command in the bare form is still a call, and still not a word.
+    for bare in ["headcell[Posek]", "headcell(Posek)"] {
+        assert!(flagged(bare).is_empty(), "a bare call head was flagged: {bare}");
+    }
+    // …while a *misspelling* of one is a word worth flagging, because it is not
+    // in the registry. Before the fix both of these passed silently.
+    assert_eq!(
+        flagged("headcel[Posek]"),
+        vec!["headcel".to_string()],
+        "a misspelled command head was exempted"
+    );
+    // The `#` half of the rule is unchanged: a command the registry does not
+    // know is still a command, because `#` is the writer saying so.
+    assert!(flagged("#notacommand[body]").is_empty());
+}
+
+/// A command name may contain `_`, and the tokenizer splits on it.
+///
+/// `_` is not a Hebrew letter or mark, so `hebrew::is_part` is false for it and
+/// it ends a token — correct for prose, and the reason `#הגדרות_מדורגות(…)`
+/// tokenizes as `הגדרות`, `מדורגות`. The fragment against the bracket is
+/// `מדורגות`, which is not what the registry holds, so a registry check written
+/// against the token alone flagged **every underscore-bearing command** in the
+/// template suite. The check walks back over the whole identifier instead.
+///
+/// This is the English half of that, and it is a shape the Hebrew suite cannot
+/// express because none of the English command names contain an underscore.
+#[test]
+fn an_underscore_in_a_command_name_is_not_a_word_boundary() {
+    // A prose word containing `_` is still two words to the tokenizer, and the
+    // fragment before a bracket is still a word — the walk-back only rescues
+    // names the registry knows.
+    assert_eq!(
+        flagged("some_thing (erro)"),
+        vec!["erro".to_string()],
+        "an unknown underscore name was exempted"
+    );
+}
+
 #[test]
 fn the_two_scripts_split_without_a_separator() {
     let toks = spell::words("שלוםhello");

@@ -271,8 +271,57 @@ pub fn words(text: &str) -> Vec<Token<'_>> {
 }
 
 /// Is the token at `start..end` the head of a command call rather than a word?
+///
+/// #61, and the bracket rule was the whole of it
+///
+/// This used to be `text[..start].ends_with('#') || text[end..].starts_with(['[', '('])`,
+/// and the second half is wrong on prose. In Typst markup `hello(world)` is a
+/// word in brackets, not a call — a function call needs the `#`. So every
+/// parenthetical aside in an English document lost its squiggles, silently,
+/// which is the checker's best case being *absent* rather than wrong.
+///
+/// The bracket form is not droppable, though, because it is real: `headcell[…]`
+/// is a bare call head, the form a command takes inside an argument list, and it
+/// never carries a `#` of its own. `#mktable(headcell[Posek])` is in the test
+/// below and the issue's own evidence.
+///
+/// So the bracket half asks the only question that can tell them apart — **is
+/// this name a command?** — against the registry rather than against the
+/// punctuation. `headcell` is registered and `hello` is not, and the answer is
+/// the same whatever the bracket is.
+///
+/// # Why it walks *back* over `_` and letters
+///
+/// A Typst identifier can contain underscores, and this tokenizer splits on
+/// them — `_` is not a Hebrew letter or mark, so it ends a run. That is correct
+/// for prose (`מדורגות` in a sentence is a word) and it means a token sitting
+/// against a bracket is often only the **last fragment** of a command name:
+/// `#הגדרות_מדורגות(…)` tokenizes as `הגדרות`, `מדורגות`, and the fragment next
+/// to the `(` is `מדורגות`, which the registry does not hold under that name.
+/// Checking the token alone flagged every `_`-bearing command in the template
+/// suite. So the check starts at the beginning of the whole identifier and asks
+/// about *that*, which is the thing a `#` would have prefixed.
 fn is_command(text: &str, start: usize, end: usize) -> bool {
-    text[..start].ends_with('#') || text[end..].starts_with(['[', '('])
+    if text[..start].ends_with('#') {
+        return true;
+    }
+    if !text[end..].starts_with(['[', '(']) {
+        return false;
+    }
+    let is_name_char = |c: char| c.is_alphanumeric() || c == '_';
+    // Walk back over the whole identifier, so `…_מדורגות(` is tested as
+    // `הגדרות_מדורגות`.
+    let ident_start = text[..start]
+        .char_indices()
+        .rev()
+        .take_while(|(_, c)| is_name_char(*c))
+        .last()
+        .map(|(i, _)| i)
+        .unwrap_or(start);
+    let ident = &text[ident_start..end];
+    crate::commands::COMMANDS
+        .iter()
+        .any(|c| c.he == ident || c.en == ident)
 }
 
 // -------------------------------------------------------------------- checking

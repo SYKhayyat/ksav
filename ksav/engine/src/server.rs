@@ -834,6 +834,62 @@ mod tests {
         std::thread::sleep(Duration::from_millis(450));
     }
 
+    /// The sentence the **desktop** shows agrees with this one (#54).
+    ///
+    /// The test above holds the server to its own wording. This holds the *app*
+    /// to it, and it exists because the same contradiction had moved one layer up:
+    /// the desktop also detaches the overran compile — `api.ts` says so in its own
+    /// comment, *"the abandoned compile finishes on tokio's blocking pool"* — and
+    /// was sending the same constant the **browser** uses, where the worker is
+    /// terminated and the compute really does die. So the desktop told a writer
+    /// their compile had been stopped while it was still running and still
+    /// holding one of the slots above.
+    ///
+    /// Held here rather than in an app test because this is the only place both
+    /// sentences are visible, and because `runner.test.mjs` deliberately
+    /// prohibits an app test from reading the engine's Rust for anything but a
+    /// refusal — its own words: *"if it ever reads a value out of a `.rs` file,
+    /// this prohibition is right"*. This test reads a `.ts` file, which that rule
+    /// does not cover, and compares **prose**, not a value the engine ships.
+    ///
+    /// Skipped when the app is not checked out beside the engine, so the engine's
+    /// own suite stands alone.
+    #[test]
+    fn the_desktop_says_what_the_engine_says_and_the_browser_does_not() {
+        let app = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("app")
+            .join("src")
+            .join("api.ts");
+        let Ok(src) = std::fs::read_to_string(&app) else {
+            return; // engine checked out without the editor beside it
+        };
+        // Each backend's own text, from its `class` line to the next one.
+        let slice = |from: &str, to: &str| -> String {
+            let a = src.find(from).unwrap_or(0);
+            let b = src[a..].find(to).map(|i| a + i).unwrap_or(src.len());
+            src[a..b].to_string()
+        };
+        let desktop = slice("class TauriBackend", "\n}");
+        let browser = slice("class WasmBackend", "class TauriBackend");
+        // The desktop abandons, so it must not be the build saying "stopped" — and
+        // held on the *call site*, because one constant used by both backends
+        // would pass a check on the constant alone. That is the bug.
+        assert!(
+            desktop.contains("COMPILE_ABANDONED_MESSAGE"),
+            "the desktop does not report an abandoned compile: {}",
+            &desktop[..400.min(desktop.len())]
+        );
+        assert!(
+            !desktop.contains("COMPILE_TIMEOUT_MESSAGE"),
+            "the desktop reports a stopped compile, which it does not do"
+        );
+        assert!(
+            browser.contains("COMPILE_TIMEOUT_MESSAGE"),
+            "the browser does not report a stopped compile, which it does do"
+        );
+    }
+
     /// A refusal names how many are in flight, because that is the whole reason.
     ///
     /// *"The server is busy"* with no number is unfalsifiable to the person

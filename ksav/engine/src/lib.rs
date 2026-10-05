@@ -382,46 +382,109 @@ struct ChannelDecl {
 /// Values are taken to the next comma at depth zero, so a tuple or a nested call
 /// does not end one early. Quotes are stripped, because every value this reads —
 /// a placement, a region name, a channel name — is written as a string.
+/// The byte ranges of `s` that lie **outside** a string literal.
+///
+/// # One walk, because two walks is how this went wrong
+///
+/// `closing_paren` has always skipped quoted spans — it has to, or a value like
+/// `"a)b"` closes the scan one argument in. `named_arg` did not, so it searched
+/// **and** measured raw text: an argument list whose earlier string happened to
+/// contain `גובה:` answered with the *string's* number, returned before the real
+/// one was reached, and the foot band came out the size of the string. Notes then
+/// printed off the page with no diagnostic anywhere.
+///
+/// Two scanners disagreeing about where a string is has happened in this file
+/// before (#59: two grammars for one page-range field, compared by nothing), so
+/// the walk is factored out and both use it. It is the only place in the crate
+/// that needs to know how Typst quotes work.
+///
+/// Typst has no single-quoted string: a `'` is content. Escapes are honoured,
+/// because a `\"` does not end a string and a scanner that thinks it does will
+/// treat the rest of the argument list as a string and read nothing from it.
+fn code_ranges(s: &str) -> Vec<std::ops::Range<usize>> {
+    let mut out: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut chars = s.char_indices().peekable();
+    let mut open = 0usize;
+    while let Some((i, c)) = chars.next() {
+        if c != '"' {
+            continue;
+        }
+        // The code run ends at the quote that opened the string.
+        out.push(open..i);
+        let mut escaped = false;
+        let mut end = s.len(); // an unterminated string runs to the end
+        for (j, q) in chars.by_ref() {
+            if escaped {
+                escaped = false;
+            } else if q == '\\' {
+                escaped = true;
+            } else if q == '"' {
+                end = j + q.len_utf8();
+                break;
+            }
+        }
+        open = end;
+    }
+    out.push(open..s.len());
+    out.retain(|r| r.start < r.end);
+    out
+}
+
+/// The value of the first of `keys` given as a named argument in `args`.
+///
+/// **One scanner: [`code_ranges`].** See there for the bug — a string is neither
+/// a key nor a boundary, and the previous version searched raw text.
 fn named_arg(args: &str, keys: &[&str]) -> Option<String> {
+    let code = code_ranges(args);
     for key in keys {
-        let mut base = 0;
-        while let Some(i) = args[base..].find(key) {
-            let start = base + i;
-            base = start + key.len();
-            // A whole word: `מיקום` must not match inside `מיקומים`, and
-            // `אזור` must not match inside `אזור_הערות`.
-            let before_ok = args[..start]
-                .chars()
-                .next_back()
-                .is_none_or(|c| !c.is_alphanumeric() && c != '_');
-            let after = args[base..].trim_start();
-            let Some(after) = after.strip_prefix(':') else {
-                continue;
-            };
-            if !before_ok || args[base..].starts_with('_') {
-                continue;
-            }
-            let after = after.trim_start();
-            let mut depth = 0i32;
-            let mut end = after.len();
-            for (j, c) in after.char_indices() {
-                match c {
-                    '(' | '[' => depth += 1,
-                    ')' | ']' => {
-                        if depth == 0 {
-                            end = j;
-                            break;
-                        }
-                        depth -= 1;
-                    }
-                    ',' if depth == 0 => {
-                        end = j;
-                        break;
-                    }
-                    _ => {}
+        for span in &code {
+            let mut base = span.start;
+            while base < span.end {
+                let Some(rel) = args[base..span.end].find(key) else {
+                    break;
+                };
+                let start = base + rel;
+                base = start + key.len();
+                // A whole word: `מיקום` must not match inside `מיקומים`, and
+                // `אזור` must not match inside `אזור_הערות`.
+                let before_ok = args[..start]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| !c.is_alphanumeric() && c != '_');
+                let after = args[base..].trim_start();
+                let Some(after) = after.strip_prefix(':') else {
+                    continue;
+                };
+                if !before_ok || args[base..].starts_with('_') {
+                    continue;
                 }
+                let after = after.trim_start();
+                // Depth-counted over code, so a nested tuple — which is what
+                // `גבהים` is — does not end the list at its own bracket, and a
+                // comma inside a string does not end the value.
+                let mut depth = 0i32;
+                let mut end = after.len();
+                'value: for r in code_ranges(after) {
+                    for (j, c) in after[r.clone()].char_indices() {
+                        match c {
+                            '(' | '[' => depth += 1,
+                            ')' | ']' => {
+                                if depth == 0 {
+                                    end = r.start + j;
+                                    break 'value;
+                                }
+                                depth -= 1;
+                            }
+                            ',' if depth == 0 => {
+                                end = r.start + j;
+                                break 'value;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                return Some(after[..end].trim().trim_matches('"').trim().to_string());
             }
-            return Some(after[..end].trim().trim_matches('"').trim().to_string());
         }
     }
     None
@@ -549,14 +612,51 @@ fn sheet_height_cm(cfg: &DocConfig) -> Option<f64> {
     }
 }
 
-/// The last answer the reserve gave, keyed by its inputs.
+/// The last answers the reserve gave, keyed by their inputs.
 ///
-/// The scan is a whole-document parse, and it ran at the bottom of
-/// `show_rule` — every compile, including the ones a watcher or a settings
-/// change asks for with the text untouched. One entry: the previous document's
-/// key. A keystroke that changed the text misses it and pays the parse; a
-/// compile of unchanged text stops paying for an answer that has not moved.
-static RESERVE_CACHE: std::sync::Mutex<Option<(u128, f64)>> = std::sync::Mutex::new(None);
+/// The scan is a whole-document parse and it runs at the bottom of `show_rule` —
+/// every compile, including the ones a watcher or a settings change asks for with
+/// the text untouched.
+///
+/// # Why this is a map and not one slot (#55)
+///
+/// It was `Mutex<Option<(u128, f64)>>`: the **previous** document's key. That
+/// holds only when there is one document in the process, and the editor is not
+/// that. Two open sefarim in two windows, or one sefer with a main body and a
+/// part, alternate two keys and each call **evicts the entry the next one wants**,
+/// so the cache never hits and every compile pays the parse.
+///
+/// Measured, on real sefer-sized text (`examples/bench-reserve-cache`):
+///
+/// | body | a miss costs |
+/// |---|---|
+/// | 64 KB | ~3.9 ms |
+/// | 256 KB | ~17.5 ms |
+/// | 1 MB | ~72 ms |
+///
+/// At a megabyte that is **past the ~59 ms keystroke budget**, so under two open
+/// documents the compile is not late, it is dropped — on a shape the product
+/// supports on purpose.
+///
+/// # Why eight
+///
+/// Enough for the shapes that exist (two windows, a body and its parts, a
+/// compile racing a jump or a spell check) with room over, and bounded so a
+/// process that somehow accumulates keys cannot grow without limit. Eight entries
+/// of `(u128, f64)` is 160 bytes.
+///
+/// Eviction is **least-recently-used**, because the access pattern that breaks a
+/// one-slot cache is a *cycle*: A, B, A, B. Any bounded map that drops an
+/// arbitrary entry turns a 2-cycle into a 100% miss rate forever, while
+/// least-recently-used holds both ends of a cycle of any length up to its size.
+/// The rule is the standard second chance — on a hit the entry moves to the
+/// front, on an insert the back goes — and it is deliberately not exact LRU,
+/// which would need a timestamp per entry and a scan, for an eight-entry map
+/// where "recently used" is the only thing that matters.
+static RESERVE_CACHE: std::sync::Mutex<Vec<(u128, f64)>> = std::sync::Mutex::new(Vec::new());
+
+/// How many (body, sheet) answers are kept.
+const RESERVE_CACHE_CAP: usize = 8;
 
 fn reserve_cache_key(body: &str, page_h_cm: Option<f64>) -> u128 {
     // FNV-1a over the body with the sheet folded in at the end. A collision
@@ -583,16 +683,20 @@ fn reserve_cache_key(body: &str, page_h_cm: Option<f64>) -> u128 {
 /// a guess. The f64 form below is the same scan with the sheet known.
 pub fn auto_notes_region_cm_sheet(body: &str, page_h_cm: Option<f64>) -> f64 {
     let key = reserve_cache_key(body, page_h_cm);
-    if let Ok(guard) = RESERVE_CACHE.lock() {
-        if let Some((k, v)) = *guard {
-            if k == key {
-                return v;
-            }
+    if let Ok(mut guard) = RESERVE_CACHE.lock() {
+        // `rposition` and a move-to-front: a hit on an eight-entry vec is cheaper
+        // than anything cleverer, and the pattern this is here for is a *cycle*,
+        // which a plain LRU-refresh handles exactly.
+        if let Some(at) = guard.iter().rposition(|(k, _)| *k == key) {
+            let entry = guard.remove(at);
+            guard.insert(0, entry);
+            return entry.1;
         }
     }
     let answer = auto_notes_region_cm_scan(body, page_h_cm);
     if let Ok(mut guard) = RESERVE_CACHE.lock() {
-        *guard = Some((key, answer));
+        guard.insert(0, (key, answer));
+        guard.truncate(RESERVE_CACHE_CAP);
     }
     answer
 }
@@ -3889,33 +3993,25 @@ mod tests {
     /// it is the counter's own answers on the shapes a string or a nested tuple
     /// would confuse, and if anything ever walks a call's text again — which is
     /// how #58 happened — these are the cases that counter gets wrong.
+    ///
+    /// **Now built on [`code_ranges`]**, so the string-skipping is the same walk
+    /// `named_arg` uses. It carried its own copy of that state machine until
+    /// #57, and the two disagreeing is precisely how a value like `"a)b"` ended
+    /// one argument in on one side and not the other.
     fn closing_paren(s: &str) -> Option<usize> {
         let mut depth = 0usize;
-        let mut chars = s.char_indices();
-        while let Some((i, c)) = chars.next() {
-            match c {
-                '"' => {
-                    // To the closing quote, honouring backslash escapes. Typst has
-                    // no single-quoted string; a `'` is content.
-                    let mut escaped = false;
-                    for (_, q) in chars.by_ref() {
-                        if escaped {
-                            escaped = false;
-                        } else if q == '\\' {
-                            escaped = true;
-                        } else if q == '"' {
-                            break;
+        for r in code_ranges(s) {
+            for (j, c) in s[r.clone()].char_indices() {
+                match c {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth = depth.saturating_sub(1);
+                        if depth == 0 {
+                            return Some(r.start + j);
                         }
                     }
+                    _ => {}
                 }
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(i);
-                    }
-                }
-                _ => {}
             }
         }
         None
@@ -3933,6 +4029,127 @@ mod tests {
     /// went through a percentage.
     fn near(got: f64, want: f64) -> bool {
         (got - want).abs() < 0.001
+    }
+
+    /// #55: the bounded reserve cache must not change a single answer.
+    ///
+    /// A cache is only allowed to be invisible, and the failure mode that matters
+    /// is not "returns the wrong number" — it is **"returns a number belonging to
+    /// another document"**, which is silent and looks like a layout bug. So the
+    /// fence is stated as what the writer sees: for a set of distinct bodies, the
+    /// answer must be the same whether it arrives first, last, or after the cache
+    /// has been filled with other documents.
+    ///
+    /// The shapes are chosen for the cache, not for the reserve:
+    ///
+    /// * a **2-cycle**, which is two open windows and the pattern that made the
+    ///   one-slot cache a 100% miss;
+    /// * **more bodies than the cache holds**, so eviction is exercised and the
+    ///   answer for an evicted body must still be right when it comes back;
+    /// * **two sheets on one body**, because the key is `(body, sheet)` and the
+    ///   two must not be confused — the one a `%` height would expose.
+    #[test]
+    fn the_reserve_cache_does_not_change_an_answer() {
+        // Ten distinct bodies, each declaring a different band height, so every one has
+        // a different correct answer and a mixed-up entry is visible rather than
+        // coincidental.
+        //
+        // The band has to be **called**, not merely configured: the shapes are
+        // `גובהים: …` **and** `#מדף_א[…]`. An earlier version of this test wrote
+        // `#הערות_במדפים` and every body reserved the same height, so the guard
+        // below caught a fence that could not see a mix-up — which is the whole
+        // reason the guard is there.
+        let bodies: Vec<String> = (1..=10)
+            .map(|n| {
+                format!(
+                    "#הגדרות_מדפים(גבהים: ({n}cm,))\n\n#מדף_א[גוף {n}]"
+                )
+            })
+            .collect();
+
+        // The uncached answer, from the scan itself — the oracle.
+        let want: Vec<f64> = bodies
+            .iter()
+            .map(|b| auto_notes_region_cm_scan(b, Some(29.7)))
+            .collect();
+        // …and they must not all be the same number, or the fence proves nothing.
+        assert!(
+            want.windows(2).any(|w| (w[0] - w[1]).abs() > 0.001),
+            "every body reserved the same height — the test cannot see a mix-up"
+        );
+
+        // Cold: first sight of each, in order.
+        for (body, want) in bodies.iter().zip(&want) {
+            assert!(
+                near(auto_notes_region_cm_sheet(body, Some(29.7)), *want),
+                "cold answer differs for {body:?}"
+            );
+        }
+        // Warm: every one is in the cache now, and re-reading must be identical.
+        for (body, want) in bodies.iter().zip(&want) {
+            assert!(
+                near(auto_notes_region_cm_sheet(body, Some(29.7)), *want),
+                "warm answer differs for {body:?}"
+            );
+        }
+        // **A 2-cycle**, twice round, which is the shape that made one slot a
+        // 100% miss. Both answers must stay right.
+        for _ in 0..3 {
+            for i in [0usize, 3, 0, 3] {
+                assert!(
+                    near(auto_notes_region_cm_sheet(&bodies[i], Some(29.7)), want[i]),
+                    "a 2-cycle changed the answer for body {i}"
+                );
+            }
+        }
+        // **Overflow**: walk all ten, which is past `RESERVE_CACHE_CAP`, so the
+        // first two are evicted — and an evicted body that comes back must still
+        // be right.
+        for _ in 0..2 {
+            for (i, body) in bodies.iter().enumerate() {
+                assert!(
+                    near(auto_notes_region_cm_sheet(body, Some(29.7)), want[i]),
+                    "after eviction the answer differs for body {i}"
+                );
+            }
+        }
+        // **Two sheets on one body.** The key is `(body, sheet)`, so the same
+        // text at two paper sizes is two entries, and each must get its own
+        // answer. A `%` region height is what makes the two genuinely different.
+        let pct = "#הגדרות_מדפים(גבהים: (10%,))\n#מדף_א[גוף]";
+        let on_a4 = auto_notes_region_cm_scan(pct, Some(29.7));
+        let on_legal = auto_notes_region_cm_scan(pct, Some(35.56));
+        for _ in 0..3 {
+            assert!(
+                near(auto_notes_region_cm_sheet(pct, Some(29.7)), on_a4),
+                "A4 answer moved"
+            );
+            assert!(
+                near(auto_notes_region_cm_sheet(pct, Some(35.56)), on_legal),
+                "legal answer moved"
+            );
+        }
+    }
+
+    /// #55: the cache is bounded, and stays bounded.
+    ///
+    /// A map that grows without limit is a leak in a process that compiles on
+    /// every keystroke, and the entry is 24 bytes of key plus a float. Eight is
+    /// the cap because it is enough for the shapes that exist; the property worth
+    /// holding is that the number of entries never exceeds it, whatever the
+    /// caller does.
+    #[test]
+    fn the_reserve_cache_is_bounded() {
+        for n in 0..64 {
+            let body = format!("#הגדרות_מדפים(גבהים: ({n}cm,))\n#מדף_א[גוף]");
+            auto_notes_region_cm_sheet(&body, Some(29.7));
+            let len = RESERVE_CACHE.lock().map(|g| g.len()).unwrap_or(0);
+            assert!(
+                len <= RESERVE_CACHE_CAP,
+                "the cache grew to {len} entries after {n} distinct bodies"
+            );
+        }
+        assert_eq!(RESERVE_CACHE_CAP, 8, "the cap moved — say so in the comment");
     }
 
     /// The built-in channels are the prelude's, and it says so once.
@@ -4068,6 +4285,103 @@ mod tests {
         assert_eq!(closing_paren("(\"a)b\", x)"), Some(9));
         assert_eq!(closing_paren("(\"a\\\"b)\")"), Some(8));
         assert_eq!(closing_paren("(unclosed"), None);
+    }
+
+    /// #57: a string literal is neither a key nor a boundary.
+    ///
+    /// `named_arg` searched and measured **raw text**, while its neighbour
+    /// `closing_paren` skipped quoted spans. So an argument list whose earlier
+    /// string happened to contain `גובה:` answered with the *string's* number,
+    /// returned before the real argument was reached, and the foot band came out
+    /// the size of the string — notes printing off the page with no diagnostic.
+    ///
+    /// The first assertion is the one the issue is about: the phantom wins,
+    /// because `named_arg` returns on the **first** match and the string comes
+    /// first. That is what makes it under-count rather than merely wrong.
+    #[test]
+    fn a_named_argument_is_never_read_out_of_a_string() {
+        // **The key inside a string.** A region named after its contents, a
+        // channel whose name quotes a command's own argument — both ordinary
+        // things for a writer to type.
+        assert_eq!(
+            named_arg("\"גובה: 0.5cm\", גובה: 3cm", HEIGHT_ARG),
+            Some("3cm".into()),
+            "the string's height won over the declared one"
+        );
+        assert_eq!(
+            named_arg("\"מיקום: רגל\"", PLACEMENT_ARG),
+            None,
+            "a string was read as a placement"
+        );
+        assert_eq!(
+            named_arg("\"אזור: רגל\"", REGION_ARG),
+            None,
+            "a string was read as a region"
+        );
+        // `has_source` is a boolean, so a phantom here is a note declared as
+        // having a source it does not have.
+        assert_eq!(
+            named_arg("\"מקור: רמב\\\"ם\"", SOURCE_ARG),
+            None,
+            "a source name was read as the source argument"
+        );
+        // …and the real ones still answer, in both spellings.
+        assert_eq!(named_arg("גובה: 3cm", HEIGHT_ARG), Some("3cm".into()));
+        assert_eq!(named_arg("height: 3cm", HEIGHT_ARG), Some("3cm".into()));
+        assert_eq!(
+            named_arg("\"שם\", מיקום: \"למעלה\"", PLACEMENT_ARG),
+            Some("למעלה".into())
+        );
+    }
+
+    /// #57's other half: a string is not a **boundary** either.
+    ///
+    /// The value scan ended at the first comma at depth zero, with no notion of
+    /// quotes — so a name containing a comma came back truncated, and the
+    /// apparatus it named was not the one the writer wrote. A name like
+    /// `"מקורות, ביאורים"` is two registers in one string and is not a typo.
+    #[test]
+    fn a_comma_inside_a_string_does_not_end_a_value() {
+        assert_eq!(
+            named_arg("אזור: \"מקורות, ביאורים\"", REGION_ARG),
+            Some("מקורות, ביאורים".into()),
+            "the value was cut at the comma inside the string"
+        );
+        // The same scan, and the same answer, once more after another argument —
+        // the depth counting that already worked must keep working.
+        assert_eq!(
+            named_arg("אזור: \"מקורות, ביאורים\", גובה: 1cm", REGION_ARG),
+            Some("מקורות, ביאורים".into())
+        );
+        // A genuine comma at depth zero still ends it.
+        assert_eq!(
+            named_arg("אזור: \"מקורות\", גובה: 1cm", REGION_ARG),
+            Some("מקורות".into())
+        );
+        // And a nested tuple still does not, which is what `גבהים` is.
+        assert_eq!(
+            named_arg("גובה: (1cm, 2cm), אזור: \"x\"", HEIGHT_ARG),
+            Some("(1cm, 2cm)".into())
+        );
+    }
+
+    /// `code_ranges` is the one walk, and both scanners are built on it — so it
+    /// is worth pinning what it says about a string on its own.
+    #[test]
+    fn a_string_is_skipped_wholesale_including_its_escapes() {
+        // Plain: everything is code.
+        assert_eq!(code_ranges("abc"), vec![0..3]);
+        // `a"b"c` — the string is bytes 1..4 inclusive of both quotes, so the
+        // code either side is `a` and `c`.
+        assert_eq!(code_ranges("a\"b\"c"), vec![0..1, 4..5]);
+        // A `\"` does not end the string, so `b\"c` is inside it and only `a` and
+        // the trailing `d` are code.
+        assert_eq!(code_ranges("a\"b\\\"c\"d"), vec![0..1, 7..8]);
+        // An unterminated string runs to the end and there is no code after it.
+        assert_eq!(code_ranges("a\"bc"), vec![0..1]);
+        // Nothing but a string is no code at all.
+        assert!(code_ranges("\"abc\"").is_empty());
+        assert!(code_ranges("").is_empty());
     }
 
     #[test]

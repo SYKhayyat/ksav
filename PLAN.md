@@ -2,7 +2,7 @@
 
 Worker loop: pick the top unchecked item, fix ONLY that issue + its resolving test, commit, check it off, stop. Do not batch. Do not reorder.
 Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #28, #29, #30, #40, #41, #49.
-Also closed 2026-10-05: #21, #34, #36, #78, #88, #90, #91, #92, #93 — see the session section at
+Also closed 2026-10-05: #21, #34, #36, #78, #88, #90, #91, #92, #93 — and the acceptance harness now completes (737 checks, 0 failed) — see the session section at
 the end, which also records the pattern worth more than the fixes: **four in a row were already
 shipped**, and twice a survey believed a stale *comment* rather than the code beside it.
 
@@ -725,9 +725,21 @@ Written up in `CONTRIBUTING.md` §3, where the gate is documented.
   all four are addressed locally, but "CI is green" is an expectation, not a result. The
   assembled-app and browser jobs exercise what no local run touches, which is exactly how #90
   survived a green suite.
-- **The acceptance script has never run here.** `embed-ui` was still building when the session
-  ended; `.github/scripts/acceptance.mjs` runs 21 real-browser steps and is the closest
-  machine-runnable approximation of #14.
+- **The acceptance script had never completed here.** It does now:
+  **`09a2265` — 737 checks, 0 failed, "the assembled application works."** Getting there took
+  three fixes to probes that had never been exercised, because `minimap`'s recipe is **the only
+  one that reloads the page** and it used to throw before reaching its reload:
+  - `__ksavStatus` was installed by `page.evaluate`, so **no reload kept it** — and six readers
+    depend on it. Now `addInitScript`.
+  - the navigation was **above** the probes, so the *first* load was never instrumented either.
+    Missing that turned one broken probe into six, and the run died on check zero.
+  - at document-start there is no `document.body`, so the recorder observed `null`, `observe`
+    threw, and `settled()` waited 30 s for a compile it could not see.
+  - plus `await settled(await compiles()).catch(…)` — **the guard was on the wrong expression**,
+    so a throw from `compiles()` escaped a line written to survive anything.
+
+  **Every bug found in this session was found by this harness or by CI. None by the editor
+  suite.** The suite is excellent about parts; this is the only thing here that opens a browser.
 
 ## Routing rule for new issues
 Any AI opening an issue here MUST insert it into the phase above it belongs in (foundations → security → correctness → quality → features), not append at the end. Security/foundational items go in Phase 1–2 even if filed later. See AI_ISSUE_ROUTING.md.

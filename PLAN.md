@@ -721,7 +721,15 @@ Written up in `CONTRIBUTING.md` §3, where the gate is documented.
 
 ### Still unverified — read this before trusting the green
 
-- **CI state, last read.** `37351532640`: **7 of 9 green** — `formatting`, `engine`,
+- **CI: 9 of 9 green** on `0e6521c` (run `37355346222`) — `formatting`, `engine`, `engine on
+  macOS`, `the assembled app`, `browser engine`, `desktop shell`, `editor`, `the Emacs package`,
+  `the Emacs package, current Emacs`. **Every job red at the start of the session is green**, and
+  the four bugs fixed under #90/#91/#92 are confirmed by the jobs that found them.
+- What it took to get here, and it is the most useful thing in this section: **four of my own
+  commits were wrong in ways only CI saw**, and three of those four were the same mistake —
+  *fixing a lint without asking what the construct means*. Recorded in full below.
+
+- **Prior CI state, for the record.** `37351532640`: **7 of 9 green** — `formatting`, `engine`,
   `engine on macOS`, `the assembled app`, `browser engine`, `desktop shell`, `editor`. Both Emacs
   jobs red, both on **my own** edits, both now fixed in `e66c630`:
   - a **font-lock regexp split across two strings** to meet the 80-column rule — in

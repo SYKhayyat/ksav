@@ -155,6 +155,51 @@ export async function run() {
   ok("the sweep counts what it visited", script.includes("the sweep visited every reachable surface"));
   ok("and refuses a run that looked at nothing", script.includes("the run looked at the screen at all"));
 
+  // ------------------------------------------------------- the screenshot tool
+  //
+  // `tools/eyes.mjs` is how a person *sees* the editor, and it is the only check
+  // that can tell a feature renders from a feature that is green. Both halves of
+  // that sentence have already cost time:
+  //
+  //  - it could not launch a browser at all, and reported the failure as
+  //    `spawn /usr/bin EACCES`, because its search returned a **directory** as
+  //    though it were an executable;
+  //  - it had no way to photograph any document but its own, so `--set=
+  //    showWhitespace:true` produced a screenshot **byte-identical** to the one
+  //    with it off — the built-in starter is hand-written Hebrew prose, which has
+  //    no tabs, no double spaces and no trailing whitespace, and `whitespaceRuns`
+  //    marks only those. Identical to a broken feature, and identical to a working
+  //    one, with nothing in between to say which.
+  //
+  // So the three things it must be able to do, each of which was a separate bug.
+  const eyes = read("ksav/app/tools/eyes.mjs");
+
+  ok("the eyes can photograph a document you choose", /--doc=/.test(eyes));
+  ok(
+    "and actually read that document, not just accept the flag",
+    /readFileSync\(docArg/.test(eyes),
+  );
+  ok(
+    "and put it in the editor rather than the built-in one",
+    /\{ doc, caret \}/.test(eyes),
+  );
+  // The launcher half. A search that returns a directory is worse than one that
+  // returns nothing, because the error it produces blames permissions.
+  ok(
+    "the eyes find a versioned Playwright browser",
+    // `chromium-<revision>`, not `chromium` — an exact name never matched, which
+    // is why the guess below it is what actually finds anything.
+    /startsWith\(`\$\{pkg\}-\`\)/.test(eyes) && /chrome-linux64/.test(eyes),
+  );
+  ok(
+    "and do not mistake a bin directory for an executable",
+    !/endsWith\("\/bin"\)\s*\n?\s*return root/.test(eyes),
+  );
+  ok(
+    "and say 'no browser' rather than an EACCES when there is none",
+    /no Chromium found/.test(eyes),
+  );
+
   // ---------------------------------------------------------------- the clicks
   //
   // Helpers above `step(0`, steps below it. Everything below has to go through

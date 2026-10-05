@@ -411,6 +411,26 @@ still right.
 - [ ] #7 keyed updates (5× replaceChildren).
 
 ## Phase 5 — Features / proposals (Info/Low, after engine is safe)
+- [x] #88 show the invisible characters. (Presentation, from #84) — **Shipped already, and
+  what was wrong with it was the explanation, not the feature.** The feature is
+  `whitespace.ts` (`whitespaceRuns`, `whitespaceMarks`), off by default, and it is a
+  `Decoration.mark` rather than a replacement — `bidi.ts` records why a replacement over an
+  overlapping range makes CodeMirror reject the set outright, and its own tests were green
+  throughout. The bug: **`showWhitespaceNote` sat fourteen rows below its
+  own checkbox**, under the *indent* dials, so it read as an explanation of the indent
+  settings — and it is the note that matters most, because a writer who cannot see a space
+  cannot see a paragraph break either. `autoPairQuotesNote` was nine rows adrift the same
+  way. **Nothing tested it, and nothing could have**: a note is a string that exists and a
+  control is a key that is reachable, and the failure mode is two correct things in the
+  wrong order. `settings.test.mjs` now counts **controls between** a note and the control it
+  names, from the `checkRow`/`numberRow` calls themselves — after a first version that
+  passed with the note in the wrong place (the key string also occurs in the settings
+  machinery) and a second that was never called at all. Also fixed `eyes.mjs`, which could
+  not launch a browser at all: its search returned `/usr/bin` as though it were an
+  executable, so the error was `spawn /usr/bin EACCES` rather than "no browser found", and
+  it did not know Playwright's versioned cache layout. The instrument that "found four
+  rendering faults no test could see" could not see anything.
+
 - [ ] #88 show the invisible characters. (Presentation, from #84) — **Whitespace in Ksav
   source is not decoration: it prints.** `main.ts:5910` — *"Typst turns a newline into a
   **space** and a blank line into a **paragraph break**"* — so `first⏎second` prints

@@ -12,7 +12,7 @@
 // none of it is needed to look at the editor. `vite preview` serves the same
 // `dist`.
 //
-// Usage:  node tools/eyes.mjs <out.png> [--toggle=<flagKey>] [--set=<key>:<value>] [--caret=<0..1>]
+// Usage:  node tools/eyes.mjs <out.png> [--toggle=<flagKey>] [--set=<key>:<value>] [--caret=<0..1>] [--doc=<file>]
 //
 // Deliberately not a test. It writes a file and asserts nothing, because the thing
 // it is for is being looked at, and a harness that only reports pass/fail is the
@@ -20,7 +20,7 @@
 
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
-import { mkdtempSync, existsSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, existsSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -109,6 +109,24 @@ const sets = args.filter((a) => a.startsWith("--set=")).map((a) => a.slice("--se
  */
 const caretArg = (args.find((a) => a.startsWith("--caret=")) ?? "").split("=")[1];
 const caret = caretArg === undefined ? 0.5 : Number(caretArg);
+/**
+ * `--doc=<file>` — screenshot *this* document instead of the built-in one.
+ *
+ * Added for #88, and the reason is the same shape as the `--caret` one above: the
+ * feature was not being broken, the **picture** was. `whitespaceRuns` marks tabs,
+ * runs of more than one space, and leading or trailing whitespace — and the
+ * built-in starter document, being hand-written Hebrew prose, has none of those.
+ * So `--set=showWhitespace:true` produced a screenshot **byte-identical** to the
+ * one with it off, which is exactly what a broken feature looks like and exactly
+ * what a working one looks like on that document. Two identical files and no way
+ * to tell which.
+ *
+ * So a tool that can only show one document cannot photograph half the features
+ * in this editor, and will report them as broken rather than as untested.
+ */
+const docArg = (args.find((a) => a.startsWith("--doc=")) ?? "").slice("--doc=".length);
+const doc = docArg ? readFileSync(docArg, "utf8") : DOC;
+
 const settings = { ...(toggle ? { [toggle]: true } : {}) };
 for (const pair of sets) {
   const i = pair.indexOf(":");
@@ -198,7 +216,7 @@ try {
         scrollIntoView: true,
       });
     },
-    { doc: DOC, caret },
+    { doc, caret },
   );
   await page.waitForTimeout(500);
 

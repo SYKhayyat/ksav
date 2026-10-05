@@ -2,6 +2,9 @@
 
 Worker loop: pick the top unchecked item, fix ONLY that issue + its resolving test, commit, check it off, stop. Do not batch. Do not reorder.
 Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #28, #29, #30, #40, #41, #49.
+Also closed 2026-10-05: #21, #34, #36, #78, #88, #90, #91, #92, #93 — see the session section at
+the end, which also records the pattern worth more than the fixes: **four in a row were already
+shipped**, and twice a survey believed a stale *comment* rather than the code beside it.
 
 ## SKIP — do not work (see AI_ISSUE_ROUTING.md)
 - #36 watch.forget — FALSE POSITIVE, and now **closed** (`cc753a7`). Two callers:
@@ -614,6 +617,117 @@ still right.
 - [ ] #43 top/bottom streams proposal, #65 commentary wrapped around central block (berech/Vilna knees via measured fitPrefix; in-flow wrap, not horizontal seam like #15/#43), #42 Rust-rewrite vision (decision only).
 - [ ] Interop/docs: #39, #38, #37, #35, #34, #33, #32, #31.
 - [ ] Frontend: #23 i18n hoist, #22 main.ts split, #11 Leo workflow, #9/#8 LibreOffice UX, #14 UAT.
+
+## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified
+
+**Closed: #21, #34, #36, #78, #88, #90, #91, #92, #93. Opened and left open: #94.**
+Commits `456f02a` … `3e60737`. Gates at the end: engine 1107, editor 8143, clippy 0,
+rustfmt 0 diffs, `tsc` clean.
+
+### The pattern, which is the finding
+
+**Four issues in a row came back "already shipped, the real defect was adjacent."** Twice the
+finding came from a survey reading a *comment* instead of the code beside it:
+
+| issue | what was asked | what was true |
+|---|---|---|
+| **#88** | show the invisible characters | the feature was complete and correct; `showWhitespaceNote` sat **fourteen rows below its own checkbox**, under the *indent* dials |
+| **#78** | may a stream hold arbitrary content | it always could — a paragraph, a figure, a lemma, a table, a nested note, a heading all print. `_sf_stream_note` forwards to `_ap_note` and an apparatus entry is a `content` block. The real constraint is **placement**: entries are anchored to the main flow |
+| **#21** | consolidate the `styles.ts` walkers | done already, and fenced — closing it needed a *mutation*, not a reading |
+| **#36** | `watch.forget` has no caller | two callers (`main.ts:749`, `main.ts:836`). Filed **twice**, because the comment read *"Nothing called it"* three lines above a live call, describing the pre-fix state in the present tense |
+
+**A note recording what used to be true is worse than no note, because it is the kind that gets
+believed.** Two of the four were a stale sentence, and in both cases the note outlived the code
+it described.
+
+**Consequence for this file:** the open list is a materially worse predictor of what is missing
+than the code is. It is written from surveys that see the *absence of a call* and report it as the
+absence of the work. Re-deriving it from the code is worth more than any single fix in it.
+
+### Bugs found, and where they were found
+
+All four were caught by CI or by refusing to accept a measurement. **None was caught by a local
+suite run.**
+
+- **#90 — `this.posAtCoords is not a function`.** CodeMirror 6's `domEventHandlers` types every
+  handler `(event, view)` and does **not** bind `this`; in an ES module `this` is `undefined`, so
+  every left-click on a `[` threw in the shipped app. It survived because `main.ts:2251` does the
+  identical call *correctly* — **a rule that is right somewhere is not a rule**, which is
+  `spans.ts`'s eleven delimiter matchers all over again. It survived locally because
+  `tagselect.ts` is deliberately split so the DOM wiring is untestable without a browser.
+- **#91 — CI built nothing.** The `editor` job ran `gate.mjs editor` **before** `npx vite build`,
+  so `dist/` (git-ignored) did not exist and the browser tests reported `0 passed — ASSERTED
+  NOTHING`. The build step was a no-op. Reordered; the staleness guard now **throws** rather than
+  `check`ing, so a stale build stays distinguishable from a gutted test file.
+- **#92 — `cargo fmt` red on 24 files, clippy on 7.** The recurrence cause is the important part:
+  **`rustfmt` is not on `PATH`**, so a session can run `tsc`, clippy and both suites green and still
+  commit unformatted Rust. `rustfmt-1.98.1` was already in the Nix store and was used directly.
+- **#93 — a stopwatch deciding whether a 600-row table was too slow.** `asking < 20` failed at
+  **20.54 ms** under load 22 and passed minutes later idle. Replaced with a **scaling ratio** — the
+  same call on a document 30× smaller, where linear is ~30 and quadratic ~900, threshold 150.
+  Measured ×15.5. The absolute figure survives only as a 2000 ms smoke guard.
+
+### Two process traps, both of which cost real time here
+
+1. **`npm run build` does not rebuild `.tmp-test`.** It is esbuild output produced by
+   `test/run.mjs`. Importing `.tmp-test/*.mjs` from a hand-rolled `node -e` measures the *previous*
+   source, so a mutation is never under test and reads as "survived". Three consecutive false
+   readings on #93 came from this, after V8 had already elided two dead-code mutations.
+   **Every mutation result must come from `node test/run.mjs` or it does not count.**
+2. **A fence that can pass a crash report is not a rule about messages.** `panicked with: X · Y`
+   satisfies every clause of the bilingual check in `diagnostics_corpus.rs` — Hebrew present, ASCII
+   present, ` · ` present — and is still wrong, because it tells a writer who mistyped a setting
+   name that the program crashed. Needed a *second* fence, not a cleverer first one.
+
+### #34 — `audit/` was 120 files that nothing ran
+
+Deleted (17,703 lines) and replaced by `audit/README.md` carrying the conclusions and a table
+mapping every fixture to the live test that covers it. `grep -rn "audit/" ksav .github` returned
+nothing — not CI, not a source file, not a test. Part of it was never about this repository:
+`tools/run-harness.sh:10` hardcoded `/mnt/c/Users/Administrator/Videos/Nexus/linix`.
+
+**The one thing in there that earned its keep was not a fixture.** Running the fuzz corpus against
+the live engine found the `panicked with:` defect above. Three categories remain unwired and are
+recorded honestly in the README rather than dropped: raw binary input, NUL bytes in a body, a
+pathologically long line.
+
+### #14 UAT — the actual release gate, and where it stands
+
+**It says "done by a human", and a checklist ticked by something that has never been confused by
+the product is the exact failure it exists to prevent.** So only its machine-runnable half was done:
+
+- **#4** (commit message survives Ctrl+S) — covered, including the drawer-rebuild path.
+- **#2** (`ערוץ:`+`אזור:` on one note; no-reserve clamping) — `note_layout.rs` B1/B2/B4, whose
+  header records each fence being *confirmed to fail with the fix removed*.
+- **#3** — the i18n half is covered. **The command-spelling half is not**, which produced **#94**.
+
+**#94 (open, deliberately).** The three note buttons pass hardcoded Hebrew snippets
+(`main.ts:6537-6553`) while `channels.ts` exports `noteLine(channel, lang)` and both
+`notes.ts:600` and `channels.ts:1093` pass a real `lang`. `styles.ts:189` already states the rule
+for the Styles panel — *"a writer's English document turning Hebrew underneath them because they
+clicked a control"* — fixed there, not here. **No fix pushed:** the recommendation is to reuse
+`styles.ts`'s "which spelling is already in this document" rule, which needs no new notion of
+language, but it changes what three buttons insert in every document and **#14 §5 currently
+specifies the defect** ("it lands as `#הערה[…]`"), so that line has to be corrected too.
+
+### The box, and why Rust felt serial
+
+Shared account: load sat at 22–38 with other sessions' `rustc` throughout, and `/tmp/opencode` is
+not exclusively ours. **Every timing in the session is suspect; only ratios and counts are
+trustworthy.** Separately, and self-inflicted: cargo takes one exclusive lock *per build profile*,
+so a `cargo build --release` blocked `cargo test --release` for **27 minutes** while debug ran
+free. Rust work is not serial here — it is serial only if one profile is used for everything.
+Written up in `CONTRIBUTING.md` §3, where the gate is documented.
+
+### Still unverified — read this before trusting the green
+
+- **CI has not re-run since these fixes.** Four jobs were red on `main` when the session started and
+  all four are addressed locally, but "CI is green" is an expectation, not a result. The
+  assembled-app and browser jobs exercise what no local run touches, which is exactly how #90
+  survived a green suite.
+- **The acceptance script has never run here.** `embed-ui` was still building when the session
+  ended; `.github/scripts/acceptance.mjs` runs 21 real-browser steps and is the closest
+  machine-runnable approximation of #14.
 
 ## Routing rule for new issues
 Any AI opening an issue here MUST insert it into the phase above it belongs in (foundations → security → correctness → quality → features), not append at the end. Security/foundational items go in Phase 1–2 even if filed later. See AI_ISSUE_ROUTING.md.

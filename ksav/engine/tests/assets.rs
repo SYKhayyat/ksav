@@ -228,8 +228,8 @@ fn assets_are_read_from_a_request_with_or_without_a_data_url_prefix() {
         2,
         "two entries refused, two sentences: {said:?}"
     );
-    ok_name(&said[0], "broken.png", "base64");
-    ok_name(&said[1], "", "name");
+    ok_name(said[0], "broken.png", "base64");
+    ok_name(said[1], "", "name");
 }
 
 /// Whether a refusal sentence names what it is about.
@@ -348,7 +348,7 @@ fn encode(bytes: &[u8], alphabet: &str, pad: bool) -> String {
             }
         }
     }
-    if pad && out.len() % 4 != 0 {
+    if pad && !out.len().is_multiple_of(4) {
         out.push_str(&"=".repeat(4 - out.len() % 4));
     }
     out

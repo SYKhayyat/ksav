@@ -72,10 +72,12 @@ fn main() {
     let started = Instant::now();
     let mut pages_per_stream: Vec<Vec<String>> = Vec::new();
     for (name, text) in &streams {
-        let mut cfg = DocConfig::default();
-        cfg.page_width_cm = Some(band_w);
-        cfg.page_height_cm = Some(sheet_h);
-        cfg.margin_cm = 0.8;
+        let cfg = DocConfig {
+            page_width_cm: Some(band_w),
+            page_height_cm: Some(sheet_h),
+            margin_cm: 0.8,
+            ..DocConfig::default()
+        };
         // **`layout` and not `layout_plain`**, and the rendered image is what
         // made the difference visible. `layout_plain` takes no config, so every
         // stream was laid out at the **default A4 width** and then cropped to
@@ -117,22 +119,20 @@ fn main() {
             h = (sheet_h * 28.3465) as i64,
         ));
         for (k, pages) in pages_per_stream.iter().enumerate() {
-            match pages.get(i) {
-                // The band a stream occupies on this sheet. In a right-to-left
-                // page the first band is on the right, which is what a reader of
-                // a sefer expects, so the x offset runs from the right.
-                Some(inner) => {
-                    let x = (sheet_w - band_w * (k as f64 + 1.0)) * 28.3465;
-                    svg.push_str(&format!(
+            // The band a stream occupies on this sheet. In a right-to-left
+            // page the first band is on the right, which is what a reader of
+            // a sefer expects, so the x offset runs from the right.
+            //
+            // A stream that has run out leaves its band **empty**, and that is
+            // the honest result: the band belongs to the stream, not to whatever
+            // happens to be left over this sheet.
+            if let Some(inner) = pages.get(i) {
+                let x = (sheet_w - band_w * (k as f64 + 1.0)) * 28.3465;
+                svg.push_str(&format!(
                         "<g transform=\"translate({x:.1},0)\"><svg width=\"{bw}\" height=\"{bh}\">{inner}</svg></g>",
                         bw = (band_w * 28.3465) as i64,
                         bh = (sheet_h * 28.3465) as i64,
                     ));
-                }
-                // A stream that has run out leaves its band **empty**, and that is
-                // the honest result: the band belongs to the stream, not to
-                // whatever happens to be left over this sheet.
-                None => {}
             }
         }
         svg.push_str("</svg>");

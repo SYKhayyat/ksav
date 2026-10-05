@@ -19,13 +19,14 @@ use ksav_engine::{probe, DocConfig};
 
 /// A short text area, so a modest block genuinely has to break.
 fn cramped() -> DocConfig {
-    let mut cfg = DocConfig::default();
     // 11cm all round — the configuration the #70 numbers were taken in, so
     // this fence and the report on the issue cannot drift apart. It leaves a
     // narrow text area (see the margin-pair note in #76), which is *why* a
     // 24-line block breaks at all.
-    cfg.margin_cm = 11.0;
-    cfg
+    DocConfig {
+        margin_cm: 11.0,
+        ..DocConfig::default()
+    }
 }
 
 fn lines(n: usize) -> String {

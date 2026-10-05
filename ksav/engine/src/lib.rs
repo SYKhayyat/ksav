@@ -5844,10 +5844,11 @@ mod tests {
     #[test]
     fn an_all_refused_page_range_is_refused_rather_than_every_page() {
         let named = |s: &str| -> usize {
-            s.trim()
-                .is_empty()
-                .then_some(0)
-                .unwrap_or_else(|| parse_page_spec(s).ranges.len())
+            if s.trim().is_empty() {
+                0
+            } else {
+                parse_page_spec(s).ranges.len()
+            }
         };
         assert_eq!(named(""), 0, "an empty box is not a restriction at all");
         assert_eq!(named("0"), 0, "`0` produced no ranges");

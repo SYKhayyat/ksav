@@ -391,17 +391,14 @@ fn a_chapter_name_cannot_become_typst() {
         // name unescaped on purpose, because it is a sentence for a person and the
         // person needs to see the name they typed. Escaping that would be a
         // different bug, and asserting on it would be testing the wrong string.
-        let mut parts = std::collections::HashMap::new();
+        let parts = std::collections::HashMap::new();
         let body = format!(
             "לפני\n#כלול({})\nאחרי",
             ksav_engine::escape::string_literal(name)
         );
-        let expanded = ksav_engine::include::expand(
-            &body,
-            &mut parts,
-            ksav_engine::include::Limits::default(),
-        )
-        .text;
+        let expanded =
+            ksav_engine::include::expand(&body, &parts, ksav_engine::include::Limits::default())
+                .text;
 
         // The marker is one call, and its *whole* body is the escaped name — said
         // as equality rather than as a search, because the escaped form contains
@@ -447,15 +444,14 @@ fn a_chapter_name_cannot_become_typst() {
 fn the_missing_chapter_marker_escapes_every_markup_character() {
     // `expand` is the door, and the marker is only reachable through it, so this
     // goes through the same path a real sefer does rather than calling `marker`.
-    let mut parts = std::collections::HashMap::new();
+    let parts = std::collections::HashMap::new();
     let hostile = ksav_engine::escape::MARKUP
         .iter()
         .map(|c| c.to_string())
         .collect::<String>();
     let body = format!("#כלול({})\n", ksav_engine::escape::string_literal(&hostile));
     let expanded =
-        ksav_engine::include::expand(&body, &mut parts, ksav_engine::include::Limits::default())
-            .text;
+        ksav_engine::include::expand(&body, &parts, ksav_engine::include::Limits::default()).text;
 
     for c in ksav_engine::escape::MARKUP {
         assert!(

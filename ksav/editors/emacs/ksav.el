@@ -111,9 +111,8 @@ wrong exactly when a Hebrew paragraph happens to begin with a command name."
 (defvar ksav-font-lock-keywords
   `((,ksav-command-regexp (1 font-lock-keyword-face))
     ;; A named argument inside a call: `#שם(רמה: 2)[…]'.
-    ("[(,][ \t]*\\([[:alpha:]\u0590-\u05FF_]"
-     "[[:alnum:]\u0590-\u05FF_]*\\)[ \t]*:"
-     (1 font-lock-variable-name-face))
+    ("[(,]\\s-*\\([[:alpha:]\u0590-\u05FF_][[:alnum:]\u0590-\u05FF_]*\\)\\s-*:"
+     1 font-lock-variable-name-face)
     ;; Inline maths, which Typst delimits with dollars.
     ("\\$[^$\n]*\\$" . font-lock-constant-face))
   "What `ksav-mode' colours.")

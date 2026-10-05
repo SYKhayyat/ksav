@@ -139,12 +139,22 @@ function assertFreshBuild() {
       `  rebuild it:\n` +
       `    cd ksav/app && npm run build`,
   );
-  check(
-    "this run refused to measure a build older than the sources",
-    `${new Date(built.newest).toISOString()} < ${new Date(edited.newest).toISOString()}`,
-    "dist newer than src",
+  // **Thrown, not `check`ed.** #91.
+  //
+  // `check` reports a *failed assertion*, which leaves this file with one failure
+  // and zero passes — and `run.mjs`'s "a file that reports no assertions cannot
+  // go red" then reports it as `browserlang.test.mjs — 0 passed`. That is what CI
+  // showed, and it is the least useful sentence available: it reads like a test
+  // file that lost its body, when the truth is that there is no build to measure.
+  //
+  // A stale build and a gutted test are different faults with different fixes, and
+  // they were indistinguishable from outside. Throwing names this one.
+  throw new Error(
+    `refusing to measure a stale build: app/dist is older than app/src.\n` +
+      `  built  ${new Date(built.newest).toISOString()}  ${built.where}\n` +
+      `  edited ${new Date(edited.newest).toISOString()}  ${edited.where}\n` +
+      `  rebuild it:  cd ksav/app && npm run build`,
   );
-  return false;
 }
 
 /** Hebrew script, the thing a switch is supposed to remove. */

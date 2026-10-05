@@ -996,6 +996,35 @@ fn rephrase(raw: &str, about_from_span: Option<String>, line_text: Option<&str>)
     let mut about = about_from_span;
     let mut did_you_mean = None;
 
+    // ------------------------------------------------- our own panic, unwrapped
+    //
+    // Typst renders a `panic` as `panicked with: <the text>`, and **35 of the
+    // panics in `ksav.typ` are ours** — every "unrecognised argument", every
+    // "this command takes no such thing", written *already bilingual* as
+    // `"… · …"`. So a writer who mistypes an argument name to one of those
+    // commands was told:
+    //
+    //     error: panicked with: אזור: ארגומנט לא מוכר · unrecognised argument: מקור
+    //
+    // which is our own sentence wearing a crash report's label. Nothing below
+    // here matched it either: the families key on Typst's English, and this is
+    // Hebrew-first, so it fell all the way through to `raw` verbatim.
+    //
+    // **Stripped only when the remainder is already bilingual**, and that
+    // condition is the whole point. A genuine internal panic has no ` · ` in it
+    // and keeps the marker, which is the one case where "panicked with" is the
+    // most useful thing in the message. The marker is load-bearing; it is the
+    // attribution that is wrong.
+    if let Some(rest) = raw.strip_prefix("panicked with: ") {
+        if rest.contains(" · ") {
+            return Said {
+                message: rest.to_string(),
+                about,
+                did_you_mean,
+            };
+        }
+    }
+
     // ---------------------------------------------------------- unknown command
     if let Some(name) = raw
         .strip_prefix("unknown variable: ")

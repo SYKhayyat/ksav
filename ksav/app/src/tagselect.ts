@@ -248,17 +248,37 @@ export function tagSelectExtension(mode: () => TagSelection): Extension {
     // already selects a range in the preview (`jump.ts:isPlainClick`) — it had a
     // job before this.
     EditorView.domEventHandlers({
-      mousedown(event) {
+      // **The view is the second parameter, not `this`.** #90.
+      //
+      // CodeMirror 6's `domEventHandlers` types every handler as
+      // `(event, view) => boolean | void` and calls it that way — it does **not**
+      // bind `this`. In an ES module that means `this` is `undefined`, so the
+      // three uses below were `this.posAtCoords`, `this.state` and
+      // `selectTag(this, …)`, and the first one threw
+      // `TypeError: this.posAtCoords is not a function` on every left-click on a
+      // `[`. The handler never got past its second line.
+      //
+      // It survived because `main.ts:2251` does the identical thing **correctly**
+      // (`v.posAtCoords(…)`), so the pattern is present in the codebase and reads
+      // as settled. Nothing compared the two call sites. That is the whole of
+      // #90, and it is the same shape as `spans.ts`'s eleven delimiter matchers:
+      // a rule that is right somewhere is not a rule.
+      //
+      // And it survived locally because this file is deliberately split so that
+      // "everything above can be tested without a `DOM`, which this suite has none
+      // of" — the geometry is covered, and this wiring is exactly the part that
+      // is not. Only the assembled-app CI job, which opens a real browser, saw it.
+      mousedown(event, view) {
         if (event.button !== 0) return false;
         const pos = (event.target as HTMLElement | null)?.closest?.(".cm-content")
-          ? this.posAtCoords({ x: event.clientX, y: event.clientY })
+          ? view.posAtCoords({ x: event.clientX, y: event.clientY })
           : null;
         if (pos == null) return false;
-        const doc = this.state.doc.toString();
+        const doc = view.state.doc.toString();
         const tag = tagAtOpener(doc, pos);
         if (!tag) return false;
         event.preventDefault();
-        selectTag(this, tag, event.altKey ? otherSelection(mode()) : mode());
+        selectTag(view, tag, event.altKey ? otherSelection(mode()) : mode());
         return true;
       },
     }),

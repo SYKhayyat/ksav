@@ -296,17 +296,29 @@ export async function run() {
   {
     const lang = read("ksav/app/test/browserlang.test.mjs");
     ok("the browser test has the same guard", lang.includes("function assertFreshBuild"));
-    // **Fails rather than skips.** The distinction is the finding: a stale
-    // `dist/` is not this machine being unable to run the test, it is the test
-    // about to report a confident fictional result. Skipping would have been
-    // the same silence wearing a different sign, and `run.mjs` counts a skip as
-    // "asserted nothing", which is red anyway — but only by accident, and with
-    // no explanation. The guard below refuses and names both timestamps.
+    // **Throws rather than skips, and throws rather than `check`s.** Both
+    // distinctions are findings.
+    //
+    // A stale `dist/` is not this machine being unable to run the test, it is the
+    // test about to report a confident fictional result. Skipping would be the
+    // same silence wearing a different sign.
+    //
+    // It used to `check(...)`, which is a *failed assertion* — one failure, zero
+    // passes — and `run.mjs` then reported the file as `0 passed`, i.e.
+    // **"asserted nothing"**. That is what CI showed, and it is the least useful
+    // sentence available: it reads like a test file that lost its body, when the
+    // truth is that there is no build to measure (#91). The comment this replaces
+    // even noticed the trap — *"red anyway — but only by accident, and with no
+    // explanation"* — and worked around it. `throw` removes the accident: the
+    // failure names itself, and a stale build stays distinguishable from a gutted
+    // test file, which are different faults with different fixes.
     const guard = lang.slice(lang.indexOf("function assertFreshBuild"));
+    const body = guard.slice(0, guard.indexOf("\n}"));
+    ok("…and refuses rather than skipping", body.includes("throw new Error("), body.slice(0, 400));
     ok(
-      "…and refuses rather than skipping",
-      guard.slice(0, guard.indexOf("\n}")).includes("check("),
-      guard.slice(0, 400),
+      "…and the refusal names the rebuild rather than the assertion",
+      body.includes("npm run build"),
+      body.slice(0, 400),
     );
     // And it is reached **before** anything is measured, which is the whole
     // value of it: a guard that runs after the window has been read has already

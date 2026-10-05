@@ -98,6 +98,16 @@ const BROKEN: &[(&str, &str)] = &[
         "#הדגשה(צבע: red)[שלום]",
     ),
     ("a named argument spelled wrong", "#טבלה(עמודותת: 2)[א][ב]"),
+    // **Our own panic, not Typst's.** `#טבלה` above is a *Typst* error that the
+    // rephraser has a family for; this one is `_cfg_strict` in `ksav.typ:665`
+    // calling `panic` with a sentence the prelude wrote itself, already bilingual
+    // and already listing the keys that would have worked. It is the better
+    // message of the two, and it is the one that used to arrive as
+    // `panicked with: …` — our own sentence wearing a crash report's label.
+    (
+        "a configuration key spelled wrong",
+        "#הגדרות_זרמים(טורים_שגוי: 2)\n\nשלום",
+    ),
     ("nesting past Typst's limit", "\u{200E}"), // replaced below
     ("an item past the end of a list", "#((1,2).at(9))"),
     ("arithmetic on a command", "#(הדגשה + 1)"),
@@ -171,6 +181,36 @@ fn no_failure_reaches_the_writer_in_typsts_own_words() {
         raw.is_empty(),
         "these reached the writer un-rephrased — add a family to `rephrase`:\n  {}",
         raw.join("\n  ")
+    );
+}
+
+/// **Nothing reaches the writer inside a crash report.**
+///
+/// The bilingual check above cannot see this, and that is the point of writing a
+/// second one. A prelude panic arrives as `panicked with: אזור: ארגומנט לא מוכר ·
+/// unrecognised argument: מקור` — Hebrew, ASCII, and a ` · `, so it satisfies
+/// every clause of the rule above and is nonetheless a sentence wearing the
+/// wrong label. A writer who mistypes a setting name is told the program crashed,
+/// and the one diagnostic that *should* carry that marker is a real internal
+/// panic, which is not what this is.
+///
+/// Every case in `BROKEN` is a writer's mistake, so none of them may carry the
+/// marker at all — which is what makes this checkable without deciding, per
+/// case, whether a panic was honest.
+#[test]
+fn no_writer_mistake_is_reported_as_a_crash() {
+    let mut crashed = Vec::new();
+    for (name, body) in corpus() {
+        for d in errors(&body) {
+            if d.message.contains("panicked with") {
+                crashed.push(format!("{name}: {}", d.message));
+            }
+        }
+    }
+    assert!(
+        crashed.is_empty(),
+        "a writer's mistake arrived as a panic — `rephrase` unwraps our own:\n  {}",
+        crashed.join("\n  ")
     );
 }
 

@@ -87,12 +87,22 @@ jobs:
       - name: Install
         working-directory: ./ksav/app
         run: npm ci
-      - name: Check
-        working-directory: ./ksav
-        run: node tools/gate.mjs editor
+      # **Before** the gate, not after it. #91.
+      #
+      # `dist/` is git-ignored, so a checkout has none, and the browser-language
+      # tests measure the built app. Run in the other order they refuse to measure
+      # and report `browserlang.test.mjs — 0 passed`, which the suite's own
+      # "a file that reports no assertions cannot go red" fence turns into a
+      # failure that reads like a broken test rather than a missing build.
+      #
+      # So this step was a no-op: nothing after it read `dist/`, and the job spent
+      # its browser coverage on a directory that did not exist yet.
       - name: Build
         working-directory: ./ksav/app
         run: npx vite build
+      - name: Check
+        working-directory: ./ksav
+        run: node tools/gate.mjs editor
 
   engine:
     name: engine

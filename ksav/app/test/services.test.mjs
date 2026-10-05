@@ -20,7 +20,7 @@
 // generated from it and `npm test` fails if it is stale, so "the engine has this
 // service" and "this table has this service" are the same sentence here.
 
-import { check, ok } from "./harness.mjs";
+import { check, ok, notOk } from "./harness.mjs";
 import { HttpBackend, TauriBackend, WasmBackend, sourcesOf } from "../.tmp-test/api.mjs";
 
 /**
@@ -380,6 +380,88 @@ export async function run() {
       await Promise.all([fg, bg]);
       check("and released again, exactly once", backend.foregroundPending, 0);
     }
+  }
+
+  // ------------------------------------------- what a timeout is allowed to say
+  //
+  // #54. One event, two builds, and **the two sentences were both wrong about
+  // their own build**.
+  //
+  // The browser kills the Worker to escape a runaway, and the compute dies with
+  // it — so "was stopped" is true there. The desktop races the layout against a
+  // deadline and lets the overran compile finish on tokio's blocking pool — so
+  // "was abandoned, it will finish in the background" is true there, and its own
+  // comment says that is what it relies on. Both builds were sending the *same*
+  // constant, so the desktop told a writer its compile had been cancelled while
+  // it was still running and still holding a slot. A writer who believed it would
+  // wait for a page that was never coming.
+  //
+  // The engine's own sentence is the third one in the set, and it agrees with the
+  // desktop: `server.rs` says *"abandoned — it will finish in the background"*.
+  // So the contradiction the issue opened on was real, and it was between the
+  // app and the engine it is supposed to be describing.
+  {
+    const api = readFileSync(path.join(APP, "src", "api.ts"), "utf8");
+
+    // Two constants, because two true things. The cross-build agreement with the
+    // engine is asserted on the **engine** side — `server.rs`'s own test says a
+    // compile is abandoned and keeps running, and `engine/tests/` holds the
+    // sentence the app must agree with. It is not asserted here, because reading
+    // the engine's Rust out of an app test is exactly what `runner.test.mjs`
+    // prohibits: `wire.test.mjs` and `skips.test.mjs` are allowed to read it and
+    // only ever to *refuse*, and *"if it ever reads a value out of a `.rs` file,
+    // this prohibition is right"*. Comparing two sentences across the boundary is
+    // reading two values.
+    ok(
+      "the app has a distinct sentence for a compile it stopped",
+      api.includes("COMPILE_TIMEOUT_MESSAGE") && api.includes("was stopped"),
+    );
+    ok(
+      "and a distinct one for a compile it abandoned",
+      api.includes("COMPILE_ABANDONED_MESSAGE") && api.includes("was abandoned"),
+    );
+
+    // **The desktop abandons.** It races a deadline and leaves the compute on the
+    // blocking pool, so it must not be the build saying "stopped". Held on the
+    // call site rather than on the constant, because a constant used by both
+    // backends would pass a check on the constant alone — which is the bug.
+    const desktop = api.slice(api.indexOf("class TauriBackend"));
+    ok(
+      "the desktop reports an abandoned compile, not a stopped one",
+      desktop.includes("COMPILE_ABANDONED_MESSAGE") &&
+        !desktop.includes("COMPILE_TIMEOUT_MESSAGE"),
+    );
+    // The browser kills the worker, so it is the build that may say "stopped".
+    const wasm = api.slice(
+      api.indexOf("class WasmBackend"),
+      api.indexOf("class TauriBackend"),
+    );
+    ok(
+      "the browser reports a stopped compile",
+      wasm.includes("COMPILE_TIMEOUT_MESSAGE"),
+    );
+
+    // A timeout is recognised by **type**, not by string matching. The old test
+    // was `e.message === "timeout"`, which is one rename away from silently
+    // degrading every runaway into "the compile engine stopped: timeout" — a
+    // message that blames the engine for a document at fault and drops the only
+    // part of the message that helps.
+    ok("a worker death is a typed error", api.includes("class WorkerGoneError"));
+    ok("and the compile path branches on the type", api.includes("e instanceof WorkerGoneError"));
+    // …and never on the message. Read from the **code**, not the file: the
+    // literal `message === "timeout"` is quoted in the comment explaining why it
+    // went away, so a bare `includes` over the text would fail on its own
+    // reasoning. Stripping comments first is what makes this the assertion it
+    // claims to be.
+    const code = api
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("//"))
+      .join("\n");
+    notOk(
+      "and no longer on the message",
+      code.includes('message === "timeout"'),
+    );
   }
 
   // --------------------------------------------- nobody re-spells the list

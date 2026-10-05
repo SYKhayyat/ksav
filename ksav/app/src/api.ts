@@ -1430,10 +1430,53 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
 /** Wall-clock ceiling for a client-side compile, mirroring the server's. */
 const COMPILE_TIMEOUT_MS = 20_000;
 
+/** What a compile timeout says, in the build that actually killed it.
+ *
+ *  The server's sentence for the same event is *"ran longer than Ns and was
+ *  abandoned — it will finish in the background"*, and that is **not** what
+ *  happens here: the browser has no thread to detach, so terminating the worker
+ *  discards the work. Claiming the compile will finish in the background would be
+ *  a promise nothing in this build keeps, and a writer who watched for the page
+ *  to appear would wait for ever.
+ *
+ *  So the two builds say different true things. What they must **not** do is
+ *  contradict each other, which is why this says *stopped* and the server says
+ *  *abandoned*, rather than one message being reused for both. #54 opened on the
+ *  two sentences disagreeing.
+ *
+ *  The advice half is identical in both and is the part that helps: a runaway is
+ *  a `#for`/`#while` with a wrong bound, and both say so.
+ */
 const COMPILE_TIMEOUT_MESSAGE =
   "ההידור ארך יותר מדי והופסק — לולאה או חזרה עם מספר גדול מאוד עלולה לגרום לכך; " +
   "בדקו את הגבולות של #עבור/#כלעוד · compilation timed out and was stopped — a loop or " +
   "repetition with a very large count can cause this; check any #for/#while bounds";
+
+/** What a compile timeout says in the builds that **abandon** rather than stop.
+ *
+ *  This is the desktop's, and it is the server's own wording on purpose:
+ *  `server.rs` races the layout against a deadline and lets the overran
+ *  computation finish on a detached thread (*"abandoned — it will finish in the
+ *  background and holds one of N slots until it does"*). The desktop does the
+ *  same over tokio's blocking pool, which is what the comment above this call
+ *  says it is relying on.
+ *
+ *  **So the desktop was reporting "was stopped" for a compile that is still
+ *  running** — and a writer who took it at its word would sit waiting for a page
+ *  that was never coming, having been told the work was cancelled. That is #54's
+ *  "the message contradicts the engine", and it was the desktop half, not the
+ *  browser half.
+ *
+ *  The two builds now say different true things: the browser kills the worker and
+ *  the compute dies with it (**stopped**); the desktop and the server detach the
+ *  thread and let it land (**abandoned**). The advice — a `#for`/`#while` with a
+ *  wrong bound — is the same in both, because it is the part that helps.
+ */
+const COMPILE_ABANDONED_MESSAGE =
+  "ההידור ארך יותר מדי ולכן ננטש — הוא ימשיך ברקע עד שיסתיים. לולאה או חזרה עם מספר גדול " +
+  "מאוד עלולה לגרום לכך; בדקו את הגבולות של #עבור/#כלעוד · the compile ran longer than " +
+  "expected and was abandoned — it will finish in the background. A loop or repetition " +
+  "with a very large count can cause this; check any #for/#while bounds";
 
 /** A compile result carrying a single error diagnostic — the shape the engine
  *  returns on failure, so a client-side timeout reads identically to a real one. */
@@ -1445,6 +1488,35 @@ interface Pending {
   resolve: (s: string) => void;
   reject: (e: Error) => void;
   timer?: ReturnType<typeof setTimeout>;
+  /** The service this call is for, so a worker death can say which call caused
+   *  it and which ones were only along for the ride (#54). */
+  service?: ServiceName;
+}
+
+/** The error a killed worker rejects with.
+ *
+ *  **One error, many calls, and it has to say which is which.** `failAll`
+ *  terminates the worker, so every call in flight on it genuinely cannot
+ *  finish — rejecting them is correct and not negotiable. What was wrong was the
+ *  *sentence*: a bare `new Error("timeout")` on each, which reads as though each
+ *  of those calls had itself timed out. A spell check that was 4 ms from done and
+ *  a `jump` click died because a compile ran away, and both were told "timeout".
+ *
+ *  So the error names the call that caused it and marks the rest as collateral,
+ *  which is what lets `compile` report an abandoned compile while `jump`
+ *  reports — accurately — that the worker went away underneath it.
+ */
+class WorkerGoneError extends Error {
+  constructor(
+    /** The service whose timeout killed the worker, if it was a timeout. */
+    readonly cause_: ServiceName | null,
+    /** Whether a runaway compile was abandoned rather than stopped. */
+    readonly abandoned: boolean,
+    message: string,
+  ) {
+    super(message);
+    this.name = "WorkerGoneError";
+  }
 }
 
 export class WasmBackend extends ServiceClient implements Backend {
@@ -1575,7 +1647,7 @@ export class WasmBackend extends ServiceClient implements Backend {
     const w = await this.ensure();
     const id = this.nextId++;
     return new Promise<string>((resolve, reject) => {
-      const slot: Pending = { resolve, reject };
+      const slot: Pending = { resolve, reject, service: name };
       if (timeoutMs) {
         slot.timer = setTimeout(() => {
           if (!this.pending.has(id)) return;
@@ -1584,7 +1656,18 @@ export class WasmBackend extends ServiceClient implements Backend {
           // the one engine worker and queue every later compile and spell check
           // behind it forever, finishing the tab until reload. Terminating the
           // worker ends the runaway and lets the next call boot a fresh one.
-          this.failAll(new Error("timeout"));
+          //
+          // **Killing the worker is not stopping the compile**, and the two
+          // sentences the user could have been given must not both be true. The
+          // desktop and server builds abandon an overran compile and let it
+          // finish in the background on a detached thread (`server.rs`: *"the
+          // timeout message says the compile was abandoned and will finish in
+          // the background"*), because there the thread survives. Here it does
+          // not: the compute died with the worker, so the honest word is
+          // *stopped* — and `abandoned: false` is what stops this error being
+          // read as the server's. What is kept from the server's wording is the
+          // useful half, which is that the document is at fault.
+          this.failAll(new WorkerGoneError(name, false, `timeout:${name}`));
         }, timeoutMs);
       }
       this.pending.set(id, slot);
@@ -1610,8 +1693,14 @@ export class WasmBackend extends ServiceClient implements Backend {
       // it rather than the editor hanging on an unresolved promise. The throw
       // reaches here without the cache confirming any hashes, and failAll has
       // already reset it, so the respawned worker starts from a clean slate.
+      //
+      // **A timeout is recognised by type, not by string.** It used to be
+      // `e.message === "timeout"`, which is one rename away from silently
+      // turning every runaway into *"the compile engine stopped: timeout"* — a
+      // message that blames the engine for a document at fault and drops the
+      // advice, which is the only part that helps.
       return errorResult(
-        e instanceof Error && e.message === "timeout"
+        e instanceof WorkerGoneError
           ? COMPILE_TIMEOUT_MESSAGE
           : `מנוע ההידור נעצר · the compile engine stopped${e instanceof Error ? `: ${e.message}` : ""}`,
       );
@@ -1723,7 +1812,7 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
     void run.catch(() => {});
     let timer: ReturnType<typeof setTimeout>;
     const deadline = new Promise<CompileResult>((resolve) => {
-      timer = setTimeout(() => resolve(errorResult(COMPILE_TIMEOUT_MESSAGE)), COMPILE_TIMEOUT_MS);
+      timer = setTimeout(() => resolve(errorResult(COMPILE_ABANDONED_MESSAGE)), COMPILE_TIMEOUT_MS);
     });
     try {
       return await Promise.race([run, deadline]);

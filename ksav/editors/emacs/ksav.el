@@ -111,7 +111,8 @@ wrong exactly when a Hebrew paragraph happens to begin with a command name."
 (defvar ksav-font-lock-keywords
   `((,ksav-command-regexp (1 font-lock-keyword-face))
     ;; A named argument inside a call: `#שם(רמה: 2)[…]'.
-    ("[(,][ \t]*\\([[:alpha:]\u0590-\u05FF_][[:alnum:]\u0590-\u05FF_]*\\)[ \t]*:"
+    ("[(,][ \t]*\\([[:alpha:]\u0590-\u05FF_]"
+     "[[:alnum:]\u0590-\u05FF_]*\\)[ \t]*:"
      (1 font-lock-variable-name-face))
     ;; Inline maths, which Typst delimits with dollars.
     ("\\$[^$\n]*\\$" . font-lock-constant-face))
@@ -236,13 +237,13 @@ A preamble is prepended to the buffer, so a writer reasonably writes either
 point of the language.
 
 The name is a run of word characters, which is what an identifier is — and not a
-run up to the next space: `#let mine(x) = x` binds `mine`, and a pattern that ran
-to the whitespace announced `mine(x)`, a command the writer never defined and
-would go looking for. `[[:alnum:]_]` rather than a negated class because a
-negated one has to escape the brackets *and* the braces, and Emacs's regex
-reader takes `}` in a bracket expression as the start of an interval and stops
-matching altogether — a fence that passes on the four names in the test and
-finds nothing in a real preamble."
+ run up to the next space: `#let mine(x) = x` binds `mine`, and a pattern
+ that ran to the whitespace announced `mine(x)`, a command the writer never
+ defined and would go looking for. `[[:alnum:]_]` rather than a negated class
+ because a negated one has to escape the brackets *and* the braces, and Emacs's
+ regex reader takes `}` in a bracket expression as the start of an interval and
+ stops matching altogether — a fence that passes on the four names in the test
+ and finds nothing in a real preamble."
   (let (names (at 0))
     (while (string-match "\\(?:#\\)?let[ \t]+\\([[:alnum:]_]+\\)" pre at)
       (push (match-string 1 pre) names)
@@ -254,15 +255,15 @@ finds nothing in a real preamble."
 CONTAINER is the wrapper alist, or nil for a plain-text document.
 
 A `.ksav' may carry a `#let' preamble, and `ksav--preamble' puts it in front of
-the buffer's text on every request — so opening the file **runs** it. This package
-was silent about that while rendering a preview of whatever the preamble
-produced, and a `.ksav' is a file people are sent.
+the buffer's text on every request — so opening the file **runs** it. This
+package was silent about that while rendering a preview of whatever the
+preamble produced, and a `.ksav' is a file people are sent.
 
-The wording is this function's own rather than the engine's, and that is a known
-duplication: `DocFile::advisories' says the same thing for the CLI. The two answer
-\"one sentence, produced once\" only once there is a service the editor can ask,
-which is a protocol change rather than a sentence, so out of scope here — and the
-sentence here is therefore deliberately the short one.
+The wording is this function's own rather than the engine's, and that is a
+known duplication: `DocFile::advisories' says the same thing for the CLI. The
+two answer "one sentence, produced once" only once there is a service the
+editor can ask, which is a protocol change rather than a sentence, so out of
+scope here — and the sentence here is therefore deliberately the short one.
 
 It says only what is true, and that is worth the care: packages are bundled and
 never fetched, the resolver's root is the package directory so a document cannot

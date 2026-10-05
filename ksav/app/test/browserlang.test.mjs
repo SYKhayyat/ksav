@@ -242,12 +242,43 @@ async function browser() {
   } catch {
     return { why: "playwright-core is not installed" };
   }
-  if (!existsSync(chromium.executablePath())) return { why: "no Chromium for playwright" };
-  try {
-    return { b: await chromium.launch({ headless: true, args: ["--no-sandbox", "--disable-gpu"] }) };
-  } catch (e) {
-    return { why: `Chromium would not start: ${String(e).split("\n")[0]}` };
+  // **Channels first, and the managed path last.**
+  //
+  // `executablePath()` names the browser *playwright* downloaded, and on a CI
+  // runner nothing downloads one — the workflow's own comment says so: *"No browser is
+  // downloaded. `playwright-core` drives the Chrome the runner already has."* So this
+  // file asked for a path that does not exist and answered
+  //
+  //     SKIPPED browserlang: no Chromium for playwright
+  //
+  // which is the whole browser-language coverage, in a job whose name is `editor`,
+  // on every run, since the test was written. `run.mjs` counted the empty file as
+  // "asserted nothing" and turned it red, which is how it was finally noticed —
+  // **three fixes after the reason it was red was found**, because #91's
+  // staleness guard had been failing first and hid the real answer behind it.
+  //
+  // `acceptance.mjs` already solves this (`launchBrowser`, channels `chrome`,
+  // `msedge`, `chromium`, first that starts). Same approach, same order: the
+  // runner's own Chrome first, and the downloaded build only as a fallback for a
+  // machine that has one.
+  const args = ["--no-sandbox", "--disable-gpu"];
+  const tried = [];
+  for (const channel of ["chrome", "msedge", "chromium"]) {
+    try {
+      return { b: await chromium.launch({ channel, headless: true, args }) };
+    } catch (e) {
+      tried.push(`${channel}: ${String(e.message).split("\n")[0]}`);
+    }
   }
+  const managed = chromium.executablePath();
+  if (existsSync(managed)) {
+    try {
+      return { b: await chromium.launch({ headless: true, args }) };
+    } catch (e) {
+      tried.push(`managed: ${String(e.message).split("\n")[0]}`);
+    }
+  }
+  return { why: `no Chromium would start — tried ${tried.join("; ")}` };
 }
 
 /**

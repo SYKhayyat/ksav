@@ -58,6 +58,78 @@ function stored(raw) {
   return settings.loadSettings();
 }
 
+/**
+ * A setting's **note** belongs beside its own control.
+ *
+ * The one every other fence here cannot see, because nothing can: a note is
+ * just a string that exists and a control is just a key that is reachable, and
+ * the failure mode is **two correct things in the wrong order**.
+ *
+ * It happened. `showWhitespaceNote` — which explains that showing whitespace
+ * matters because *whitespace in a Ksav document prints*, the most useful note
+ * in the drawer — sat fourteen rows below its own checkbox, under the *indent*
+ * dials, where it read as an explanation of the indent settings. Both halves
+ * passed every other check: the key was in `settings.ts`, the label was
+ * translated, the control existed, and `settings_keys.test.mjs` was green.
+ *
+ * # What makes this fence real
+ #
+ * The first version searched for the *key string* before the note, and it
+ **passed with the note in the wrong place** — because `"showWhitespace"` also
+ appears in the file for the settings machinery, and the note still had one
+ after it. A mutation moved the note and the suite stayed green, which is the
+ * whole failure this test exists to end.
+ *
+ * So it counts **controls between** them instead: the note must be within one
+ * control of its own, counted from the `checkRow`/`numberRow` calls themselves
+ * rather than from any substring. A note fourteen rows down is thirteen controls
+ * away, and that is a number, not a hunch.
+ */
+function everyNoteSitsBesideItsOwnControl() {
+  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+
+  // Every control row in source order, with the offset it sits at. Taken from
+  // the *calls*, so the count is the number of rows a writer would walk past.
+  const rows = [...main.matchAll(/(?:checkRow|numberRow|selectRow|menuRow)\("[^"]*",?\s*"([^"]+)"/g)]
+    .map((m) => ({ key: m[1], at: m.index }))
+    .sort((a, b) => a.at - b.at);
+  ok("the drawer has controls to walk past", rows.length > 10, `${rows.length}`);
+
+  const notes = [...main.matchAll(/set-note[^\n]*\[t\("([^"]+)"\)/g)]
+    .map((m) => ({ key: m[1].replace(/Note$/, ""), at: m.index }))
+    .sort((a, b) => a.at - b.at);
+  ok("the drawer has notes to place", notes.length > 3, `${notes.length}`);
+
+  /** How many control rows lie between a note and the control it names. */
+  const gap = (noteKey, noteAt) => {
+    const row = rows.find((r) => r.key === noteKey);
+    if (!row) return null;
+    if (row.at > noteAt) return null; // the control is *after* the note
+    return rows.filter((r) => r.at > row.at && r.at < noteAt).length;
+  };
+
+  const far = [];
+  for (const note of notes) {
+    const n = gap(note.key, note.at);
+    if (n === null) {
+      // A note whose control is not a row (`emptyDictionary`, `setupIsPerDoc`)
+      // has no adjacency to be wrong about, and is not this test's business.
+      continue;
+    }
+    // **One** row between is the allowance: a note may follow a control and its
+    // own sibling. Two is a note that has drifted into another setting.
+    if (n > 1) far.push(`${note.key}Note is ${n} rows below ${note.key}`);
+  }
+  check("every note sits beside the control it explains", far, []);
+
+  // The one this is really about, named so the failure reads as itself.
+  check(
+    "showWhitespaceNote is not among the strays",
+    far.filter((f) => f.startsWith("showWhitespace")),
+    [],
+  );
+}
+
 export async function run() {
   // ---------------------------------------------------- the module itself loaded
   //
@@ -266,6 +338,11 @@ export async function run() {
 
   everyPreferenceHasAControl();
   eachSyncSwitchGatesItsOwnBehaviour();
+  // **Called, which the first version of this fence was not.** It was written as
+  // a function, added to the file, and never invoked — so it asserted nothing and
+  // the suite was green. That is the same shape as `lines_of`: the code is right
+  // and nothing asks it anything.
+  everyNoteSitsBesideItsOwnControl();
 }
 
 // ---------------------------------------------------------------- reachable
@@ -408,4 +485,5 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
       ok(`${k} is translated`, hasKey(k));
     }
   }
+
 }

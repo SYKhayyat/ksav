@@ -21,7 +21,7 @@
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 import { mkdtempSync, existsSync, writeFileSync, readdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,17 +30,48 @@ const DIST = join(APP, "dist");
 
 /** The Chromium on this machine, if there is one. Nix puts it somewhere unpickable. */
 function findChromium() {
-  const roots = ["/nix/store", "/usr/lib", "/usr/bin", "/opt"];
+  // **Playwright's own cache, first.** `playwright-core` does not bundle a browser
+  // and `npx playwright install` puts one here, and the layout changed: the binary
+  // is `<pkg>/chrome-linux64/chrome`, not `<pkg>/bin/chrome`. The loop below only
+  // knew the older shape, so it found nothing and fell through.
+  //
+  // The `endsWith("/bin")` branch below used to *return the directory* as though
+  // it were an executable — `/usr/bin` — which is how this ended up trying to
+  // `spawn /usr/bin` and reporting `EACCES` rather than "no browser found". A
+  // search that returns a directory is worse than one that returns nothing,
+  // because the error it produces looks like a permissions problem.
+const pw = process.env.PLAYWRIGHT_BROWSERS_PATH ?? join(homedir(), ".cache", "ms-playwright");
+for (const pkg of ["chromium", "chromium_headless_shell"]) {
+  // **Versioned too.** The cache directory is `chromium-<revision>`, so an exact
+  // name never matched — and the glob-shaped guess below is what actually finds
+  // a browser on a machine that ran `playwright install`.
+  const dirs = existsSync(pw)
+    ? readdirSync(pw).filter((d) => d === pkg || d.startsWith(`${pkg}-`))
+    : [];
+  for (const d of dirs.sort().reverse()) {
+    for (const rel of [
+      ["chrome-linux64", "chrome"],
+      ["chrome-linux", "chrome"],
+      ["chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"],
+      ["bin", "chrome"],
+    ]) {
+      const p = join(pw, d, ...rel);
+      if (existsSync(p)) return p;
+    }
+  }
+}
+  const roots = ["/nix/store", "/usr/lib", "/usr/lib64", "/opt"];
   for (const root of roots) {
     if (!existsSync(root)) continue;
-    if (root.endsWith("/bin")) {
-      if (existsSync(root)) return root;
-      continue;
-    }
     try {
       for (const d of readdirSync(root)) {
         if (!d.includes("chrom")) continue;
-        for (const p of [join(root, d, "bin", "chromium"), join(root, d, "bin", "chrome")]) {
+        for (const rel of [
+          ["bin", "chromium"],
+          ["bin", "chrome"],
+          ["chrome-linux64", "chrome"],
+        ]) {
+          const p = join(root, d, ...rel);
           if (existsSync(p)) return p;
         }
       }

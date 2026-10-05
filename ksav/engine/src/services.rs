@@ -653,6 +653,14 @@ mod tests {
     /// A layout is the only thing that needs the server's deadline and the
     /// desktop's blocking pool, and it is the only thing that must not be
     /// mistaken for cheap: `Quick` runs on the thread that draws the window.
+    ///
+    /// **`places` is here because it asks the same question `reveal` does** — it
+    /// has to know where the text printed, and there is no answer without laying
+    /// the document out. Marking it `Work` would put a full layout in the
+    /// background lane, where it would queue behind the compile the writer is
+    /// waiting for, which is the mistake `AUDIT-perf-and-blocking.md` §B1 exists
+    /// to prevent. A chooser that answers after the page has moved is worse than
+    /// one that waits.
     #[test]
     fn only_the_services_that_lay_out_a_document_are_marked_layout() {
         let layout: Vec<_> = SERVICES
@@ -660,7 +668,7 @@ mod tests {
             .filter(|s| s.cost == Layout)
             .map(|s| s.name)
             .collect();
-        assert_eq!(layout, ["compile", "jump", "reveal"]);
+        assert_eq!(layout, ["compile", "jump", "reveal", "places"]);
     }
 
     /// The services a browser tab cannot answer say so in the table.

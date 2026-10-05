@@ -8219,7 +8219,19 @@ function buildSettingsDrawer(): HTMLElement {
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("autoPairBracketsLabel", "autoPairBrackets"),
     checkRow("autoPairQuotesLabel", "autoPairQuotes"),
+    // Off by default, and the note says why rather than leaving a writer to
+    // discover it by fighting their own gershayim for an hour.
+    el("div", { class: "set-note" }, [t("autoPairQuotesNote")]),
     checkRow("showWhitespaceLabel", "showWhitespace"),
+    // **Beside its own checkbox, which is the whole point of a note.** This one
+    // sat fourteen rows lower, under the *indent* dials, so it read as an
+    // explanation of the indent settings — and it is the setting whose note
+    // matters most, because a writer who cannot see a space cannot see a
+    // paragraph break either. Nothing tested adjacency, because nothing can:
+    // `settings.test.mjs` proves the key is reachable and `docfacts` proves the
+    // string exists, and the failure mode is two correct things in the wrong
+    // order.
+    el("div", { class: "set-note" }, [t("showWhitespaceNote")]),
     // #85 — a dial rather than a checkbox: the feature is "how much", not "whether".
     numberRow("dimOutsideTagLabel", "dimOutsideTag", 0, 100, 5),
     checkRow("minimapLabel", "minimap"),
@@ -8233,7 +8245,6 @@ function buildSettingsDrawer(): HTMLElement {
     numberRow("indentAmountLabel", "indentAmount", 1, 8, 1),
     numberRow("indentMinWordsLabel", "indentMinWords", 0, 40, 1),
     numberRow("indentPercentLabel", "indentPercent", 10, 90, 5),
-    el("div", { class: "set-note" }, [t("showWhitespaceNote")]),
     // #86 — what a bare click on a `[` means. A select and not a checkbox, because
     // there is no off: clicking a bracket does something either way, and the only
     // question is which of the two. `Alt`+click is the other, so this is a
@@ -8242,9 +8253,6 @@ function buildSettingsDrawer(): HTMLElement {
       ["body", t("clickSelectsBody")],
       ["whole", t("clickSelectsWhole")],
     ]),
-    // Off by default, and the note says why rather than leaving a writer to
-    // discover it by fighting their own gershayim for an hour.
-    el("div", { class: "set-note" }, [t("autoPairQuotesNote")]),
     checkRow("keepMenuPositionLabel", "keepMenuPosition"),
     // Off by default, and the note says what the strip is — because a writer
     // who has never seen it cannot decide about a control they cannot picture,

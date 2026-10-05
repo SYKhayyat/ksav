@@ -79,6 +79,11 @@ const CALLS = [
   ["assemble", (b) => b.assemble("שלום", {}), { ok: true, typst_source: "#let", diagnostics: [] }],
   ["jump", (b) => b.jump("שלום", {}, { page: 0, x_pt: 1, y_pt: 1 }), { line: 1 }],
   ["reveal", (b) => b.reveal("שלום", {}, { line: 1 }), { points: [] }],
+  // #82, and the row is here for the same reason `reveal`'s is: a service the
+  // browser build cannot reach is a service that is missing from the product
+  // that has no server. The answer is two places and a `first`, because that is
+  // the shape the client is not allowed to derive for itself.
+  ["places", (b) => b.places("שלום", {}, { line: 1 }), { places: [3, 7], first: 3 }],
   ["spell", (b) => b.spell("שלום", ""), { misspellings: [] }],
   ["suggest", (b) => b.suggest("שלום", ""), { suggestions: [] }],
   ["commands", (b) => b.commands(), []],

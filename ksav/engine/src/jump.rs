@@ -289,6 +289,51 @@ pub fn reveal_request(input_json: &str) -> String {
     serde_json::json!({ "points": points }).to_string()
 }
 
+/// `{body, line, file, …DocConfig}` → `{places: [line], first: line}`.
+///
+/// **The list beside the answer, not instead of it** (#82). `reveal` sends the
+/// cursor to [`Expanded::line_of`] — the first match — because a cursor has one
+/// place to be and reading order is the honest choice for it. That comment said
+/// there is no better answer available, and it was right about a function that
+/// must return one `usize` and **wrong about the product**: a writer who wants to
+/// know where a chapter appears should see all of it and choose. The ambiguity
+/// was named, and then nothing was done with the naming.
+///
+/// So this asks the *other* question and leaves `reveal` exactly as it was. One
+/// click keeps going where it goes today.
+///
+/// **`first` is in the answer, not left to the caller to compute.** The client
+/// needs both — the list to offer, and the single answer for the gesture that is
+/// not this one — and a client that picked "the first of the list" would be
+/// reimplementing the reading-order rule on the other side of a wire, which is
+/// where it would drift.
+pub fn places_request(input_json: &str) -> String {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(input_json) else {
+        return r#"{"places":[]}"#.to_string();
+    };
+    let Some(body) = v.get("body").and_then(|x| x.as_str()) else {
+        return r#"{"places":[]}"#.to_string();
+    };
+    let expanded = crate::include::expand(
+        body,
+        &crate::include::from_request(&v),
+        crate::include::Limits::default(),
+    );
+    let asked = v.get("line").and_then(|x| x.as_u64()).unwrap_or(1).max(1) as usize;
+    let file = v.get("file").and_then(|x| x.as_str());
+    let places = expanded.lines_of(file, asked);
+    serde_json::json!({
+        "places": places,
+        // `None` rather than `asked`, because "this line is in no part" and "this
+        // line is the body itself" are different answers and collapsing them is
+        // what made `reveal`'s `unwrap_or(asked)` ambiguous.
+        "first": expanded.line_of(file, asked),
+        "file": file,
+        "line": asked,
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

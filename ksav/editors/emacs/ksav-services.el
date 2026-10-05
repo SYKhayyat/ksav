@@ -25,6 +25,7 @@
     ("assemble" "POST" "/assemble" nil)
     ("jump" "POST" "/jump" nil)
     ("reveal" "POST" "/reveal" nil)
+    ("places" "POST" "/places" nil)
     ("spell" "POST" "/spell" nil)
     ("suggest" "POST" "/suggest" nil)
     ("commands" "GET" "/commands" nil)

@@ -135,6 +135,7 @@ the first as the second, every time.
 | `assemble` | `C-c C-t` |
 | `jump` | clicking a word in `*ksav page*` |
 | `reveal` | `C-c C-r` |
+| `places` | `M-x ksav-places` — every place a line printed, for a part included more than once |
 | `spell` | `C-c C-s` |
 | `suggest` | `C-c C-w` |
 | `commands` | `C-c C-i` |

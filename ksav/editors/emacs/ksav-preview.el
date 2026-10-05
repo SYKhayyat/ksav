@@ -350,6 +350,41 @@ layout and there is no layout without one."
                  line (1+ page)
                  (if (cdr points) (format ", and in %d other places" (length (cdr points))) ""))))))
 
+;;;###autoload
+(defun ksav-places ()
+  "List every place the line at point was printed.
+
+The other question from `ksav-reveal', which goes to the first place because a
+point has one place to be.  A part pulled in at two places prints twice, and
+until this existed there was no way to ask where else it appeared — the engine
+answered (`places') and nothing in this package asked.
+
+The answer is lines of the body the engine is sent, so they are shown as they
+are rather than translated back: the translation is the preamble arithmetic
+`ksav-reveal' already does, and a second copy of that arithmetic in a second
+command is a second thing to be wrong.  With one line there is nothing to choose
+and this says so rather than offering a single row."
+  (interactive)
+  (unless (derived-mode-p 'text-mode)
+    (user-error "Ksav: not in a source buffer"))
+  (let* ((line (line-number-at-pos))
+         (column (1+ (current-column)))
+         (request (ksav-request `((line . ,(+ line (ksav--preamble-lines)))
+                                  (column . ,column))))
+         (answer (ksav-call "places" request))
+         (places (alist-get 'places answer)))
+    (cond
+     ((null places)
+      ;; A line that is in no part is not a failure — it is the main body, which
+      ;; prints once.  Saying so beats an empty list.
+      (message "Ksav: line %d is the document itself, and prints once" line))
+     ((null (cdr places))
+      (message "Ksav: line %d prints in one place only (body line %s)"
+               line (car places)))
+     (t
+      (message "Ksav: line %d prints in %d places — body lines %s"
+               line (length places) (mapconcat #'number-to-string places ", "))))))
+
 ;; The mouse and nothing else, and that is not an oversight.  A jump needs a
 ;; place *within* a page, and point in this buffer is at the page: the whole
 ;; document occupies one character with an image hung on it, so there is no

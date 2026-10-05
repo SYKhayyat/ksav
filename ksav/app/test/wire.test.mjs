@@ -121,6 +121,19 @@ const SEAM = [
     optional: [],
   },
   {
+    // #82. The list beside `reveal`'s single answer, and the row is here because
+    // the seam is the whole claim: a field added to the engine's answer and not
+    // to `Places` is a field every client reads as `undefined`, which is how a
+    // response loses a field without anything noticing. `first` is the one that
+    // matters — the client is forbidden from deriving it from the list, so if the
+    // engine stopped sending it the client would silently answer `null`.
+    what: "places: every place one line of a part ended up, and the first of them",
+    file: "jump.rs",
+    at: '"places": places',
+    ts: "Places",
+    optional: [],
+  },
+  {
     what: "services: the registry describing itself",
     file: "services.rs",
     at: '"name": s.name',

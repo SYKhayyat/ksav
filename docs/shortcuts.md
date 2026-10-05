@@ -91,6 +91,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+B` | Fix brackets | תיקון סוגריים |
 | `Ctrl+Alt+E` | Show collected notes | הצגת הערות שנאספו |
 | `Ctrl+Alt+P` | Where did this print? | היכן זה נדפס? |
+| `Ctrl+Alt+C` | Everywhere this line prints | בכל המקומות שבהם שורה זו נדפסה |
 | `Ctrl+Alt+X` | Isolate the selection's direction | בידוד כיווניות לקטע |
 | `Ctrl+.` | Spelling suggestions for the word at the caret | הצעות איות למילה שבסמן |
 | `Ctrl+Alt+Tab` | Back to the previous document | חזרה למסמך הקודם |

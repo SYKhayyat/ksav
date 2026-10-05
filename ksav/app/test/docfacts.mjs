@@ -267,6 +267,8 @@ export const LOGS = {
   // sentence that was true and must not be rewritten. See `logDate`.
   "SESSION_LOG.md":
     "The session log: one append-only file holding a dated entry per working session, each true on its date and never edited afterwards. Its counts are measurements of that day and are stale by definition.",
+  "issue-notes.md":
+    "The same lifecycle as the session log, and it was found by the same kind of red suite: a dated note saying *\"Current local fix restored `all 100 bindings`\"* is a **measurement of 27 August**, and the fence read it as a claim about today — which is #81's failure again, in the one file that was not in this list. Editing the number to 102 would make the fence green and the record a lie, and the note's own text says *\"Leave issue/PR state unchanged per request.\"* So the file is exempted for the reason the entry above gives: its dates are in its body rather than in its name.",
 };
 
 /** Does this exemption cover that page? A trailing `/` means the directory. */
@@ -323,10 +325,22 @@ export function logDate(file) {
   // having once had a date.
   const at = path.join(ROOT, file);
   if (!existsSync(at)) return null;
-  const dates = [...readFileSync(at, "utf8").matchAll(/^#{2,6} +(\d{4}-\d{2}-\d{2})\b/gmu)]
-    .map((d) => d[1])
-    .sort();
-  return dates.length ? dates[dates.length - 1] : null;
+  const text = readFileSync(at, "utf8");
+  const headings = [...text.matchAll(/^#{2,6} +(\d{4}-\d{2}-\d{2})\b/gmu)].map((d) => d[1]);
+  if (headings.length) return headings.sort().at(-1);
+  // **Or a date in the prose, which is how a file that is one dated record says
+  // so.** `issue-notes.md` opens *"Prepared 2026-08-27 from the open issue
+  // bodies"* and its sections are headed by issue numbers, not dates — so the
+  // heading rule alone called it undated, and the fence then demanded its
+  // 27-August measurement of the binding count be rewritten to today's. That is
+  // #81's failure in a second file: the record has to be dated to be believed,
+  // and being unable to say so is a reason to teach the check another spelling
+  // rather than to edit history.
+  //
+  // The first dated line in the file, which is what "prepared" or "written" means
+  // — the *newest* would be right for an append-only log, and this is not one.
+  const prose = /\b(\d{4}-\d{2}-\d{2})\b/u.exec(text);
+  return prose ? prose[1] : null;
 }
 
 // ---------------------------------------------------------------- the claims
@@ -338,7 +352,11 @@ export function logDate(file) {
 // to make one of these pass is for the page to say the true number.
 export const CLAIMS = [
   ["README.md", "bindings", (n) => `all ${n} bindings`],
-  ["issue-notes.md", "bindings", (n) => `all ${n} bindings`],
+  // `issue-notes.md` was here and is **not** a log-page count any more: it is a
+  // dated record (see `LOGS`), so holding it to today's binding total asked a
+  // 27-August measurement to be rewritten, which is the edit `LOGS` exists to
+  // prevent. A page cannot be a record and a living page at once, and it is a
+  // record — its own text says *"Leave issue/PR state unchanged per request."*
   ["ksav/README.md", "commands", (n) => `**${n} commands**`],
   ["ksav/README.md", "offered", (n) => `searches all ${n} commands`],
   ["ksav/README.md", "templates", (n) => `${n} templates (all compile)`],

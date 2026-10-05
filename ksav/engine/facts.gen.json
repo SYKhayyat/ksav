@@ -1656,6 +1656,13 @@
       "reach": "all"
     },
     {
+      "name": "places",
+      "method": "post",
+      "path": "/places",
+      "cost": "layout",
+      "reach": "all"
+    },
+    {
       "name": "spell",
       "method": "post",
       "path": "/spell",

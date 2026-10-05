@@ -1190,6 +1190,12 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Forward search: where did what I am typing print? The pair to clicking the
   // preview, which needs no key because it has a mouse.
   { id: "revealCursor", run: () => (voidAction("general", () => revealCursor()), true) },
+  // The same question asked a second way (#82). `revealCursor` goes to the first
+  // place a line printed, because a cursor has one place to be and reading order
+  // is the right default; this opens **every** place, so a part that is included
+  // twice can be pointed at deliberately. The list is the answer to a question
+  // the first-place answer cannot express.
+  { id: "revealPlaces", run: () => (voidAction("general", () => revealPlaces()), true) },
   // The manual override for when the automatic isolation does not reach.
   { id: "isolate", run: (v) => toggleIsolateSelection(v) },
   {
@@ -5097,6 +5103,122 @@ async function revealCursor(opts: { quiet?: boolean; from?: number } = {}): Prom
       "ok",
     );
   return true;
+}
+
+/**
+ * Every place a line printed, as a list the writer picks from (#82).
+ *
+ * **The list beside the answer, not instead of it.** [`revealCursor`] goes to the
+ * first place, because a cursor has one place to be and reading order is the
+ * honest default; this is the gesture for the question the first-place answer
+ * cannot express — *where else does this appear?* A part pulled in at two places
+ * is not an exotic document, and until now there was no way to ask.
+ *
+ * The engine returns both the list and its own `first` (which is `line_of`, the
+ * same one `reveal` uses), and the list is what is shown. Clicking a row moves the
+ * caret there and closes, which is the whole of the interaction: no second
+ * dialog, no mode.
+ */
+async function revealPlaces(): Promise<boolean> {
+  if (!runtime.backend) return true;
+  const pages = currentPages();
+  if (!pages.length) {
+    setStatus(t("revealNoPages"), "warn");
+    return true;
+  }
+  const { body, offset } = bodyOnScreen();
+  const doc = runtime.view.state.doc;
+  const head = runtime.view.state.selection.main.head;
+  const line = doc.lineAt(head);
+  setStatus(t("revealWorking"));
+  // No `file:` sent, and that is deliberate. `reveal` does not send one either —
+  // the engine resolves which part a line is in from the document, and a client
+  // that decided for itself would be a second implementation of that question.
+  // The answer echoes back the file it resolved, which is also what the chooser's
+  // heading shows.
+  const found = await runtime.backend.places(
+    body,
+    docConfig(),
+    { line: line.number + offset, column: [...line.text.slice(0, head - line.from)].length + 1 },
+    docs.requestAssets(runtime.currentDoc?.assets ?? []),
+  );
+  placesAnswer = found;
+  openPanel("places-chooser");
+  renderPlaces();
+  return true;
+}
+
+/** The last answer, kept so the panel can re-render on a rebuild or a resize. */
+let placesAnswer: api.Places | null = null;
+
+function closePlaces() {
+  closePanel("places-chooser");
+}
+
+/** What the chooser is showing, as data — separated from the DOM so it can be
+ *  asserted, and so "is there anything to choose" is one line rather than a walk
+ *  over buttons. */
+function placesRows(answer: api.Places | null): { lines: number[]; one: boolean } {
+  const lines = answer?.places ?? [];
+  return { lines, one: lines.length <= 1 };
+}
+
+function renderPlaces() {
+  const list = document.getElementById("places-list");
+  if (!list) return;
+  const answer = placesAnswer;
+  const subject = document.getElementById("places-subject");
+  if (subject) {
+    const where = answer?.file ?? t("mainBody");
+    subject.textContent = answer ? `${where} · ${answer.line}` : "";
+  }
+  const { lines, one } = placesRows(answer);
+  if (lines.length === 0) {
+    // Nothing to choose is a **sentence**, not an empty list. The writer pressed
+    // a key and is owed an answer, and "this line is not in a part" is a real
+    // one — it means the line is the main body, which prints exactly once.
+    setStatus(t("placesOnlyHere"), "");
+    list.replaceChildren();
+    return;
+  }
+  if (one) {
+    // One place is not a choice, so the panel says so and does not offer a
+    // single row to click — `revealCursor` already went there.
+    setStatus(t("placesOnlyHere"), "");
+  }
+  list.replaceChildren(
+    ...lines.map((line) =>
+      el("button", {
+        class: "row",
+        type: "button",
+        onClick: () => {
+          closePlaces();
+          revealToExpandedLine(line);
+        },
+      }, [el("span", { class: "row-main" }, [tf("placesRow", line)])]),
+    ),
+  );
+}
+
+/** Put the caret on a line of the **expanded** body and reveal it there.
+ *
+ * The engine's `places` are lines of the body it is sent, so the caret goes there
+ * and `revealCursor`'s own machinery takes it the rest of the way — which is why
+ * this is a call and not a copy: the translation from an expanded line back to the
+ * writer's document is arithmetic with an offset in it, and a second copy of that
+ * arithmetic is a second thing to be wrong.
+ */
+function revealToExpandedLine(expandedLine: number) {
+  const { offset } = bodyOnScreen();
+  const doc = runtime.view.state.doc;
+  const target = Math.max(1, expandedLine - offset);
+  const line = doc.line(Math.min(target, doc.lines));
+  runtime.view.dispatch({
+    selection: { anchor: line.from },
+    scrollIntoView: true,
+  });
+  runtime.view.focus();
+  voidAction("general", () => revealCursor({ quiet: true }));
 }
 
 /**
@@ -14255,6 +14377,15 @@ function render() {
       ]),
       el("div", { id: "history-list" }),
     ]),
+    // Every place a line printed (#82). The head names the line and the file it
+    // is in, so a list of numbers is answerable rather than merely shown.
+    overlayPanel("places-chooser", "palette-box", [
+      el("div", { class: "history-head" }, [
+        el("b", { "data-i18n": "revealPlaces" }, [t("revealPlaces")]),
+        el("span", { id: "places-subject" }),
+      ]),
+      el("div", { id: "places-list" }),
+    ]),
     // Every citation in the document, as the library has it now (spec.md
     // §10.2). See `refreshSources` for what the errand is and why the rows come
     // back instead of a rewritten file.
@@ -14649,6 +14780,14 @@ function wirePanels() {
     close: () => runtime.view.focus(),
   });
   wirePanel("history-modal", { open: () => voidAction("general", () => renderHistory()), rebuild: () => voidAction("general", () => renderHistory()) });
+  wirePanel("places-chooser", {
+    // `renderPlaces` is **synchronous** — it draws an answer that already arrived,
+    // so wrapping it in `voidAction` (which takes a promise) would be wrapping a
+    // value in the wrong shape rather than adding anything.
+    open: renderPlaces,
+    rebuild: renderPlaces,
+    close: () => runtime.view.focus(),
+  });
   wirePanel("preview-modal", {
     open: () => {
       // Drawn from the pages themselves, not copied out of the other pane. It

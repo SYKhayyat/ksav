@@ -268,6 +268,11 @@ export const PANELS: readonly Panel[] = [
   },
   { id: "preview-modal", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
   { id: "history-modal", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
+  // Every place a line printed, when a part is included more than once (#82). A
+  // modal and not a pane, because it is a question with a short list of answers
+  // and no state to keep — the same shape as `history-modal`, and for the same
+  // reason: you open it, you pick, it closes.
+  { id: "places-chooser", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
   {
     id: "welcome",
     kind: "modal",

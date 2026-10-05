@@ -269,6 +269,11 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // Forward search — "where am I on the page?". The other direction is a click
   // on the preview and needs no key.
   revealCursor: "Mod-Alt-p",
+  // Where does this line appear **everywhere**, when a part is included more
+  // than once? `Mod-Alt-c` for *choose*: `revealCursor` goes to the first place
+  // because a cursor has one place to be, and this is the gesture that opens the
+  // rest of the list. `c` is free and the word is the gesture.
+  revealPlaces: "Mod-Alt-c",
   // Bidi isolation by hand, for the run the automatic pass does not cover.
   isolate: "Mod-Alt-x",
   // Spelling suggestions for the word the caret is in. On `Mod-.` because that

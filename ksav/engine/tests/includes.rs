@@ -218,6 +218,99 @@ fn a_document_with_nothing_included_answers_for_the_whole_body() {
     assert_eq!(out.lines_of(None, 1), Vec::<usize>::new());
 }
 
+/// #82's other half: the list reaches the **wire**, with the first answer beside it.
+///
+/// `lines_of` was built and had **no caller** — the engine could enumerate every
+/// place a part landed and nothing asked it to. That is the shape of half a
+/// feature, and it is invisible from the engine side: the unit tests above all
+/// pass, and no writer can see it.
+///
+/// So this drives the service. The thing worth fencing is not "the array has two
+/// elements" but **`first` is `places[0]` on the wire**, because that is what a
+/// client would otherwise recompute — and a client that reimplemented
+/// *"first is reading order"* on the other side of a JSON boundary is where that
+/// rule would drift.
+#[test]
+fn the_places_service_answers_with_the_list_and_the_first_beside_it() {
+    let request = json!({
+        "body": "לפני\n#כלול(\"מתבנית\")\nבין\n#כלול(\"מתבנית\")\nאחרי",
+        "parts": [{ "name": "מתבנית", "body": "שורה אחת\nשורה שניה" }],
+        "line": 2,
+        "file": "מתבנית",
+    });
+    let out: Value = serde_json::from_str(&ksav_engine::jump::places_request(&request.to_string()))
+        .unwrap_or_else(|e| panic!("places did not answer with json: {e}"));
+    let places: Vec<u64> = out["places"]
+        .as_array()
+        .expect("places is an array")
+        .iter()
+        .map(|v| v.as_u64().expect("a line number"))
+        .collect();
+
+    // The part is included twice, so line 2 of it landed twice — and this is the
+    // question `reveal` cannot answer.
+    assert_eq!(
+        places.len(),
+        2,
+        "a part included twice should be reachable from both places: {out}"
+    );
+    // **The invariant, on the wire.** `line_of` is `places[0]` because they share
+    // a predicate in the engine — and the client must not have to know that.
+    assert_eq!(
+        out["first"].as_u64(),
+        places.first().copied(),
+        "`first` is not the first place: {out}"
+    );
+    // Reading order, ascending — which is what makes the list presentable.
+    assert!(
+        places.windows(2).all(|w| w[0] < w[1]),
+        "the list is not in reading order: {places:?}"
+    );
+    // And it echoes what it was asked about, so a client can label the answer
+    // without keeping its own copy of the request.
+    assert_eq!(out["file"], "מתבנית");
+    assert_eq!(out["line"], 2);
+}
+
+/// A line that is in no part, and a file that is not in the document.
+///
+/// Both are the same failure in different clothes: a client that offers a list
+/// has nothing to show. `first` is `null` rather than the line it was handed,
+/// because *"this line is in no part"* and *"this line is the main body"* are
+/// different answers and collapsing them is the ambiguity this issue opened on.
+#[test]
+fn the_places_service_says_so_rather_than_inventing_an_answer() {
+    for (file, line, why) in [
+        (serde_json::Value::Null, 99u64, "a line in no part"),
+        (serde_json::json!("פרק שאינו"), 1u64, "a file not in the document"),
+    ] {
+        let request = json!({
+            "body": "לפני\n#כלול(\"מתבנית\")\nאחרי",
+            "parts": [{ "name": "מתבנית", "body": "שורה" }],
+            "line": line,
+            "file": file,
+        });
+        let out: Value =
+            serde_json::from_str(&ksav_engine::jump::places_request(&request.to_string())).unwrap();
+        assert_eq!(
+            out["places"].as_array().map(|a| a.len()),
+            Some(0),
+            "{why}: {out}"
+        );
+        assert!(
+            out["first"].is_null(),
+            "{why} invented an answer rather than saying none: {out}"
+        );
+    }
+    // A malformed request is an empty answer, not a panic — the same shape every
+    // other service in this file answers with.
+    let out: Value = serde_json::from_str(&ksav_engine::jump::places_request("not json")).unwrap();
+    assert_eq!(out["places"].as_array().map(|a| a.len()), Some(0));
+    let out: Value =
+        serde_json::from_str(&ksav_engine::jump::places_request(r#"{"line":1}"#)).unwrap();
+    assert_eq!(out["places"].as_array().map(|a| a.len()), Some(0));
+}
+
 #[test]
 fn a_bare_include_mid_sentence_says_what_is_wrong() {
     // The one failure mode of the whole-line rule. Without the prelude's fallback

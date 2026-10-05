@@ -724,7 +724,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 8,071 editor assertions, 1100 tests in
+      all nine jobs: the typechecker and 8,131 editor assertions, 1100 tests in
       the engine, formatting and `clippy -D warnings`, the engine again on macOS, a
       build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -803,8 +803,8 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 8,071 assertions across 117 files |
-| `engine` | both | formatting, lints, then 1100 tests across 75 binaries |
+| `editor` | both | the typechecker, then 8,131 assertions across 118 files |
+| `engine` | both | formatting, lints, then 1102 tests across 75 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
@@ -1094,6 +1094,7 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | `assemble` | `POST /assemble` | `{body, parts, …DocConfig}` → `{ok, typst_source, diagnostics[]}` — the same source a compile would carry, without the compile, so "Export .typ" does not pay for a full render and a PDF to read one field off |
 | `jump` | `POST /jump` | inverse search: `{body, page, x_pt, y_pt, …DocConfig}` → `{line, column}`, or `{}` for a point the writer did not type (a margin, a running head, a note-band rule) |
 | `reveal` | `POST /reveal` | forward search: `{body, line, column, …DocConfig}` → `{points: [{page, x_pt, y_pt}]}`, empty when it printed nowhere and several when it printed more than once |
+| `places` | `POST /places` | every place a line was printed, in reading order: `{body, line, column, …DocConfig}` → `{places: [line], first: line \| null}` — the list `reveal` uses only the first of, for a part included more than once. `first` is `reveal`'s own answer rather than `places[0]`, so a client does not reimplement *"first is reading order"* across the wire; `null` means the line is in no part, which is a different answer from one that is the main body |
 | `spell` | `POST /spell` | `{text, user_words, suggest}` → `{misspellings[], lexicon_sizes}` |
 | `suggest` | `POST /suggest` | `{word, user_words}` → `{suggestions[]}` |
 | `commands` | `GET /commands` | the command registry (JSON) |

@@ -162,6 +162,7 @@ pub const SERVICES: &[Service] = &[
     svc("assemble", Post, "/assemble", Quick, All, crate::assemble_request),
     svc("jump", Post, "/jump", Layout, All, crate::jump::jump_request),
     svc("reveal", Post, "/reveal", Layout, All, crate::jump::reveal_request),
+    svc("places", Post, "/places", Layout, All, crate::jump::places_request),
     svc("spell", Post, "/spell", Work, All, crate::spell::spell_request),
     svc("suggest", Post, "/suggest", Work, All, crate::spell::suggest_request),
     svc("commands", Get, "/commands", Quick, All, commands),

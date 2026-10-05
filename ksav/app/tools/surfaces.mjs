@@ -172,6 +172,27 @@ export const RECIPES = new Map([
 
   // ---- opened by a keystroke or a menu ----
   [
+    "places-chooser",
+    {
+      how: HOW.driven,
+      why:
+        "No chip: it is a keystroke, and `bindings.ts` calls it " +
+        '`revealPlaces: "Mod-Alt-c"` beside `revealCursor`, which is the same ' +
+        "question asked the other way.",
+      drive: async (p) => {
+        // **No fixture, and that is the point.** `revealPlaces` opens the panel
+        // whatever the engine answers — a line in one part says so in words and
+        // an empty list says *the main body* — so the keystroke is enough. An
+        // earlier draft of this recipe set a `surfacesPlacesFixture` flag to
+        // arrange a document where the line is in two parts, which was invented:
+        // no such setting exists, and a recipe that depends on one is a recipe
+        // that measures nothing.
+        await p.press("Control+Alt+c");
+        await p.waitFor("#places-chooser.open", 10_000);
+      },
+    },
+  ],
+  [
     "palette",
     {
       how: HOW.driven,

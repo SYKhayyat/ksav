@@ -708,6 +708,21 @@ export interface Located {
   file: string | null;
 }
 
+/** What `places` answers: where a line of a part landed, and the first of them.
+ *
+ *  `places` is 1-based lines of the **expanded** body, ascending, so they read as
+ *  a writer would read the document. `first` is always `places[0]` when the line
+ *  is in a part at all, and `null` when it is in none — which is why it is a
+ *  field and not something the caller derives. */
+export interface Places {
+  places: number[];
+  /** `null` for a line that is in no part, which is a different answer from a
+   *  line that is the main body. */
+  first: number | null;
+  file: string | null;
+  line: number;
+}
+
 /** `reveal`: everywhere on the rendered pages one place in the body ended up. */
 export interface Revealed {
   points: PagePoint[];
@@ -943,6 +958,21 @@ export interface Backend {
    * page. Empty when it printed nowhere.
    */
   reveal(body: string, cfg: DocConfig, at: BodySpot, assets?: RequestAssets): Promise<PagePoint[]>;
+  /**
+   * Every place a line of a part landed, in reading order (#82).
+   *
+   * The other direction again, and the question `reveal` cannot answer: a part
+   * included twice prints twice, and a writer who wants to know *where* it
+   * appears has one number from the engine and no way to ask for the others.
+   *
+   * **`first` is carried rather than left to the client to compute.** It is
+   * `places[0]` by construction in the engine — the two share one predicate — and
+   * a client that picked "the first of the list" would be reimplementing
+   * *"first is reading order"* across a JSON boundary, which is where that rule
+   * would drift. `first: null` means *"this line is in no part"*, which is a
+   * different answer from a line that is the main body.
+   */
+  places(body: string, cfg: DocConfig, at: BodySpot, assets?: RequestAssets): Promise<Places>;
   /** Check text against both lexicons plus the writer's own words. */
   spell(text: string, userWords: string, suggest?: boolean): Promise<SpellResult>;
   /** Suggestions for one word — asked for only when a menu is opened. */
@@ -1171,6 +1201,30 @@ function readPoints(v: unknown): PagePoint[] {
     (p): p is PagePoint =>
       !!p && typeof p.page === "number" && typeof p.x_pt === "number" && typeof p.y_pt === "number",
   );
+}
+
+/**
+ * Read a `places` answer, keeping the engine's `first` and **not** deriving it.
+ *
+ * There is a real temptation here to write `first: list[0] ?? null`, and it is
+ * wrong for one case: the engine answers `first: null` when the line is in **no**
+ * part, and in that case the list is empty too, so the two agree — but only by
+ * coincidence of shape. The reason to read the field is the other direction: the
+ * engine's `first` is `line_of`, which is what `reveal` already uses, and a client
+ * that recomputed it would be a second implementation of *"first is reading
+ * order"*. So it is read, and the tests hold that the two agree.
+ */
+function readPlaces(v: unknown): Places {
+  const o = v as Partial<Places> | null;
+  const list = Array.isArray(o?.places)
+    ? o.places.filter((n): n is number => typeof n === "number" && n >= 1)
+    : [];
+  return {
+    places: list,
+    first: typeof o?.first === "number" && o.first >= 1 ? o.first : null,
+    file: typeof o?.file === "string" && o.file.length > 0 ? o.file : null,
+    line: typeof o?.line === "number" && o.line >= 1 ? o.line : 0,
+  };
 }
 
 /**
@@ -1412,6 +1466,19 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
       return readPoints(await this.ask("reveal", { body, ...cfg, ...assets, ...at }));
     } catch {
       return [];
+    }
+  }
+
+  /** #82 — every place a line of a part landed, and the first of them.
+   *
+   *  Identical in all three backends on purpose: it is the same service, and the
+   *  point of a `Backend` is that the transport is the only thing that differs.
+   *  `first` is read off the wire — see `readPlaces`. */
+  async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
+    try {
+      return readPlaces(await this.ask("places", { body, ...cfg, ...assets, ...at }));
+    } catch {
+      return { places: [], first: null, file: null, line: at.line };
     }
   }
 }
@@ -1734,6 +1801,23 @@ export class WasmBackend extends ServiceClient implements Backend {
       return [];
     }
   }
+
+  /** #82 — every place a line of a part landed, and the first of them.
+   *
+   *  Bounded by the same timeout as `reveal`, because it *is* a compile: it lays
+   *  the document out to know where anything went. A killed worker is "no places"
+   *  rather than a throw, which is `reveal`'s answer and for the same reason. */
+  async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
+    try {
+      return readPlaces(
+        JSON.parse(
+          await this.call("places", JSON.stringify({ body, ...cfg, ...assets, ...at }), { timeoutMs: COMPILE_TIMEOUT_MS }),
+        ),
+      );
+    } catch {
+      return { places: [], first: null, file: null, line: at.line };
+    }
+  }
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
@@ -1833,6 +1917,19 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
       return readPoints(await this.ask("reveal", { body, ...cfg, ...assets, ...at }));
     } catch {
       return [];
+    }
+  }
+
+  /** #82 — every place a line of a part landed, and the first of them.
+   *
+   *  `reveal`'s shape and for `reveal`'s reasons: same timeout, same "no places"
+   *  rather than a throw, and `first: null` read off the wire rather than taken
+   *  as `places[0]`. */
+  async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
+    try {
+      return readPlaces(await this.ask("places", { body, ...cfg, ...assets, ...at }));
+    } catch {
+      return { places: [], first: null, file: null, line: at.line };
     }
   }
 }

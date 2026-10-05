@@ -17,6 +17,7 @@ export const SERVICE_PATHS = [
   "/assemble",
   "/jump",
   "/reveal",
+  "/places",
   "/spell",
   "/suggest",
   "/commands",

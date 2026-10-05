@@ -721,10 +721,29 @@ Written up in `CONTRIBUTING.md` §3, where the gate is documented.
 
 ### Still unverified — read this before trusting the green
 
-- **CI has not re-run since these fixes.** Four jobs were red on `main` when the session started and
-  all four are addressed locally, but "CI is green" is an expectation, not a result. The
-  assembled-app and browser jobs exercise what no local run touches, which is exactly how #90
-  survived a green suite.
+- **CI state, last read.** `37351532640`: **7 of 9 green** — `formatting`, `engine`,
+  `engine on macOS`, `the assembled app`, `browser engine`, `desktop shell`, `editor`. Both Emacs
+  jobs red, both on **my own** edits, both now fixed in `e66c630`:
+  - a **font-lock regexp split across two strings** to meet the 80-column rule — in
+    `font-lock-keywords`, a regexp followed by a string is *regexp and face spec*, so the rule
+    stopped matching. The constraint was never "split the line"; it was "the line is 81
+    characters". `\s-*` is two shorter and the same match.
+  - **a rewrap that ate `\"` in a docstring**, ending the string early —
+    `reference to free variable 'one'`. And **`check-parens` passed anyway**: it validates
+    parenthesis balance, not string literals, so a docstring that ends early is perfectly
+    balanced. **A green parse says nothing about whether the file is a program.**
+
+  Both were invisible to the editor suite and to `check-parens`, and both were found by CI in
+  under four minutes. **Three of my own fixes in this session were wrong in ways only CI saw.**
+
+### Handoff
+
+- `main` is clean and pushed; no background work of mine is still running.
+- **The fastest way to break something here is to fix a lint without asking what the construct
+  means.** Two of the three failures above were that.
+- **Do not trust a green local suite to mean CI will be green.** `editor` was green locally for
+  the whole session while `browserlang` had never once run — no Chromium in that job, and the
+  reason was hidden behind a different failure for hours.
 - **The acceptance script had never completed here.** It does now:
   **`09a2265` — 737 checks, 0 failed, "the assembled application works."** Getting there took
   three fixes to probes that had never been exercised, because `minimap`'s recipe is **the only

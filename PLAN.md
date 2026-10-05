@@ -182,6 +182,28 @@ still right.
   the text run and failed, because an apparatus entry prints its number as a **separate run
   at a smaller size** — so it reads `Line::reading`, which is the line as a reader sees it.
 
+- [~] #79 can a stream occupy the **page body**? (from #77, from #15) — **Question 2 answered
+  by measurement, and the measurement inverts the premise. Question 1 is the real work.**
+  The issue predicted *"N streams is N layouts, and the editor is 59ms from a keystroke"* —
+  i.e. that the body shape is the expensive one. Measured on identical words, **one footer
+  document with two anchored streams took ~17.0 s (median of 6) and the same words as three
+  plain layouts took ~3.5 s** — the footer shape is **~4.7× the more expensive** one. Runs were
+  **interleaved** (each run does both back to back) so a contended box inflates both; the
+  ratio is the finding and the absolutes are not. A 20-page document, 120 short notes.
+
+  **Why:** the cost is not the layout count, it is the **notes apparatus** — a foot region
+  rebuilt per page, numbering, and anchoring. A body stream drops all of it, which is a
+  stronger argument *for* the body shape than the one the issue expected to have to make.
+
+  **Question 1 — coexistence — is answered by reading `examples/streams.rs`, and the answer is
+  that the probe cannot do it:** `band_w = sheet_w / n` with `page_height_cm = sheet_h`, so the
+  bands **divide the whole sheet** and a body stream as constructed **replaces** the main flow.
+  So the capability that exists today is unusable for the purpose #79 states. Coexistence is
+  the unmeasured part and is the real feature: it needs the page's own layout decided first
+  (how much width is main text, what a band relates to, and what happens when a stream runs out
+  before the main text does). **Left open deliberately** — that is a product decision, and the
+  measurement is what makes it arguable.
+
 - [x] #80 **reledmac + reledpar** for Hebrew RTL text-critical editions — forwarded
   research, **unverified, and a different shape from #73**. It is LaTeX, and #67's
   resolver takes Typst packages only, so this is not "bundle a dependency" but *read it

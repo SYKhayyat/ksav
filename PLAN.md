@@ -4,7 +4,13 @@ Worker loop: pick the top unchecked item, fix ONLY that issue + its resolving te
 Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #28, #29, #30, #40, #41, #49.
 
 ## SKIP — do not work (see AI_ISSUE_ROUTING.md)
-- #36 watch.forget — FALSE POSITIVE (callers at main.ts:740,827).
+- #36 watch.forget — FALSE POSITIVE, and now **closed** (`cc753a7`). Two callers:
+  `main.ts:749` in `closeOpenDoc` ("on close") and `main.ts:836` in the delete path
+  ("when its binding is replaced") — the two its own comment names. **The comment is what
+  made it a filed defect twice**: it read *"Nothing called it"* three lines above a live
+  call, describing the pre-fix state in the present tense. Rewritten. No callerless-export
+  sweep added, per `documentation.test.mjs:161` — it flags test-only helpers and API surface
+  by the dozen, and people silence those.
 - #29 registry "docs in the wire" — FALSE POSITIVE, measured: the essays are
   `///`/`//` comments (15,181 of 40,053 bytes, none a value); the literals are 22
   chars at the median and `commands_json` is 224 bytes a row. The descriptions

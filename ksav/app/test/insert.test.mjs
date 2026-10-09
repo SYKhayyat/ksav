@@ -1,10 +1,21 @@
 import { check, ok } from "./harness.mjs";
 import { plan, commandOf } from "../.tmp-test/insert.mjs";
 import { dirOf } from "../tools/paths.mjs";
+import { commands } from "../tools/commands.mjs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { translated } from "../.tmp-test/mode.mjs";
+import { scan } from "../.tmp-test/spans.mjs";
 
 const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
+
+/** A Hebrew letter, for the fence that must find one where none belongs. */
+const HEBREW = /[\u05d0-\u05ea]/u;
+
+/** Every node name in `text`, in the order the scanner found them. */
+function names(text) {
+  return scan(text).nodes.map((n) => n.name);
+}
 
 // What a click on the toolbar turns into, asked directly.
 //
@@ -131,6 +142,108 @@ export async function run() {
   check("…including an English one", commandOf("#bold[|]"), "bold");
   check("…and underscores are part of it", commandOf("#קו_תחתון[|]"), "קו_תחתון");
   check("plain text names no command", commandOf("שלום"), null);
+
+  // ---------------------------------------------- the language it is written in
+  //
+  // #94. The registry's `insert` is Hebrew — canonically, deliberately,
+  // `NOTE_COMMAND` is `הערה` and `engine.gen.ts` mirrors the prelude's own table
+  // — and nine surfaces reached for it: the ribbon, the Insert menu, the palette,
+  // every key binding, and three note buttons in `main.ts` that typed their
+  // snippets out by hand beside a note machinery that was already taking a
+  // `lang` (`noteLine`, `pickLine`, `setStyleArgs`). Nothing broke. It compiles
+  // either way and it lays out either way, because the prelude reads both
+  // spellings; the writer's English document was simply Hebrew underneath them
+  // from the first click. `styles.ts:189` had written that sentence down about
+  // the Styles panel, three months earlier, and the ribbon was still doing it.
+  //
+  // The tooltip beside a button already showed the document's spelling
+  // (`writing === "he" ? c.he : c.en`), so the ribbon was naming `#bold` over a
+  // button that wrote `#הדגשה` — two answers to one question in the same closure.
+  // The decision is `mode.docLang`'s and it is made once, here, before anything
+  // else reads the snippet, because every one of those nine surfaces funnels
+  // through this function.
+
+  {
+    // `docIn` is the same unambiguous document `notelangs.test.mjs` uses: one
+    // command already written, and plain prose in the same script.
+    const en = "#bold[a] some plain English prose here.\n";
+    const he = "#הדגשה[א] טקסט בעברית כאן.\n";
+    check(
+      "an English document takes an English command",
+      plan(en, en.length, en.length, "", "#הדגשה[|]").text,
+      "#bold[]",
+    );
+    check(
+      "a Hebrew one keeps its own spelling",
+      plan(he, he.length, he.length, "", "#הדגשה[|]").text,
+      "#הדגשה[]",
+    );
+    // The parameter names travel with the command, which is the half that looks
+    // like a detail and is not: `#img("x", width: 60%)` with a Hebrew `רוחב`
+    // still compiles, because `_en` passes an unrecognised name through to the
+    // Hebrew function underneath.
+    check(
+      "argument names are translated with it",
+      plan(en, en.length, en.length, "", '#תמונה("x", רוחב: 60%)').text,
+      '#img("x", width: 60%)',
+    );
+  }
+
+  {
+    // The caret decides, not the document. `docLang` asks the innermost call
+    // first, so a command typed inside a Hebrew note in an English document is
+    // Hebrew — the same answer `lists.ts` and `headings.ts` already give from
+    // the node they are rewriting, and the reason this is not "the document's
+    // language" but "the language here".
+    //
+    // Three English commands before the Hebrew note, so the majority is
+    // unmistakably English and only the innermost-call rule can answer Hebrew.
+    // A fixture with one of each cannot tell the two apart, and Hebrew wins a
+    // tie by default — so the weaker fixture would pass with the rule removed.
+    // The note is **closed**, because an unclosed one's node ends at its own
+    // name (`to` is where the `]` would be), so no caret is ever inside it.
+    const doc = "#bold[a] #italic[b] #h1[c] plain English prose.\n\n#הערה[הערה בעברית]";
+    const inside = doc.indexOf("עברית");
+    check(
+      "inside a Hebrew note the command is Hebrew",
+      plan(doc, inside, inside, "", "#הדגשה[|]").text,
+      "#הדגשה[]",
+    );
+  }
+
+  {
+    // The class, rather than the member that named it: every insert the engine
+    // publishes, asked in both languages. A command or a parameter the tables
+    // do not know survives as Hebrew in an English document, and this is the
+    // only fence that can see it — the three buttons were the *symptom*, and
+    // the ribbon beside them had the same disease on every one of its buttons.
+    const wrong = [];
+    for (const c of commands()) {
+      if (c.deprecated) continue;
+      // The registry's own spelling survives the Hebrew direction untouched —
+      // which is the invariant the whole fix rests on: Hebrew is canonical, so
+      // translating *to* Hebrew must be the identity.
+      const he = translated(c.insert, "he");
+      const en = translated(c.insert, "en");
+      if (he !== c.insert) wrong.push(`he is not the identity: ${c.insert} → ${he}`);
+      // …and the English direction starts with the name the surface shows
+      // beside the button. Four of the entries are bare names with no `#`
+      // (`פריט[|]`, `תא[|]`, `כותרת_תא[|]` — the helpers written *inside* an
+      // argument list), so the lead keeps whatever prefix it had.
+      if (c.en !== undefined) {
+        const lead = (c.insert.startsWith("#") ? "#" : "") + c.en;
+        if (!en.startsWith(lead)) wrong.push(`en: ${c.insert} → ${en}`);
+      }
+      // Nothing that names a command or a parameter is left Hebrew. Sample
+      // ordinals are deliberately exempt (`mode.translated` says so in as many
+      // words): `#סעיף[א]` keeps its `א`, because the alphabet a construct is
+      // numbered in is a typographic choice and not a language.
+      for (const n of names(en)) {
+        if (HEBREW.test(n)) wrong.push(`hebrew name in the english form: ${en} (${n})`);
+      }
+    }
+    check("every registry insert is spelled in the document's language", wrong, []);
+  }
 
   // --------------------------------------------------- a refusal that survives
   //

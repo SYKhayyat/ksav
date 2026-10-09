@@ -7,6 +7,32 @@ the end, which also records the pattern worth more than the fixes: **four in a r
 shipped**, and twice a survey believed a stale *comment* rather than the code beside it.
 
 ## SKIP — do not work (see AI_ISSUE_ROUTING.md)
+- #94 Insert menu hardcodes Hebrew — **FALSE POSITIVE on the behaviour, true on the
+  literal, and the fifth "already shipped" in a row.** The three note buttons do pass
+  hardcoded Hebrew snippets (`main.ts:6537-6553`), and `channels.noteLine`,
+  `pickLine` and `setStyleArgs` all do take a `lang` — so a survey reading the call
+  sites concluded an English document gets `#הערה[|]`. It does not, and the reason is
+  one line in `mode.ts:486`: **`insertionAt` is the seam, and it translates.** Its own
+  comment says why it is there — *"the language decision lives here rather than in the
+  two callers, because there is no version of 'each surface remembers' that survives a
+  fourth surface"* — which is exactly the sentence #94's fix would have re-implemented.
+  Measured, not argued: removing that one line makes the insertion-fixtures generator
+  go red on **every** command that carries a Hebrew parameter name in an English
+  document, and the note-path translation removed beside it makes the destination
+  scaffolding Hebrew.
+  The deliverable is therefore a **fence, not a fix**: `insert.test.mjs` §"the language it
+  is written in" (an English document takes an English command, its argument names with
+  it, and Hebrew inside a Hebrew note whatever the rest of the document is) and
+  `notelangs.test.mjs` §6.4 (the three buttons' full journey, in both languages, with
+  nothing Hebrew anywhere in the resulting document — the marker *and* the scaffolding).
+  Both mutation-checked: dropping `insertionAt`'s translation, dropping `docLang`'s
+  innermost-call rule, and making `destinationLines` write Hebrew each turn their own
+  assertion red. **What the fences found on the way, both real:** an unclosed note's node
+  ends at its own name, so `docLang`'s innermost-call rule cannot see a caret inside one;
+  and the marker's own translation in `applyNotePick` is *redundant* — `insertionAt`
+  translates whatever lands anyway. #14 §5's "it lands as `#הערה[…]`" was corrected in
+  place, because a false expectation written into the UAT script is a defect with a
+  brighter future.
 - #36 watch.forget — FALSE POSITIVE, and now **closed** (`cc753a7`). Two callers:
   `main.ts:749` in `closeOpenDoc` ("on close") and `main.ts:836` in the delete path
   ("when its binding is replaced") — the two its own comment names. **The comment is what

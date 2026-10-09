@@ -295,6 +295,53 @@ export async function run() {
     ),
   );
 
+  // ------------------------------------------------- §6.4 the ribbon's three buttons
+  //
+  // #94. The three note buttons pass hardcoded Hebrew snippets (`main.ts`:
+  // `noteBtn("footnote", "†", "#הערה[|]")` and its two siblings) while
+  // `channels.noteLine(channel, lang)`, `pickLine(pick, lang)` and `applyPick`
+  // all take a `lang` and all had the both-languages fence below already. So
+  // the note path was right and its door was not: a writer with an English
+  // document pressed Insert ▸ Footnote and got `#הערה[|]`, which compiles and
+  // lays out and is now a document written in Hebrew underneath them.
+  //
+  // The sink is one decision, made once, in `insert.plan` — because every
+  // surface funnels through it. These ask it of the three snippets the ribbon
+  // actually carries, in both languages, as the rule at the top of this file
+  // requires.
+  for (const lang of LANGS) {
+    const doc = docIn(lang);
+    for (const he of ["הערה", "הערתסיום", "הערת_גיליון"]) {
+      const want = nameIn(he, lang);
+      const found = noteFor(`#${he}[|]`);
+      ok(`${lang}: ${he} is a note — the ribbon's button is one of these`, !!found, `#${he}[|]`);
+      // Through the real door: the button's Hebrew snippet, planned at the
+      // caret of a document written in `lang`, then applied.
+      const p = plan(doc, doc.length, doc.length, "", `#${he}[|]`);
+      check(`${lang}: ${he} is planned as a note, not as plain text`, p.kind, "note");
+      // The marker `plan` handed over — not one built here — so this is the
+      // button's whole journey: the ribbon's Hebrew snippet, planned at the
+      // caret, then applied to the document.
+      const r = applyPick(doc, doc.length, p.pick, false, { marker: p.marker }, lang);
+      // The whole document, not a slice: a destination that prints anywhere but
+      // the page foot gets its scaffolding written at the top and the bottom of
+      // the file, so the note is not at the end of what changed.
+      const lands = r.text.includes(`#${want}[`);
+      const other = lang === "en" ? r.text.includes(`#${he}[`) : false;
+      check(`${lang}: and it lands as #${want}[`, lands && !other, true);
+      // The whole class, asked once per button: nothing Hebrew anywhere in what
+      // lands — not the note's own command, not the scaffolding a destination
+      // writes at the top and bottom of the file (`#ערוץ(…)`, `#הצג_אזור(…)`,
+      // `#הערות_בסוף()`), and not a parameter name. The scaffolding half is the
+      // one a marker-only check cannot see: it is written by `destinationLines`
+      // with its own `lang`, and it is a second place to be language-blind.
+      if (lang === "en") {
+        ok(`${lang}: ${he} writes no Hebrew command`, !/#[֐-׿]/u.test(r.text), r.text);
+        ok(`${lang}: ${he} writes no Hebrew parameter`, !/[֐-׿]+\s*:/u.test(r.text), r.text);
+      }
+    }
+  }
+
   // ------------------------------------------------- applyPick, both languages
   //
   // The end of the road: what actually lands in the document.

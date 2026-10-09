@@ -163,6 +163,18 @@ still right.
   `examples/streams.rs` proves the architecture — each stream its own band-sized document,
   pages zipped by index — and **duplicates what `פריסה: "צד"` does**, so it is evidence
   and must not become a second mechanism. (from #15)
+  — **Closed 2026-10-09 on a fence, not on the earlier reading.** The claim the seven-page
+  measurement established — *each stream continues in the same position on the next page* —
+  had nothing holding it, and the one-page test beside it (`parallel_streams_number_
+  independently_and_share_the_page`) cannot see a column that resets on a page break.
+  `engine/tests/parallel_streams.rs` now fences it: every stream's column **edge** on every
+  page it reaches (the edge, because the apparatus is right-aligned, so a wrapped note moves
+  a line's left edge and not the column), the two streams never sharing a band, and both
+  flows actually continuing. Mutation-checked twice: making the streams **stack** goes red
+  naming the page and both columns' coordinates, and an **empty neighbour** — the fixture
+  reaches pages where only one stream has an entry, which a fixture where both always
+  arrive together cannot see — is the shape the register's `ריק` default already refuses.
+  The drift measured at **under 0.5pt**, so the tolerance is 1 and the number is not a wish.
 - [x] #78 arbitrary content in a stream. (from #77, from #15) — **Measured, and the premise
   was false: a stream has held arbitrary content the whole time.** The issue asked the right
   question and correctly refused to design before measuring — *"is the constraint the

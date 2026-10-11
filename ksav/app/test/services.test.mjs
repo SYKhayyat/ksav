@@ -595,9 +595,17 @@ export async function run() {
     // So the fingerprint of the build has to be in the URL, beside the version.
     // Asserted on the registration rather than on the config that produces it,
     // because the registration is the thing the browser reads.
+    // `+` here would decode to a space in `searchParams.get("v")` and name the
+    // cache `ksav-0.1.1 1955…`. It works and it is not what the line says, so the
+    // separator is part of the claim rather than punctuation.
+    ok(
+      "the fingerprint is separated by a dot, not a plus that decodes to a space",
+      /CURRENT_VERSION\}\.\$\{__BUILD_ID__\}/.test(mainTs) &&
+        !/CURRENT_VERSION\}\+/.test(mainTs),
+    );
     ok(
       "the worker's URL carries this build's fingerprint, not only the version",
-      /sw\.js\?v=\$\{update\.CURRENT_VERSION\}\+\$\{__BUILD_ID__\}/.test(mainTs),
+      /sw\.js\?v=\$\{update\.CURRENT_VERSION\}\.\$\{__BUILD_ID__\}/.test(mainTs),
     );
     // And the other end: `sw.js` takes its cache name from that same string, so
     // two builds are two caches and `activate` can tell them apart.

@@ -10103,6 +10103,11 @@ function registerServiceWorker() {
     // `BASE_URL`, not `/`: on a project Pages site the app is served from
     // `/ksav/`, and a worker registered at the origin root would be refused —
     // a worker's scope cannot be broader than its own URL's directory.
+    // `.` and not `+` between them: `URLSearchParams.get("v")` decodes `+` as a
+    // space, so a `+` here names the cache `ksav-0.1.1 1955…` rather than the one
+    // this line appears to write. It worked — a cache name is any string — and it
+    // was wrong in the way only the DevTools cache list can show you.
+    //
     // `?v=` carries the **version and this build's fingerprint**, because a
     // rebuild with no release does not move the version — and the worker's URL
     // is its identity. Same URL and same bytes means the browser installs
@@ -10112,7 +10117,7 @@ function registerServiceWorker() {
     // earlier builds. Both halves are here because each answers a different
     // question: the version says which release this is, the fingerprint says
     // whether anything under it changed.
-    .register(`${import.meta.env.BASE_URL}sw.js?v=${update.CURRENT_VERSION}+${__BUILD_ID__}`, { type: "module" })
+    .register(`${import.meta.env.BASE_URL}sw.js?v=${update.CURRENT_VERSION}.${__BUILD_ID__}`, { type: "module" })
     .catch(() => {
       // Offline support is a bonus; failing to install it is not something to
       // interrupt a writer over, and every other consequence of a broken

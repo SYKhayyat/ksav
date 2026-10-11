@@ -7990,6 +7990,12 @@
   // Line numbers down the margin — and what a שורה address in an apparatus is
   // read off. See `_eh_addr`.
   gershayim: "גרשיים",
+  // #79 — the channel this layout is the page-body band for. See זרם_גוף above:
+  // the engine sets it and a writer never writes it, but it is a parameter of
+  // `document` like any other, so it needs the English spelling every parameter
+  // of `document` has — `every_document_parameter_has_an_english_name` is right,
+  // and its name is the reason this line is here rather than a `#let` above.
+  body_stream: "זרם_גוף",
   foot_margin_share: "חלק_שוליים_רגל",
   side_margin_share: "חלק_שוליים_צד",
   grid_min_leading: "רשת_מרווח_מזערי",

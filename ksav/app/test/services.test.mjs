@@ -581,6 +581,30 @@ export async function run() {
     // the whole worker fails to install.
     const mainTs = await readFile(path.join(APP, "src", "main.ts"), "utf8");
     ok("it is registered as a module worker", /register\([^)]*\{\s*type:\s*"module"\s*\}/s.test(mainTs));
+
+    // The worker's URL is its identity, and its cache name comes from it.
+    //
+    // `?v=` used to carry the package version alone, which is right for a tag and
+    // **blind to a rebuild without one** — which `deploy.yml` supports and which
+    // is now the ordinary way the hosted site moves. Identical URL and identical
+    // bytes means the browser installs nothing: no `skipWaiting`, no
+    // `clients.claim`, and no `activate`, and `activate` is the only code that
+    // deletes the caches of earlier builds. The first dispatch after v0.1.1
+    // shipped a genuinely different app behind a byte-identical `sw.js`.
+    //
+    // So the fingerprint of the build has to be in the URL, beside the version.
+    // Asserted on the registration rather than on the config that produces it,
+    // because the registration is the thing the browser reads.
+    ok(
+      "the worker's URL carries this build's fingerprint, not only the version",
+      /sw\.js\?v=\$\{update\.CURRENT_VERSION\}\+\$\{__BUILD_ID__\}/.test(mainTs),
+    );
+    // And the other end: `sw.js` takes its cache name from that same string, so
+    // two builds are two caches and `activate` can tell them apart.
+    ok(
+      "the worker names its cache from the same query string",
+      /searchParams\.get\("v"\)/.test(sw) && /`ksav-\$\{VERSION\}`/.test(sw),
+    );
   }
 
   // ------------------------------------------------- and neither do the docs

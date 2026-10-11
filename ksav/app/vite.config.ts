@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const pkgVersion: string = createRequire(import.meta.url)("./package.json").version;
 import { fileURLToPath } from "node:url";
@@ -24,6 +25,63 @@ const engine = "http://127.0.0.1:7878";
 const wasm = process.env.VITE_WASM === "1";
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
+
+/**
+ * A short fingerprint of **this build** — the sources the bundle is made of.
+ *
+ * # Why there is a second id at all
+ *
+ * The service worker is registered as `sw.js?v=…` and takes its cache name from
+ * that same string. `?v=` carried the package version, and that is exactly right
+ * for a release and exactly wrong for a rebuild without one: `deploy.yml` runs on
+ * tags **and** on `workflow_dispatch`, so pushing a fixed site is an ordinary
+ * thing to do, and the version does not move.
+ *
+ * With no movement there, the browser fetches a worker whose **bytes are
+ * identical**, finds nothing changed, and installs nothing — so no `install`, no
+ * `skipWaiting`, no `activate`, and `activate` is the only code that deletes the
+ * `ksav-*` caches belonging to earlier builds. A returning writer keeps the worker
+ * they had. `sw.js` says as much in its own header — *"a changed URL is what makes
+ * the browser treat this as a new worker at all"* — and that sentence was true of
+ * a tag and false of a push, which is the case that now happens most.
+ *
+ * # What it hashes, and what it deliberately does not
+ *
+ * The files under `src/`, plus `index.html` and this file. **Not** a timestamp:
+ * two builds of one tree have to produce the same id, or every rebuild would
+ * orphan every reader's cache and hand them a fresh download of the same app.
+ * An id that moves only when the app moves is what makes the cache name worth
+ * having, and what makes "did the site change?" a question with an answer.
+ *
+ * Sorted paths, and the path itself hashed alongside the contents, so a rename
+ * and an edit are both visible and neither can be masked by another file moving.
+ */
+const buildId: string = (() => {
+  const srcDir = here("./src");
+  const files: string[] = [];
+  const walk = (dir: string, rel = "") => {
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+      a.name < b.name ? -1 : 1,
+    )) {
+      const r = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(`${dir}/${entry.name}`, r);
+      else if (/\.(ts|tsx|css|html|json|svg|webmanifest)$/.test(entry.name)) files.push(r);
+    }
+  };
+  walk(srcDir);
+  const hash = createHash("sha256");
+  for (const rel of files) {
+    hash.update(rel).update("\0");
+    hash.update(readFileSync(`${srcDir}/${rel}`)).update("\0");
+  }
+  // Outside `src/`, and outside the walk on purpose: these two change the output
+  // without being sources of it.
+  for (const rel of ["./index.html", "./vite.config.ts"]) {
+    hash.update(rel).update("\0");
+    hash.update(readFileSync(here(rel))).update("\0");
+  }
+  return hash.digest("hex").slice(0, 12);
+})();
 
 // Content-Security-Policy for the built app.
 //
@@ -79,6 +137,11 @@ export default defineConfig({
     // Baked from package.json so there is one version number in the repository
     // and the running app can compare itself against a release.
     __APP_VERSION__: JSON.stringify(pkgVersion),
+    // The build's own fingerprint, for the service worker's identity — see
+    // `buildId`. Beside the version, not instead of it: the version still says
+    // which *release* a reader is on, and only the fingerprint knows whether the
+    // app under them changed since.
+    __BUILD_ID__: JSON.stringify(buildId),
     // The absolute URL a share link should name, or "" when nothing hosts this
     // build. See `copyShareLink`.
     __PUBLIC_BASE__: JSON.stringify(publicBase),

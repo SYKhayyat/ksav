@@ -10103,7 +10103,16 @@ function registerServiceWorker() {
     // `BASE_URL`, not `/`: on a project Pages site the app is served from
     // `/ksav/`, and a worker registered at the origin root would be refused —
     // a worker's scope cannot be broader than its own URL's directory.
-    .register(`${import.meta.env.BASE_URL}sw.js?v=${update.CURRENT_VERSION}`, { type: "module" })
+    // `?v=` carries the **version and this build's fingerprint**, because a
+    // rebuild with no release does not move the version — and the worker's URL
+    // is its identity. Same URL and same bytes means the browser installs
+    // nothing, so a reader who came back after a push kept the worker, and the
+    // cache, they already had: no `skipWaiting`, no `clients.claim`, and no
+    // `activate`, which is the only thing that discards the `ksav-*` caches of
+    // earlier builds. Both halves are here because each answers a different
+    // question: the version says which release this is, the fingerprint says
+    // whether anything under it changed.
+    .register(`${import.meta.env.BASE_URL}sw.js?v=${update.CURRENT_VERSION}+${__BUILD_ID__}`, { type: "module" })
     .catch(() => {
       // Offline support is a bonus; failing to install it is not something to
       // interrupt a writer over, and every other consequence of a broken

@@ -798,6 +798,19 @@ Written up in `CONTRIBUTING.md` §3, where the gate is documented.
   Both were invisible to the editor suite and to `check-parens`, and both were found by CI in
   under four minutes. **Three of my own fixes in this session were wrong in ways only CI saw.**
 
+- **The deploy had never published anything, and the first dispatch proved it.** Rebuilding
+  the site (`workflow_dispatch`, no release) failed with **8163 assertions passed, 0 failed** —
+  and the job red, because `browserlang.test.mjs` had asserted **nothing**. It measures the
+  **built** app; `dist/` is git-ignored, so a checkout has none, so it took its documented skip
+  and `run.mjs`'s *"a file that reports no assertions cannot go red"* fence made that a failure.
+  **Green suite, red job, over a test that checked nothing** — the fence working exactly as
+  designed, and the message pointing at the test rather than at the missing build. **#91 fixed
+  this identical ordering in `ci.yml`** (a `Build` step ahead of its gate) and the same bug was
+  still in `deploy.yml` one file over: nothing dispatches that workflow except a tag, so the
+  broken path was never taken. Fixed in `6c9ac2b` by moving the gate **after** `Bundle`, which
+  is also what the step's own comment always claimed — *test what is about to be published,
+  against these bytes* — and is now true rather than aspirational.
+
 ### Handoff
 
 - `main` is clean and pushed; no background work of mine is still running.

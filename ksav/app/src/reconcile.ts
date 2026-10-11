@@ -24,6 +24,12 @@ interface Entry<T, K, N extends Node> {
   node: N;
 }
 
+function isAttached(parent: HTMLElement, node: Node): boolean {
+  const children = (parent as unknown as { children?: ArrayLike<Node> }).children;
+  return node.parentNode === parent ||
+    (!!children && Array.from(children).includes(node));
+}
+
 export interface KeyedReconciler<T, N extends ChildNode> {
   /** Reconcile and return nodes in the same order as `models`. */
   reconcile(parent: HTMLElement, models: readonly T[]): N[];
@@ -71,10 +77,7 @@ export function keyedReconciler<T, K, N extends ChildNode>(
             // which case the replacement is simply carried into the normal
             // ordering pass below. Existing nodes are inserted immediately so
             // their position is preserved before the old node is detached.
-            const children = (parent as unknown as { children?: ArrayLike<Node> }).children;
-            const attached = node.parentNode === parent ||
-              (!!children && Array.from(children).includes(node as unknown as Node));
-            if (attached) {
+            if (isAttached(parent, node)) {
               parent.insertBefore(replacement, node);
               node.remove();
             }
@@ -97,10 +100,9 @@ export function keyedReconciler<T, K, N extends ChildNode>(
       for (let index = next.length - 1; index >= 0; index--) {
         const node = next[index].node;
         const after = next[index + 1]?.node ?? null;
-        const children = (parent as unknown as { children?: ArrayLike<Node> }).children;
-        const attached = node.parentNode === parent ||
-          (!!children && Array.from(children).includes(node as unknown as Node));
-        if (!attached || node.nextSibling !== after) parent.insertBefore(node, after);
+        if (!isAttached(parent, node) || node.nextSibling !== after) {
+          parent.insertBefore(node, after);
+        }
       }
 
       entries = new Map(next.map((entry) => [entry.key, entry]));

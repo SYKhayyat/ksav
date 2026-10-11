@@ -80,6 +80,7 @@ class FakeElement {
   }
   replaceChildren(...nodes) {
     this.children = nodes;
+    for (const node of nodes) node.parent = this;
     this._html = nodes.length ? "…" : "";
   }
   get innerHTML() {
@@ -94,6 +95,7 @@ class FakeElement {
       const child = new FakeElement("div");
       child.className = "page";
       child._html = m[1];
+      child.parent = this;
       return child;
     });
   }
@@ -108,6 +110,20 @@ class FakeElement {
     if (m) child.className = m[1];
     child.parent = this;
     this.children.push(child);
+  }
+  insertBefore(node, before) {
+    if (node.parent) {
+      const old = node.parent.children.indexOf(node);
+      if (old >= 0) node.parent.children.splice(old, 1);
+    }
+    const at = before ? this.children.indexOf(before) : this.children.length;
+    node.parent = this;
+    this.children.splice(at < 0 ? this.children.length : at, 0, node);
+    return node;
+  }
+  get nextSibling() {
+    if (!this.parent) return null;
+    return this.parent.children[this.parent.children.indexOf(this) + 1] ?? null;
   }
   remove() {
     const i = this.parent?.children.indexOf(this) ?? -1;

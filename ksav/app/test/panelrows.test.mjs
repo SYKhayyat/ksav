@@ -8,6 +8,7 @@ import {
   noteList,
   outlineList,
   paletteList,
+  panelRowKey,
 } from "../.tmp-test/panelrows.mjs";
 import { markersFor, notesIn } from "../.tmp-test/notes.mjs";
 import { outline } from "../.tmp-test/ksav-lang.mjs";
@@ -35,6 +36,14 @@ const DOC = [
 ].join("\n");
 
 export async function run() {
+  // ------------------------------------------------------------- row identity
+
+  {
+    const row = { does: { kind: "jump", at: 12 }, indent: 0, label: "ישן", id: "heading:12" };
+    check("a row key is independent of translated words", panelRowKey({ ...row, label: "new" }), panelRowKey(row));
+    check("rows without ids use their stable action", panelRowKey({ does: row.does, indent: 0, label: "x" }), "action:{\"kind\":\"jump\",\"at\":12}");
+  }
+
   // ------------------------------------------------------------ one indent rule
 
   {

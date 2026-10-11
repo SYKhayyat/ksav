@@ -27,6 +27,7 @@ import type { LineRun, PrintedLine } from "./api";
 import { tf } from "./i18n";
 import { docConfig, settings } from "./settings";
 import { sanitizeSvg, setSafeSvg } from "./svgsafe";
+import { keyedReconciler, type KeyedReconciler } from "./reconcile";
 
 /**
  * The stretch of a document a narrowed preview is following, in lines.
@@ -332,6 +333,11 @@ interface Windowed {
   nodes: HTMLElement[];
   /** What each node is currently showing — the empty string for an empty box. */
   showing: string[];
+  /** Stable page identities, retained across insertions and moves. */
+  keys: string[];
+  nextKey: number;
+  pagesReconciler: KeyedReconciler<PageModel, HTMLElement>;
+  changed: Set<HTMLElement>;
   observer: IntersectionObserver | null;
   /**
    * The pages the observer last said were near the viewport.
@@ -354,6 +360,15 @@ interface Windowed {
   wanted: Set<number>;
   /** Whether a drain is already booked, so scrolling does not book fifty. */
   draining: boolean;
+}
+
+interface PageModel {
+  key: string;
+  page: string;
+  hash: string;
+  index: number;
+  aspect: string;
+  hidden: boolean;
 }
 
 const windows = new WeakMap<Element, Windowed>();
@@ -708,6 +723,36 @@ function flattenedPage(w: Windowed, i: number): string {
   return out;
 }
 
+/**
+ * Give the next page set stable identities. Hashes match pages that moved;
+ * unmatched pages reuse their old slot so an edited page is updated in place.
+ */
+function pageModels(w: Windowed, pages: string[], hashes: string[], only: Set<number> | null): PageModel[] {
+  const used = new Set<string>();
+  const byHash = new Map<string, string[]>();
+  for (let i = 0; i < w.hashes.length; i++) {
+    const hash = w.hashes[i];
+    const key = w.keys[i];
+    if (hash && key) byHash.set(hash, [...(byHash.get(hash) ?? []), key]);
+  }
+
+  return pages.map((page, index) => {
+    const hash = hashes[index];
+    const matching = hash ? byHash.get(hash)?.find((key) => !used.has(key)) : undefined;
+    const slot = w.keys[index] && !used.has(w.keys[index]) ? w.keys[index] : undefined;
+    const key = matching ?? slot ?? `page:${w.nextKey++}`;
+    used.add(key);
+    return {
+      key,
+      page,
+      hash,
+      index,
+      aspect: String(pageAspect(page)),
+      hidden: !!only && !only.has(index),
+    };
+  });
+}
+
 function fill(w: Windowed, node: HTMLElement, i: number) {
   if (w.showing[i] === w.hashes[i]) return;
   // Through the allow-list, not `innerHTML`. The engine's SVG is a string and a
@@ -1031,6 +1076,10 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
       flattened: new Map(),
       nodes: [],
       showing: [],
+      keys: [],
+      nextKey: 0,
+      pagesReconciler: null as unknown as KeyedReconciler<PageModel, HTMLElement>,
+      changed: new Set(),
       observer: null,
       near: new Set(),
       wanted: new Set(),
@@ -1068,6 +1117,29 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
       },
       { root: host, rootMargin: KEEP_MARGIN },
     );
+    w.pagesReconciler = keyedReconciler<PageModel, string, HTMLElement>({
+      key: (model) => model.key,
+      equal: (previous, next) =>
+        previous.key === next.key &&
+        previous.page === next.page &&
+        previous.hash === next.hash &&
+        previous.index === next.index &&
+        previous.aspect === next.aspect &&
+        previous.hidden === next.hidden,
+      create: (_model, _index, parent) => {
+        parent.insertAdjacentHTML("beforeend", '<div class="page"></div>');
+        const node = parent.lastElementChild as HTMLElement;
+        w!.observer?.observe(node);
+        return node;
+      },
+      update: (node, model, previousModel) => {
+        if (model.hash !== previousModel.hash) w!.changed.add(node);
+        node.dataset.page = String(model.index);
+        node.style.aspectRatio = model.aspect;
+        node.hidden = model.hidden;
+      },
+      remove: (node) => w!.observer?.unobserve(node),
+    });
     windows.set(host, w);
   }
 
@@ -1079,6 +1151,7 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
   // again rather than to guess which half is still true.
   if (w.nodes.length !== host.children.length || w.nodes.some((n, i) => n !== host.children[i])) {
     w.observer?.disconnect();
+    w.pagesReconciler.reset();
     host.replaceChildren();
     w.nodes = [];
     w.showing = [];
@@ -1103,30 +1176,19 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
   if (w.hashes.length !== hashes.length || w.hashes.some((h, i) => h !== hashes[i])) {
     w.flattened.clear();
   }
+  const oldShowing = new Map<HTMLElement, string>();
+  for (let i = 0; i < w.nodes.length; i++) oldShowing.set(w.nodes[i], w.showing[i] ?? "");
+  const oldNear = new Set([...w.near].map((i) => w.keys[i]).filter((key): key is string => !!key));
+  w.changed.clear();
+  const models = pageModels(w, pages, hashes, only);
+  const nodes = w.pagesReconciler.reconcile(host, models);
+  w.nodes = nodes;
+  w.keys = models.map((model) => model.key);
   w.pages = pages;
   w.hashes = hashes;
-
-  // Pages the document no longer has, first, so index `i` means the same page
-  // everywhere below.
-  while (w.nodes.length > pages.length) {
-    const last = w.nodes.pop();
-    w.showing.pop();
-    w.wanted.delete(w.nodes.length);
-    w.near.delete(w.nodes.length);
-    if (last) {
-      w.observer?.unobserve(last);
-      last.remove();
-    }
-  }
-  while (w.nodes.length < pages.length) {
-    const i = w.nodes.length;
-    host.insertAdjacentHTML("beforeend", '<div class="page"></div>');
-    const node = host.lastElementChild as HTMLElement;
-    node.dataset.page = String(i);
-    w.nodes.push(node);
-    w.showing[i] = "";
-    w.observer?.observe(node);
-  }
+  w.showing = nodes.map((node) => (w!.changed.has(node) ? "" : oldShowing.get(node) ?? ""));
+  w.near = new Set(models.flatMap((model, index) => oldNear.has(model.key) ? [index] : []));
+  w.wanted = new Set();
 
   for (let i = 0; i < pages.length; i++) {
     const node = w.nodes[i];

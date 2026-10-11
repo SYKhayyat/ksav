@@ -243,6 +243,7 @@ import * as lists from "./lists";
 import * as header from "./header";
 import * as panelrows from "./panelrows";
 import type { PanelList, PanelRow } from "./panelrows";
+import { keyedReconciler, type KeyedReconciler } from "./reconcile";
 
 // ---------------------------------------------------------------- editor
 //
@@ -8845,6 +8846,8 @@ const LOOKS: Record<string, Look> = {
   find: { row: "outline-item note-item", chip: "note-item-n", label: "span" },
 };
 
+const listReconcilers = new WeakMap<HTMLElement, KeyedReconciler<PanelRow, HTMLElement>>();
+
 /**
  * Draw a [`PanelList`] — the one place the four list panels turn rows into DOM.
  *
@@ -8854,29 +8857,32 @@ const LOOKS: Record<string, Look> = {
  */
 function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Snapshot[] = []) {
   // `refreshPanes` fires this for every docked pane and drawer five times a
-  // second while typing, and the row model is identical on almost all of them.
-  // A rebuild that changes nothing is pure waste — hundreds of element and
-  // closure allocations discarded on the next beat — and it is not free of
-  // consequence: `innerHTML = ""` resets `host.scrollTop`, so a writer who
-  // scrolled the outline to a later chapter is snapped back to the top on their
-  // next keystroke, and any row hover or keyboard selection is destroyed on the
-  // same beat. So: draw only when the serialized model actually changed, and
-  // preserve the scroll position across the rebuild when it did.
-  const sig = look.row + "|" + JSON.stringify(list);
-  // `childElementCount` guards the case where something else emptied the host
-  // since we last drew (a panel closing, say): the signature would still match
-  // but the DOM would be gone, so redraw rather than trust the stamp alone.
-  if (host.dataset.listSig === sig && host.childElementCount > 0) return;
+  // second while typing. Reconcile rows by their source identity instead of
+  // clearing the host: an unchanged row keeps its node, focus and selection,
+  // while a long outline keeps its scroll position.
   const keepScroll = host.scrollTop;
-  host.dataset.listSig = sig;
-  host.innerHTML = "";
+  const oldFooter = [...host.children].find((child) => child.classList.contains("outline-empty"));
+  oldFooter?.remove();
+
+  let reconciler = listReconcilers.get(host);
+  if (!reconciler) {
+    reconciler = keyedReconciler<PanelRow, string, HTMLElement>({
+      key: (row) => panelrows.panelRowKey(row),
+      equal: (previous, next) => JSON.stringify(previous) === JSON.stringify(next),
+      create: (row, index) => drawRow(row, look, index === 0, snaps),
+      update: (node, next, _previous) => updateRow(node, next, look, snaps),
+    });
+    listReconcilers.set(host, reconciler);
+  }
+
   if (list.empty) {
-    host.append(
-      el("div", { class: "outline-empty", "data-i18n": list.empty }, [t(list.empty)]),
-    );
+    reconciler.reconcile(host, []);
+    host.querySelectorAll<HTMLElement>(".outline-empty").forEach((node) => node.remove());
+    host.append(el("div", { class: "outline-empty", "data-i18n": list.empty }, [t(list.empty)]));
+    host.scrollTop = keepScroll;
     return;
   }
-  list.rows.forEach((r, i) => host.append(drawRow(r, look, i === 0, snaps)));
+  reconciler.reconcile(host, list.rows);
   // A cap that says nothing reads as completeness. This is the sentence that
   // was missing from a palette showing 60 of the registry's 115 commands.
   if (list.hidden) {
@@ -9012,6 +9018,24 @@ function drawRow(r: PanelRow, look: Look, first: boolean, snaps: docs.Snapshot[]
   return r.full || r.context ? expandable(button, r) : button;
 }
 
+/** Update one retained row without replacing its outer DOM identity. */
+function updateRow(node: HTMLElement, r: PanelRow, look: Look, snaps: docs.Snapshot[]) {
+  const selected = node.classList.contains("sel") || !!node.querySelector(".sel");
+  const expanded = node.classList.contains("expanded");
+  const active = document.activeElement;
+  const focusExpand = active instanceof HTMLElement && node.contains(active) && active.classList.contains("row-expand");
+  const fresh = drawRow(r, look, false, snaps);
+  node.replaceChildren(...fresh.childNodes);
+  if (selected) {
+    const target = node.matches(".pal-item") ? node : node.querySelector<HTMLElement>(".pal-item");
+    target?.classList.add("sel");
+  }
+  if (expanded) node.classList.add("expanded");
+  const toggle = node.querySelector<HTMLElement>(".row-expand");
+  if (expanded) toggle?.setAttribute("aria-expanded", "true");
+  if (focusExpand) toggle?.focus();
+}
+
 /**
  * A row that can be opened where it stands.
  *
@@ -9091,6 +9115,10 @@ async function renderHistory() {
   if (!host || !runtime.currentDoc) return;
   const snaps = await docs.snapshots(runtime.currentDoc.id);
   const scope = el("div", { class: "history-scope" }, [tf("historyOf", runtime.currentDoc.title)]);
+  // The scope label is owned by this caller, while rows are owned by drawList.
+  // Remove the previous label before keyed reconciliation so it remains an
+  // unmanaged prefix rather than accumulating on every refresh.
+  host.querySelectorAll<HTMLElement>(".history-scope").forEach((node) => node.remove());
   drawList(host, panelrows.historyList(snaps), LOOKS.history, snaps);
   // Say whose history this is: with one list per document, the title is the
   // thing that makes "restore" a safe button to press. Prepended after the fact

@@ -109,6 +109,17 @@ export interface PanelRow {
   context?: string;
 }
 
+/**
+ * The identity of a row on screen, independent of its translated words.
+ *
+ * Most rows already carry an id from the thing they point at. The action is a
+ * useful fallback for the few source spans that predate ids; using the label
+ * here would turn an edit into a remove-plus-add and lose the row's state.
+ */
+export function panelRowKey(row: PanelRow): string {
+  return row.id !== undefined ? `id:${row.id}` : `action:${JSON.stringify(row.does)}`;
+}
+
 export interface PanelList {
   rows: PanelRow[];
   /**

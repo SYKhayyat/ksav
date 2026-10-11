@@ -165,12 +165,17 @@ export async function run() {
 
   {
     // Pages that moved: same names, different order. Matching by *position* is
-    // what has to happen, because that is where they are on screen.
+    // not enough: the page identity follows its name, so its box can move with
+    // it without repainting or losing the reader's place.
     const h = host();
     drawPages(h, ["A", "B"], ["a", "b"]);
     allVisible(h);
+    h.scrollTop = 180;
+    const before = [...h.children];
     drawPages(h, ["B", "A"], ["b", "a"]);
     check("reordered pages are redrawn in their new order", shown(h), ["B", "A"]);
+    ok("the page that moved keeps its node", h.children[0] === before[1] && h.children[1] === before[0]);
+    check("moving pages keeps the reader's scroll", h.scrollTop, 180);
   }
 
   {

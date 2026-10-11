@@ -484,20 +484,13 @@ still right.
     readers come through one `find_writer_masmer` off the parse. `inject_reserve_into_writer_masmer`
     had the same disease and wrote an argument into a **commented-out** `#מסמך(` — which is
     what the editor's own "comment out" writes.
-- [ ] #56 32-bit asset cache, writable by a header-less caller. **Deliberately not
-  done in this round, and the reason is the fix's shape rather than the bug's doubt.**
-  The claim is sound — `client_hash` is two 32-bit FNV lanes over a payload the attacker
-  controls, so a collision is a ~2^32 birthday walk, and `server.rs`'s `origin_allowed`
-  lets a no-`Origin` caller through, which is any process on the machine. But the fix
-  the issue names (**SHA-256 of the decoded bytes**) is a **protocol change**, not an edit:
-  the hash is **persisted in every `.ksav`** (`docs.ts:345`, read back by `docfile.rs`), so
-  it is a file-format break; it must be computed identically in **Rust and in JavaScript**,
-  where a synchronous SHA-256 is ~70 hand-written lines because `crypto.subtle` is async
-  and `assetHash` is sync and WeakMap-cached; and `engine/tests/assets.rs` holds the two
-  implementations against each other, which is the only instrument that makes the change
-  safe. A half-migrated hash is worse than a 64-bit one: old files' assets would re-send
-  once (fine) but any client and engine out of step would silently stop deduplicating.
-  Worth doing whole, with the two sides landing together.
+- [x] #56 32-bit asset cache, writable by a header-less caller. The shared cache now uses
+   a full SHA-256 digest of decoded bytes, with one strict Base64 acceptance boundary in
+   Rust and TypeScript. Claimed digests are verified before insertion, the response
+   advertises the cache capability, old engines receive bytes instead of entering a retry
+   loop, and legacy `.ksav` assets/storage records normalize safely. Cross-language vectors,
+   poisoning, malformed input, capability fallback, and migration are fenced in the focused
+   asset/docfile tests; see `decisions/2026-10-11-shared-assets-earn-a-sha-256-digest.md`.
 - [x] #61 `is_command` exempted prose before a paren — the checker's best case being
   **absent** rather than wrong.
 - [x] #57 named_arg was quote-blind while its neighbour `closing_paren` was not. Two

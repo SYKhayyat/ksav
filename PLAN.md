@@ -525,7 +525,7 @@ still right.
   `no module but spans.ts counts bracket depth — got ["styles.ts:310"]`, and passes once
   removed. **The second time in two issues that the finding was "already shipped"** — see
   #88 — which is worth noticing about this plan.
-- [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port.
+- [~] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port. **The safe #19 increment is shipped:** `scan()` and `delimiters()` share one lexical cache, while the Rust/WASM service is deliberately not registered because its asynchronous JSON boundary cannot serve the synchronous editor, lint, render, numbering, and deferred consumers without a second fallback scanner. The Rust parser remains the detached-parser oracle. See `decisions/2026-10-11-spans-share-the-lexical-pass.md`; a future service needs an async consumer and a schema for UTF-16 positions, incomplete text, recovery, and editor-role facts.
 - [x] #7 keyed updates (5× replaceChildren). A framework-free keyed reconciler now
   updates, removes and moves panel rows and named preview pages in place; unchanged
   models are no-ops and the focused/selected row plus host scroll survive. See

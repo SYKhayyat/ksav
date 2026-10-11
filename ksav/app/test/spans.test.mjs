@@ -29,6 +29,8 @@ import * as structure from "../.tmp-test/structure.mjs";
 import * as markdown from "../.tmp-test/markdown.mjs";
 import * as spell from "../.tmp-test/spell.mjs";
 import * as brackets from "../.tmp-test/brackets.mjs";
+import * as deferred from "../.tmp-test/deferred.mjs";
+import * as numbering from "../.tmp-test/numbering.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 const HERE = dirOf(import.meta.url);
@@ -369,6 +371,64 @@ export async function run() {
     const doc = `#הערה("א)ב")[גוף]`;
     check("a paren inside a string does not confuse the body's owner", spans.scan(doc).nodes[0].bodies.length, 1);
     check("and the body belongs to the note", spans.framesAt(spans.scan(doc), doc.indexOf("גוף")).map((f) => f.name), ["הערה"]);
+  }
+
+  // ------------------------------------------- non-decoration consumers
+  //
+  // These consumers remain synchronous at their public boundary, but they must
+  // still receive the same quote- and nesting-aware facts as the scanner itself.
+  // The case is deliberately shared: deferred notes read command arguments while
+  // numbering reads the first content group after a nested citation.
+  {
+    const doc = [
+      `#הערה_בשם("א)ב", סוג: הערתסיום)`,
+      `#גוף_הערה("א)ב")[#הדגשה[ראה (רש"י) כאן]]`,
+    ].join("\n");
+    const found = deferred.scan(doc);
+    check("deferred scan keeps a quoted close-paren in Hebrew", found.refs.map((r) => r.name), ["א)ב"]);
+    check("deferred scan finds the nested body", found.defs.map((d) => d.name), ["א)ב"]);
+    check("deferred scan keeps the nested citation in the body", doc.slice(found.defs[0].bodyFrom, found.defs[0].bodyTo), `#הדגשה[ראה (רש"י) כאן]`);
+  }
+  {
+    const doc = [
+      `#הדגשה[פתיחה (רש"י)]`,
+      `#סימן[א׳]`,
+      `#סעיף[א]`,
+      `#סימן[ב׳]`,
+      `#סעיף[א]`,
+    ].join("\n");
+    const sequence = numbering.sequence(doc);
+    check("numbering sees both Hebrew simanim", sequence.filter((n) => n.name === "סימן").map((n) => n.wanted), ["א׳", "ב׳"]);
+    check("numbering resets seif inside the second siman", sequence.filter((n) => n.name === "סעיף").map((n) => n.wanted), ["א", "א"]);
+    check("nested Hebrew citation does not become a numbered command", sequence.length, 4);
+  }
+
+  // The recovery view is only different for malformed input. A valid document
+  // gets one shared lexical pass for both `scan` and `delimiters`; the recovery
+  // pass exists for the linter's useful answer after a mismatched closer.
+  {
+    const malformed = `#f(] "רש"י // comment`;
+    check("the strict scan retains code context after a mismatch", spans.scan(malformed).strings.length, 1);
+    check("the lint view recovers content context after a mismatch", spans.delimiters(malformed).comments.length, 1);
+    check("recovered comment starts at the original UTF-16 offset", spans.delimiters(malformed).comments[0]?.from, malformed.indexOf("//"));
+    check("recovery matches a closer through one malformed nested group", brackets.analyze(`#f([x)]`).problems.map((p) => p.pos), [2]);
+  }
+  for (const first of ["scan", "delimiters"]) {
+    const doc = `😀 #הערה("a)b")[ראה (רש"י) #הדגשה[כאן]] // comment`;
+    spans.clearScanCache();
+    spans[first](doc);
+    const s = spans.scan(doc);
+    const d = spans.delimiters(doc);
+    ok(`${first} first: both views share the lexical comment array`, s.comments === d.comments);
+    ok(`${first} first: delimiter memo preserves result identity`, d === spans.delimiters(doc));
+    check(`${first} first: quoted closer and nested Hebrew remain balanced`, brackets.analyze(doc).problems.length, 0);
+    check(`${first} first: offsets after supplementary characters remain UTF-16`, s.nodes[0].from, 3);
+  }
+  {
+    const source = await readFile(path.join(SRC, "spans.ts"), "utf8");
+    ok("scan and delimiters use the shared lexical cache", /lexShared\(text\)\.delimiters/u.test(source));
+    ok("the shared cache owns the only lexical pass cache", source.includes("const LEX_CACHE") && !source.includes("const DELIM_CACHE"));
+    ok("recovery is selected from structural mismatches", source.includes("needsRecovery(strict.delims)"));
   }
 
   // ------------------------------------------- 3. agreement over a corpus

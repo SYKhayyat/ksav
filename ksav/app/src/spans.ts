@@ -1138,28 +1138,17 @@ function readColumns(text: string, node: Node, closes: Map<number, number>): voi
  * compiled beside it.
  */
 export function scan(text: string): Scan {
-  for (let i = 0; i < CACHE.length; i++) {
-    if (CACHE[i].text === text) {
-      // Most-recent last, so the eviction below drops the coldest entry.
-      const hit = CACHE.splice(i, 1)[0];
-      CACHE.push(hit);
-      return hit;
-    }
-  }
-  const fresh = scanUncached(text);
-  CACHE.push(fresh);
-  if (CACHE.length > CACHE_SIZE) CACHE.shift();
-  return fresh;
+  const lexed = lexShared(text);
+  return lexed.scan ??= scanUncached(text, lexed);
 }
 
 const CACHE_SIZE = 4;
-const CACHE: Scan[] = [];
 
 /**
  * The same answer, for a document identified by a stable object.
  *
  * **The memo above is O(document) to *look in*, and typing is its worst case.**
- * It linear-probes four slots with `CACHE[i].text === text`, and while somebody
+ * It linear-probes four lexical slots with `LEX_CACHE[i].text === text`, and while somebody
  * is writing, every slot holds a document of the *same length* differing by one
  * character — the previous keystroke, the speculative healed copy, the current
  * text. V8's length and pointer fast paths both miss, so each probe is a full
@@ -1242,15 +1231,72 @@ export function scanDoc(doc: { toString(): string }): Scan {
 
 /** Drop the memo. Only tests need this — a scan is a pure function of its text. */
 export function clearScanCache(): void {
-  CACHE.length = 0;
-  DELIM_CACHE.length = 0;
+  LEX_CACHE.length = 0;
 }
 
-function scanUncached(text: string): Scan {
-  const { comments, raws, strings, contentGroups, closes, heads, frames } = lexCore(text, {
-    recover: false,
-    delims: false,
-  });
+/** The two views of one lexical pass. */
+interface Lexed {
+  /** The document view: mismatched closers do not change the running context. */
+  strict: ReturnType<typeof lexCore>;
+  /** The lint view: a mismatched closer unwinds one level for useful recovery. */
+  recovered: ReturnType<typeof lexCore>;
+  scan?: Scan;
+  delimiters: Delimiters;
+}
+
+/**
+ * Whether the strict delimiter stream contains a mismatch that changes recovery.
+ *
+ * Balanced documents are the normal path. They need one pass, and both consumers
+ * receive the same delimiter facts. An unbalanced document is already paying for
+ * lint/healing; only that path gets the second, recovery-mode walk. Keeping the
+ * distinction here makes the two modes explicit without making the common path
+ * pay for two complete lexes.
+ */
+function needsRecovery(delims: readonly Delimiter[]): boolean {
+  const stack: Delimiter["ch"][] = [];
+  for (const d of delims) {
+    if (!d.structural) continue;
+    if (d.opener) {
+      stack.push(d.ch);
+      continue;
+    }
+    const want = d.ch === "]" ? "[" : d.ch === ")" ? "(" : "{";
+    if (stack[stack.length - 1] !== want) return true;
+    stack.pop();
+  }
+  return false;
+}
+
+const LEX_CACHE: { text: string; value: Lexed }[] = [];
+
+function lexShared(text: string): Lexed {
+  for (let i = 0; i < LEX_CACHE.length; i++) {
+    if (LEX_CACHE[i].text !== text) continue;
+    const hit = LEX_CACHE.splice(i, 1)[0];
+    LEX_CACHE.push(hit);
+    return hit.value;
+  }
+
+  // Delimiters are collected during the strict pass even when the caller only
+  // asks for nodes. That is the shared seam: `scan` and `delimiters` no longer
+  // lex the same text independently on every pause in typing.
+  const strict = lexCore(text, { recover: false, delims: true });
+  const recovered = needsRecovery(strict.delims)
+    ? lexCore(text, { recover: true, delims: true })
+    : strict;
+  const value: Lexed = {
+    strict,
+    recovered,
+    delimiters: { delims: recovered.delims, comments: recovered.comments },
+  };
+  LEX_CACHE.push({ text, value });
+  if (LEX_CACHE.length > CACHE_SIZE) LEX_CACHE.shift();
+  return value;
+}
+
+function scanUncached(text: string, lexed: Lexed): Scan {
+  const { comments, raws, strings, contentGroups, closes, heads, frames } = lexed.strict;
   const nodes: Node[] = [];
   const byStart = new Map<number, Node>();
 
@@ -1405,31 +1451,8 @@ export function matchGroup(text: string, at: number): number | null {
  */
 export type Delimiters = { delims: Delimiter[]; comments: Comment[] };
 
-/**
- * The second full lex of the document, and — until this memo — the one with no
- * cache at all. `scan` sits a few hundred lines up with a four-slot value cache
- * and a `WeakMap` keyed on `Text`; `delimiters` is the *other* whole-document
- * lex (same loop, `recover`/`delims` on) and every caller re-ran it: a single
- * pause in typing lexed the document at least twice — compile's `analyze`, then
- * the bracket linter — plus once per fold or export. The same two layers apply
- * verbatim, and because every caller hands in the shared `docTextOf` string the
- * value probe below is a pointer compare that hits immediately.
- */
-const DELIM_CACHE: { text: string; value: Delimiters }[] = [];
-
 export function delimiters(text: string): Delimiters {
-  for (let i = 0; i < DELIM_CACHE.length; i++) {
-    if (DELIM_CACHE[i].text === text) {
-      const hit = DELIM_CACHE.splice(i, 1)[0];
-      DELIM_CACHE.push(hit);
-      return hit.value;
-    }
-  }
-  const { delims, comments } = lexCore(text, { recover: true, delims: true });
-  const value: Delimiters = { delims, comments };
-  DELIM_CACHE.push({ text, value });
-  if (DELIM_CACHE.length > CACHE_SIZE) DELIM_CACHE.shift();
-  return value;
+  return lexShared(text).delimiters;
 }
 
 /** The delimiters of a CodeMirror document, paying for its text at most once. */

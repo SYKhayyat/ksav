@@ -312,6 +312,44 @@ export async function run() {
     ]);
     check("images and fonts are split for the request", [split.assets.length, split.fonts.length], [1, 1]);
     check("…by kind", split.fonts[0].name, "b.ttf");
+
+    // The file format predates SHA-256 and carries the old short key. The bytes
+    // remain the authority: a new request recomputes the digest and does not
+    // strand a legacy .ksav behind its historical cache key.
+    const legacy = docs.parseDoc(
+      JSON.stringify({
+        format: "ksav-document",
+        version: 1,
+        title: "legacy",
+        body: '#תמונה("a.png")',
+        assets: [{ name: "a.png", kind: "image", hash: "1-1r9wi7g-d2eron", data: "YQ==" }],
+      }),
+      "fallback",
+    );
+    const migrated = docs.requestAssets(legacy.assets).assets[0];
+    check(
+      "a legacy file's bytes get a SHA-256 key",
+      migrated.hash,
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    );
+    notOk("…and the old key is not reused", migrated.hash === legacy.assets[0].hash);
+
+    // Base64 spelling is transport, not identity: a data URL and an unpadded
+    // URL-safe payload name the same bytes as the padded form.
+    const equivalent = docs.requestAssets([
+      { name: "one", data: "YQ==", kind: "image" },
+      { name: "two", data: "data:text/plain;base64,YQ", kind: "image" },
+      { name: "three", data: "_w==", kind: "image" },
+    ]).assets;
+    check("equivalent base64 spellings share a digest", equivalent[1].hash, equivalent[0].hash);
+    check(
+      "URL-safe base64 uses the decoded-byte digest",
+      equivalent[2].hash,
+      "a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89",
+    );
+    check("a malformed payload still produces a safe wire entry", docs.requestAssets([
+      { name: "bad", data: "not base64", kind: "image" },
+    ]).assets[0].hash.length, 64);
   }
 
   // ------------------------------------------------------------ ids

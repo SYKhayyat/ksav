@@ -4,7 +4,7 @@
 //! could not work at all: the compiler was built with no file resolver, and every
 //! `image()` call failed "file not found" no matter what path you gave it.
 
-use ksav_engine::assets::{client_hash, Asset, Assets};
+use ksav_engine::assets::{asset_digest, Asset, Assets};
 use ksav_engine::{compile, compile_with, DocConfig};
 
 /// A 1×1 PNG — enough to prove the bytes reached the compiler and decoded.
@@ -71,7 +71,7 @@ fn a_missing_image_fails_with_a_useful_diagnostic_not_a_panic() {
 fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
     // First request carries the bytes under their **real** hash; the second
     // sends only the hash and must resolve from the cache with nothing missing.
-    let hash = client_hash(PNG_B64);
+    let hash = asset_digest(PNG_B64).expect("the fixture is valid base64");
     let with_bytes = serde_json::json!({
         "assets": [{ "name": "logo.png", "hash": hash, "data": PNG_B64 }]
     });
@@ -95,51 +95,68 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
     assert!(missing2.is_empty(), "a cached hash is not missing");
 }
 
-/// The engine's hash is the client's hash, or the cache can never be hit.
-///
-/// Verification means *reproducing the caller's arithmetic and checking it*, not
-/// substituting arithmetic of our own: the client asks for an asset by this
-/// exact string. `app/src/docs.ts::assetHash` is the original — two 32-bit
-/// FNV-1a passes plus the length, each part in base 36 — and these vectors are
-/// what holds the two together across a change to either.
 #[test]
-fn the_content_hash_matches_the_clients() {
-    // Computed by `assetHash`'s own arithmetic on these inputs.
-    // Taken from the JavaScript, run on these inputs.
-    assert_eq!(client_hash(""), "0-ztntfp-8nd2f0");
-    assert_eq!(client_hash("a"), "1-1r9wi7g-d2eron");
-    assert_eq!(client_hash("abc"), "3-7aigaz-177bcc4");
-    // Whatever the payload, the shape is `len-h1-h2` in base 36 and nothing else.
-    for probe in ["", "a", "abc", PNG_B64] {
-        let h = client_hash(probe);
-        let parts: Vec<&str> = h.split('-').collect();
-        assert_eq!(parts.len(), 3, "hash {h} is not len-h1-h2");
-        assert_eq!(
-            parts[0],
-            radix36(probe.encode_utf16().count() as u32),
-            "the length field of {h}"
-        );
-        assert!(
-            parts.iter().all(|p| p
-                .chars()
-                .all(|c| c.is_ascii_digit() || c.is_ascii_lowercase())),
-            "hash {h} is not lowercase base 36"
-        );
-    }
+fn a_headerless_asset_is_cached_only_under_the_digest_it_earns() {
+    let supplied = serde_json::json!({
+        "assets": [{ "name": "local.png", "data": PNG_B64 }]
+    });
+    let (used, missing, _) = Assets::from_request(&supplied);
+    assert_eq!(
+        used.files.len(),
+        1,
+        "bytes without a claim are still usable"
+    );
+    assert!(missing.is_empty());
+
+    let digest = asset_digest(PNG_B64).unwrap();
+    let by_digest = serde_json::json!({
+        "assets": [{ "name": "same-image.png", "hash": digest }]
+    });
+    let (resolved, missing, _) = Assets::from_request(&by_digest);
+    assert_eq!(resolved.files.len(), 1, "the earned digest resolves");
+    assert!(missing.is_empty());
+
+    let legacy_key = serde_json::json!({
+        "assets": [{ "name": "wrong-image.png", "hash": "1-1r9wi7g-d2eron" }]
+    });
+    let (wrong, missing, _) = Assets::from_request(&legacy_key);
+    assert!(
+        wrong.files.is_empty(),
+        "a legacy short key cannot hit the new cache"
+    );
+    assert_eq!(missing, vec!["1-1r9wi7g-d2eron"]);
 }
 
-fn radix36(mut n: u32) -> String {
-    const D: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
-    if n == 0 {
-        return "0".to_string();
-    }
-    let mut out = Vec::new();
-    while n > 0 {
-        out.push(D[(n % 36) as usize]);
-        n /= 36;
-    }
-    out.reverse();
-    String::from_utf8(out).unwrap()
+/// Rust and TypeScript must produce one digest for one image, regardless of how
+/// that image was written on the wire. These vectors are shared with
+/// `app/src/docs.ts::assetHash`: SHA-256 is over decoded bytes, not the base64
+/// spelling or a data-URL prefix.
+#[test]
+fn the_content_digest_matches_the_client() {
+    assert_eq!(
+        asset_digest("YQ==").as_deref(),
+        Some("ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb")
+    );
+    assert_eq!(
+        asset_digest("YQ").as_deref(),
+        asset_digest("YQ==").as_deref()
+    );
+    assert_eq!(
+        asset_digest("data:text/plain;base64,YQ==").as_deref(),
+        asset_digest("YQ==").as_deref()
+    );
+    assert_eq!(
+        asset_digest("_w==").as_deref(),
+        Some("a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89")
+    );
+    assert_eq!(
+        asset_digest(PNG_B64).as_deref(),
+        Some("c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77")
+    );
+    assert!(
+        asset_digest("not base64").is_none(),
+        "malformed input has no digest"
+    );
 }
 
 /// A hash the engine did not compute cannot be installed in the cache.
@@ -157,7 +174,7 @@ fn radix36(mut n: u32) -> String {
 /// wants their image. What must not happen is the *key* being taken on trust.
 #[test]
 fn bytes_sent_under_a_hash_that_is_not_theirs_do_not_poison_the_cache() {
-    let claimed = "test-poison-not-a-real-hash";
+    let claimed = asset_digest("aGVsbG8=").expect("the claimed payload is valid");
     let seeded = serde_json::json!({
         "assets": [{ "name": "attacker.png", "hash": claimed, "data": PNG_B64 }]
     });

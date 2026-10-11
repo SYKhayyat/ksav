@@ -1146,6 +1146,7 @@ export function scan(text: string): Scan {
       return hit;
     }
   }
+  SCAN_MISSES++;
   const fresh = scanUncached(text);
   CACHE.push(fresh);
   if (CACHE.length > CACHE_SIZE) CACHE.shift();
@@ -1154,6 +1155,18 @@ export function scan(text: string): Scan {
 
 const CACHE_SIZE = 4;
 const CACHE: Scan[] = [];
+let SCAN_MISSES = 0;
+
+/**
+ * Number of uncached lexes since the last test reset.
+ *
+ * This is deliberately a counter rather than a timing assertion: the useful
+ * boundary is that a consumer reuses one `Scan`, not that a shared runner has
+ * a particular speed today. It is read by the focused scan-seam regression.
+ */
+export function scanMissCount(): number {
+  return SCAN_MISSES;
+}
 
 /**
  * The same answer, for a document identified by a stable object.
@@ -1244,6 +1257,7 @@ export function scanDoc(doc: { toString(): string }): Scan {
 export function clearScanCache(): void {
   CACHE.length = 0;
   DELIM_CACHE.length = 0;
+  SCAN_MISSES = 0;
 }
 
 function scanUncached(text: string): Scan {

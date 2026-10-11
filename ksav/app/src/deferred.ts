@@ -25,7 +25,7 @@
 // wiring is in `deferred-lint.ts`.
 
 import { sectionAt, sectionEnd } from "./headings";
-import { langOf, matchGroup, scan as scanSpans, splitArgsRaw } from "./spans";
+import { langOf, scan as scanSpans, splitArgsRaw, type Scan as SpanScan } from "./spans";
 import {
   DEFAULT_NOTE_KIND,
   DEFER_BODY_COMMANDS,
@@ -146,13 +146,7 @@ export interface Scan {
   region: { from: number; to: number; innerFrom: number; innerTo: number } | null;
 }
 
-/** Positions inside a comment, so a scanner can skip them in one pass. */
-function inComment(text: string): (pos: number) => boolean {
-  const regions = scanSpans(text).comments;
-  return (pos) => regions.some((r) => pos >= r.from && pos < r.to);
-}
-
-// `matchGroup` comes from `spans.ts`, which is context-aware: a gershayim
+// The closer map comes from `spans.ts`, which is context-aware: a gershayim
 // inside a `[…]` body is an ordinary character (רש"י, שו"ע) and a `"` inside
 // `(…)` opens a real string. The private matcher it replaces had to pick one
 // rule for both and picked the first, so `#הערה_בשם("א)ב")` could not be read.
@@ -224,30 +218,28 @@ function argName(arg: string): string | null {
  * suite's sibling exists for, performed by the repair rather than the writer.
  */
 function callsOf(
-  text: string,
+  spans: SpanScan,
   names: readonly string[],
-  _isComment: (p: number) => boolean,
 ): { from: number; nameTo: number; hash: boolean }[] {
   // Comments are `spans.ts`'s business too — a `#גוף_הערה` inside `// …` is
   // prose about a command, and it has never been a call.
-  return scanSpans(text)
+  return spans
     .nodes.filter((n) => names.includes(n.name))
     .map((n) => ({ from: n.from, nameTo: n.nameTo, hash: n.hash }));
 }
 
 /** Every deferred-note marker, body and region in a document. */
-export function scan(text: string): Scan {
-  const isComment = inComment(text);
+export function scan(text: string, spans: SpanScan = scanSpans(text)): Scan {
   const refs: Ref[] = [];
   const defs: Def[] = [];
   let region: Scan["region"] = null;
 
-  for (const { from: start, nameTo: j, hash } of callsOf(text, REF_NAMES, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spans, REF_NAMES)) {
     const lang = langOf(text.slice(start, j).replace(/^#/, ""));
     const open = skipSpace(text, j);
     const ch = text[open];
     if (ch !== "(" && ch !== "[") continue;
-    const close = matchGroup(text, open);
+    const close = spans.closes.get(open);
     if (close == null) continue;
     const inner = text.slice(open + 1, close);
 
@@ -304,16 +296,16 @@ export function scan(text: string): Scan {
     });
   }
 
-  for (const { from: start, nameTo: j, hash } of callsOf(text, DEF_NAMES, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spans, DEF_NAMES)) {
     const lang = langOf(text.slice(start, j).replace(/^#/, ""));
     const open = skipSpace(text, j);
     if (text[open] !== "(" && text[open] !== "[") continue;
-    const close = matchGroup(text, open);
+    const close = spans.closes.get(open);
     if (close == null) continue;
     // The body follows the name group; a definition without one is half-typed.
     const bodyOpen = skipSpace(text, close + 1);
     if (text[bodyOpen] !== "[") continue;
-    const bodyClose = matchGroup(text, bodyOpen);
+    const bodyClose = spans.closes.get(bodyOpen);
     if (bodyClose == null) continue;
     const raw = text.slice(open + 1, close);
     const lead = raw.length - raw.trimStart().length;
@@ -331,11 +323,11 @@ export function scan(text: string): Scan {
     });
   }
 
-  const regionStarts = callsOf(text, REGION_NAMES, isComment);
+  const regionStarts = callsOf(spans, REGION_NAMES);
   if (regionStarts.length) {
     const { from: start, nameTo: j } = regionStarts[regionStarts.length - 1];
     const open = skipSpace(text, j);
-    const close = text[open] === "[" ? matchGroup(text, open) : null;
+    const close = text[open] === "[" ? spans.closes.get(open) ?? null : null;
     if (close != null) {
       region = { from: start, to: close + 1, innerFrom: open + 1, innerTo: close };
     }
@@ -867,14 +859,15 @@ export function deferSnippet(insert: string, name: string): { marker: string; bo
   let i = m[0].length;
   let args = "";
   const s = insert.trim();
+  const spanScan = scanSpans(s);
   if (s[i] === "(") {
-    const close = matchGroup(s, i);
+    const close = spanScan.closes.get(i);
     if (close == null) return null;
     args = s.slice(i + 1, close).trim();
     i = close + 1;
   }
   if (s[i] !== "[") return null;
-  const close = matchGroup(s, i);
+  const close = spanScan.closes.get(i);
   if (close == null) return null;
   const inner = s.slice(i + 1, close).replace("|", "");
   const kind = isDefaultKind(cmd) ? null : cmd;
@@ -898,6 +891,7 @@ function isDefaultKind(cmd: string): boolean {
 export function inlineNoteAt(
   text: string,
   pos: number,
+  spanScan: SpanScan = scanSpans(text),
 ): {
   cmd: string;
   from: number;
@@ -908,20 +902,19 @@ export function inlineNoteAt(
   /** Written with a leading `#` — see `Ref.hash`. */
   hash: boolean;
 } | null {
-  const isComment = inComment(text);
   let best: ReturnType<typeof inlineNoteAt> = null;
-  for (const { from: start, nameTo: j, hash } of callsOf(text, NOTE_COMMANDS, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spanScan, NOTE_COMMANDS)) {
     const cmd = text.slice(start, j).replace(/^#/, "");
     let args = "";
     let k = skipSpace(text, j);
     if (text[k] === "(") {
-      const close = matchGroup(text, k);
+      const close = spanScan.closes.get(k);
       if (close == null) continue;
       args = text.slice(k + 1, close).trim();
       k = skipSpace(text, close + 1);
     }
     if (text[k] !== "[") continue;
-    const bodyClose = matchGroup(text, k);
+    const bodyClose = spanScan.closes.get(k);
     if (bodyClose == null) continue;
     if (!within(pos, start, bodyClose + 1)) continue;
     const found = {
@@ -1173,7 +1166,7 @@ export function deferAllInlineNotes(
   grouped = false,
   home: BodyHome = "file",
 ): { text: string; moved: number } {
-  const isComment = inComment(text);
+  const spanScan = scanSpans(text);
   const spans: {
     from: number;
     to: number;
@@ -1182,18 +1175,18 @@ export function deferAllInlineNotes(
     body: string;
     hash: boolean;
   }[] = [];
-  for (const { from: start, nameTo: j, hash } of callsOf(text, NOTE_COMMANDS, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spanScan, NOTE_COMMANDS)) {
     const cmd = text.slice(start, j).replace(/^#/, "");
     let args = "";
     let k = skipSpace(text, j);
     if (text[k] === "(") {
-      const close = matchGroup(text, k);
+      const close = spanScan.closes.get(k);
       if (close == null) continue;
       args = text.slice(k + 1, close).trim();
       k = skipSpace(text, close + 1);
     }
     if (text[k] !== "[") continue;
-    const bodyClose = matchGroup(text, k);
+    const bodyClose = spanScan.closes.get(k);
     if (bodyClose == null) continue;
     spans.push({ from: start, to: bodyClose + 1, cmd, args, hash, body: text.slice(k + 1, bodyClose) });
   }
@@ -1204,7 +1197,7 @@ export function deferAllInlineNotes(
   // Names must not collide with each other or with anything already deferred,
   // so they are drawn once, up front, against the original document.
   const taken = new Set<string>();
-  const existing = scan(text);
+  const existing = scan(text, spanScan);
   for (const r of existing.refs) taken.add(r.name);
   for (const d of existing.defs) taken.add(d.name);
   let next = 1;

@@ -19,8 +19,8 @@
 // so this is one rule in one place, in the same shape as `noteFor`, `legalAt`
 // and `insertionAt` beside it.
 
-import { scan } from "./spans";
-import { headings } from "./headings";
+import { scan, type Scan } from "./spans";
+import { headingsFromScan } from "./headings";
 
 /**
  * Letter values, largest first, which is the order a numeral is built in.
@@ -155,12 +155,12 @@ function suffixOf(numeral: string): string {
  * the right answer to all three: the alternative is renumbering somebody's
  * sefer into a scheme they did not choose.
  */
-export function continueSeries(doc: string, at: number, snippet: string): string {
+export function continueSeries(doc: string, at: number, snippet: string, spans?: Scan): string {
   const found = seriesFor(snippet);
   if (!found) return snippet;
   const { series } = found;
 
-  const nodes = scan(doc).nodes.filter((n) => n.from < at);
+  const nodes = (spans ?? scan(doc)).nodes.filter((n) => n.from < at);
   // Where the count starts: after the last thing that resets it.
   let from = 0;
   if (series.resetBy.length) {
@@ -255,8 +255,8 @@ const CONTINUE_NAMES = ["המשך_מספור", "continue_numbering"];
  * whoever's machine it is opened. `#הגדרות_מספור(אפס_לפי: 2)` is the same
  * statement the prelude reads for the notes.
  */
-export function restartLevel(doc: string): number | null {
-  for (const n of scan(doc).nodes) {
+export function restartLevel(doc: string, spans: Scan = scan(doc)): number | null {
+  for (const n of spans.nodes) {
     if (n.name !== "הגדרות_מספור" && n.name !== "numbering_config") continue;
     if (!n.args) continue;
     const m = /(?:אפס_לפי|restart_by)\s*:\s*(\d+|none)/u.exec(doc.slice(n.args.from, n.args.to));
@@ -275,15 +275,15 @@ export function restartLevel(doc: string): number | null {
  * every siman restart the siman count and the numbers would read א׳ א׳ א׳ —
  * which is precisely the bug `continueSeries` was written to end.
  */
-export function restarts(doc: string, series: Series): Restart[] {
-  const level = restartLevel(doc);
+export function restarts(doc: string, series: Series, spans: Scan = scan(doc)): Restart[] {
+  const level = restartLevel(doc, spans);
   const out: Restart[] = [];
-  for (const n of scan(doc).nodes) {
+  for (const n of spans.nodes) {
     if (RESTART_NAMES.includes(n.name)) out.push({ at: n.from, kind: "restart" });
     else if (CONTINUE_NAMES.includes(n.name)) out.push({ at: n.from, kind: "continue" });
   }
   if (level !== null) {
-    for (const h of headings(doc)) {
+    for (const h of headingsFromScan(spans)) {
       if (series.names.includes(h.name)) continue;
       if (h.level <= level) out.push({ at: h.from, kind: "restart" });
     }
@@ -291,8 +291,8 @@ export function restarts(doc: string, series: Series): Restart[] {
   return out.sort((a, b) => a.at - b.at);
 }
 
-export function sequence(doc: string): Numbered[] {
-  const nodes = [...scan(doc).nodes].sort((a, b) => a.from - b.from);
+export function sequence(doc: string, spans: Scan = scan(doc)): Numbered[] {
+  const nodes = [...spans.nodes].sort((a, b) => a.from - b.from);
   const out: Numbered[] = [];
   for (const series of SERIES) {
     let count = 0;
@@ -302,7 +302,7 @@ export function sequence(doc: string): Numbered[] {
     // which is what `#המשך_מספור` puts back — *carrying on*, rather than
     // starting again from the beginning of the sefer, which is what clearing
     // the origin would mean and is not what the word says.
-    const marks = restarts(doc, series);
+    const marks = restarts(doc, series, spans);
     let mark = 0;
     let before = 0;
     for (const n of nodes) {
@@ -354,6 +354,10 @@ export function outOfSequence(doc: string): Numbered[] {
  */
 export function resequence(doc: string): { text: string; changed: number } {
   const wrong = outOfSequence(doc).sort((a, b) => b.from - a.from);
+  return applyResequence(doc, wrong);
+}
+
+function applyResequence(doc: string, wrong: Numbered[]): { text: string; changed: number } {
   let text = doc;
   for (const n of wrong) text = text.slice(0, n.from) + n.wanted + text.slice(n.to);
   return { text, changed: wrong.length };
@@ -376,7 +380,7 @@ export function resequenceAt(doc: string, caret: number): { text: string; caret:
   const wrong = outOfSequence(doc);
   let moved = caret;
   for (const n of wrong) if (n.to <= caret) moved += n.wanted.length - n.written.length;
-  const { text, changed } = resequence(doc);
+  const { text, changed } = applyResequence(doc, wrong.sort((a, b) => b.from - a.from));
   return { text, caret: moved, changed };
 }
 

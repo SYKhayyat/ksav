@@ -37,6 +37,7 @@ import {
   SPELLING,
   scan,
   type Node,
+  type Scan,
 } from "./spans";
 
 export { MAX_LEVEL, MAX_NAMED_LEVEL };
@@ -109,13 +110,16 @@ function info(n: Node): HeadingInfo {
  */
 const CACHED = new WeakMap<object, HeadingInfo[]>();
 
-export function headings(doc: string): HeadingInfo[] {
-  const s = scan(doc);
+export function headingsFromScan(s: Scan): HeadingInfo[] {
   const hit = CACHED.get(s);
   if (hit) return hit;
   const all = s.nodes.filter((n) => n.role === "heading").map(info);
   CACHED.set(s, all);
   return all;
+}
+
+export function headings(doc: string): HeadingInfo[] {
+  return headingsFromScan(scan(doc));
 }
 
 /** The heading `pos` sits on, if any. */

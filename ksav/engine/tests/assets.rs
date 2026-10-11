@@ -172,11 +172,13 @@ fn the_content_digest_matches_the_client() {
 /// tests from quietly growing different notions of valid base64.
 #[test]
 fn the_shared_base64_vectors_have_one_acceptance_boundary() {
-    let vectors: Vec<serde_json::Value> = serde_json::from_str(include_str!(
-        "../../asset-digest-vectors.json"
-    ))
-    .expect("shared asset vectors are valid JSON");
-    assert!(vectors.len() >= 16, "the boundary corpus must stay meaningful");
+    let vectors: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../asset-digest-vectors.json"))
+            .expect("shared asset vectors are valid JSON");
+    assert!(
+        vectors.len() >= 16,
+        "the boundary corpus must stay meaningful"
+    );
     for vector in vectors {
         let data = vector["data"].as_str().expect("vector data");
         let valid = vector["valid"].as_bool().expect("vector validity");

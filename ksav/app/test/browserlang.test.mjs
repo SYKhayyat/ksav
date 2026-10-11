@@ -424,6 +424,25 @@ export async function run() {
   check("browserlang: every asset URL in the built HTML shares one prefix", offenders, []);
   const { server, origin } = await serve(base);
   const page = await b.newPage();
+  // **A returning writer's window, not a first-run dialog.**
+  //
+  // On a first visit the app opens the welcome overlay, which is correct and is
+  // what it is for — so it covers the toolbar, and `getByLabel("שפה")` underneath
+  // it cannot be clicked: *"element is visible, enabled and stable … <h2
+  // data-i18n="welcomeTitle"> intercepts pointer events"*, after the full 30s.
+  //
+  // This went unnoticed for the same reason the mount bug did: **every run of this
+  // file that ever reached a click was against a bundle with no wasm engine in
+  // it**, where the app never reaches the state that opens the overlay, so there
+  // was nothing to intercept. `ci.yml` builds with `npx vite build`; only
+  // `deploy.yml` builds the real one, and only the deploy ran the gate against
+  // it. Two builds, one of which is the product.
+  //
+  // Seeded rather than dismissed after the fact, because the language switch is
+  // the thing under test and it is pressed in a window a writer has been working
+  // in — the dialog is a first thirty seconds, not the chrome. Seeding before the
+  // first byte also keeps the measurement below honest about what it counted.
+  await page.addInitScript(() => localStorage.setItem("ksav.onboarded", "1"));
   try {
     await page.goto(origin, { waitUntil: "networkidle" });
     await page.waitForTimeout(2500);

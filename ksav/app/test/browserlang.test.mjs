@@ -209,8 +209,45 @@ const RESIDUE = [
  * and that is a decision to argue about, not a translation to make.
  */const CEILING = { keys: RESIDUE.length, composed: 7 };
 
-/** Serve `dist/` and give back the origin. Static, and the SPA fallback only. */
-async function serve() {
+/**
+ * The path the built `index.html` asks for its assets under.
+ *
+ * A project Pages site lives under `/ksav/`, so `deploy.yml` builds with
+ * `VITE_PUBLIC_BASE` set and every asset URL in the built HTML carries that
+ * prefix. This file served `dist/` at `/`, so it answered `/ksav/assets/index-….js`
+ * with **`index.html`** — which the browser then refused to run as a module, and
+ * the app never booted. It surfaced as *the app boots into Hebrew with plenty on
+ * screen* failing, thirty seconds later, on a **language** assertion: which is
+ * what an unreadable module looks like from in here.
+ *
+ * Read out of the HTML rather than out of `VITE_PUBLIC_BASE`, because the
+ * question is not what the build was asked for but what it asked for — and a
+ * plain `npx vite build`, which is what `ci.yml` runs, wants `/`.
+ *
+ * Returns the base and any absolute asset URL that disagrees with it. That
+ * disagreement is what a hand-edited or half-prefixed bundle looks like, and it
+ * is silent: every file resolves, and the app is blank.
+ */
+function baseOf(html) {
+  const absolute = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+    .map((m) => m[1])
+    .filter((u) => u.startsWith("/") && u.includes("/assets/"));
+  if (!absolute.length) return { base: "/", offenders: [] };
+  const base = absolute[0].slice(0, absolute[0].indexOf("/assets/"));
+  return { base: base || "/", offenders: absolute.filter((u) => !u.startsWith(base + "/")) };
+}
+
+/**
+ * Serve `dist/` under the prefix it was built for, and give back the origin.
+ *
+ * Static, and the SPA fallback for **document requests only** — which is a
+ * second fix for the same silence. The fallback used to answer *every* miss with
+ * `index.html`, so a missing script arrived as a 200 of `text/html` and the
+ * browser's complaint was about MIME types rather than about the file that was
+ * not there. `Accept` is the difference between "somebody opened a path" and
+ * "the page asked for an asset", and only the first wants the app.
+ */
+async function serve(base = "/") {
   const TYPES = {
     ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
     ".json": "application/json", ".wasm": "application/wasm",
@@ -218,7 +255,10 @@ async function serve() {
   };
   const server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
-    for (const file of [join(DIST, path), join(DIST, "index.html")]) {
+    const rel = base === "/" ? path : path.replace(new RegExp(`^${base}(?=/|$)`), "");
+    const wantsDocument = (req.headers.accept ?? "").includes("text/html");
+    const candidates = [join(DIST, rel), ...(wantsDocument ? [join(DIST, "index.html")] : [])];
+    for (const file of candidates) {
       try {
         const body = await readFile(file);
         res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
@@ -231,7 +271,7 @@ async function serve() {
     res.end("not found");
   });
   await new Promise((done) => server.listen(0, "127.0.0.1", done));
-  return { server, origin: `http://127.0.0.1:${server.address().port}/` };
+  return { server, origin: `http://127.0.0.1:${server.address().port}${base === "/" ? "" : base}/` };
 }
 
 /** Chromium, or the reason there is not one. */
@@ -263,6 +303,24 @@ async function browser() {
   // machine that has one.
   const args = ["--no-sandbox", "--disable-gpu"];
   const tried = [];
+  // An explicitly named browser, tried **first**, and named in the failure text
+  // like the others — so a wrong path reads as a wrong path rather than as
+  // "no Chromium on this machine".
+  //
+  // It exists because all three channels below are places Playwright looks, and
+  // a machine can have a perfectly good Chromium in none of them. This one does:
+  // a Nix-store binary, absent from `/opt/google/chrome` and from
+  // `executablePath()`. Without this the only options are a file that cannot run
+  // here at all — which is the sentence the whole function is built to refuse —
+  // or shipping the `dist/` fix below unverified, which is worse.
+  const named = (process.env.KSAV_CHROMIUM ?? "").trim();
+  if (named) {
+    try {
+      return { b: await chromium.launch({ executablePath: named, headless: true, args }) };
+    } catch (e) {
+      tried.push(`${named}: ${String(e.message).split("\n")[0]}`);
+    }
+  }
   for (const channel of ["chrome", "msedge", "chromium"]) {
     try {
       return { b: await chromium.launch({ channel, headless: true, args }) };
@@ -359,7 +417,12 @@ export async function run() {
     return;
   }
 
-  const { server, origin } = await serve();
+  // What the bundle asks for, asserted before it is measured. A base this file
+  // cannot serve produces a page that boots into nothing, and the failures that
+  // follow name the language rather than the path.
+  const { base, offenders } = baseOf(await readFile(join(DIST, "index.html"), "utf8"));
+  check("browserlang: every asset URL in the built HTML shares one prefix", offenders, []);
+  const { server, origin } = await serve(base);
   const page = await b.newPage();
   try {
     await page.goto(origin, { waitUntil: "networkidle" });

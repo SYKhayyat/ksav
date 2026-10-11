@@ -799,7 +799,8 @@ Written up in `CONTRIBUTING.md` §3, where the gate is documented.
   under four minutes. **Three of my own fixes in this session were wrong in ways only CI saw.**
 
 - **The deploy had never published anything, and the first dispatch proved it.** Rebuilding
-  the site (`workflow_dispatch`, no release) failed with **8163 assertions passed, 0 failed** —
+  the site (`workflow_dispatch`, no release) failed with **every editor assertion passing,
+  0 failed** —
   and the job red, because `browserlang.test.mjs` had asserted **nothing**. It measures the
   **built** app; `dist/` is git-ignored, so a checkout has none, so it took its documented skip
   and `run.mjs`'s *"a file that reports no assertions cannot go red"* fence made that a failure.

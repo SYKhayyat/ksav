@@ -840,6 +840,30 @@ Written up in `CONTRIBUTING.md` §3, where the gate is documented.
   - Verified both shapes with a real browser: `/ksav`-prefixed **14 passed**, plain **14
     passed**, and reverting the mount reproduces CI's failure exactly.
 
+- **Then the app booted, and the test still could not click the button.** With the mount
+  fixed, the deploy got every assertion but the browser file's past, and then died on
+  `getByLabel("שפה")` — *element is visible, enabled and stable, and
+  `<h2 data-i18n="welcomeTitle">` intercepts pointer events*, after the full 30s. The
+  first-run welcome overlay, covering the toolbar. Which is the product working: a writer
+  is welcomed once, and the language switch is pressed in a window they have been working
+  in. `ksav.onboarded` is now seeded before the first byte.
+- **And the reason all three took three weeks is the same reason, and it is the useful
+  finding here.** `ci.yml` builds the editor with `npx vite build` — **a shell with no
+  wasm engine in it**, which boots and never reaches the state that opens the overlay.
+  Only `deploy.yml` builds the real one, with `build:wasm`. So every run of `browserlang`
+  that ever reached a click measured a **degraded application**: no overlay to intercept,
+  and nothing else about the engine to be wrong about either. Two builds of one app, and
+  the one under test was not the one that ships. **My own verification of the mount fix
+  was against that shell too**, which is why the welcome dialog is worth writing down: a
+  green `browserlang` on this box measures the chrome and not the engine behind it, and
+  there is no local build that changes that — `src/wasmpkg/` holds two `.d.ts` files and
+  no `.wasm`.
+- **`זרם_גוף` had no English name**, and `english_commands.rs` said so on `engine` and
+  `engine on macOS`: *מסמך parameters with no English spelling: ["זרם_גוף"]*. Every
+  parameter of `document` is reachable in English and I added one that was not. The fence
+  reads the pairs out of Typst's own parse of the prelude, so it saw the omission without
+  being told — and it is the reason the fix is one line in `extra` beside `gershayim`.
+
 ### Handoff
 
 - `main` is clean and pushed; no background work of mine is still running.

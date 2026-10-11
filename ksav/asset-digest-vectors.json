@@ -1,0 +1,21 @@
+[
+  {"name":"empty","data":"","valid":true,"bytes":"","digest":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+  {"name":"one padded","data":"YQ==","valid":true,"bytes":"61","digest":"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+  {"name":"one unpadded","data":"YQ","valid":true,"bytes":"61","digest":"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+  {"name":"two padded","data":"Zm8=","valid":true,"bytes":"666f","digest":"9c3aee7110b787f0fb5f81633a36392bd277ea945d44c874a9a23601aefe20cf"},
+  {"name":"two unpadded","data":"Zm8","valid":true,"bytes":"666f","digest":"9c3aee7110b787f0fb5f81633a36392bd277ea945d44c874a9a23601aefe20cf"},
+  {"name":"three standard","data":"Zm9v","valid":true,"bytes":"666f6f","digest":"2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"},
+  {"name":"url safe padded","data":"_w==","valid":true,"bytes":"ff","digest":"a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89"},
+  {"name":"url safe unpadded","data":"_w","valid":true,"bytes":"ff","digest":"a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89"},
+  {"name":"data url and outer whitespace","data":"  data:text/plain;base64,YQ==  ","valid":true,"bytes":"61","digest":"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"},
+  {"name":"nonzero trailing bits one byte","data":"Zh==","valid":false},
+  {"name":"nonzero trailing bits two bytes","data":"Zm9=","valid":false},
+  {"name":"mixed alphabets","data":"+_==","valid":false},
+  {"name":"mixed alphabets in a full quantum","data":"ab+_","valid":false},
+  {"name":"wrong one padding","data":"YQ=","valid":false},
+  {"name":"too much padding","data":"YQ===","valid":false},
+  {"name":"padding in the middle","data":"Y=Q=","valid":false},
+  {"name":"impossible quantum","data":"A","valid":false},
+  {"name":"internal whitespace","data":"Y Q==","valid":false},
+  {"name":"non alphabet","data":"not base64","valid":false}
+]

@@ -360,6 +360,8 @@ export interface CompileResult {
   /** Hashes the client omitted bytes for but the engine did not hold; the client
    *  re-sends them. Absent from older engines, which is treated as "none". */
   missing_assets?: string[];
+  /** The asset-cache protocol this engine supports. Absent on pre-SHA engines. */
+  asset_cache?: "sha256";
 }
 
 /**
@@ -456,11 +458,14 @@ class PageStore {
 export class CompileCache {
   private confirmed = new Set<string>();
   private pages = new PageStore();
+  /** Unknown until the first response; legacy means keep sending bytes. */
+  private assetCache: "unknown" | "sha256" | "legacy" = "unknown";
 
   /** The engine lost its asset cache (a worker died). Pages are unaffected: the
    *  engine holds no page state to lose. */
   reset() {
     this.confirmed.clear();
+    this.assetCache = "unknown";
   }
 
   /** The wire form of `assets`, with bytes dropped for anything already cached,
@@ -469,7 +474,9 @@ export class CompileCache {
     const sent: string[] = [];
     const strip = (list: RequestAsset[]): RequestAsset[] =>
       list.map((a) => {
-        if (a.hash && this.confirmed.has(a.hash)) return { name: a.name, hash: a.hash };
+        if (this.assetCache === "sha256" && a.hash && this.confirmed.has(a.hash)) {
+          return { name: a.name, hash: a.hash };
+        }
         if (a.hash) sent.push(a.hash);
         return a; // carries data
       });
@@ -493,6 +500,20 @@ export class CompileCache {
     let full = this.pages.expand(res);
     const lostAssets = res.missing_assets?.length ? res.missing_assets : null;
 
+    // A current engine advertises SHA-256 on every compile response. An older
+    // engine silently ignores the new digest and cannot populate its old cache
+    // from it; treating the missing capability as legacy avoids confirming a
+    // hash that will miss on the next request forever. If a server is swapped
+    // underneath a live client, a missing response while in SHA mode is the
+    // same downgrade signal, but only after the engine has had a chance to
+    // identify itself.
+    if (res.asset_cache === "sha256") {
+      this.assetCache = "sha256";
+    } else if (this.assetCache === "unknown" || lostAssets) {
+      this.assetCache = "legacy";
+      this.confirmed.clear();
+    }
+
     if (lostAssets || !full) {
       if (lostAssets) for (const h of lostAssets) this.confirmed.delete(h);
       const retry = this.prepare(assets);
@@ -505,7 +526,7 @@ export class CompileCache {
       full = this.pages.expand(res) ?? { ...res, pages_svg: [] };
     }
 
-    for (const h of sent) this.confirmed.add(h);
+    if (this.assetCache === "sha256") for (const h of sent) this.confirmed.add(h);
     this.pages.keep(full.pages_svg, res.pages_hash);
     return full;
   }

@@ -16,6 +16,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use base64::Engine as _;
+use sha2::{Digest, Sha256};
 
 /// One asset accompanying a compile request.
 #[derive(Debug, Clone)]
@@ -371,7 +372,11 @@ fn read_one_cached(
         // name"*. So this dropped nothing; it only had a branch that could not
         // fire. The half that could fire is reported just above.
         // Keyed on the engine's own reading of the payload, never on the
-        // caller's claim about it.
+        // caller's claim about it. A caller may omit the hash altogether (the
+        // document-file reader and small local tools do), because the bytes are
+        // enough to earn their own digest. A claimed hash is accepted only when
+        // it is the complete digest of those bytes; this is the fence against a
+        // header-less local caller planting bytes under a collision key.
         //
         // This map is process-wide and shared across every document and every
         // window talking to one `ksav serve`, and it used to store bytes under
@@ -389,22 +394,17 @@ fn read_one_cached(
         // claimed key finds nothing and is told to re-send. Nobody can put bytes
         // under a name they did not earn.
         //
-        // It also makes `docs.ts::assetHash`'s own comment true as written. It
-        // reasons about collisions *"for the handful of images a document
-        // carries"*, and the domain is every asset this process has seen across
-        // the whole library, bounded only by `CACHE_CAP_BYTES`. Now the key is
-        // the engine's hash of the bytes rather than a claim about them, which
-        // is what that argument needs in order to be an argument.
-        if let Some(h) = &hash {
-            if &client_hash(data) == h {
-                // A poisoned mutex is not a reason to drop an asset the request
-                // put in our hand. `?` on the lock used to return `None` here —
-                // inside the branch that already holds the decoded bytes — which
-                // surfaced as a missing image in the writer's sefer with no
-                // diagnostic at all.
-                if let Ok(mut c) = cache().lock() {
-                    c.put(h.clone(), Arc::clone(&bytes));
-                }
+        // The digest is over the decoded bytes, so padded, unpadded, URL-safe
+        // and data-URL spellings of one image share one cache entry.
+        let digest = digest_bytes(&bytes);
+        if hash.as_deref().is_none_or(|h| h == digest) {
+            // A poisoned mutex is not a reason to drop an asset the request
+            // put in our hand. `?` on the lock used to return `None` here —
+            // inside the branch that already holds the decoded bytes — which
+            // surfaced as a missing image in the writer's sefer with no
+            // diagnostic at all.
+            if let Ok(mut c) = cache().lock() {
+                c.put(digest, Arc::clone(&bytes));
             }
         }
         return Some(Asset { name, bytes });
@@ -422,46 +422,21 @@ fn read_one_cached(
     }
 }
 
-/// The client's content hash of a payload, recomputed here.
+/// The content digest shared by the editor and the engine.
 ///
-/// Deliberately the *client's* function and not a better one. The client asks
-/// for an asset by this string, so the engine's map has to be keyed by it or a
-/// hash-only request resolves nothing — verifying means reproducing the caller's
-/// arithmetic and checking it, not substituting arithmetic of our own.
-/// `app/src/docs.ts::assetHash` is the original, and `engine/tests/assets.rs`
-/// holds the two against each other.
-///
-/// Over the payload **exactly as it arrived**, before the `data:` prefix is
-/// stripped or the whitespace trimmed, because that is the string the client
-/// hashed. UTF-16 code units for the same reason: `charCodeAt` counts those, and
-/// a base64 payload is ASCII either way — this is about being the same function,
-/// not about the characters it will actually meet.
-pub fn client_hash(data: &str) -> String {
-    let mut h1: u32 = 0x811c_9dc5;
-    let mut h2: u32 = 0x811c_9dc5 ^ 0x9e37_79b9;
-    let mut len: u32 = 0;
-    for c in data.encode_utf16() {
-        let c = u32::from(c);
-        h1 = (h1 ^ c).wrapping_mul(0x0100_0193);
-        h2 = (h2 ^ c).wrapping_mul(0x0100_0193);
-        len = len.wrapping_add(1);
-    }
-    format!("{}-{}-{}", base36(len), base36(h1), base36(h2))
+/// The digest is over the decoded bytes, not the transport spelling. That makes
+/// a `data:` URL, padded base64 and URL-safe unpadded base64 name the same asset,
+/// and gives a header-less local caller no useful collision surface: bytes are
+/// cached only under the SHA-256 they actually earn. `app/src/docs.ts::assetHash`
+/// is the other implementation; the vectors in `engine/tests/assets.rs` hold the
+/// two together.
+pub fn asset_digest(data: &str) -> Option<String> {
+    decode_payload(data).map(|bytes| digest_bytes(&bytes))
 }
 
-/// `Number.prototype.toString(36)`, lowercase, for a 32-bit unsigned value.
-fn base36(mut n: u32) -> String {
-    const DIGITS: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
-    if n == 0 {
-        return "0".to_string();
-    }
-    let mut out = Vec::new();
-    while n > 0 {
-        out.push(DIGITS[(n % 36) as usize]);
-        n /= 36;
-    }
-    out.reverse();
-    String::from_utf8(out).expect("ascii")
+fn digest_bytes(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Decode a base64 payload, tolerating a `data:…;base64,` prefix.
@@ -495,7 +470,11 @@ fn decode_payload(data: &str) -> Option<Vec<u8>> {
         Some(i) => &data[i + 8..],
         None => data,
     };
-    let payload = payload.trim();
+    // Rust and JavaScript have different Unicode whitespace sets. The wire
+    // grammar uses exactly ASCII outer whitespace; internal whitespace, mixed
+    // alphabets, partial padding and non-zero trailing bits are rejected by all
+    // four strict base64 engines below and by docs.ts.
+    let payload = payload.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}']);
     use base64::engine::general_purpose as g;
     g::STANDARD
         .decode(payload)

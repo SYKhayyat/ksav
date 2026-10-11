@@ -110,24 +110,6 @@ jobs:
         working-directory: ./ksav/app
         run: npm ci
 
-      # Test what is about to be published, in this job, against these bytes.
-      #
-      # This file used to publish whatever was at the tag without running
-      # anything, and `ci.yml` deliberately skipped tags — so the build that goes
-      # to actual readers was the only build in the repository nothing checked.
-      # `ci.yml` runs on tags now, but that is a *different* workflow on a
-      # different checkout: it can be green while this one publishes a bundle
-      # that was never assembled successfully. The site is what this job builds,
-      # so the gate belongs here.
-      #
-      # The whole editor group, not a subset: it takes a few seconds. It is a
-      # group of `ksav/tools/gate.mjs` rather than a command, which is why the
-      # typechecker came along — this step used to run the suite alone, and the
-      # reason it did is that whoever wrote it had to remember a second line.
-      - name: Check the editor
-        working-directory: ./ksav
-        run: node tools/gate.mjs editor
-
       # And the engine that will be inside the published page. `wasm-pack`
       # succeeding proves the crate compiled for wasm32; it does not prove the
       # module instantiates or can lay out a document. Publishing a site whose
@@ -145,6 +127,40 @@ jobs:
           cp ../wasm/pkg/ksav_wasm.js ../wasm/pkg/ksav_wasm.d.ts src/wasmpkg/
           cp ../wasm/pkg/ksav_wasm_bg.wasm ../wasm/pkg/ksav_wasm_bg.wasm.d.ts src/wasmpkg/
           npm run build:wasm
+
+      # Test what is about to be published, in this job, against these bytes.
+      #
+      # This file used to publish whatever was at the tag without running
+      # anything, and `ci.yml` deliberately skipped tags — so the build that goes
+      # to actual readers was the only build in the repository nothing checked.
+      # `ci.yml` runs on tags now, but that is a *different* workflow on a
+      # different checkout: it can be green while this one publishes a bundle
+      # that was never assembled successfully. The site is what this job builds,
+      # so the gate belongs here.
+      #
+      # The whole editor group, not a subset: it takes a few seconds. It is a
+      # group of `ksav/tools/gate.mjs` rather than a command, which is why the
+      # typechecker came along — this step used to run the suite alone, and the
+      # reason it did is that whoever wrote it had to remember a second line.
+      #
+      # **After** the bundle, not before it — #91 fixed this in `ci.yml` and the
+      # same bug was still here, so the first dispatch of this workflow never
+      # published anything.
+      #
+      # `browserlang.test.mjs` measures the **built** app in a real browser, and
+      # `dist/` is git-ignored, so a checkout has none. Run before the bundle it
+      # skips itself — "no dist/ — run `npm run build` first" — and the suite's
+      # own fence, *a file that reports no assertions cannot go red*, turns that
+      # skip into a failure. Which is exactly what it did: 8163 assertions
+      # passed, 0 failed, and the job died on a file that had checked nothing,
+      # with a message that pointed at the test instead of at the missing build.
+      #
+      # Here it also means what the comment above claims. The gate measures the
+      # bytes that are about to be published — wasm included — instead of a
+      # bundle assembled afterwards from the same tree.
+      - name: Check the editor
+        working-directory: ./ksav
+        run: node tools/gate.mjs editor
 
       # Pages has no rewrite rules, so a reload on any path that is not a real
       # file 404s. Ksav puts the whole document in the fragment and never routes

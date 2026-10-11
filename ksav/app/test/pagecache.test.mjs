@@ -165,12 +165,38 @@ export async function run() {
 
   {
     // Pages that moved: same names, different order. Matching by *position* is
-    // what has to happen, because that is where they are on screen.
+    // not enough: the page identity follows its name, so its box can move with
+    // it without repainting or losing the reader's place.
     const h = host();
     drawPages(h, ["A", "B"], ["a", "b"]);
     allVisible(h);
+    h.scrollTop = 180;
+    const before = [...h.children];
     drawPages(h, ["B", "A"], ["b", "a"]);
     check("reordered pages are redrawn in their new order", shown(h), ["B", "A"]);
+    ok("the page that moved keeps its node", h.children[0] === before[1] && h.children[1] === before[0]);
+    check("moving pages keeps the reader's scroll", h.scrollTop, 180);
+  }
+
+  {
+    // Hash matches are reserved before positional fallback. Otherwise the new
+    // middle page consumes B's old slot and the unchanged B/C pages to its
+    // right are needlessly replaced.
+    const h = host();
+    drawPages(h, ["A", "B", "C"], ["a", "b", "c"]);
+    allVisible(h);
+    const before = [...h.children];
+    drawPages(h, ["A", "X", "B", "C"], ["a", "x", "b", "c"]);
+    allVisible(h);
+    check("a middle insertion appears in order", shown(h), ["A", "X", "B", "C"]);
+    ok("the page after an insertion keeps its node", h.children[2] === before[1]);
+    ok("the last page after an insertion keeps its node", h.children[3] === before[2]);
+    const afterInsert = [...h.children];
+    drawPages(h, ["A", "B", "C"], ["a", "b", "c"]);
+    allVisible(h);
+    check("a middle removal restores order", shown(h), ["A", "B", "C"]);
+    ok("removal keeps the first unchanged page node", h.children[0] === afterInsert[0]);
+    ok("removal keeps the following unchanged page nodes", h.children[1] === afterInsert[2] && h.children[2] === afterInsert[3]);
   }
 
   {

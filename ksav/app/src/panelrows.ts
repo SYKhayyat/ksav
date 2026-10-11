@@ -109,6 +109,26 @@ export interface PanelRow {
   context?: string;
 }
 
+/**
+ * The identity of a row on screen, independent of its translated words.
+ *
+ * Most rows already carry an id from the thing they point at. The action is a
+ * useful fallback for the few source spans that predate ids; using the label
+ * here would turn an edit into a remove-plus-add and lose the row's state.
+ */
+export function panelRowKey(row: PanelRow): string {
+  // `id` is local to a surface: an action and an insert command can quite
+  // legitimately both be named `table`, and using the raw id made them collide
+  // in the palette. Namespace every identity by the row kind so a model change
+  // cannot accidentally retain the other kind's DOM node.
+  const kind = row.does.kind;
+  if (row.id !== undefined) return `${kind}:${row.id}`;
+  // The fallback keeps the complete semantic action rather than translated
+  // labels. Callers with a durable source identity should set `id`; this path is
+  // for the few synthetic rows that have no such identity.
+  return `${kind}:${JSON.stringify(row.does)}`;
+}
+
 export interface PanelList {
   rows: PanelRow[];
   /**
@@ -194,6 +214,9 @@ export function outlineList(items: readonly OutlineRow[]): PanelList {
       does: { kind: "jump", at: it.from },
       indent: it.level - shallowest,
       label: it.title,
+      // Heading name/level is semantic identity; the source offset is only the
+      // jump target and must not be the row's sole identity.
+      id: `heading:${it.section ? "section" : "title"}:${it.level}:${it.title}:${it.from}`,
     })),
     empty: null,
     hidden: 0,
@@ -278,6 +301,7 @@ export function noteList(
     rows: items.map((n, i) => ({
       does: { kind: "note", at: n.bodyFrom, marker: n.from },
       indent: n.depth,
+      id: `note:${n.series}:${n.command}:${n.bodyFrom}`,
       chip: printed[i] ?? String(ordinals[i]),
       // The whole note, and the sentence it hangs off — *"the notes drawer
       // should expand to the whole note, and to the line the note sits on"*.
@@ -337,6 +361,7 @@ export function markList(items: readonly MarkSpan[], order: readonly string[]): 
       rows.push({
         does: { kind: "jump", at: m.from },
         indent: 1,
+        id: `mark:${m.cls}:${m.from}`,
         // A mark whose words are not written yet — `#גמרא[][]` straight out of
         // the Insert menu — has nothing to show but what it is, and naming the
         // command is the only honest row left.
@@ -412,6 +437,7 @@ export function findList(
       rows.push({
         does: { kind: "hit", at: h.at, page: h.page, y: h.y },
         indent: 1,
+        id: `hit:${h.where}:${h.file ?? ""}:${h.line ?? ""}:${h.page ?? ""}:${h.from}`,
         chip: h.where === "preview" ? String(h.page) : String(h.line),
         // The file, when the line is not in the document that is open: without
         // it, line 12 of an included chapter and line 12 of the sefer that

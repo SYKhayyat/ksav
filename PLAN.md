@@ -533,7 +533,10 @@ still right.
   removed. **The second time in two issues that the finding was "already shipped"** — see
   #88 — which is worth noticing about this plan.
 - [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port.
-- [ ] #7 keyed updates (5× replaceChildren).
+- [x] #7 keyed updates (5× replaceChildren). A framework-free keyed reconciler now
+  updates, removes and moves panel rows and named preview pages in place; unchanged
+  models are no-ops and the focused/selected row plus host scroll survive. See
+  `decisions/2026-10-11-keyed-dom-reconciliation.md`.
 
 ## Phase 5 — Features / proposals (Info/Low, after engine is safe)
 - [x] #88 show the invisible characters. (Presentation, from #84) — **Shipped already, and

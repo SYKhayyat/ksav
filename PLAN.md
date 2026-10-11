@@ -812,6 +812,34 @@ Written up in `CONTRIBUTING.md` §3, where the gate is documented.
   is also what the step's own comment always claimed — *test what is about to be published,
   against these bytes* — and is now true rather than aspirational.
 
+- **And then the test turned out to be unable to measure that bundle, which was three weeks
+  old.** Moving the gate after `Bundle` gave `browserlang` a `dist/` for the first time in
+  this workflow's life, and it failed on `the app boots into Hebrew with plenty on screen` —
+  a **language** assertion, naming a language bug for what was a mount path. A project Pages
+  site lives under `/ksav/`, so the built HTML asks for `/ksav/assets/index-….js`, and
+  `serve()` mounted `dist/` at `/` and answered with **`index.html`**: the browser refused to
+  run it as a module, the app never booted, and every string on the page was the empty
+  string. **The app had no Hebrew on it because it had no application on it.**
+  - The SPA fallback answered **every** miss with `index.html`, so a missing script arrived as
+    a `200` of `text/html` and the browser complained about MIME types rather than about the
+    file that was absent. Two layers of the same silence: the first hid the path, the second
+    hid the 404.
+  - `serve()` now reads the prefix **out of the built HTML** rather than out of
+    `VITE_PUBLIC_BASE`, because the question is not what the build was *asked* for but what
+    it *asked for* — and `ci.yml`'s plain `npx vite build` wants `/`. A fence asserts every
+    absolute asset URL agrees on one prefix.
+  - **This gate had never run complete on this machine**, so the README's counts were
+    inferred rather than measured, and they were **wrong**: the assertion total was one too
+    high and the file count with it. They are now measured — the sweep in
+    `documentation.test.mjs` agrees with the run, which is the only reason to believe either.
+    The old figure was the last green run's total plus the fences #94 added, on the assumption
+    that a file which cannot run **here** runs in CI. It does run in CI; it did not run here,
+    and those are different numbers. `documentation.test.mjs` caught both — including a raw
+    count I had put in **this file**, which is the sweep refusing to let history rot in prose
+    where nothing re-checks it.
+  - Verified both shapes with a real browser: `/ksav`-prefixed **14 passed**, plain **14
+    passed**, and reverting the mount reproduces CI's failure exactly.
+
 ### Handoff
 
 - `main` is clean and pushed; no background work of mine is still running.

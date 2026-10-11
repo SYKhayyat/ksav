@@ -773,6 +773,35 @@ so a `cargo build --release` blocked `cargo test --release` for **27 minutes** w
 free. Rust work is not serial here — it is serial only if one profile is used for everything.
 Written up in `CONTRIBUTING.md` §3, where the gate is documented.
 
+### The site is published, and it took four attempts and three latent bugs to do it
+
+`https://sykhayyat.github.io/ksav/` answers **200** and serves the `/ksav`-prefixed bundle
+with the wasm engine in it. Nothing about that path worked when it started:
+
+1. the gate ran **before** the bundle, so `browserlang` skipped and the job died on a file
+   that had asserted nothing;
+2. with a bundle to measure, the test could not **mount** it — `/ksav/assets/…` was answered
+   with `index.html`, the app never booted, and a **language** assertion took the blame;
+3. with the app booting, the first-run welcome overlay covered the language button — because
+   only the real wasm bundle ever reaches the state that opens it.
+
+Three red jobs, each pointing somewhere else, and the common cause is one sentence: **the two
+build pipelines build different applications and only one of them was under test.**
+`ci.yml` builds a shell; `deploy.yml` builds the product. Everything the editor gate asserts
+locally, it asserts about the shell.
+
+`every_placement_means_the_same_on_a_note_upon_a_note` is what a new placement costs. The
+loop writes every placement bare, and a bare `מיקום: "גוף"` **does not compile** — #79's
+refusal working. The fix went in the loop, not the engine: one name, `רוחב: 30%`, and the
+loop's actual claim is still tested with a band in the page. **A fence that cannot be
+satisfied without changing what it fences is telling you the design is wrong** — here the
+design was right and the fence needed one line in it, which is the better of the two.
+
+And the `engine` gate is the one that cannot be run cheaply: **79 targets, 1122 tests**, one
+shared target directory, ~50 minutes for a full run with everything else locked out behind
+it. The red `engine` results cost three CI cycles because a full suite is the only place all
+of it runs at once.
+
 ### Still unverified — read this before trusting the green
 
 - **CI: 9 of 9 green** on `0e6521c` (run `37355346222`) — `formatting`, `engine`, `engine on

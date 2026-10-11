@@ -4,6 +4,59 @@ Chronological log of work in this session (append-only; newest at bottom).
 
 ---
 
+## 2026-10-11 · wrap-up record
+
+This entry was added during the end-of-session handoff. The completed work from
+today is on `origin/main` at `68d3692` and has a green GitHub CI run:
+`38169999275`.
+
+### Landed on main and pushed
+
+- **#56**: replaced the 32-bit shared asset cache key with a Rust/TypeScript
+  SHA-256 digest of decoded bytes; aligned Base64 acceptance, verified claimed
+  digests before insertion, added capability fallback for old engines, and
+  normalized legacy `.ksav`/storage records. Focused Rust and app tests passed;
+  the full remote CI passed all nine jobs. Commits: `c05f1fa`, `6adc3ec`,
+  merge `bf0e896`, formatting `bf41bb8`.
+- **#7**: added keyed reconciliation for panel rows, preview pages, history,
+  palette, and Git status surfaces; preserved retained DOM identity and state;
+  fixed middle insertion identity, replacement-aware row updates, duplicate
+  palette keys, and history footer accumulation. Full editor verification with
+  Chromium passed 8,271 assertions across 119 files; remote CI passed all nine
+  jobs. Commits: `9ad3f5f`, `76f68f5`, merge `8895b16`.
+- Updated `ksav/README.md` counts to match the final editor suite and checked
+  both issues off in `PLAN.md` where applicable.
+
+### Pushed but deliberately not merged or closed
+
+- **#20** branch `issue-20-scan-seams`, commit `f43b924`: reuses the existing
+  synchronous `spans.ts` scan seam for deferred/numbering work and records why
+  a Rust service was not introduced. It was pushed to
+  `origin/issue-20-scan-seams`, but review found remaining bulk rescans,
+  stale-scan API risk, and a partly vacuous new fence. It needs a follow-up
+  before merge/closure.
+- **#19** branch `issue-19-rust-scan`, commit `87c1fe0`: shares the lexical pass
+  between `scan()` and `delimiters()` while preserving synchronous CodeMirror
+  consumers. It was pushed to `origin/issue-19-rust-scan`, but it overlaps #20
+  and was not independently reviewed/merged before the session ended. Do not
+  close either issue until the overlap is resolved and the combined change is
+  tested on the main branch.
+
+### Verification and environment notes
+
+- Local focused app checks and the full editor suite passed; Chromium was made
+  available transiently with `nix-shell -p chromium` and supplied via
+  `KSAV_CHROMIUM`.
+- Local focused asset tests passed: 20 asset tests and 6 docfile-oracle tests.
+- Remote CI for `68d3692` passed formatting, editor, engine, browser engine,
+  assembled app, desktop shell, macOS engine, and both Emacs jobs.
+- The working tree was clean at handoff. Temporary worktrees remain for the
+  pushed issue branches: `/home/shaul/ksav-issue-19` and
+  `/home/shaul/ksav-issue-20`; preserve them until those branches are merged or
+  intentionally abandoned.
+
+---
+
 ## 2026-09-23 · #27 param_en half (closed → reopened for remainder)
 
 ### Done and committed as `7223939`

@@ -41,7 +41,13 @@ export async function run() {
   {
     const row = { does: { kind: "jump", at: 12 }, indent: 0, label: "ישן", id: "heading:12" };
     check("a row key is independent of translated words", panelRowKey({ ...row, label: "new" }), panelRowKey(row));
-    check("rows without ids use their stable action", panelRowKey({ does: row.does, indent: 0, label: "x" }), "action:{\"kind\":\"jump\",\"at\":12}");
+    check("rows without ids use their stable action", panelRowKey({ does: row.does, indent: 0, label: "x" }), "jump:{\"kind\":\"jump\",\"at\":12}");
+    check(
+      "palette action and insert identities cannot collide",
+      panelRowKey({ does: { kind: "action", id: "table" }, indent: 0, label: "x", id: "table" }) ===
+        panelRowKey({ does: { kind: "insert", snippet: "#table[]" }, indent: 0, label: "x", id: "table" }),
+      false,
+    );
   }
 
   // ------------------------------------------------------------ one indent rule
@@ -65,6 +71,7 @@ export async function run() {
     check("…and it is not empty", list.empty, null);
     ok("every heading is a row", list.rows.length >= 3, `${list.rows.length} rows`);
     check("every row jumps", list.rows.filter((r) => r.does.kind !== "jump"), []);
+    ok("heading rows carry semantic identities", list.rows.every((r) => r.id?.startsWith("heading:")));
     // Relative to the shallowest heading in the document, not absolute: a
     // document whose only headings are `#כותרת3` is not a document indented
     // three levels, it is a document whose headings all sit at one place.
@@ -90,6 +97,7 @@ export async function run() {
   {
     const list = noteList(notesIn(DOC));
     check("both notes are rows", list.rows.length, 2);
+    ok("note rows carry semantic identities", list.rows.every((r) => r.id?.startsWith("note:")));
     check("…numbered in reading order", list.rows.map((r) => r.chip), ["1", "2"]);
     // The row's words are the note's own, flattened. A pane listing "#הערה"
     // twice is a pane listing nothing.

@@ -338,6 +338,14 @@ check(
   check("a setting the chipbar shows is a setting that rebuilds it", silent, []);
 }
 
+// Filtering can retain a former second row while removing the selected first
+// row. The filtered result must still select its first visible row.
+{
+  const draw = MAIN.slice(MAIN.indexOf("function drawList"));
+  const body = draw.slice(0, draw.indexOf("\n}\n") + 3);
+  ok("palette filtering restores first-row selection", /look\.selectable[\s\S]{0,500}remove\("sel"\)[\s\S]{0,180}add\("sel"\)/.test(body));
+}
+
 // ---------------------------------------------------------------- 9. the
 // selectors the acceptance run drives the assembled app by
 //

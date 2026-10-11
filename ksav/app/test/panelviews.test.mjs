@@ -197,6 +197,11 @@ export async function run() {
       check("both files are described", states.length, 2);
       check("…in words", states, [t("git.st.modified"), t("git.st.new")]);
       for (const s of states) notOk(`"${s}" is not a git letter`, /^[MADRCU?]$/.test(s));
+      check(
+        "status rows have semantic keys",
+        withClass(built, "git-file").map((n) => n["data-git-row"]),
+        ["change:ברכות.ksav", "change:חדש.ksav"],
+      );
     }
 
     // ------------------------------------------------------------ what it asks
@@ -286,6 +291,7 @@ export async function run() {
       ];
       const built = gitPanel(view({ commits }), act);
       ok("the commit is listed", words(built).includes("פרק ראשון"));
+      check("history rows key by commit hash", withClass(built, "git-commit-row")[0]["data-git-row"], "commit:aaaa");
       buttonSaying(built, t("git.compare")).click();
       buttonSaying(built, t("git.restore")).click();
       buttonSaying(built, t("git.revert")).click();
@@ -311,6 +317,7 @@ export async function run() {
       );
       const rows = withClass(built, "git-branch-row");
       check("both branches are listed", rows.length, 2);
+      check("branch rows key by branch name", rows.map((n) => n["data-git-row"]), ["branch:main", "branch:hagahos"]);
       check("the current one offers nothing to do to itself", buttons([rows[0]]).length, 0);
       check("…and the other one offers two", buttons([rows[1]]).length, 2);
     }

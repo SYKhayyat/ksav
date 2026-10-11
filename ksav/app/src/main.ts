@@ -8847,6 +8847,7 @@ const LOOKS: Record<string, Look> = {
 };
 
 const listReconcilers = new WeakMap<HTMLElement, KeyedReconciler<PanelRow, HTMLElement>>();
+const focusAfterRowReplace = new WeakSet<HTMLElement>();
 
 /**
  * Draw a [`PanelList`] — the one place the four list panels turn rows into DOM.
@@ -8871,6 +8872,11 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
       equal: (previous, next) => JSON.stringify(previous) === JSON.stringify(next),
       create: (row, index) => drawRow(row, look, index === 0, snaps),
       update: (node, next, _previous) => updateRow(node, next, look, snaps),
+      afterReplace: (_previous, replacement) => {
+        if (!focusAfterRowReplace.has(replacement)) return;
+        focusAfterRowReplace.delete(replacement);
+        replacement.querySelector<HTMLElement>(".row-expand")?.focus();
+      },
     });
     listReconcilers.set(host, reconciler);
   }
@@ -8883,6 +8889,14 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
     return;
   }
   reconciler.reconcile(host, list.rows);
+  if (look.selectable) {
+    // Filtering can retain a row that used to be second while removing the
+    // previously selected first row. Selection belongs to the filtered result,
+    // so always make its first visible row the selected one.
+    const selectable = [...host.querySelectorAll<HTMLElement>(".pal-item")];
+    selectable.forEach((row) => row.classList.remove("sel"));
+    selectable[0]?.classList.add("sel");
+  }
   // A cap that says nothing reads as completeness. This is the sentence that
   // was missing from a palette showing 60 of the registry's 115 commands.
   if (list.hidden) {
@@ -9018,22 +9032,26 @@ function drawRow(r: PanelRow, look: Look, first: boolean, snaps: docs.Snapshot[]
   return r.full || r.context ? expandable(button, r) : button;
 }
 
-/** Update one retained row without replacing its outer DOM identity. */
-function updateRow(node: HTMLElement, r: PanelRow, look: Look, snaps: docs.Snapshot[]) {
+/** Update one retained row with a fresh outer shape and listener set. */
+function updateRow(node: HTMLElement, r: PanelRow, look: Look, snaps: docs.Snapshot[]): HTMLElement {
   const selected = node.classList.contains("sel") || !!node.querySelector(".sel");
   const expanded = node.classList.contains("expanded");
   const active = document.activeElement;
   const focusExpand = active instanceof HTMLElement && node.contains(active) && active.classList.contains("row-expand");
   const fresh = drawRow(r, look, false, snaps);
-  node.replaceChildren(...fresh.childNodes);
+  const target = fresh.matches(".pal-item") ? fresh : fresh.querySelector<HTMLElement>(".pal-item");
   if (selected) {
-    const target = node.matches(".pal-item") ? node : node.querySelector<HTMLElement>(".pal-item");
     target?.classList.add("sel");
   }
-  if (expanded) node.classList.add("expanded");
-  const toggle = node.querySelector<HTMLElement>(".row-expand");
+  if (expanded) fresh.classList.add("expanded");
+  const toggle = fresh.querySelector<HTMLElement>(".row-expand");
   if (expanded) toggle?.setAttribute("aria-expanded", "true");
-  if (focusExpand) toggle?.focus();
+  if (focusExpand) focusAfterRowReplace.add(fresh);
+  // `drawRow` is also the authority for the outer tag, attributes and event
+  // listeners. Replacing the outer element avoids stale listeners when a row's
+  // action changes and handles a plain button becoming an expandable wrapper
+  // (or the reverse) without trying to copy an incomplete attribute set.
+  return fresh;
 }
 
 /**
@@ -9115,10 +9133,11 @@ async function renderHistory() {
   if (!host || !runtime.currentDoc) return;
   const snaps = await docs.snapshots(runtime.currentDoc.id);
   const scope = el("div", { class: "history-scope" }, [tf("historyOf", runtime.currentDoc.title)]);
-  // The scope label is owned by this caller, while rows are owned by drawList.
-  // Remove the previous label before keyed reconciliation so it remains an
-  // unmanaged prefix rather than accumulating on every refresh.
-  host.querySelectorAll<HTMLElement>(".history-scope").forEach((node) => node.remove());
+  // The scope label and the cost/clear controls are owned by this caller, while
+  // rows are owned by drawList. Remove the *whole* unmanaged footer before
+  // reconciling; deleting only the first empty marker left old cost notes and
+  // clear buttons behind on every refresh.
+  host.querySelectorAll<HTMLElement>(".history-scope, .history-footer").forEach((node) => node.remove());
   drawList(host, panelrows.historyList(snaps), LOOKS.history, snaps);
   // Say whose history this is: with one list per document, the title is the
   // thing that makes "restore" a safe button to press. Prepended after the fact
@@ -9143,7 +9162,7 @@ async function renderHistory() {
       voidAction("general", () => renderHistory());
     });
   });
-  host.append(
+  host.append(el("div", { class: "history-footer" }, [
     el("p", { class: "styles-note history-cost" }, [
       tf(
         "historyCost",
@@ -9155,7 +9174,7 @@ async function renderHistory() {
     ]),
     el("p", { class: "styles-note" }, [t("historyWholeBodies")]),
     clear,
-  );
+  ]));
 }
 
 // ---------------------------------------------------------------- version control
@@ -9404,8 +9423,7 @@ function renderKeysPanel(): void {
 function renderGitPanel(): void {
   const box = document.getElementById("git-body");
   if (!box) return;
-  box.replaceChildren(
-    ...panelviews.gitPanel(
+  const fresh = panelviews.gitPanel(
       {
         face: git.face(gitStanding(), gitState, gitCommits, gitBranches, gitRemotes),
         status: gitState,
@@ -9426,8 +9444,34 @@ function renderGitPanel(): void {
           voidAction("general", () => refreshGit());
         },
       },
-    ),
-  );
+    );
+  // The panel view remains a pure builder, but its status rows have semantic
+  // identities. Reuse unchanged rows across a refresh so a focused action or a
+  // row-level selection survives; changed rows are replaced with fresh
+  // listeners and content rather than retaining stale closures.
+  reuseGitRows(box, fresh);
+  box.replaceChildren(...fresh);
+}
+
+function reuseGitRows(previous: HTMLElement, fresh: Node[]): void {
+  const old = new Map<string, HTMLElement>();
+  previous.querySelectorAll<HTMLElement>("[data-git-row]").forEach((row) => {
+    const key = row.getAttribute("data-git-row");
+    if (key) old.set(key, row);
+  });
+  const visit = (node: Node): void => {
+    if (!(node instanceof HTMLElement)) return;
+    const key = node.getAttribute("data-git-row");
+    if (key) {
+      const prior = old.get(key);
+      if (prior && prior.getAttribute("data-git-signature") === node.getAttribute("data-git-signature")) {
+        node.replaceWith(prior);
+      }
+      return;
+    }
+    [...node.children].forEach(visit);
+  };
+  fresh.forEach(visit);
 }
 /**
  * Compare the document with how it was at a commit.

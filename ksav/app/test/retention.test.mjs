@@ -87,6 +87,9 @@ export async function run() {
     ok("the history says what it costs", /tf\(\s*"historyCost"/.test(MAIN));
     ok("...and why a big sefer keeps fewer", /t\("historyWholeBodies"\)/.test(MAIN));
     ok("...and offers a way to clear it", /t\("historyClear"\)/.test(MAIN) && /docs\.clearHistory\(/.test(MAIN));
+    const history = MAIN.slice(MAIN.indexOf("async function renderHistory"));
+    ok("...and refresh removes its whole unmanaged footer", /history-scope, \.history-footer/.test(history));
+    ok("...so refresh creates one footer owner", /class: "history-footer"/.test(history));
     ok("...which takes the newest-snapshot pointer with it", /LATEST_SUFFIX/.test(
       readFileSync(path.join(SRC, "docs.ts"), "utf8").split("export async function clearHistory")[1] ?? "",
     ));

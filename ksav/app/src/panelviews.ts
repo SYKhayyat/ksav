@@ -107,6 +107,14 @@ function gitSays(said: string): HTMLElement {
   ]);
 }
 
+/** Stable identity and content stamp for rows whose source is git's lists. */
+function gitRowAttrs(kind: string, id: string, value: unknown): Record<string, string> {
+  return {
+    "data-git-row": `${kind}:${id}`,
+    "data-git-signature": JSON.stringify(value),
+  };
+}
+
 /**
  * What the writer has typed into the version-control drawer, kept across its
  * rebuilds. The drawer rebuilds whole on every change — the right call for six
@@ -200,7 +208,10 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
         const stuck = (state.files ?? []).filter((f) => f.kind === "unmerged");
         block.push(
           el("p", { class: "git-why", "data-git": "conflicted" }, [t("git.conflicted")]),
-          el("ul", { class: "git-files" }, stuck.map((f) => el("li", { class: "git-file git-unmerged" }, [f.path]))),
+          el("ul", { class: "git-files" }, stuck.map((f) => el("li", {
+            class: "git-file git-unmerged",
+            ...gitRowAttrs("conflict", f.path, f),
+          }, [f.path]))),
           el("div", { class: "rv-tools" }, [
             gitButton(view, t("git.takeOurs"), () => act.run("resolve", { side: "ours" })),
             gitButton(view, t("git.takeTheirs"), () => act.run("resolve", { side: "theirs" })),
@@ -221,7 +232,10 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
               "ul",
               { class: "git-files" },
               changed.map((f) =>
-                el("li", { class: "git-file" }, [
+                el("li", {
+                  class: "git-file",
+                  ...gitRowAttrs("change", f.path + (f.from ? `←${f.from}` : ""), f),
+                }, [
                   el("span", { class: "git-state" }, [t(git.stateKey(f))]),
                   el("span", { class: "git-path" }, [f.path]),
                   ...(f.from ? [el("small", { class: "git-from" }, [f.from])] : []),
@@ -287,7 +301,10 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
               "ul",
               { class: "git-log" },
               view.commits.map((c) =>
-                el("li", { class: "git-commit-row" }, [
+                el("li", {
+                  class: "git-commit-row",
+                  ...gitRowAttrs("commit", c.hash, c),
+                }, [
                   el("div", { class: "git-subject" }, [c.subject || c.short]),
                   el("div", { class: "git-meta" }, [`${c.author} · ${git.when(c.when, getLang())} · ${c.short}`]),
                   el("div", { class: "rv-actions" }, [
@@ -309,7 +326,10 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
               "ul",
               { class: "git-branches" },
               view.branches.map((b) =>
-                el("li", { class: "git-branch-row" + (b.current ? " current" : "") }, [
+                el("li", {
+                  class: "git-branch-row" + (b.current ? " current" : ""),
+                  ...gitRowAttrs("branch", b.name, b),
+                }, [
                   el("span", { class: "git-path" }, [b.name]),
                   el("small", { class: "git-meta" }, [b.upstream ?? ""]),
                   // No *switch to this branch* and no *merge this branch* on the
@@ -349,7 +369,10 @@ export function gitPanel(view: GitView, act: GitActions): Node[] {
               "ul",
               { class: "git-remotes" },
               view.remotes.map((r) =>
-                el("li", { class: "git-remote-row" }, [
+                el("li", {
+                  class: "git-remote-row",
+                  ...gitRowAttrs("remote", r.name, r),
+                }, [
                   el("span", { class: "git-path" }, [r.name]),
                   el("small", { class: "git-meta" }, [r.url]),
                 ]),

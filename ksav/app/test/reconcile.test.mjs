@@ -89,4 +89,34 @@ export async function run() {
   check("removing a model removes its node", removed.map((node) => node.id), ["c", "b"]);
   ok("the removed node is detached", beforeRemove.parent === null);
   check("only new nodes were created for the first render", creates, 3);
+
+  {
+    // A retained key can change its outer shape. Replacing the outer node is
+    // safer than copying only children: the tag, attributes and event listener
+    // set all belong to the new model.
+    const shapeList = new List();
+    const shape = keyedReconciler({
+      key: (model) => model.id,
+      equal: (previous, next) => previous.expanded === next.expanded,
+      create: (model) => {
+        const node = new Item(model);
+        node.tagName = model.expanded ? "DIV" : "BUTTON";
+        node.listener = model.expanded ? "toggle" : "run";
+        return node;
+      },
+      update: (node, model) => {
+        if (node.tagName === (model.expanded ? "DIV" : "BUTTON")) return node;
+        const replacement = new Item(model);
+        replacement.tagName = model.expanded ? "DIV" : "BUTTON";
+        replacement.listener = model.expanded ? "toggle" : "run";
+        return replacement;
+      },
+    });
+    const plain = shape.reconcile(shapeList, [{ id: "row", expanded: false }])[0];
+    const expanded = shape.reconcile(shapeList, [{ id: "row", expanded: true }])[0];
+    check("empty-to-expanded changes the outer tag", expanded.tagName, "DIV");
+    check("the replacement carries the new listener", expanded.listener, "toggle");
+    ok("the old outer node is detached", plain.parent === null);
+    ok("the retained key remains in the same list slot", shapeList.children[0] === expanded);
+  }
 }

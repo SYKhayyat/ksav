@@ -736,11 +736,21 @@ function pageModels(w: Windowed, pages: string[], hashes: string[], only: Set<nu
     if (hash && key) byHash.set(hash, [...(byHash.get(hash) ?? []), key]);
   }
 
-  return pages.map((page, index) => {
+  // Reserve every hash match before positional fallback. If fallback runs
+  // while walking left-to-right, an insertion in the middle consumes the old
+  // key at that position and makes the unchanged pages to its right look new.
+  // Hash identity is stronger than position and must win globally.
+  const keys = pages.map((_page, index) => {
     const hash = hashes[index];
     const matching = hash ? byHash.get(hash)?.find((key) => !used.has(key)) : undefined;
+    if (matching) used.add(matching);
+    return matching;
+  });
+
+  return pages.map((page, index) => {
+    const hash = hashes[index];
     const slot = w.keys[index] && !used.has(w.keys[index]) ? w.keys[index] : undefined;
-    const key = matching ?? slot ?? `page:${w.nextKey++}`;
+    const key = keys[index] ?? slot ?? `page:${w.nextKey++}`;
     used.add(key);
     return {
       key,

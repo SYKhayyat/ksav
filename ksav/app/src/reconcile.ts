@@ -9,7 +9,12 @@ export interface KeyedReconcileOptions<T, K, N extends ChildNode> {
   key(model: T, index: number): K;
   equal(previous: T, next: T): boolean;
   create(model: T, index: number, parent: HTMLElement): N;
-  update(node: N, next: T, previous: T, index: number): void;
+  /**
+   * Update a retained node in place, or return a replacement when its outer
+   * shape/listeners cannot be repaired safely in place.
+   */
+  update(node: N, next: T, previous: T, index: number): N | void;
+  afterReplace?(previous: N, replacement: N): void;
   remove?(node: N, previous: T): void;
 }
 
@@ -54,10 +59,30 @@ export function keyedReconciler<T, K, N extends ChildNode>(
 
         const previous = entries.get(key);
         const node = previous?.node ?? options.create(model, index, parent);
+        let current = node;
         if (!previous || !options.equal(previous.model, model)) {
-          options.update(node, model, previous?.model ?? model, index);
+          const replacement = options.update(node, model, previous?.model ?? model, index);
+          if (replacement && replacement !== node) {
+            // A caller may need to replace a retained node when its outer tag,
+            // attributes or event listeners changed. Do that as one keyed
+            // operation so ordering and focus-preserving callers do not have
+            // to reach around the reconciler.
+            // `create` may return a detached node (ordinary list rows do), in
+            // which case the replacement is simply carried into the normal
+            // ordering pass below. Existing nodes are inserted immediately so
+            // their position is preserved before the old node is detached.
+            const children = (parent as unknown as { children?: ArrayLike<Node> }).children;
+            const attached = node.parentNode === parent ||
+              (!!children && Array.from(children).includes(node as unknown as Node));
+            if (attached) {
+              parent.insertBefore(replacement, node);
+              node.remove();
+            }
+            options.afterReplace?.(node, replacement);
+            current = replacement;
+          }
         }
-        next.push({ key, model, node });
+        next.push({ key, model, node: current });
       }
 
       for (const [key, previous] of entries) {
@@ -72,7 +97,10 @@ export function keyedReconciler<T, K, N extends ChildNode>(
       for (let index = next.length - 1; index >= 0; index--) {
         const node = next[index].node;
         const after = next[index + 1]?.node ?? null;
-        if (node.nextSibling !== after) parent.insertBefore(node, after);
+        const children = (parent as unknown as { children?: ArrayLike<Node> }).children;
+        const attached = node.parentNode === parent ||
+          (!!children && Array.from(children).includes(node as unknown as Node));
+        if (!attached || node.nextSibling !== after) parent.insertBefore(node, after);
       }
 
       entries = new Map(next.map((entry) => [entry.key, entry]));

@@ -392,7 +392,11 @@ fn every_placement_means_the_same_on_a_note_upon_a_note() {
         // its placement, which is the whole point of the loop — so this one gets
         // its width from a name below, and the refusal for a band that has none is
         // `body_streams.rs`'s business and is fenced there.
-        let width = if place == "גוף" { ", רוחב: 30%" } else { "" };
+        let width = if place == "גוף" {
+            ", רוחב: 30%"
+        } else {
+            ""
+        };
         let flat =
             format!("#ערוץ(\"ז\", מיקום: \"{place}\"{width})\nטקסט#הערה(ערוץ: \"ז\")[אלף] וסוף.");
         let nested = format!(

@@ -193,6 +193,11 @@
   document: "סוף",
   // A companion volume — its own sheet and its own page count. See `_ch_places`.
   file: "קובץ",
+  // The page body, beside the text. #79 — and the placement the engine has to
+  // read off the declaration itself, because a band is a second layout of the
+  // document and this engine is what decides to lay one out. English is what a
+  // writer of an English sefer writes, so it belongs here with the rest.
+  body: "גוף",
   // A band above the text, and the edges beside it. `side` is **not** repeated
   // here: it is above, where it has been since a region could lay its channels
   // out side by side, and it is the same word for the same idea — beside. One
@@ -4549,7 +4554,7 @@
 // One line on purpose: `enginefacts.test.mjs` reads this list off the prelude by
 // taking the quoted strings on the declaration, and a tuple broken over several
 // lines reads as an empty one — a fence that silently stops comparing.
-#let _ch_places = ("רגל", "למעלה", "צד", "חוץ", "פנים", "ימין", "שמאל", "סוף_מדור", "סוף", "קובץ")
+#let _ch_places = ("רגל", "למעלה", "צד", "חוץ", "פנים", "ימין", "שמאל", "סוף_מדור", "סוף", "קובץ", "גוף")
 // A knob of a channel, and where the shared renderer reads it: `_ap_pick` wants
 // knob-major dictionaries keyed by the group, and a channel's record is
 // channel-major. `כותרת` is singular on a channel and plural in the renderer for
@@ -5928,6 +5933,11 @@
 // ============================================================
 #let _ch_own = (
   "מקור", "מיקום", "אזור", "גובה", "גלישה",
+  // How wide the band is when מיקום is "גוף" — a length, or a share of the text
+  // area. The one knob a body placement cannot do without: the engine takes the
+  // width off the page before it lays the body out, so a band that said nothing
+  // would leave no room for itself. See זרם_גוף on #מסמך. (#79)
+  "רוחב",
   "מספור", "גודל", "סגנון", "צבע", "טורים", "כותרת", "הקטנה_מזערית",
   // What stands at the head of an entry — the number, the dibbur hamaschil and
   // the four addresses — plus how an address is set and what words it prints.
@@ -7484,6 +7494,23 @@
   // always has somewhere to go. `none` = reserve nothing (correct for documents
   // that only use native footnotes / endnotes, which need no reserve at all).
   אזור_הערות: none,
+  // זרם_גוף — the channel this layout is the **page-body band** for, and the
+  // one parameter here a writer never writes.
+  //
+  // #79. A stream beside the text, rather than under it: the band is its own
+  // document, laid out at its own width, and the engine draws its pages beside
+  // the body's — so the stream keeps its column down every page because it *is*
+  // the column, not because anything is threading it. Measured on identical
+  // words, that shape is the **cheaper** one: the page foot rebuilds the notes
+  // apparatus per page and a band does not have one at all.
+  //
+  // So this compile is the band: the body is laid out and hidden, which
+  // registers every note exactly as the body compile does — the same trick
+  // `כרך_נפרד` uses for a volume of its own — and the channel's entries are
+  // then rendered where the body would have been. The engine sets it, and sets
+  // the page geometry beside it; nothing else does, because a band that a
+  // writer can ask for by hand is a document with no text in it.
+  זרם_גוף: none,
   // What an undeclared fixed region does when its notes outgrow it, and how
   // many continuation leaves may pass before each one carries a small notice
   // saying the spill continues. `בררת_גלישה` takes a גלישה-style list; a
@@ -7784,7 +7811,32 @@
   // Lists and tables are configured at their creation site inside the #רשימה /
   // #ממוספרת / #טבלה commands (a `set` in a `show list`/`show table` rule styles
   // only *nested* elements, never the matched one, so it can't be used here).
-  let laid = if טורים > 1 { columns(טורים, body) } else { body }
+  let laid = if זרם_גוף != none {
+    // The band: the body's **words** go, its notes stay.
+    //
+    // `hide(body)` was the first version and it was wrong in the way that
+    // matters: hiding content leaves its space, so the band document was as
+    // many pages as the sefer and every entry in it was dumped onto the last
+    // one — a stream of commentary comically out of proportion to the text it
+    // comments on. Measured, then read off the theory: what has to go is the
+    // text, not the notes, and a scoped `show regex` is how this file already
+    // says that (see `מניעת_יתומים` below, which repairs a word rather than
+    // removing it).
+    //
+    // The notes survive because they are not text: each call lays out an inline
+    // registration, and the apparatus that renders the entries reads what the
+    // registration stored rather than re-reading the flow. That is what makes
+    // the band's numbering the body's numbering.
+    //
+    // `.+` and not `.`, measured: a rule per **character** made Typst's line
+    // layout panic on a real sefer (`bounded inline layout is incomplete`) with
+    // several thousand one-character items to fit on a line. One item per run.
+    { show regex(".+"): none; body }
+  } else if טורים > 1 {
+    columns(טורים, body)
+  } else {
+    body
+  }
   // A one-letter word in Hebrew is a preposition — ו, ב, ל, ה, כ, מ, ש — and
   // typography does not leave one hanging at the end of a line: it belongs to
   // the word after it, and separated it reads as a typing error. Making the
@@ -7828,39 +7880,55 @@
     // part of this one, which is what makes it a separate volume.
     // The last section has no siman after it to close it, so the document does.
     _cn_section_dump()
-    for place in ("סוף", "קובץ") {
-      // A companion held for a file of its own prints nothing here. It is not
-      // dropped — every note in it is still filed, still numbered, still
-      // queryable — it is simply not part of *this* document.
-      if place == "קובץ" and כרך_נפרד { continue }
-      // The regions declared with `#אזור`…
-      let want = t.סדר_אזורים.filter(rg => (
-        _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) == place
-      ))
-      // …and the channels that named no region at all. **Such a channel is its
-      // own region** — that is what `_ch_region` answers and what `_ch_note`
-      // files it under — so walking only the declared ones lost them. A note
-      // sent to the end of the sefer by `#ערוץ("ביאורים", מיקום: "סוף")` alone
-      // was filed correctly, numbered correctly, queryable, and **never drawn**:
-      // a marker in the body pointing at nothing, with no complaint.
-      //
-      // It is the same fault the declared regions had, one layer out, and it
-      // survived the first fix because that one was written against `#אזור`
-      // rather than against *what a placement means*.
-      for c in t.סדר {
-        let rg = _ch_region(t, c)
-        // A channel pointed into a declared region takes that region's
-        // placement, and the loop above has already decided about it.
-        if rg in t.אזורים { continue }
-        if _val(_ch_rec(t, c).at("מיקום", default: "רגל")) != place { continue }
-        if not want.contains(rg) { want.push(rg) }
+    // …unless this layout is a band (#79). A band is one channel, said in
+    // `זרם_גוף`, and anything else it printed would be printed twice: the body
+    // compile already draws every region the document asks for, and a band that
+    // re-drew them would composite the same notes onto the same sheet.
+    if זרם_גוף == none {
+      for place in ("סוף", "קובץ") {
+        // A companion held for a file of its own prints nothing here. It is not
+        // dropped — every note in it is still filed, still numbered, still
+        // queryable — it is simply not part of *this* document.
+        if place == "קובץ" and כרך_נפרד { continue }
+        // The regions declared with `#אזור`…
+        let want = t.סדר_אזורים.filter(rg => (
+          _val(_rg_rec(t, rg).at("מיקום", default: "רגל")) == place
+        ))
+        // …and the channels that named no region at all. **Such a channel is its
+        // own region** — that is what `_ch_region` answers and what `_ch_note`
+        // files it under — so walking only the declared ones lost them. A note
+        // sent to the end of the sefer by `#ערוץ("ביאורים", מיקום: "סוף")` alone
+        // was filed correctly, numbered correctly, queryable, and **never drawn**:
+        // a marker in the body pointing at nothing, with no complaint.
+        //
+        // It is the same fault the declared regions had, one layer out, and it
+        // survived the first fix because that one was written against `#אזור`
+        // rather than against *what a placement means*.
+        for c in t.סדר {
+          let rg = _ch_region(t, c)
+          // A channel pointed into a declared region takes that region's
+          // placement, and the loop above has already decided about it.
+          if rg in t.אזורים { continue }
+          if _val(_ch_rec(t, c).at("מיקום", default: "רגל")) != place { continue }
+          if not want.contains(rg) { want.push(rg) }
+        }
+        for rg in want {
+          if shown.contains(rg) { continue }
+          // The sheet is `_rg_show`'s to open — see `_rg_open`, which the
+          // writer's own `#הצג_אזור` goes through as well.
+          _rg_show(rg, auto)
+        }
       }
-      for rg in want {
-        if shown.contains(rg) { continue }
-        // The sheet is `_rg_show`'s to open — see `_rg_open`, which the writer's
-        // own `#הצג_אזור` goes through as well.
-        _rg_show(rg, auto)
-      }
+    }
+    // The band, when this layout *is* one (#79). Rendered here rather than by
+    // the writer's own `#הצג_אזור` because there is nothing to call it from:
+    // this document is the body, hidden, and its only output is the channel's
+    // own entries. The channel named by זרם_גוף is its own region — it declared
+    // none — so `_rg_show` reads exactly the entries the body compile filed and
+    // numbers them on the same sequence the markers in the text were numbered
+    // from, which is the property that makes a band legible at all.
+    if זרם_גוף != none {
+      _rg_show(זרם_גוף, auto)
     }
   }
   // After the body, and only ever after it: pages for whatever the side column

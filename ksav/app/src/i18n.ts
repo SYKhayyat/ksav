@@ -591,6 +591,9 @@ const HE: Dict = {
   "regionValue.section": "סוף המדור",
   "regionValue.document": "סוף הספר",
   "regionValue.file": "כרך נלווה",
+  // #79 — the page body, beside the text. Named beside the footer rather than
+  // than "the body of the sefer", which already means the region that holds it.
+  "regionValue.body": "גוף העמוד",
   "regionValue.stacked": "זה תחת זה",
   "regionValue.side": "זה לצד זה",
   "regionValue.compress": "דחיסה",
@@ -2109,6 +2112,9 @@ const EN: Dict = {
   "regionValue.section": "The end of the section",
   "regionValue.document": "The back of the sefer",
   "regionValue.file": "A companion volume",
+  // #79 — the page body, beside the text. Beside the foot, because that is the
+  // distinction: the same notes, printed in the text area instead of under it.
+  "regionValue.body": "The body of the page",
   "regionValue.stacked": "One above the other",
   "regionValue.side": "Side by side",
   "regionValue.compress": "Compress",

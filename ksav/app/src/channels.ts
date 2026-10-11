@@ -66,6 +66,13 @@ export const PLACEMENTS = [
   "סוף_מדור",
   "סוף",
   "קובץ",
+  // #79 — the page body, beside the text. The engine lays a band out as its own
+  // document and composites it onto the sheet, so this one is narrower than the
+  // others: it also wants `רוחב`, and there is no chooser for it yet. It is here
+  // because the fence holds this list against the prelude's `_ch_places` in both
+  // directions, and a placement the engine reads and the editor cannot write is
+  // an arrangement reachable only by typing the line.
+  "גוף",
 ] as const;
 export type Placement = (typeof PLACEMENTS)[number];
 
@@ -166,6 +173,13 @@ const EN_VALUES: Record<string, string> = {
   // in words until it did; the caveat retired itself the moment `PLACEMENTS`
   // grew, which is what that mechanism was for.
   קובץ: "file",
+  // #79 — the page body, beside the text. The engine lays a band out as its own
+  // document and composites it onto the sheet, so this placement is narrower
+  // than the others: it also wants `רוחב`, and there is no chooser for it yet.
+  // It is spelled here because `enginefacts.test.mjs` holds this table against
+  // the prelude's `_en_values`, and a placement the editor writes in English and
+  // the prelude cannot read stops the compile at the moment somebody uses it.
+  גוף: "body",
   // גלישה · the overflow moves, in the order a region tries them.
   דחיסה: "compress",
   רצף: "run_in",

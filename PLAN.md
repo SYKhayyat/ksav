@@ -229,7 +229,23 @@ still right.
   the text run and failed, because an apparatus entry prints its number as a **separate run
   at a smaller size** — so it reads `Line::reading`, which is the line as a reader sees it.
 
-- [~] #79 can a stream occupy the **page body**? (from #77, from #15) — **Question 2 answered
+- [x] #79 can a stream occupy the **page body**? — **Shaul decided: build it** (*"lets build
+  the possibility. the user should be able to do it if he wants"*), and the measurement had
+  already removed the objection: the body shape is the **cheaper** one by ~4.7×, because the
+  foot rebuilds the notes apparatus per page and a band has none. Built as `engine/src/bodystream.rs`:
+  `#ערוץ("מקורות", מיקום: "גוף", רוחב: 30%)` and the engine lays the body on a page the bands are
+  already taken out of, lays each band as its own document, and **composites page `i` beside page
+  `i`** — so each flow continues in the same position because each flow *is* a position, with
+  nothing threading anything. A band is the same source read a second time with `זרם_גוף` on
+  `#מסמך`, so its numbering is the body's numbering by construction. **Thirteen fences,
+  mutation-checked twice**: removing the composite, and taking `רוחב`'s share of the paper
+  instead of the writing width, each turns eleven of them red. **Three traps, all found by
+  running it:** `hide(body)` keeps the body's *pagination*, so the band was as many pages as the
+  sefer and every entry landed on the last one (the body's **words** have to go, not its notes);
+  a band given the document's margins on both sides has a **negative** text area on a 30% band
+  and Typst panics with *bounded inline layout is incomplete*; and a `Named` node's value is its
+  **third** child, because reading the second reads the colon and a placement of `":"` matches no
+  placement — silently, in a declaration. (from #77, from #15) — **Question 2 answered
   by measurement, and the measurement inverts the premise. Question 1 is the real work.**
   The issue predicted *"N streams is N layouts, and the editor is 59ms from a keystroke"* —
   i.e. that the body shape is the expensive one. Measured on identical words, **one footer

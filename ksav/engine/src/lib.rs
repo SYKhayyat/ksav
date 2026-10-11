@@ -20,6 +20,9 @@ use typst_as_lib::TypstEngine;
 use typst_layout::PagedDocument;
 
 pub mod assets;
+/// #79 — a stream in the page body, laid out beside the text as its own document
+/// and composited onto the sheet by index.
+pub mod bodystream;
 /// Reading the Source Packet Girsa put on the clipboard — the other end of
 /// spec.md §10.2's Ctrl+C, which had a careful producer and no consumer.
 #[cfg(not(target_arch = "wasm32"))]
@@ -2055,6 +2058,17 @@ fn prelude_text() -> String {
 /// from it: `אזור_הערות` reserves space at the foot of the page only when the
 /// document actually uses the per-page apparatus.
 fn show_rule(body: &str, cfg: &DocConfig) -> String {
+    show_rule_with(body, cfg, None)
+}
+
+/// The `#show:` rule, which is where the engine's configuration reaches the
+/// document.
+///
+/// `band_of` is the channel this layout is a **page-body band** for (#79) — see
+/// `bodystream`. It is the one parameter here the engine sets and a writer never
+/// writes, because a band a document could ask for by hand is a document with no
+/// text in it.
+fn show_rule_with(body: &str, cfg: &DocConfig, band_of: Option<&str>) -> String {
     let dir = if cfg.dir == "ltr" { "ltr" } else { "rtl" };
     let columns = cfg.columns.max(1);
     format!(
@@ -2073,7 +2087,8 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
          מניעת_יתומים: {orphans}, רציף: {continuous}, \
          כרך_נפרד: {separate_volume}, \
          יישור: {justify}, ריווח_שורות: {leading}em, ריווח_פסקאות: {para}em, \
-         הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region})",
+         הזחה_ראשונה: {indent}em, טורים: {columns}, אזור_הערות: {region}, \
+         זרם_גוף: {band})",
         font = typst_str(&cfg.font),
         size = cfg.size_pt,
         margin = cfg.margin_cm,
@@ -2129,6 +2144,14 @@ fn show_rule(body: &str, cfg: &DocConfig) -> String {
         // it, and Rust is the half of this that has to turn the writer's `15%`
         // into the centimetres it takes off the bottom margin.
         region = reserve_region_expr(body, cfg),
+        // The band's own channel, or nothing for the body. Written rather than
+        // interpolated blank, because an empty string is a channel named "" to
+        // the prelude and a band with no name would take every entry in the
+        // document.
+        band = match band_of {
+            Some(name) => typst_str(name),
+            None => "none".to_string(),
+        },
     )
 }
 
@@ -2443,9 +2466,19 @@ fn grow_inline_reserve(body: &str, need_cm: f64) -> String {
 }
 
 pub fn main_source(body: &str, cfg: &DocConfig) -> String {
+    main_source_with(body, cfg, None)
+}
+
+/// [`main_source`], as the band for one channel.
+///
+/// The band is the same document read a second time, so the only thing that
+/// differs is the `זרם_גוף` the rule hands `#מסמך` — which is what makes the
+/// band's numbering the body's numbering without anything having to agree about
+/// it. See `bodystream`.
+pub(crate) fn main_source_with(body: &str, cfg: &DocConfig, band_of: Option<&str>) -> String {
     format!(
         "{IMPORT_LINE}\n{rule}\n\n{body}\n",
-        rule = show_rule(body, cfg),
+        rule = show_rule_with(body, cfg, band_of),
         body = inject_reserve_into_writer_masmer(body, &reserve_region_expr(body, cfg)),
     )
 }
@@ -3205,6 +3238,27 @@ pub fn compile_companion(
 
 /// `compile_doc`, with the request's images and fonts available to the document.
 pub fn compile_doc_with(
+    body: &str,
+    cfg: &DocConfig,
+    assets: &Assets,
+) -> Result<PagedDocument, Vec<Diagnostic>> {
+    // A body stream (#79) turns one layout into three: the body on a page the
+    // bands are already taken out of, and each band on its own page. The
+    // composition lives **outside** the layout, because the band compiles the
+    // same source — so a composition inside it would compose a band onto a band
+    // until the stack ran out, which is exactly what it did the first time.
+    match layout_document(body, cfg, assets) {
+        Ok(doc) => bodystream::compose(body, cfg, assets, doc),
+        Err(diags) => Err(diags),
+    }
+}
+
+/// Lay the document out, with no page-body band composed onto it.
+///
+/// The band's own body compile and the narrowed body it is composed beside both
+/// go through here rather than through `compile_doc_with`, and that is the whole
+/// reason this is two functions.
+fn layout_document(
     body: &str,
     cfg: &DocConfig,
     assets: &Assets,

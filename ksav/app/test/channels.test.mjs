@@ -255,7 +255,10 @@ export async function run() {
   // really about is that they are **values on one axis** and not commands — the
   // number growing is the axis widening, which is the point, and a number that
   // could drift silently would stop saying so.
-  ok("channels: one axis of placements, not eighteen commands", PLACEMENTS.length === 10);
+  // Eleven now, one of them #79's `גוף`: the page body a band is laid out in. The
+  // number is the assertion — it is what says *widening of one axis*, and a number that
+  // drifted silently would stop saying it.
+  ok("channels: one axis of placements, not eighteen commands", PLACEMENTS.length === 11);
   ok(
     "channels: every placement round-trips through a written line",
     PLACEMENTS.every((p) => {

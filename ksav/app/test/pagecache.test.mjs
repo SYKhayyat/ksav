@@ -342,6 +342,47 @@ export async function run() {
   }
 
   {
+    // A pre-SHA engine ignores the new digest and omits the capability. The
+    // client must fall back to byte-full requests once, rather than trust a
+    // hash-only request that misses and silently pay a retry on every compile.
+    const cache = new CompileCache();
+    const asset = { assets: [{ name: "logo.png", hash: "sha", data: "AAA" }], fonts: [] };
+    const sent = [];
+    const oldEngine = async (payload) => {
+      sent.push(payload);
+      return { ok: true, pages_svg: ["A"], pages_hash: ["a"], pdf_base64: null, diagnostics: [], typst_source: "" };
+    };
+    await cache.compile(oldEngine, asset);
+    await cache.compile(oldEngine, asset);
+    check("an old engine gets no hidden asset retry", sent.length, 2);
+    ok("the fallback keeps bytes on every legacy request", sent.every((p) => p.assets[0].data === "AAA"));
+  }
+
+  {
+    // Conversely, the capability is what authorizes stripping bytes. It is not
+    // inferred from a successful first compile, because an old engine also
+    // succeeds while failing to retain the SHA key.
+    const cache = new CompileCache();
+    const asset = { assets: [{ name: "logo.png", hash: "sha", data: "AAA" }], fonts: [] };
+    const sent = [];
+    const modernEngine = async (payload) => {
+      sent.push(payload);
+      return {
+        ok: true,
+        pages_svg: ["A"],
+        pages_hash: ["a"],
+        pdf_base64: null,
+        diagnostics: [],
+        typst_source: "",
+        asset_cache: "sha256",
+      };
+    };
+    await cache.compile(modernEngine, asset);
+    await cache.compile(modernEngine, asset);
+    ok("a capable engine receives a hash-only second request", !sent[1].assets[0].data);
+  }
+
+  {
     // An html export carries no pages at all. Nothing here may choke on that.
     const cache = new CompileCache();
     const send = async () => ({

@@ -96,6 +96,14 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
 }
 
 #[test]
+fn compile_responses_advertise_the_sha_asset_cache_capability() {
+    let request = serde_json::json!({ "body": "שלום" });
+    let response: serde_json::Value =
+        serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap();
+    assert_eq!(response["asset_cache"], "sha256");
+}
+
+#[test]
 fn a_headerless_asset_is_cached_only_under_the_digest_it_earns() {
     let supplied = serde_json::json!({
         "assets": [{ "name": "local.png", "data": PNG_B64 }]
@@ -157,6 +165,32 @@ fn the_content_digest_matches_the_client() {
         asset_digest("not base64").is_none(),
         "malformed input has no digest"
     );
+}
+
+/// The table is consumed by this suite and by `app/test/docs.test.mjs`. Keeping
+/// the accepted and rejected spellings in one file prevents the two language
+/// tests from quietly growing different notions of valid base64.
+#[test]
+fn the_shared_base64_vectors_have_one_acceptance_boundary() {
+    let vectors: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../asset-digest-vectors.json"
+    ))
+    .expect("shared asset vectors are valid JSON");
+    assert!(vectors.len() >= 16, "the boundary corpus must stay meaningful");
+    for vector in vectors {
+        let data = vector["data"].as_str().expect("vector data");
+        let valid = vector["valid"].as_bool().expect("vector validity");
+        let digest = asset_digest(data);
+        assert_eq!(digest.is_some(), valid, "{}: {data:?}", vector["name"]);
+        if valid {
+            assert_eq!(
+                digest.as_deref(),
+                vector["digest"].as_str(),
+                "{}: digest",
+                vector["name"]
+            );
+        }
+    }
 }
 
 /// A hash the engine did not compute cannot be installed in the cache.

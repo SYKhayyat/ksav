@@ -470,7 +470,11 @@ fn decode_payload(data: &str) -> Option<Vec<u8>> {
         Some(i) => &data[i + 8..],
         None => data,
     };
-    let payload = payload.trim();
+    // Rust and JavaScript have different Unicode whitespace sets. The wire
+    // grammar uses exactly ASCII outer whitespace; internal whitespace, mixed
+    // alphabets, partial padding and non-zero trailing bits are rejected by all
+    // four strict base64 engines below and by docs.ts.
+    let payload = payload.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}']);
     use base64::engine::general_purpose as g;
     g::STANDARD
         .decode(payload)

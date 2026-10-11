@@ -6,8 +6,10 @@
 // nothing.
 
 import { check, ok, notOk, rejects, resetStorage } from "./harness.mjs";
+import { readFileSync } from "node:fs";
 import * as docs from "../.tmp-test/docs.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
+import * as store from "../.tmp-test/store.mjs";
 import { StorageFullError } from "../.tmp-test/store.mjs";
 
 export async function run() {
@@ -204,6 +206,18 @@ export async function run() {
     check("…and round-trips", parsed.assets.length, 1);
     check("…keeping the title", parsed.title, "T");
 
+    const legacyFile = docs.serializeDoc({
+      title: "legacy",
+      body: "b",
+      assets: [{ name: "a.png", data: "YQ==", kind: "image", hash: "1-1r9wi7g-d2eron" }],
+    });
+    check(
+      "a .ksav save rewrites the legacy asset key",
+      JSON.parse(legacyFile).assets[0].hash,
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    );
+    notOk("…and does not serialize the old key", legacyFile.includes("1-1r9wi7g-d2eron"));
+
     // Custom commands travel with the document so a shared .ksav compiles for its
     // reader, not only its author.
     {
@@ -349,7 +363,70 @@ export async function run() {
     );
     check("a malformed payload still produces a safe wire entry", docs.requestAssets([
       { name: "bad", data: "not base64", kind: "image" },
-    ]).assets[0].hash.length, 64);
+    ]).assets[0].hash, "");
+
+    // Rust consumes the same corpus from the repository root. These are exact
+    // acceptance-boundary vectors: mixed alphabets and non-zero pad bits must
+    // be rejected in both implementations, not merely decode to similar bytes
+    // in one runtime's permissive base64 helper.
+    const vectors = JSON.parse(
+      readFileSync(new URL("../../asset-digest-vectors.json", import.meta.url), "utf8"),
+    );
+    for (const vector of vectors) {
+      const digest = docs.assetDigest(vector.data);
+      check(
+        `shared base64 vector: ${vector.name}`,
+        digest !== null,
+        vector.valid,
+      );
+      if (vector.valid) check(`shared digest: ${vector.name}`, digest, vector.digest);
+    }
+  }
+
+  // A v2 local record and its old asset bucket are a real storage migration,
+  // not just a parsed file. Opening hydrates and normalizes the SHA key; saving
+  // refiles the blob. Old buckets remain until the normal unreferenced-asset
+  // sweep, which must retain a key while another unmigrated document uses it.
+  {
+    await resetStorage();
+    const oldHash = "1-1r9wi7g-d2eron";
+    const id = "legacy-local";
+    await store.put(store.ASSETS, oldHash, { data: "YQ==" });
+    await store.put(store.DOCS, id, {
+      id,
+      title: "legacy",
+      body: "b",
+      assets: [{ name: "a.png", kind: "image", hash: oldHash }],
+      updated: 1,
+    });
+    await store.put(store.DOCS, "other-legacy", {
+      id: "other-legacy", title: "other", body: "b", updated: 1,
+      assets: [{ name: "a.png", kind: "image", hash: oldHash }],
+    });
+    localStorage.setItem("ksav.library", JSON.stringify([{ id, title: "legacy", updated: 1 }]));
+    localStorage.setItem("ksav.currentDoc", id);
+    const opened = await docs.init("s", "Untitled");
+    check("a legacy local blob is hydrated", opened.assets[0].data, "YQ==");
+    check(
+      "hydration normalizes its key",
+      opened.assets[0].hash,
+      "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    );
+    await docs.putDoc(opened);
+    const stored = await store.get(store.DOCS, id);
+    check("the stored record keeps the SHA key", stored.assets[0].hash, opened.assets[0].hash);
+    check("the new blob exists", (await store.get(store.ASSETS, opened.assets[0].hash)).data, "YQ==");
+    await docs.collectAssets();
+    check("an unmigrated document keeps the old shared blob", (await store.get(store.ASSETS, oldHash)).data, "YQ==");
+    await docs.deleteDoc("other-legacy");
+    check("the stale legacy blob is cleaned", await store.get(store.ASSETS, oldHash), null);
+    check("migration cleanup keeps the new blob", (await docs.getDoc(id)).assets[0].data, "YQ==");
+
+    const broken = await docs.createDoc("broken", "b", [
+      { name: "one", kind: "image", data: "not base64" },
+      { name: "two", kind: "image", data: "also broken" },
+    ]);
+    check("malformed assets survive independently in storage", (await docs.getDoc(broken.id)).assets.map((a) => a.data), ["not base64", "also broken"]);
   }
 
   // ------------------------------------------------------------ ids

@@ -39,9 +39,10 @@ export interface DocAsset {
    * base64, optionally with a `data:` URL prefix.
    *
    * Always present in memory and on a `.ksav` file. **Absent in the stored
-   * record**, where the bytes live in the `assets` store under `hash` — see
-   * `fileAssets`. Empty here means the blob has gone missing, which is a
-   * diagnostic rather than a reason to drop the asset.
+   * record** for a valid payload, where the bytes live in the `assets` store
+   * under `hash` — see `fileAssets`. An undecodable payload stays inline so a
+   * later diagnostic or export does not erase it. Empty here means the blob has
+   * gone missing, which is a diagnostic rather than a reason to drop the asset.
    */
   data: string;
   kind: "image" | "font";
@@ -306,51 +307,58 @@ export async function getDoc(id: string): Promise<KsavDoc | null> {
 interface StoredAsset {
   name: string;
   kind: DocAsset["kind"];
-  hash: string;
+  hash?: string;
+  /** Undecodable bytes stay inline; they must never share an invented digest. */
+  data?: string;
 }
 
 async function hydrateAssets(assets: DocAsset[]): Promise<DocAsset[]> {
   const wanted = assets.filter((a) => !a.data && a.hash);
-  if (!wanted.length) return assets;
-  const blobs = await store.getMany<{ data: string }>(
-    ASSETS,
-    wanted.map((a) => a.hash!),
-  );
+  const blobs = wanted.length
+    ? await store.getMany<{ data: string }>(ASSETS, wanted.map((a) => a.hash!))
+    : [];
   const byHash = new Map<string, string>();
   wanted.forEach((a, i) => {
     if (blobs[i]?.data) byHash.set(a.hash!, blobs[i]!.data);
   });
-  return assets.map((a) =>
+  return assets.map((a) => {
     // An asset whose blob has gone is kept as an entry with no bytes rather than
     // dropped: the document still refers to it by name, and a missing image is a
     // diagnostic the writer can act on. Silently removing it would leave
     // `#תמונה("logo.png")` pointing at nothing with no trace of why.
-    a.data || !a.hash ? a : { ...a, data: byHash.get(a.hash) ?? "" },
-  );
+    const data = a.data || (a.hash ? byHash.get(a.hash) ?? "" : "");
+    const digest = data ? assetDigest(data) : null;
+    return digest ? { ...a, data, hash: digest } : { ...a, data };
+  });
 }
 
 /**
- * Write a document's asset bytes, and give back the thin records to store.
+ * Write a document's valid asset bytes, and give back the thin records to store.
  *
  * Assets first, document second, and that order is the whole safety argument: if
  * the blob write fails, the document record still points at the previous version
  * of itself and nothing has been lost. The reverse order would commit a document
  * whose images are not there yet.
  *
- * A blob already under its hash is not rewritten. That is the point — the hash
+ * A blob already under its hash is not rewritten. An undecodable asset remains
+ * inline because no digest can truthfully identify it. That is the point — the hash
  * is of the content, so the same image attached to nine chapters is one write,
  * and an autosave 600 ms after a pause in typing writes a few hundred bytes of
  * document instead of 5.5 MB of base64 that did not change.
  */
 async function fileAssets(assets: DocAsset[]): Promise<StoredAsset[]> {
   if (!assets.length) return [];
-  const thin = assets.map((a) => ({ name: a.name, kind: a.kind, hash: assetHash(a) }));
+  const thin = assets.map((a): StoredAsset => {
+    const hash = assetDigest(a.data);
+    if (!a.data || hash === null) return { ...a };
+    return { name: a.name, kind: a.kind, hash };
+  });
   const have = new Set(await store.keys(ASSETS));
   const writes: [string, unknown][] = [];
   const seen = new Set<string>();
   assets.forEach((a, i) => {
     const hash = thin[i].hash;
-    if (have.has(hash) || seen.has(hash) || !a.data) return;
+    if (!hash || thin[i].data !== undefined || have.has(hash) || seen.has(hash)) return;
     seen.add(hash);
     writes.push([hash, { data: a.data }]);
   });
@@ -373,7 +381,13 @@ export async function putDoc(doc: KsavDoc): Promise<void> {
   upsert(entryFor(saved, existing?.fileName));
   // The stored record carries hashes, not megabytes. See `fileAssets`.
   const thin = await fileAssets(saved.assets);
-  return store.put(DOCS, saved.id, { ...saved, assets: thin });
+  await store.put(DOCS, saved.id, { ...saved, assets: thin });
+  // Refiling a legacy inline/blob key leaves the old key behind. Sweep after
+  // the new document is durable, so a failed save cannot delete its only blob;
+  // shared blobs remain because another document still references them.
+  await collectAssets().catch(() => {
+    /* cleanup is best effort; the saved document is already durable */
+  });
 }
 
 export async function setFileName(id: string, fileName: string | undefined): Promise<void> {
@@ -694,13 +708,22 @@ export function serializeDoc(doc: KsavDoc, fallbackCustom = ""): string {
   const config = ownPageSetup(doc.config);
   const hasConfig = Object.keys(config).length > 0;
   if (!doc.assets.length && !custom && !hasConfig) return doc.body; // the common case stays text
+  // `.ksav` is the durable interchange format, so do not write a legacy key
+  // back out merely because the file was opened by an older app. Assets with
+  // unreadable or absent bytes deliberately lose their key rather than making
+  // a hash-only claim that cannot be verified.
+  const assets = doc.assets.map((a) => {
+    const digest = a.data ? assetDigest(a.data) : null;
+    const { hash: _legacy, ...withoutHash } = a;
+    return digest ? { ...withoutHash, hash: digest } : withoutHash;
+  });
   return JSON.stringify(
     {
       format: FILE_MAGIC,
       version: 1,
       title: doc.title,
       body: doc.body,
-      assets: doc.assets,
+      assets,
       ...(custom ? { customCommands: custom } : {}),
       ...(hasConfig ? { config } : {}),
     },
@@ -787,31 +810,77 @@ const assetHashes = new WeakMap<DocAsset, string>();
 function assetHash(a: DocAsset): string {
   const cached = assetHashes.get(a);
   if (cached) return cached;
-  const hash = sha256(decodeAssetData(a.data));
+  // Keep a wire hash even for a malformed asset: the engine will name and
+  // refuse its bytes, and the request shape stays stable. `assetDigest` itself
+  // is the accept/reject answer shared with the engine.
+  const hash = assetDigest(a.data) ?? "";
   assetHashes.set(a, hash);
   return hash;
 }
 
-/** Decode the same four base64 spellings accepted by the engine. */
-function decodeAssetData(data: string): Uint8Array {
+/** Decode the same base64 grammar accepted by the engine, or reject it. */
+function decodeAssetData(data: string): Uint8Array | null {
   const marker = data.indexOf(";base64,");
-  let payload = marker >= 0 ? data.slice(marker + 8) : data;
-  payload = payload.trim().replaceAll("-", "+").replaceAll("_", "/");
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(payload)) return new Uint8Array();
-  const padding = payload.indexOf("=");
-  const unpadded = padding < 0 ? payload : payload.slice(0, padding);
-  if (unpadded.length % 4 === 1 || (padding >= 0 && payload.length % 4 !== 0)) {
-    return new Uint8Array();
+  const payload = (marker >= 0 ? data.slice(marker + 8) : data).replace(/^[ \t\n\r\v\f]+|[ \t\n\r\v\f]+$/g, "");
+  let standard = false;
+  let urlSafe = false;
+  let firstPadding = -1;
+  for (let i = 0; i < payload.length; i++) {
+    const c = payload.charCodeAt(i);
+    if (c === 61 /* = */) {
+      if (firstPadding < 0) firstPadding = i;
+      continue;
+    }
+    if (firstPadding >= 0) return null;
+    if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57)) continue;
+    if (c === 43 || c === 47) standard = true;
+    else if (c === 45 || c === 95) urlSafe = true;
+    else return null;
   }
-  try {
-    const binary = atob(unpadded + "=".repeat((4 - (unpadded.length % 4)) % 4));
-    return Uint8Array.from(binary, (c) => c.charCodeAt(0));
-  } catch {
-    // The engine will report the named asset as malformed. Hashing an empty
-    // byte sequence here cannot create a cache entry: the engine refuses empty
-    // payloads before it installs anything.
-    return new Uint8Array();
+  if (standard && urlSafe) return null;
+
+  const unpadded = firstPadding < 0 ? payload.length : firstPadding;
+  const padding = payload.length - unpadded;
+  if (padding > 2 || unpadded % 4 === 1) return null;
+  if (padding > 0 && (payload.length % 4 !== 0 || padding !== (4 - (unpadded % 4)) % 4)) {
+    return null;
   }
+  const value = (c: number): number | null => {
+    if (c >= 65 && c <= 90) return c - 65;
+    if (c >= 97 && c <= 122) return c - 97 + 26;
+    if (c >= 48 && c <= 57) return c - 48 + 52;
+    if (c === 43 || c === 45) return 62;
+    if (c === 47 || c === 95) return 63;
+    return null;
+  };
+  if (unpadded > 0) {
+    const last = value(payload.charCodeAt(unpadded - 1));
+    if (last === null) return null;
+    if ((unpadded % 4 === 2 && (last & 0x0f) !== 0) || (unpadded % 4 === 3 && (last & 0x03) !== 0)) {
+      return null;
+    }
+  }
+  const out = new Uint8Array(Math.floor((unpadded * 6) / 8));
+  let at = 0;
+  let accumulator = 0;
+  let bits = 0;
+  for (let i = 0; i < unpadded; i++) {
+    const next = value(payload.charCodeAt(i));
+    if (next === null) return null;
+    accumulator = (accumulator << 6) | next;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[at++] = (accumulator >> bits) & 0xff;
+    }
+  }
+  return out;
+}
+
+/** SHA-256 digest, or null when the transport spelling is not accepted. */
+export function assetDigest(data: string): string | null {
+  const bytes = decodeAssetData(data);
+  return bytes ? sha256(bytes) : null;
 }
 
 /** SHA-256, kept synchronous so the wire shape and the storage path stay sync. */

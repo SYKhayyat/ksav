@@ -74,7 +74,7 @@ const SEAM = [
     file: "lib.rs",
     at: '"pages_hash": [],',
     ts: "CompileResult",
-    optional: ["html"],
+    optional: ["html", "asset_cache"],
   },
   {
     what: "an html compile that produced a document",
@@ -149,7 +149,7 @@ const SEAM = [
     // `/compile` reads identically whatever produced it. It carries no
     // fingerprints, no html, no missing assets and no page runs, because nothing
     // was laid out; `error` is the key it adds, and it is in `EXTRA_SENT`.
-    optional: ["pages_hash", "html", "missing_assets", "pages_lines", "pages_text", "note_markers"],
+    optional: ["pages_hash", "html", "missing_assets", "asset_cache", "pages_lines", "pages_text", "note_markers"],
   },
   {
     what: "linkify: the markup with its mareh mekomos linked",

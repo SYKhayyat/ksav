@@ -33,6 +33,17 @@ synchronous in TypeScript because asset requests and local asset storage are bot
 synchronous at their call sites; the per-object `WeakMap` still prevents repeated
 hashing during compile scheduling.
 
+The compile response now advertises `asset_cache: "sha256"`. A new client sends
+bytes until it sees that capability, then may send hash-only entries. A pre-SHA
+engine omits the field, so the client deliberately stays byte-full instead of
+confirming a SHA key that the old engine cannot retain and paying a hidden
+missing-asset retry on every request. The reverse pairing remains safe as well:
+the new engine never installs bytes under an old client's unverified short key;
+an old client receives the existing `missing_assets` answer and re-sends bytes,
+so its assets render but it should be upgraded to regain cache savings. This is
+an explicit compatibility downgrade, not a claim that the old cache protocol is
+safe to revive.
+
 The new insertion fence was mutation-checked: making every claimed digest
 acceptable made `bytes_sent_under_a_hash_that_is_not_theirs_do_not_poison_the_cache`
 fail, and storing under the claim instead of the earned digest was also exercised

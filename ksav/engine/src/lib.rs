@@ -3831,12 +3831,13 @@ pub fn compile_request(input_json: &str) -> String {
     // `{"format": "html"}` asks for the web export instead of a paged render.
     if v.get("format").and_then(|x| x.as_str()) == Some("html") {
         return match compile_html(body, &cfg, &assets) {
-            Ok(html) => serde_json::json!({ "ok": true, "html": html, "diagnostics": [], "missing_assets": missing_assets }),
+            Ok(html) => serde_json::json!({ "ok": true, "html": html, "diagnostics": [], "missing_assets": missing_assets, "asset_cache": "sha256" }),
             Err(diags) => serde_json::json!({
                 "ok": false,
                 "html": serde_json::Value::Null,
                 "diagnostics": diags,
                 "missing_assets": missing_assets,
+                "asset_cache": "sha256",
             }),
         }
         .to_string();
@@ -3964,6 +3965,10 @@ pub fn compile_request(input_json: &str) -> String {
         // Hashes the client thought were cached but the engine no longer holds;
         // it re-sends their bytes on the next compile.
         "missing_assets": missing_assets,
+        // New clients use this capability before omitting bytes. An older
+        // engine omits it, so they can safely fall back to sending bytes rather
+        // than entering a missing/retry round trip on every request.
+        "asset_cache": "sha256",
     })
     .to_string()
 }

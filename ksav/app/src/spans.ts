@@ -1177,7 +1177,7 @@ const CACHE: Scan[] = [];
  * and a hit must not pay it. Two different `Text` objects holding identical
  * content are simply two misses — never a wrong answer.
  */
-const KEYED = new WeakMap<object, Scan>();
+let KEYED = new WeakMap<object, Scan>();
 
 export function scanOf(key: object, text: () => string): Scan {
   const hit = KEYED.get(key);
@@ -1213,7 +1213,7 @@ export function scanOf(key: object, text: () => string): Scan {
  * bare `object`: this module is the one every other module depends on, and it
  * depends on nothing.
  */
-const TEXTS = new WeakMap<object, string>();
+let TEXTS = new WeakMap<object, string>();
 
 export function docTextOf(doc: { toString(): string } | string): string {
   // A string is already the answer, and it is not a legal `WeakMap` key.
@@ -1240,10 +1240,13 @@ export function scanDoc(doc: { toString(): string }): Scan {
   return scanOf(doc, () => docTextOf(doc));
 }
 
-/** Drop the memo. Only tests need this — a scan is a pure function of its text. */
+/** Drop every memo. Only tests need this — a scan is a pure function of its text. */
 export function clearScanCache(): void {
   CACHE.length = 0;
   DELIM_CACHE.length = 0;
+  KEYED = new WeakMap();
+  TEXTS = new WeakMap();
+  DELIM_KEYED = new WeakMap();
 }
 
 function scanUncached(text: string): Scan {
@@ -1433,7 +1436,7 @@ export function delimiters(text: string): Delimiters {
 }
 
 /** The delimiters of a CodeMirror document, paying for its text at most once. */
-const DELIM_KEYED = new WeakMap<object, Delimiters>();
+let DELIM_KEYED = new WeakMap<object, Delimiters>();
 
 export function delimitersOf(doc: { toString(): string }): Delimiters {
   const hit = DELIM_KEYED.get(doc);

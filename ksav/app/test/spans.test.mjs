@@ -545,6 +545,14 @@ export async function run() {
     check("and the first one is still right", spans.scan(a).nodes.length, 2);
     spans.clearScanCache();
     check("dropping the memo changes nothing about the answer", spans.scan(a).nodes.length, 2);
+
+    const doc = { toString: () => a };
+    const before = spans.scanDoc(doc);
+    spans.delimitersOf(doc);
+    spans.docTextOf(doc);
+    spans.clearScanCache();
+    ok("clearing the memo drops document-keyed scans", spans.scanDoc(doc) !== before);
+    check("and still drops document-keyed text", spans.docTextOf(doc), a);
   }
 
   {

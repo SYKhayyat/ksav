@@ -24,8 +24,14 @@
 // and for the same reason: it can be tested without a browser. The CodeMirror
 // wiring is in `deferred-lint.ts`.
 
-import { sectionAt, sectionEnd } from "./headings";
-import { langOf, matchGroup, scan as scanSpans, splitArgsRaw } from "./spans";
+import { headingsFromScan, sectionAt, sectionEnd, type HeadingInfo } from "./headings";
+import {
+  assertScanText,
+  langOf,
+  scan as scanSpans,
+  splitArgsRaw,
+  type Scan as SpanScan,
+} from "./spans";
 import {
   DEFAULT_NOTE_KIND,
   DEFER_BODY_COMMANDS,
@@ -146,13 +152,7 @@ export interface Scan {
   region: { from: number; to: number; innerFrom: number; innerTo: number } | null;
 }
 
-/** Positions inside a comment, so a scanner can skip them in one pass. */
-function inComment(text: string): (pos: number) => boolean {
-  const regions = scanSpans(text).comments;
-  return (pos) => regions.some((r) => pos >= r.from && pos < r.to);
-}
-
-// `matchGroup` comes from `spans.ts`, which is context-aware: a gershayim
+// The closer map comes from `spans.ts`, which is context-aware: a gershayim
 // inside a `[…]` body is an ordinary character (רש"י, שו"ע) and a `"` inside
 // `(…)` opens a real string. The private matcher it replaces had to pick one
 // rule for both and picked the first, so `#הערה_בשם("א)ב")` could not be read.
@@ -224,30 +224,29 @@ function argName(arg: string): string | null {
  * suite's sibling exists for, performed by the repair rather than the writer.
  */
 function callsOf(
-  text: string,
+  spans: SpanScan,
   names: readonly string[],
-  _isComment: (p: number) => boolean,
 ): { from: number; nameTo: number; hash: boolean }[] {
   // Comments are `spans.ts`'s business too — a `#גוף_הערה` inside `// …` is
   // prose about a command, and it has never been a call.
-  return scanSpans(text)
+  return spans
     .nodes.filter((n) => names.includes(n.name))
     .map((n) => ({ from: n.from, nameTo: n.nameTo, hash: n.hash }));
 }
 
 /** Every deferred-note marker, body and region in a document. */
-export function scan(text: string): Scan {
-  const isComment = inComment(text);
+export function scan(text: string, spans: SpanScan = scanSpans(text)): Scan {
+  assertScanText(text, spans);
   const refs: Ref[] = [];
   const defs: Def[] = [];
   let region: Scan["region"] = null;
 
-  for (const { from: start, nameTo: j, hash } of callsOf(text, REF_NAMES, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spans, REF_NAMES)) {
     const lang = langOf(text.slice(start, j).replace(/^#/, ""));
     const open = skipSpace(text, j);
     const ch = text[open];
     if (ch !== "(" && ch !== "[") continue;
-    const close = matchGroup(text, open);
+    const close = spans.closes.get(open);
     if (close == null) continue;
     const inner = text.slice(open + 1, close);
 
@@ -304,16 +303,16 @@ export function scan(text: string): Scan {
     });
   }
 
-  for (const { from: start, nameTo: j, hash } of callsOf(text, DEF_NAMES, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spans, DEF_NAMES)) {
     const lang = langOf(text.slice(start, j).replace(/^#/, ""));
     const open = skipSpace(text, j);
     if (text[open] !== "(" && text[open] !== "[") continue;
-    const close = matchGroup(text, open);
+    const close = spans.closes.get(open);
     if (close == null) continue;
     // The body follows the name group; a definition without one is half-typed.
     const bodyOpen = skipSpace(text, close + 1);
     if (text[bodyOpen] !== "[") continue;
-    const bodyClose = matchGroup(text, bodyOpen);
+    const bodyClose = spans.closes.get(bodyOpen);
     if (bodyClose == null) continue;
     const raw = text.slice(open + 1, close);
     const lead = raw.length - raw.trimStart().length;
@@ -331,11 +330,11 @@ export function scan(text: string): Scan {
     });
   }
 
-  const regionStarts = callsOf(text, REGION_NAMES, isComment);
+  const regionStarts = callsOf(spans, REGION_NAMES);
   if (regionStarts.length) {
     const { from: start, nameTo: j } = regionStarts[regionStarts.length - 1];
     const open = skipSpace(text, j);
-    const close = text[open] === "[" ? matchGroup(text, open) : null;
+    const close = text[open] === "[" ? spans.closes.get(open) ?? null : null;
     if (close != null) {
       region = { from: start, to: close + 1, innerFrom: open + 1, innerTo: close };
     }
@@ -674,26 +673,42 @@ function fileInSection(
   name: string | undefined,
   grouped: boolean,
   near: number,
-): { text: string; at: number } | null {
-  const h = sectionAt(text, near);
+  source: FilingSource,
+): { text: string; at: number; insertAt: number; definitionFrom: number } | null {
+  const h = sectionAt(text, near, source.headings);
   if (!h) return null;
-  const to = sectionEnd(text, h);
-  const s = scan(text);
+  const to = sectionEnd(text, h, source.headings);
+  const s = source.notes;
   const mine = { ...s, defs: s.defs.filter((d) => d.from >= h.from && d.to <= to) };
   const { after, before } = neighbours(mine, name, grouped);
   if (after) {
     const at = after.to;
-    return { text: text.slice(0, at) + "\n" + entry + text.slice(at), at: at + 1 };
+    return {
+      text: text.slice(0, at) + "\n" + entry + text.slice(at),
+      at: at + 1,
+      insertAt: at,
+      definitionFrom: at + 1,
+    };
   }
   if (before) {
     const at = text.lastIndexOf("\n", before.from - 1) + 1;
-    return { text: text.slice(0, at) + entry + "\n" + text.slice(at), at };
+    return {
+      text: text.slice(0, at) + entry + "\n" + text.slice(at),
+      at,
+      insertAt: at,
+      definitionFrom: at,
+    };
   }
   // The first body of this section: after its last words, before whatever
   // heading comes next.
   const end = h.from + text.slice(h.from, to).replace(/\s*$/, "").length;
   const insert = "\n\n" + entry;
-  return { text: text.slice(0, end) + insert + text.slice(end), at: end + 2 };
+  return {
+    text: text.slice(0, end) + insert + text.slice(end),
+    at: end + 2,
+    insertAt: end,
+    definitionFrom: end + 2,
+  };
 }
 
 /**
@@ -715,7 +730,32 @@ export function fileNewBody(
   home: BodyHome = "file",
   near = -1,
   companion = COMPANION,
-): { text: string; at: number; errand?: Errand } {
+): { text: string; at: number; errand?: Errand; insertAt?: number; definitionFrom?: number } {
+  return fileBody(text, entry, name, grouped, home, near, companion);
+}
+
+interface FilingSource {
+  text: string;
+  notes: Scan;
+  headings: HeadingInfo[];
+}
+
+function filingSource(text: string, includeHeadings = false): FilingSource {
+  if (!includeHeadings) return { text, notes: scan(text), headings: [] };
+  const spans = scanSpans(text);
+  return { text, notes: scan(text, spans), headings: headingsFromScan(spans) };
+}
+
+function fileBody(
+  text: string,
+  entry: string,
+  name: string | undefined,
+  grouped: boolean,
+  home: BodyHome,
+  near: number,
+  companion: string,
+  known?: FilingSource,
+): { text: string; at: number; errand?: Errand; insertAt?: number; definitionFrom?: number } {
   // A document of its own. The body does not go into this file at all: it goes
   // beside the returned text as an errand for the caller to run, and this file
   // gains the `#כלול` line if it did not have one — because a body in a document
@@ -734,17 +774,23 @@ export function fileNewBody(
       errand: { file: companion, entry },
     };
   }
+  const source = known ?? filingSource(text, home === "section");
   if (home === "section" && near >= 0) {
-    const filed = fileInSection(text, entry, name, grouped, near);
+    const filed = fileInSection(text, entry, name, grouped, near, source);
     // A document with no headings has no sections, and filing at the foot of the
     // file is the same place — not a silent second-best.
     if (filed) return filed;
   }
-  const s = scan(text);
+  const s = source.notes;
   const { after, before } = neighbours(s, name, grouped);
   if (after) {
     const at = after.to;
-    return { text: text.slice(0, at) + "\n" + entry + text.slice(at), at: at + 1 };
+    return {
+      text: text.slice(0, at) + "\n" + entry + text.slice(at),
+      at: at + 1,
+      insertAt: at,
+      definitionFrom: at + 1,
+    };
   }
   // Every body already filed belongs after this one — so this is the first, and
   // it goes above them rather than under the whole list.
@@ -757,23 +803,38 @@ export function fileNewBody(
     // comment, where the scanner rightly cannot see it, and the note simply has
     // no prose. Found by the grouping tests, and it was latent before them.
     const at = text.lastIndexOf("\n", before.from - 1) + 1;
-    return { text: text.slice(0, at) + entry + "\n" + text.slice(at), at };
+    return { text: text.slice(0, at) + entry + "\n" + text.slice(at), at, insertAt: at, definitionFrom: at };
   }
   if (s.region) {
     const inner = text.slice(s.region.innerFrom, s.region.innerTo);
     const pad = inner.trim() === "" ? "\n" : "";
     const at = s.region.innerTo;
     const insert = `${pad}${entry}\n`;
-    return { text: text.slice(0, at) + insert + text.slice(at), at: at + pad.length };
+    return {
+      text: text.slice(0, at) + insert + text.slice(at),
+      at: at + pad.length,
+      insertAt: at,
+      definitionFrom: at + pad.length,
+    };
   }
   if (s.defs.length) {
     const last = s.defs[s.defs.length - 1];
     const at = last.to;
-    return { text: text.slice(0, at) + "\n" + entry + text.slice(at), at: at + 1 };
+    return {
+      text: text.slice(0, at) + "\n" + entry + text.slice(at),
+      at: at + 1,
+      insertAt: at,
+      definitionFrom: at + 1,
+    };
   }
   const trimmed = text.replace(/\s*$/, "");
   const insert = `\n\n${entry}\n`;
-  return { text: trimmed + insert, at: trimmed.length + 2 };
+  return {
+    text: trimmed + insert,
+    at: trimmed.length + 2,
+    insertAt: trimmed.length,
+    definitionFrom: trimmed.length + 2,
+  };
 }
 
 /** `#גוף_הערה("name")[body]` / `#note_body("name")[body]` */
@@ -867,14 +928,15 @@ export function deferSnippet(insert: string, name: string): { marker: string; bo
   let i = m[0].length;
   let args = "";
   const s = insert.trim();
+  const spanScan = scanSpans(s);
   if (s[i] === "(") {
-    const close = matchGroup(s, i);
+    const close = spanScan.closes.get(i);
     if (close == null) return null;
     args = s.slice(i + 1, close).trim();
     i = close + 1;
   }
   if (s[i] !== "[") return null;
-  const close = matchGroup(s, i);
+  const close = spanScan.closes.get(i);
   if (close == null) return null;
   const inner = s.slice(i + 1, close).replace("|", "");
   const kind = isDefaultKind(cmd) ? null : cmd;
@@ -898,6 +960,7 @@ function isDefaultKind(cmd: string): boolean {
 export function inlineNoteAt(
   text: string,
   pos: number,
+  spanScan: SpanScan = scanSpans(text),
 ): {
   cmd: string;
   from: number;
@@ -908,20 +971,20 @@ export function inlineNoteAt(
   /** Written with a leading `#` — see `Ref.hash`. */
   hash: boolean;
 } | null {
-  const isComment = inComment(text);
+  assertScanText(text, spanScan);
   let best: ReturnType<typeof inlineNoteAt> = null;
-  for (const { from: start, nameTo: j, hash } of callsOf(text, NOTE_COMMANDS, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spanScan, NOTE_COMMANDS)) {
     const cmd = text.slice(start, j).replace(/^#/, "");
     let args = "";
     let k = skipSpace(text, j);
     if (text[k] === "(") {
-      const close = matchGroup(text, k);
+      const close = spanScan.closes.get(k);
       if (close == null) continue;
       args = text.slice(k + 1, close).trim();
       k = skipSpace(text, close + 1);
     }
     if (text[k] !== "[") continue;
-    const bodyClose = matchGroup(text, k);
+    const bodyClose = spanScan.closes.get(k);
     if (bodyClose == null) continue;
     if (!within(pos, start, bodyClose + 1)) continue;
     const found = {
@@ -1034,6 +1097,72 @@ function lineEndIfAlone(text: string, from: number, to: number): number {
   const end = le < 0 ? text.length : le;
   if (text.slice(to, end).trim() !== "") return to;
   return end;
+}
+
+/**
+ * Advance the small deferred model after a body was inserted.
+ *
+ * Bulk filing already knows the inserted entry and position. Rebuilding a
+ * source scan just to rediscover the entries it is appending would restore the
+ * per-note lex that this module's shared scan seam is meant to remove.
+ */
+function afterBodyInsertion(
+  source: FilingSource,
+  text: string,
+  entry: string,
+  insertAt: number,
+  definitionFrom: number,
+): FilingSource {
+  const delta = text.length - source.text.length;
+  const from = (pos: number) => (pos >= insertAt ? pos + delta : pos);
+  const to = (pos: number) => (pos > insertAt ? pos + delta : pos);
+  const refAt = (r: Ref, start: (pos: number) => number, end = start): Ref => ({
+    ...r, from: start(r.from), to: end(r.to), nameFrom: start(r.nameFrom), nameTo: end(r.nameTo),
+  });
+  const defAt = (d: Def, start: (pos: number) => number, end = start): Def => ({
+    ...d, from: start(d.from), to: end(d.to), nameFrom: start(d.nameFrom), nameTo: end(d.nameTo),
+    bodyFrom: start(d.bodyFrom), bodyTo: end(d.bodyTo),
+  });
+  const headingAt = (h: HeadingInfo, start: (pos: number) => number, end = start): HeadingInfo => ({
+    ...h, from: start(h.from), to: end(h.to), bodyFrom: start(h.bodyFrom), bodyTo: end(h.bodyTo),
+    nameTo: end(h.nameTo), argsFrom: h.argsFrom == null ? null : start(h.argsFrom),
+    argsTo: h.argsTo == null ? null : end(h.argsTo),
+  });
+  const nameOpen = entry.indexOf('"');
+  const nameClose = entry.indexOf('"', nameOpen + 1);
+  // `entry` is generated as `#גוף_הערה("name")[body]`. The first bracket
+  // after the name is the definition's body opener; the body itself may carry
+  // arbitrary nested commands with more brackets.
+  const bodyOpen = entry.indexOf("[", nameClose + 1);
+  const definition: Def = {
+    name: entry.slice(nameOpen + 1, nameClose),
+    from: definitionFrom,
+    to: definitionFrom + entry.length,
+    nameFrom: definitionFrom + nameOpen,
+    nameTo: definitionFrom + nameClose + 1,
+    bodyFrom: definitionFrom + bodyOpen + 1,
+    bodyTo: definitionFrom + entry.length - 1,
+    lang: langOf(entry.slice(1, entry.indexOf("("))),
+    hash: entry.startsWith("#"),
+  };
+  const region = source.notes.region
+    ? {
+        from: from(source.notes.region.from),
+        to: from(source.notes.region.to),
+        innerFrom: from(source.notes.region.innerFrom),
+        innerTo: from(source.notes.region.innerTo),
+      }
+    : null;
+  const ordered = <T extends { from: number }>(rows: T[]) => rows.sort((a, b) => a.from - b.from);
+  return {
+    text,
+    notes: {
+      refs: source.notes.refs.map((r) => refAt(r, from, to)),
+      defs: ordered([...source.notes.defs.map((d) => defAt(d, from, to)), definition]),
+      region,
+    },
+    headings: ordered(source.headings.map((h) => headingAt(h, from, to))),
+  };
 }
 
 /**
@@ -1173,7 +1302,7 @@ export function deferAllInlineNotes(
   grouped = false,
   home: BodyHome = "file",
 ): { text: string; moved: number } {
-  const isComment = inComment(text);
+  const spanScan = scanSpans(text);
   const spans: {
     from: number;
     to: number;
@@ -1182,18 +1311,18 @@ export function deferAllInlineNotes(
     body: string;
     hash: boolean;
   }[] = [];
-  for (const { from: start, nameTo: j, hash } of callsOf(text, NOTE_COMMANDS, isComment)) {
+  for (const { from: start, nameTo: j, hash } of callsOf(spanScan, NOTE_COMMANDS)) {
     const cmd = text.slice(start, j).replace(/^#/, "");
     let args = "";
     let k = skipSpace(text, j);
     if (text[k] === "(") {
-      const close = matchGroup(text, k);
+      const close = spanScan.closes.get(k);
       if (close == null) continue;
       args = text.slice(k + 1, close).trim();
       k = skipSpace(text, close + 1);
     }
     if (text[k] !== "[") continue;
-    const bodyClose = matchGroup(text, k);
+    const bodyClose = spanScan.closes.get(k);
     if (bodyClose == null) continue;
     spans.push({ from: start, to: bodyClose + 1, cmd, args, hash, body: text.slice(k + 1, bodyClose) });
   }
@@ -1204,7 +1333,7 @@ export function deferAllInlineNotes(
   // Names must not collide with each other or with anything already deferred,
   // so they are drawn once, up front, against the original document.
   const taken = new Set<string>();
-  const existing = scan(text);
+  const existing = scan(text, spanScan);
   for (const r of existing.refs) taken.add(r.name);
   for (const d of existing.defs) taken.add(d.name);
   let next = 1;
@@ -1218,25 +1347,57 @@ export function deferAllInlineNotes(
   // already had deferred bodies has to interleave the new ones among them rather
   // than pile them all on the end. Without the name `fileNewBody` can only
   // append, which is exactly the disorder this pass is supposed not to create.
-  const bodies: { name: string; entry: string }[] = [];
+  const bodies: { name: string; entry: string; near: number }[] = [];
   let out = "";
   let cursor = 0;
   for (const s of top.sort((a, b) => a.from - b.from)) {
     const name = nameFor();
     const lang = langOf(s.cmd);
     const kind = isDefaultKind(s.cmd) ? null : s.cmd;
-    out += text.slice(cursor, s.from) + referenceText(name, kind, s.args, lang, s.hash);
+    out += text.slice(cursor, s.from);
+    const near = out.length;
+    out += referenceText(name, kind, s.args, lang, s.hash);
     cursor = s.to;
-    bodies.push({ name, entry: definitionText(name, s.body, lang) });
+    bodies.push({ name, entry: definitionText(name, s.body, lang), near });
   }
   out += text.slice(cursor);
 
-  for (const b of bodies) {
-    // Where its own marker landed, which is what a section-scoped home files
-    // against — and which moves as each body before it is inserted, so it is
-    // read again per body rather than measured once against the original.
-    const near = scan(out).refs.find((r) => r.name === b.name)?.from ?? -1;
-    out = fileNewBody(out, b.entry, b.name, grouped, home, near).text;
+  // This one scan describes the assembled marker text. The model is advanced
+  // structurally after each insertion below, so ordinary file/region filing
+  // does not lex the evolving document once per note.
+  let working = filingSource(out, home === "section");
+  for (let i = 0; i < bodies.length; i++) {
+    const b = bodies[i];
+    const before = out;
+    const filed = fileBody(
+      out,
+      b.entry,
+      b.name,
+      grouped,
+      home,
+      b.near,
+      COMPANION,
+      working,
+    );
+    out = filed.text;
+    // `fileNewBody` reports where it inserted the entry. Keep the marker
+    // positions for later bodies in the same evolving text without rescanning
+    // that text for each name.
+    if (filed.insertAt != null) {
+      const delta = out.length - before.length;
+      for (let j = i + 1; j < bodies.length; j++) {
+        if (bodies[j].near >= filed.insertAt) bodies[j].near += delta;
+      }
+    }
+    if (filed.insertAt != null && filed.definitionFrom != null) {
+      working = afterBodyInsertion(
+        working,
+        out,
+        b.entry,
+        filed.insertAt,
+        filed.definitionFrom,
+      );
+    }
   }
   return { text: out, moved: top.length };
 }

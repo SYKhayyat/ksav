@@ -117,7 +117,7 @@ export function run() {
     ok("and that Escape is one of them", row && /escape:\s*true/.test(row[0]));
     // …and the label, in both languages, because a command with no name is a
     // command nobody can find in the palette.
-    const i18n = src("i18n.ts");
+    const i18n = ["i18n-he.ts", "i18n-en.ts"].map(src).join("\n");
     check("the command is named in Hebrew", (i18n.match(/"sc\.revealPlaces"/g) ?? []).length, 2);
   }
 

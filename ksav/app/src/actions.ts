@@ -111,6 +111,32 @@ export type CommandAction = keyof typeof ACTION_COMMAND;
  */
 export const PLACED_COMMANDS: readonly CommandAction[] = ["toc"];
 
+/** The part of an action dispatch that is independent of the editor shell. */
+export interface RegisteredAction<View> {
+  id: string;
+  run: (view: View) => boolean;
+}
+
+/**
+ * Run one registered action through the recorder boundary.
+ *
+ * The shell supplies lookup and the structural-action predicate, while this
+ * module owns the rule that a non-structural action is recorded exactly once.
+ * That rule used to be tested by taking a positional slice of `main.ts`.
+ */
+export function runRegisteredAction<View>(
+  id: string,
+  view: View,
+  lookup: (id: string) => RegisteredAction<View> | undefined,
+  isStructural: (id: string) => boolean,
+  note: (id: string) => void,
+): boolean {
+  const action = lookup(id);
+  if (!action) return false;
+  if (!isStructural(id)) note(id);
+  return action.run(view);
+}
+
 /**
  * The breaks, in order of how much of the page they move.
  *

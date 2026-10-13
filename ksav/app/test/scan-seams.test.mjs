@@ -6,7 +6,10 @@
 // CI runner: a supplied Scan must be sufficient, and the ordinary path must
 // lex one document once.
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { check, ok } from "./harness.mjs";
+import { SRC } from "../tools/paths.mjs";
 import {
   clearScanCache,
   resetScanInstrumentation,
@@ -130,6 +133,41 @@ export async function run() {
   clearScanCache();
   deferAllInlineNotes(`א#הערה[ראשונה] ב#הערה[שנייה] ג.`);
   check("bulk filing scan count does not grow per body", scanMissCount(), oneBodyMisses);
+
+  // The cached model must keep the outer body opener when an earlier body has
+  // a nested command. A later filing then has to leave both bodies readable.
+  {
+    const nested = deferAllInlineNotes(
+      `א#הערה[ראשונה #הדגשה[מודגש]] ב#הערה[שנייה] ג.`,
+    );
+    const filed = scanDeferred(nested.text);
+    check("bulk filing keeps both bodies after nested content", filed.defs.length, 2);
+    check(
+      "bulk filing keeps the nested first body intact",
+      nested.text.slice(filed.defs[0].bodyFrom, filed.defs[0].bodyTo),
+      "ראשונה #הדגשה[מודגש]",
+    );
+    check(
+      "bulk filing keeps the second body intact",
+      nested.text.slice(filed.defs[1].bodyFrom, filed.defs[1].bodyTo),
+      "שנייה",
+    );
+
+    // This is the mutation fence for the cache seam: changing the lookup back
+    // to `lastIndexOf` makes the nested fixture above look fine after a fresh
+    // scan, while leaving the model's cached opener wrong for the next filing.
+    const source = readFileSync(path.join(SRC, "deferred.ts"), "utf8");
+    const start = source.indexOf("function afterBodyInsertion(");
+    const seam = source.slice(start, source.indexOf("\n}\n\n/**", start));
+    ok(
+      "body-cache seam takes the first outer opener",
+      seam.includes('entry.indexOf("[", nameClose + 1)'),
+    );
+    ok(
+      "body-cache seam does not search for a nested opener",
+      !seam.includes('entry.lastIndexOf("[")'),
+    );
+  }
 
   // A scan carries offsets, so a scan for another document must not be accepted
   // merely because its shape happens to look usable.

@@ -1130,7 +1130,10 @@ function afterBodyInsertion(
   });
   const nameOpen = entry.indexOf('"');
   const nameClose = entry.indexOf('"', nameOpen + 1);
-  const bodyOpen = entry.lastIndexOf("[");
+  // `entry` is generated as `#גוף_הערה("name")[body]`. The first bracket
+  // after the name is the definition's body opener; the body itself may carry
+  // arbitrary nested commands with more brackets.
+  const bodyOpen = entry.indexOf("[", nameClose + 1);
   const definition: Def = {
     name: entry.slice(nameOpen + 1, nameClose),
     from: definitionFrom,

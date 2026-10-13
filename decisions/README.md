@@ -125,6 +125,7 @@ supersede an earlier one without rewriting it.
 | 2026-10-02 | [reledmac-verified-the-claims-are-false](2026-10-02-reledmac-verified-the-claims-are-false.md) |
 | 2026-10-11 | [keyed-dom-reconciliation](2026-10-11-keyed-dom-reconciliation.md) |
 | 2026-10-11 | [shared-assets-earn-a-sha-256-digest](2026-10-11-shared-assets-earn-a-sha-256-digest.md) |
+| 2026-10-13 | [i18n-data-lives-apart](2026-10-13-i18n-data-lives-apart.md) |
 
 The index is intentionally only a map: the linked file is the durable reasoning.
 The two whole-repository reports that had been retained as tool output are

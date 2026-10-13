@@ -525,7 +525,13 @@ still right.
   `no module but spans.ts counts bracket depth — got ["styles.ts:310"]`, and passes once
   removed. **The second time in two issues that the finding was "already shipped"** — see
   #88 — which is worth noticing about this plan.
-- [ ] #20 deferred/numbering scans to Rust, #19 spans.ts Rust port.
+- [x] #20 deferred/numbering scan seam. The editor already owns the synchronous
+  source-span model, so a Rust service would create a second parser and a wire
+  contract with no editor caller. Deferred scans now consume one `spans.ts` Scan
+  and its `closes` map; numbering reuses one Scan through sequence/restarts/
+  headings, and lint repair applies one computed edit set. The focused seam test
+  proves one uncached lex and preserves deferred refs/defs and numbering results;
+  #19 remains separate because its editor-synchronous boundary has not changed.
 - [x] #7 keyed updates (5× replaceChildren). A framework-free keyed reconciler now
   updates, removes and moves panel rows and named preview pages in place; unchanged
   models are no-ops and the focused/selected row plus host scroll survive. See

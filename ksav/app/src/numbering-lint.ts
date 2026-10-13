@@ -28,7 +28,7 @@ import { linter } from "@codemirror/lint";
 import type { Diagnostic } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
 import { t, tf } from "./i18n";
-import { outOfSequence, resequence } from "./numbering";
+import { outOfSequence, resequenceAt } from "./numbering";
 import { docTextOf } from "./spans";
 
 /** One number that disagrees with its position: a range and what it should say. */
@@ -59,13 +59,8 @@ export function numberMarks(text: string): NumberMark[] {
 /** Put every series back in sequence. Returns how many numbers changed. */
 export function renumberAll(view: EditorView): number {
   const text = docTextOf(view.state.doc);
-  const { text: next, changed } = resequence(text);
+  const { text: next, caret: moved, changed } = resequenceAt(text, view.state.selection.main.head);
   if (!changed) return 0;
-  const caret = view.state.selection.main.head;
-  let moved = caret;
-  for (const n of outOfSequence(text)) {
-    if (n.to <= caret) moved += n.wanted.length - n.written.length;
-  }
   view.dispatch({
     changes: { from: 0, to: text.length, insert: next },
     selection: { anchor: Math.min(moved, next.length) },

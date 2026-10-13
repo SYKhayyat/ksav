@@ -34,7 +34,7 @@ service was implemented.
 - PR #98 / issue #33: branch update `bae388f`; focused chrome tests passed and
   typecheck passed; re-run remote checks after the update.
 - PR #99 / issue #31: branch update `fa75d25`; focused docs/README tests passed
-  (241) and local editor suite reported 8,287 assertions; re-check remote CI.
+  (241) and local editor suite matched the current CI total; re-check remote CI.
 - Issue #19: intentionally incomplete; branch `/home/shaul/ksav-issue-19` is
   evidence only and must not be represented as a delivered Rust/WASM service.
 

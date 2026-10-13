@@ -1146,6 +1146,7 @@ export function scan(text: string): Scan {
       return hit;
     }
   }
+  SCAN_MISSES++;
   const fresh = scanUncached(text);
   CACHE.push(fresh);
   if (CACHE.length > CACHE_SIZE) CACHE.shift();
@@ -1154,6 +1155,37 @@ export function scan(text: string): Scan {
 
 const CACHE_SIZE = 4;
 const CACHE: Scan[] = [];
+let SCAN_MISSES = 0;
+
+/**
+ * Number of uncached lexes since the last test reset.
+ *
+ * This is deliberately a counter rather than a timing assertion: the useful
+ * boundary is that a consumer reuses one `Scan`, not that a shared runner has
+ * a particular speed today. It is read by the focused scan-seam regression.
+ */
+export function scanMissCount(): number {
+  return SCAN_MISSES;
+}
+
+/** Reset only the uncached-lex counter, without evicting any scan. */
+export function resetScanInstrumentation(): void {
+  SCAN_MISSES = 0;
+}
+
+/**
+ * Check that a supplied scan was built for the text a consumer is reading.
+ *
+ * A Scan carries all offsets as positions in its own text. Accepting one for a
+ * different document turns those offsets into plausible but wrong edits, which
+ * is substantially worse than refusing the call at the seam.
+ */
+export function assertScanText(text: string, supplied: Scan): Scan {
+  if (supplied.text !== text) {
+    throw new Error("supplied Scan belongs to different text");
+  }
+  return supplied;
+}
 
 /**
  * The same answer, for a document identified by a stable object.
@@ -1247,6 +1279,7 @@ export function clearScanCache(): void {
   KEYED = new WeakMap();
   TEXTS = new WeakMap();
   DELIM_KEYED = new WeakMap();
+  resetScanInstrumentation();
 }
 
 function scanUncached(text: string): Scan {

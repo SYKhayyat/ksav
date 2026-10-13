@@ -430,6 +430,18 @@ export async function run() {
     ok("the shared cache owns the only lexical pass cache", source.includes("const LEX_CACHE") && !source.includes("const DELIM_CACHE"));
     ok("recovery is selected from structural mismatches", source.includes("needsRecovery(strict.delims)"));
   }
+  {
+    // #19 must not acquire a service-shaped claim without a real async consumer.
+    // The editor decoration paths stay synchronous by design, so a registry row
+    // or worker name on its own would be dead plumbing rather than a port.
+    const services = await readFile(path.join(SRC, "services.gen.ts"), "utf8");
+    ok("no unconsumed scan service is generated", !/\bname: "scan"/u.test(services));
+    for (const file of ["bidi.ts", "ksav-lang.ts", "spell.ts"]) {
+      const body = await readFile(path.join(SRC, file), "utf8");
+      ok(`${file} keeps the synchronous spans import`, /from "\.\/spans"/u.test(body));
+      ok(`${file} has no scan service transport`, !/ask\(\s*["']scan["']|from "\.\/api"/u.test(body));
+    }
+  }
 
   // ------------------------------------------- 3. agreement over a corpus
   //

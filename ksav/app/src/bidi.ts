@@ -70,7 +70,7 @@ import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { Direction } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
-import { scan, scanDoc, type Scan } from "./spans";
+import { assertScanText, scan, scanDoc, type Scan } from "./spans";
 
 export type Dir = "rtl" | "ltr";
 
@@ -187,6 +187,7 @@ export function resolveLineDirections(lines: string[], fallback: Dir, seed: Dir 
  * stack in `resolveLineDirections` was counting them.
  */
 export function withoutComments(text: string, s: Scan = scan(text)): string {
+  assertScanText(text, s);
   if (!s.comments.length) return text;
   const out = text.split("");
   for (const c of s.comments) {
@@ -226,6 +227,7 @@ export interface Isolate {
  * probe — which is O(document) while typing, for the reason `scanOf` gives.
  */
 export function isolateSpans(text: string, s: Scan = scan(text)): Isolate[] {
+  assertScanText(text, s);
   const spans: Isolate[] = [];
   for (const c of s.comments) {
     // The marker is left outside the isolate, and that is the whole of the

@@ -19,7 +19,7 @@
 // so this is one rule in one place, in the same shape as `noteFor`, `legalAt`
 // and `insertionAt` beside it.
 
-import { scan, type Scan } from "./spans";
+import { assertScanText, scan, type Scan } from "./spans";
 import { headingsFromScan } from "./headings";
 
 /**
@@ -159,8 +159,9 @@ export function continueSeries(doc: string, at: number, snippet: string, spans?:
   const found = seriesFor(snippet);
   if (!found) return snippet;
   const { series } = found;
+  const source = spans ? assertScanText(doc, spans) : scan(doc);
 
-  const nodes = (spans ?? scan(doc)).nodes.filter((n) => n.from < at);
+  const nodes = source.nodes.filter((n) => n.from < at);
   // Where the count starts: after the last thing that resets it.
   let from = 0;
   if (series.resetBy.length) {
@@ -256,6 +257,7 @@ const CONTINUE_NAMES = ["המשך_מספור", "continue_numbering"];
  * statement the prelude reads for the notes.
  */
 export function restartLevel(doc: string, spans: Scan = scan(doc)): number | null {
+  assertScanText(doc, spans);
   for (const n of spans.nodes) {
     if (n.name !== "הגדרות_מספור" && n.name !== "numbering_config") continue;
     if (!n.args) continue;
@@ -276,6 +278,7 @@ export function restartLevel(doc: string, spans: Scan = scan(doc)): number | nul
  * which is precisely the bug `continueSeries` was written to end.
  */
 export function restarts(doc: string, series: Series, spans: Scan = scan(doc)): Restart[] {
+  assertScanText(doc, spans);
   const level = restartLevel(doc, spans);
   const out: Restart[] = [];
   for (const n of spans.nodes) {
@@ -292,6 +295,7 @@ export function restarts(doc: string, series: Series, spans: Scan = scan(doc)): 
 }
 
 export function sequence(doc: string, spans: Scan = scan(doc)): Numbered[] {
+  assertScanText(doc, spans);
   const nodes = [...spans.nodes].sort((a, b) => a.from - b.from);
   const out: Numbered[] = [];
   for (const series of SERIES) {

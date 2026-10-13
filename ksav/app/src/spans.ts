@@ -1168,6 +1168,25 @@ export function scanMissCount(): number {
   return SCAN_MISSES;
 }
 
+/** Reset only the uncached-lex counter, without evicting any scan. */
+export function resetScanInstrumentation(): void {
+  SCAN_MISSES = 0;
+}
+
+/**
+ * Check that a supplied scan was built for the text a consumer is reading.
+ *
+ * A Scan carries all offsets as positions in its own text. Accepting one for a
+ * different document turns those offsets into plausible but wrong edits, which
+ * is substantially worse than refusing the call at the seam.
+ */
+export function assertScanText(text: string, supplied: Scan): Scan {
+  if (supplied.text !== text) {
+    throw new Error("supplied Scan belongs to different text");
+  }
+  return supplied;
+}
+
 /**
  * The same answer, for a document identified by a stable object.
  *
@@ -1253,11 +1272,17 @@ export function scanDoc(doc: { toString(): string }): Scan {
   return scanOf(doc, () => docTextOf(doc));
 }
 
-/** Drop the memo. Only tests need this — a scan is a pure function of its text. */
+/**
+ * Drop the memo and reset its test instrumentation.
+ *
+ * Production callers do not need either operation. Tests that want to measure
+ * one path should call this before it, or call resetScanInstrumentation when
+ * they need to keep a prepared scan warm and measure only the consumer.
+ */
 export function clearScanCache(): void {
   CACHE.length = 0;
   DELIM_CACHE.length = 0;
-  SCAN_MISSES = 0;
+  resetScanInstrumentation();
 }
 
 function scanUncached(text: string): Scan {

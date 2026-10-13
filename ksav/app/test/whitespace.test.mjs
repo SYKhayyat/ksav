@@ -188,12 +188,15 @@ export function run() {
     );
     // Both languages, or an English interface reads a Hebrew key — which is the
     // exact failure #3 was closed for.
-    // **Read raw, not through `code()`.** `i18n.ts` holds a `/*` inside a Hebrew
+    // **Read raw, not through `code()`.** The translation shelves hold a `/*`
+    // inside a Hebrew
     // string, and `prohibitions.test.mjs:87` records what a comment stripper does
     // with that: it swallows everything to the next `*/`, which here is a few
     // hundred lines of catalogue. A fence that deletes the thing it is reading is a
     // fence that reports green — so this one does not strip.
-    const i18n = readFileSync(path.join(SRC, "i18n.ts"), "utf8");
+    const i18n = ["i18n-he.ts", "i18n-en.ts"]
+      .map((file) => readFileSync(path.join(SRC, file), "utf8"))
+      .join("\n");
     const count = (k) => (i18n.match(new RegExp(`\\b${k}:`, "gu")) ?? []).length;
     check("the label is in the catalogue twice — Hebrew and English", count("showWhitespaceLabel"), 2);
     check("…and so is the note", count("showWhitespaceNote"), 2);

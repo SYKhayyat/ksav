@@ -27,7 +27,9 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
-const I18N = readFileSync(path.join(SRC, "i18n.ts"), "utf8");
+const I18N = ["i18n-he.ts", "i18n-en.ts"]
+  .map((file) => readFileSync(path.join(SRC, file), "utf8"))
+  .join("\n");
 
 export async function run() {
   // ------------------------------------------------- the three panes say which

@@ -4,6 +4,47 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
+## Current handoff — 2026-10-11
+
+The latest pushed `main` is `68d3692`. GitHub CI run
+passed all nine jobs. The full chronological record for this sitting is at the
+top of [`SESSION_LOG.md`](SESSION_LOG.md).
+
+### Completed and on `main`
+
+- **#56 asset cache digest** — SHA-256 content keys are computed consistently in
+  Rust and TypeScript; Base64 input rules are shared; claimed keys are verified
+  before caching; old engines fall back to byte-bearing requests; legacy
+  document/storage keys migrate safely. Decision record:
+  [`decisions/2026-10-11-shared-assets-earn-a-sha-256-digest.md`](decisions/2026-10-11-shared-assets-earn-a-sha-256-digest.md).
+- **#7 keyed DOM updates** — panel, preview, history, palette, and Git surfaces
+  use keyed reconciliation with retained identity and state. Middle-page
+  insertion, shape-changing rows, duplicate palette keys, first-row selection,
+  and unmanaged history controls are fenced. Decision record:
+  [`decisions/2026-10-11-keyed-dom-reconciliation.md`](decisions/2026-10-11-keyed-dom-reconciliation.md).
+
+Both changes were focused-tested locally and passed the complete remote CI. The
+GitHub issues were intentionally left open at the interruption; close them only
+after recording the final implementation comment if that has not already been
+done.
+
+### Next work already pushed, but not ready to merge
+
+- **#20**: `origin/issue-20-scan-seams` at `f43b924`. The existing synchronous
+  scan seam is reused for deferred and numbering paths. Before merging, fix the
+  remaining `deferAllInlineNotes` per-note rescans, validate that an optional
+  `Scan` belongs to the text it is used with, clarify/reset cache instrumentation,
+  and strengthen the new test with a real region and independent expected result.
+- **#19**: `origin/issue-19-rust-scan` at `87c1fe0`. The lexical pass is shared
+  between `scan()` and `delimiters()` while synchronous editor decoration users
+  remain in TypeScript. It overlaps #20 and was not merged or closed. Review the
+  combined diff first; do not claim a Rust/WASM service was delivered.
+
+The two branches have matching local worktrees at `/home/shaul/ksav-issue-20`
+and `/home/shaul/ksav-issue-19`. They were pushed specifically so no work is
+lost. The next session should review/merge or revise them, then continue at
+`#20/#19` before the remaining plan items.
+
 This is a **living page**. Tick the boxes in *What is left* as they are done,
 add what you find, and delete what stops being true. It is not a log — the
 record of a day lives in [`decisions/`](decisions/README.md) and is never edited

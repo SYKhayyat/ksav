@@ -593,6 +593,19 @@ export function closeOnEscape(): string[] {
   return closed;
 }
 
+/**
+ * The window-level Escape handler, with its two effects kept together.
+ *
+ * The panel registry owns the close sweep; the shell only supplies the focus
+ * target. Keeping this small handler here gives tests the actual key decision
+ * without making them search for a call inside `main.ts`.
+ */
+export function handleEscape(close: () => string[], focus: () => void): string[] {
+  const closed = close();
+  focus();
+  return closed;
+}
+
 /** A click that landed outside a pointer-anchored menu dismisses it. */
 export function closeOnOutsideClick(target: Element | null): void {
   for (const p of PANELS) {

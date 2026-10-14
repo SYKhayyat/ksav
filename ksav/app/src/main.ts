@@ -76,6 +76,7 @@ import {
   BREAK_GLYPH,
   PLACED_COMMANDS,
   actionForCommand,
+  runRegisteredAction,
 } from "./actions";
 import * as store from "./store";
 import * as files from "./files";
@@ -159,6 +160,7 @@ import {
   mountPanel,
   wirePanel,
   closeOnEscape,
+  handleEscape,
   closeOnOutsideClick,
   toggleMenu,
   panelHead,
@@ -8942,31 +8944,27 @@ function goToOffset(at: number) {
  * the help panel is how one of them would come to disagree with the other.
  */
 function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
-  switch (does.kind) {
-    case "jump":
-    case "note":
-      goToOffset(does.at);
-      return;
-    case "action":
+  panelrows.dispatchRowAction(does, {
+    jump: goToOffset,
+    action: (id) => {
       closePalette();
-      runAction(does.id);
-      return;
-    case "insert":
-      insertSnippet(does.snippet);
+      runAction(id);
+    },
+    insert: (snippet) => {
+      insertSnippet(snippet);
       closePalette();
-      return;
-    case "restore":
-      voidAction("save_file", () => restoreSnapshot(snaps[does.index]));
-      return;
-    case "hit":
+    },
+    restore: (snapshot) => voidAction("save_file", () => restoreSnapshot(snapshot)),
+    hit: (row) => {
       // Both, when both are known, and in this order: the caret first, because
       // that is where the writer will type, and the page second so the eye can
       // follow. A printed hit that no source line answers for — a running head,
       // a note's marker, an auto-numbered siman — shows the page and leaves the
       // caret alone rather than putting it somewhere plausible.
-      if (does.at !== undefined) goToOffset(does.at);
-      if (does.page !== undefined && does.y !== undefined) revealPrinted(does.page, does.y);
-  }
+      if (row.at !== undefined) goToOffset(row.at);
+      if (row.page !== undefined && row.y !== undefined) revealPrinted(row.page, row.y);
+    },
+  }, snaps);
 }
 
 /**
@@ -9600,11 +9598,11 @@ function paletteActions(): { id: string; label: string; key: string }[] {
       .filter((a) => a.enabled)
       .map((a) => a.action.id),
   );
-  return actions().filter((a) => !structure.actionById(a.id) || here.has(a.id)).map((a) => ({
+  return panelrows.paletteActionsAt(actions().map((a) => ({
     id: a.id,
     label: macroName(a.id),
     key: kb[a.id] ?? "",
-  }));
+  })), here, (id) => !!structure.actionById(id));
 }
 
 function renderPaletteList(q: string) {
@@ -10978,15 +10976,16 @@ function actionById(id: string): { id: string; run: (v: EditorView) => boolean }
  * picker with the wrong sign on it.
  */
 function runAction(id: string, v: EditorView = runtime.view): boolean {
-  const action = actionById(id);
-  if (!action) return false;
-  // Structural operations note themselves inside `runStructureAction`, which
-  // the ribbon and the hydra also reach directly with `sticky` on. Noting here
-  // as well would record every one of them twice.
-  if (!structure.actionById(id)) noteAction(id);
+  if (!actionById(id)) return false;
   inAction++;
   try {
-    return action.run(v);
+    return runRegisteredAction(
+      id,
+      v,
+      actionById,
+      (actionId) => !!structure.actionById(actionId),
+      noteAction,
+    );
   } finally {
     inAction--;
   }
@@ -14624,12 +14623,7 @@ function wireKeys() {
       // the hydra, the one surface here that takes over the keyboard, the answer
       // was no. `closeOnEscape` reads `PANELS`, so a new modal is covered by
       // being declared.
-      closeOnEscape();
-      // Escape has always also meant "put me back in the text", whether or not
-      // anything was open — the close functions each ended with a `focus()` and
-      // so did this. Said once now, and unconditionally, because the panels
-      // themselves no longer run their side effects when they were not open.
-      runtime.view?.focus();
+      handleEscape(closeOnEscape, () => runtime.view?.focus());
     } else if (e.key === "Alt" && proseHere()) {
       runtime.view.dispatch({ effects: setRevealAll.of(true) });
     } else {

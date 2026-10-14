@@ -460,7 +460,7 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
     // ignored it, which is precisely the shape this repository keeps rebuilding:
     // a working mechanism nothing is wired to.
     const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
-    ok("a panel row goes through goToOffset", /case "jump":\s*\n\s*case "note":\s*\n\s*goToOffset\(/u.test(main));
+    ok("a panel row goes through goToOffset", /dispatchRowAction\(does,[\s\S]*jump: goToOffset/u.test(main));
     const at = main.indexOf("function goToOffset(");
     ok("goToOffset is a function in main.ts", at >= 0);
     const body = main.slice(at, main.indexOf("\n}", at));

@@ -4,11 +4,47 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-10-11
+## Current handoff — 2026-10-13
 
-The latest pushed `main` is `68d3692`. GitHub CI run
-passed all nine jobs. The full chronological record for this sitting is at the
-top of [`SESSION_LOG.md`](SESSION_LOG.md).
+The latest pushed `main` is `a6572c0` (PR #95 merged). This sitting also pushed
+the remaining issue branches, but PRs #97, #98, and #99 still need conflict
+resolution/verification against the new `main`. The full chronological record
+for this sitting is at the top of [`SESSION_LOG.md`](SESSION_LOG.md) when
+available.
+
+### Immediate next action
+
+Run `gh pr view 97 98 99 --repo sykhayyat/ksav` and finish the PR lifecycle.
+PR #97 (`issue-35-notes-corpus-fences`) is known to have passing checks but was
+conflicting after #95; merge `origin/main` into `/home/shaul/ksav-issue-35`,
+preserve `ksav/engine/tests/notes_acceptance.rs`, resolve `ksav/README.md` to
+the actual editor count, run `node tools/gate.mjs editor`, commit, and push.
+PR #98 branch `issue-33-chrome-fences` was updated at `bae388f`; PR #99 branch
+`issue-31-distill-records` was updated at `fa75d25`; re-check their required
+checks and merge only when clean. After each merge, comment on and close its
+issue (#35, #33, #31). Do not close #19: no real asynchronous Rust/WASM scan
+service was implemented.
+
+### Branch/commit state
+
+- PR #95 / issue #20: **merged** at `a6572c0`; all required CI jobs passed.
+- PR #96 / issue #23: **already merged** before this sitting.
+- PR #97 / issue #35: branch `2662bcd` has passing prior checks but is
+  **conflicting** with current `main`; worktree `/home/shaul/ksav-issue-35`.
+- PR #98 / issue #33: branch update `bae388f`; focused chrome tests passed and
+  typecheck passed; re-run remote checks after the update.
+- PR #99 / issue #31: branch update `fa75d25`; focused docs/README tests passed
+  (241); re-check the editor suite and remote CI.
+- Issue #19: intentionally incomplete; branch `/home/shaul/ksav-issue-19` is
+  evidence only and must not be represented as a delivered Rust/WASM service.
+
+### Known checks and environment limits
+
+- CI editor counts change with `main`; do not guess. Run the gate after every
+  merge and update both README count references last.
+- Local editor gates pass typecheck and non-browser assertions, but Chromium is
+  unavailable locally, so `browserlang.test.mjs` cannot run. CI has Chromium.
+- The shared checkout is clean on `main` after fast-forwarding to `a6572c0`.
 
 ### Completed and on `main`
 

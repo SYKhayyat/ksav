@@ -558,7 +558,7 @@ still right.
   it did not know Playwright's versioned cache layout. The instrument that "found four
   rendering faults no test could see" could not see anything.
 
-- [ ] #88 show the invisible characters. (Presentation, from #84) — **Whitespace in Ksav
+- [x] #88 show the invisible characters. (Presentation, from #84) — **Whitespace in Ksav
   source is not decoration: it prints.** `main.ts:5910` — *"Typst turns a newline into a
   **space** and a blank line into a **paragraph break**"* — so `first⏎second` prints
   `first second`, a blank line prints two paragraphs, and runs of spaces collapse. Three
@@ -616,7 +616,7 @@ still right.
   whether dimming is right for dense Hebrew (maybe de-emphasise less and emphasise more), and
   **how this composes with focus mode**, since they are the same idea at two granularities.
 
-- [ ] #84 indent nested tags in the source **view** — a toggle; the file is never
+- [x] #84 indent nested tags in the source **view** — a toggle; the file is never
   changed. (Proposal) — **Shaul's spec, five lines, which supersedes everything I
   inferred:** every `][` in its own line, indented; the amount is a user-set value; the
   point at which indenting stops is defined **either** by amount from side (**in RTL,
@@ -921,3 +921,9 @@ of it runs at once.
 
 ## Routing rule for new issues
 Any AI opening an issue here MUST insert it into the phase above it belongs in (foundations → security → correctness → quality → features), not append at the end. Security/foundational items go in Phase 1–2 even if filed later. See AI_ISSUE_ROUTING.md.
+
+## User-feedback priority (proposed)
+1. Make large documents feel instant (scan consumers, keyed updates) — speed.
+2. Add source-readability toggles (#88 invisible chars, #84 nested indent) — UI clarity.
+3. Run first real-user feedback pass (#14 UAT) before broader UI overhaul (#8/#9/#11).
+Defer writer tools, commentary ordering, templated headings, and interop until feedback.

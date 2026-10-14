@@ -109,6 +109,46 @@ export interface PanelRow {
   context?: string;
 }
 
+/** Callbacks for the shell effects represented by a row. */
+export interface RowActionHandlers {
+  jump: (at: number) => void;
+  action: (id: string) => void;
+  insert: (snippet: string) => void;
+  restore: (snapshot: Snapshot) => void;
+  hit: (row: Extract<RowAction, { kind: "hit" }>) => void;
+}
+
+/**
+ * Dispatch a row's meaning without coupling the list model to the DOM shell.
+ *
+ * Every list surface, including the palette and help, speaks this vocabulary.
+ * Keeping the dispatcher beside that vocabulary makes the one-door rule a
+ * module-level fact rather than a source window in `main.ts`.
+ */
+export function dispatchRowAction(
+  does: RowAction,
+  handlers: RowActionHandlers,
+  snapshots: Snapshot[] = [],
+): void {
+  switch (does.kind) {
+    case "jump":
+    case "note":
+      handlers.jump(does.at);
+      return;
+    case "action":
+      handlers.action(does.id);
+      return;
+    case "insert":
+      handlers.insert(does.snippet);
+      return;
+    case "restore":
+      handlers.restore(snapshots[does.index]);
+      return;
+    case "hit":
+      handlers.hit(does);
+  }
+}
+
 /**
  * The identity of a row on screen, independent of its translated words.
  *
@@ -565,6 +605,15 @@ export interface PaletteAction {
   id: string;
   label: string;
   key: string;
+}
+
+/** Keep only structural operations that apply at the current caret. */
+export function paletteActionsAt(
+  actions: readonly PaletteAction[],
+  enabled: ReadonlySet<string>,
+  isStructural: (id: string) => boolean,
+): PaletteAction[] {
+  return actions.filter((a) => !isStructural(a.id) || enabled.has(a.id));
 }
 
 /**

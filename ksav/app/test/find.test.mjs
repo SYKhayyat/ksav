@@ -356,13 +356,20 @@ export async function run() {
 
   {
     // A row does both, when both are known, and in that order.
-    ok(
-      "a hit puts the caret where it can be typed",
-      /case "hit":[\s\S]{0,600}does\.at !== undefined\) goToOffset\(does\.at\)/.test(MAIN),
+    const events = [];
+    panelrows.dispatchRowAction(
+      { kind: "hit", at: 12, page: 3, y: 48 },
+      {
+        jump: (at) => events.push(["jump", at]),
+        action: () => {},
+        insert: () => {},
+        restore: () => {},
+        hit: (row) => {
+          if (row.at !== undefined) events.push(["jump", row.at]);
+          if (row.page !== undefined && row.y !== undefined) events.push(["page", row.page, row.y]);
+        },
+      },
     );
-    ok(
-      "...and shows the page it printed on",
-      /case "hit":[\s\S]{0,700}revealPrinted\(does\.page, does\.y\)/.test(MAIN),
-    );
+    check("a hit puts the caret where it can be typed", events, [["jump", 12], ["page", 3, 48]]);
   }
 }

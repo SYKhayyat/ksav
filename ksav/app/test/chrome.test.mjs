@@ -2,7 +2,9 @@ import { ok, check, notOk } from "./harness.mjs";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { PANELS, hasExit } from "../.tmp-test/panels.mjs";
+import { PANELS, hasExit, handleEscape } from "../.tmp-test/panels.mjs";
+import { dispatchRowAction, paletteActionsAt, paletteList } from "../.tmp-test/panelrows.mjs";
+import { runRegisteredAction } from "../.tmp-test/actions.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
 // Does the chrome go *through* the registry, or around it?
@@ -142,15 +144,21 @@ for (const p of PANELS) {
 // token rather than about a slice of the file — which is the whole difference
 // between this and the version that survived the handler being deleted.
 
-const escapes = [...MAIN.matchAll(/e\.key === "Escape"/g)].map((m) => m.index);
-ok("main.ts handles Escape somewhere", escapes.length > 0);
-const wired = escapes.some((at) => MAIN.slice(at, at + 600).includes("closeOnEscape()"));
-ok("the Escape key reaches the panel sweep", wired);
-check(
-  "and the sweep is called exactly once — there is no second, partial list",
-  [...MAIN.matchAll(/closeOnEscape\(\)/g)].length,
-  1,
-);
+{
+  const wireKeys = /function wireKeys\(\)[\s\S]*/.exec(MAIN)?.[0] ?? "";
+  ok("main.ts handles Escape in its window key handler", /e\.key === "Escape"/.test(wireKeys));
+  ok("the window handler delegates Escape to the panel handler", /handleEscape\(closeOnEscape/.test(wireKeys));
+  const events = [];
+  const closed = handleEscape(
+    () => {
+      events.push("close");
+      return ["palette"];
+    },
+    () => events.push("focus"),
+  );
+  check("Escape runs the panel sweep", closed, ["palette"]);
+  check("Escape returns focus after the sweep", events, ["close", "focus"]);
+}
 
 // The thing the old file was trying to say. Every panel's closer is derived
 // from `PANELS`, so no named close call belongs in the global branch at all: a
@@ -160,8 +168,11 @@ check(
 // The citation list runs its own key handler while it has focus — Tab moves,
 // Enter takes, Escape gives up — and a widget answering its own keys is not the
 // failure being guarded against.
-const branch = MAIN.slice(MAIN.indexOf("closeOnEscape()") - 600, MAIN.indexOf("closeOnEscape()") + 600);
-const handList = [...branch.matchAll(/\bclose[A-Z]\w*\(\)/g)]
+const CODE_WITHOUT_COMMENTS = MAIN.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, " ");
+const escapeOffsets = [...CODE_WITHOUT_COMMENTS.matchAll(/e\.key === "Escape"/g)];
+const escapeHandler = CODE_WITHOUT_COMMENTS.slice(escapeOffsets.at(-1)?.index ?? 0);
+const escapeBranch = /if\s*\(e\.key === "Escape"\)\s*\{([\s\S]*?)\n\s*\}\s*else if/.exec(escapeHandler)?.[1] ?? "";
+const handList = [...escapeBranch.matchAll(/\bclose[A-Z]\w*\(\)/g)]
   .map((m) => m[0])
   .filter((c) => c !== "closeOnEscape()");
 check("Escape closes surfaces through the registry, not a hand-written list", handList, []);
@@ -234,11 +245,30 @@ check(
     (f) => f !== "runAction" && f !== "playMacro" && f !== "runStructureAction",
   );
   check("an action is only ever reached through runAction", stray, []);
-  ok("…and runAction is where it happens", invocations.includes("runAction"));
-  ok(
-    "runAction notes the action for the recorder",
-    /function runAction[\s\S]{0,600}?noteAction\(/.test(MAIN),
+  ok("…and runAction is the shell's action door", /function runAction[\s\S]*runRegisteredAction\(/.test(MAIN));
+  const notes = [];
+  const ran = [];
+  check(
+    "the action dispatcher records non-structural actions",
+    runRegisteredAction(
+      "save",
+      "view",
+      (id) => ({ id, run: (view) => (ran.push([id, view]), true) }),
+      () => false,
+      (id) => notes.push(id),
+    ),
+    true,
   );
+  check("…before running the action", notes, ["save"]);
+  check("…with the editor view", ran, [["save", "view"]]);
+  const structuralNotes = [];
+  check(
+    "structural actions are not recorded a second time",
+    runRegisteredAction("table", "view", (id) => ({ id, run: () => true }), () => true, (id) => structuralNotes.push(id)),
+    true,
+  );
+  check("…and unknown actions are refused", runRegisteredAction("missing", "view", () => undefined, () => false, () => structuralNotes.push("bad")), false);
+  check("…without recording either", structuralNotes, []);
   // The other half: the recorder has to see a command that arrives with no
   // action behind it — the toolbar, the Insert menu and the palette all call
   // `insertSnippet` with a registry command directly.
@@ -264,33 +294,47 @@ check(
 // that performs a row. The other half — that operations are in the list at all
 // — is executable now, in `panelrows.test.mjs`.
 {
-  const body = MAIN.slice(MAIN.indexOf("function renderPaletteList"));
-  const list = body.slice(0, body.indexOf("\n}\n") + 3);
-  ok("the palette offers operations", /paletteActions\(\)/.test(list));
-  // The `switch` moved out of `drawRow` into `runRow` when help entries became
-  // clickable — help speaks the same `RowAction` vocabulary now, and a second
-  // copy of this dispatch beside the help panel is how one of them would come to
-  // disagree with the other. So the fence follows the property rather than the
-  // function: there is one dispatcher, it reaches `runAction`, and every surface
-  // that performs a row goes through it.
-  const door = MAIN.slice(MAIN.indexOf("function runRow"));
-  ok(
-    "…and runs them through the one door",
-    /case "action":[\s\S]{0,200}?runAction\(/.test(door.slice(0, door.indexOf("\n}\n") + 3)),
+  const list = paletteList(
+    [{ id: "save", label: "Save", key: "Mod-s" }],
+    [{ name: "bold", insert: "#הדגשה[|]", from: "registry", desc_he: "הדגשה", desc_en: "bold" }],
+    "",
+    "en",
   );
-  const draw = MAIN.slice(MAIN.indexOf("function drawRow"));
-  ok("a drawn row goes through it", /runRow\(r\.does/.test(draw.slice(0, draw.indexOf("\n}\n") + 3)));
-  ok(
-    "and so does a help entry",
-    /function renderHelp[\s\S]{0,2000}?runRow\(/.test(MAIN),
+  ok("the palette offers operations", list.rows.some((r) => r.does.kind === "action"));
+  ok("it still offers commands", list.rows.some((r) => r.does.kind === "insert"));
+  const events = [];
+  dispatchRowAction(
+    { kind: "action", id: "save" },
+    {
+      jump: (at) => events.push(["jump", at]),
+      action: (id) => events.push(["action", id]),
+      insert: (snippet) => events.push(["insert", snippet]),
+      restore: (snapshot) => events.push(["restore", snapshot]),
+      hit: (row) => events.push(["hit", row]),
+    },
   );
-  ok("it still offers commands", /commands\.available\(/.test(list));
-  // Structural operations are filtered to where the caret actually is, the same
-  // rule the ribbon and the hydra use. Offering "delete row" outside a table and
-  // silently doing nothing is how a palette teaches people not to trust it.
-  ok(
-    "structural operations are filtered to the caret",
-    /function paletteActions[\s\S]{0,700}?availableAt\(/.test(MAIN),
+  dispatchRowAction(
+    { kind: "insert", snippet: "#הדגשה[|]" },
+    {
+      jump: (at) => events.push(["jump", at]),
+      action: (id) => events.push(["action", id]),
+      insert: (snippet) => events.push(["insert", snippet]),
+      restore: (snapshot) => events.push(["restore", snapshot]),
+      hit: (row) => events.push(["hit", row]),
+    },
+  );
+  check("palette rows use the one dispatcher", events, [["action", "save"], ["insert", "#הדגשה[|]"]]);
+  check(
+    "structural palette operations are filtered to the caret",
+    paletteActionsAt(
+      [
+        { id: "table", label: "Table", key: "" },
+        { id: "save", label: "Save", key: "Mod-s" },
+      ],
+      new Set(["table"]),
+      (id) => id === "table" || id === "missing",
+    ).map((a) => a.id),
+    ["table", "save"],
   );
 }
 

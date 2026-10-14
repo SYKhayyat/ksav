@@ -9,7 +9,7 @@ else."* A count is not a property of a system; it is a property of a list, and
 the list turned out to be a chooser's. The fence that guards every counted claim
 in this repository had to decline to count the code in order to reach eleven, and
 said so in its own comment. When a fence has to pick which artifact to count, the
-prose is what is wrong. See §4 of `lamdan/whole-repo-2026-08-07.md`.
+prose is what is wrong. See [The cells were the product](decisions/2026-08-20-the-cells-were-the-product.md).
 
 The rule below is checkable, and everything here is an instance of it.
 

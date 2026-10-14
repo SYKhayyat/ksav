@@ -40,9 +40,8 @@ service was implemented.
 
 ### Known checks and environment limits
 
-- CI editor counts change with `main`; do not guess. The latest observed
-  branches reported 8,286/120, 8,303/121, and 8,287/121 at different commits.
-  Run the gate after every merge and update both README count references last.
+- CI editor counts change with `main`; do not guess. Run the gate after every
+  merge and update both README count references last.
 - Local editor gates pass typecheck and non-browser assertions, but Chromium is
   unavailable locally, so `browserlang.test.mjs` cannot run. CI has Chromium.
 - The shared checkout is clean on `main` after fast-forwarding to `a6572c0`.

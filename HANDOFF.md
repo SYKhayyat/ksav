@@ -4,47 +4,34 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-10-13
+## Current handoff — 2026-10-14
 
-The latest pushed `main` is `a6572c0` (PR #95 merged). This sitting also pushed
-the remaining issue branches, but PRs #97, #98, and #99 still need conflict
-resolution/verification against the new `main`. The full chronological record
-for this sitting is at the top of [`SESSION_LOG.md`](SESSION_LOG.md) when
-available.
+The latest pushed `main` is `e65cc3f`. PRs #95, #97, #98, and #99 are merged;
+#96 was already merged. The issue comments were added and GitHub reported #31,
+#33, and #35 already closed when close commands were issued. The shared
+checkout is clean.
 
-### Immediate next action
+### Completed this sitting
 
-Run `gh pr view 97 98 99 --repo sykhayyat/ksav` and finish the PR lifecycle.
-PR #97 (`issue-35-notes-corpus-fences`) is known to have passing checks but was
-conflicting after #95; merge `origin/main` into `/home/shaul/ksav-issue-35`,
-preserve `ksav/engine/tests/notes_acceptance.rs`, resolve `ksav/README.md` to
-the actual editor count, run `node tools/gate.mjs editor`, commit, and push.
-PR #98 branch `issue-33-chrome-fences` was updated at `bae388f`; PR #99 branch
-`issue-31-distill-records` was updated at `fa75d25`; re-check their required
-checks and merge only when clean. After each merge, comment on and close its
-issue (#35, #33, #31). Do not close #19: no real asynchronous Rust/WASM scan
-service was implemented.
+- #20 / PR #95 merged at `a6572c0`; #35 / PR #97 merged at `a2c86b9`.
+- #33 / PR #98 merged at `c46d209`; #31 / PR #99 merged at `e65cc3f`.
+- Required remote CI passed for the merged PRs, including editor, engine,
+  formatting, macOS engine, browser engine, assembled app, Emacs, and desktop.
+- Focused evidence: notes corpus 22 passed, chrome 154 passed, and docs/readme
+  241 passed.
+- Issue #19 intentionally remains open: no real asynchronous Rust/WASM scan
+  service consumed by the editor was implemented.
 
-### Branch/commit state
+### Next action
 
-- PR #95 / issue #20: **merged** at `a6572c0`; all required CI jobs passed.
-- PR #96 / issue #23: **already merged** before this sitting.
-- PR #97 / issue #35: branch `2662bcd` has passing prior checks but is
-  **conflicting** with current `main`; worktree `/home/shaul/ksav-issue-35`.
-- PR #98 / issue #33: branch update `bae388f`; focused chrome tests passed and
-  typecheck passed; re-run remote checks after the update.
-- PR #99 / issue #31: branch update `fa75d25`; focused docs/README tests passed
-  (241) and local editor suite matched the current CI total; re-check remote CI.
-- Issue #19: intentionally incomplete; branch `/home/shaul/ksav-issue-19` is
-  evidence only and must not be represented as a delivered Rust/WASM service.
+There is no unfinished implementation from this sitting. If resuming the issue
+queue, read `PLAN.md`, inspect open issues, and preserve the #19 boundary above.
 
 ### Known checks and environment limits
 
-- CI editor counts change with `main`; do not guess. Run the gate after every
-  merge and update both README count references last.
-- Local editor gates pass typecheck and non-browser assertions, but Chromium is
-  unavailable locally, so `browserlang.test.mjs` cannot run. CI has Chromium.
-- The shared checkout is clean on `main` after fast-forwarding to `a6572c0`.
+- CI editor counts were refreshed after each merge from measured runs.
+- Local runs may omit `browserlang.test.mjs` because Chromium is unavailable;
+  the corresponding CI browser-engine and assembled-app jobs passed.
 
 ### Completed and on `main`
 
@@ -60,26 +47,12 @@ service was implemented.
   [`decisions/2026-10-11-keyed-dom-reconciliation.md`](decisions/2026-10-11-keyed-dom-reconciliation.md).
 
 Both changes were focused-tested locally and passed the complete remote CI. The
-GitHub issues were intentionally left open at the interruption; close them only
-after recording the final implementation comment if that has not already been
-done.
+### Preserved unfinished work
 
-### Next work already pushed, but not ready to merge
-
-- **#20**: `origin/issue-20-scan-seams` at `f43b924`. The existing synchronous
-  scan seam is reused for deferred and numbering paths. Before merging, fix the
-  remaining `deferAllInlineNotes` per-note rescans, validate that an optional
-  `Scan` belongs to the text it is used with, clarify/reset cache instrumentation,
-  and strengthen the new test with a real region and independent expected result.
-- **#19**: `origin/issue-19-rust-scan` at `87c1fe0`. The lexical pass is shared
-  between `scan()` and `delimiters()` while synchronous editor decoration users
-  remain in TypeScript. It overlaps #20 and was not merged or closed. Review the
-  combined diff first; do not claim a Rust/WASM service was delivered.
-
-The two branches have matching local worktrees at `/home/shaul/ksav-issue-20`
-and `/home/shaul/ksav-issue-19`. They were pushed specifically so no work is
-lost. The next session should review/merge or revise them, then continue at
-`#20/#19` before the remaining plan items.
+- **#19**: `origin/issue-19-rust-scan` at `87c1fe0`, with local worktree
+  `/home/shaul/ksav-issue-19`. It shares only a synchronous TypeScript lexical
+  pass; no Rust/WASM scan transport is consumed by the editor. Keep it open and
+  review the required wire schema and asynchronous consumer before claiming it.
 
 This is a **living page**. Tick the boxes in *What is left* as they are done,
 add what you find, and delete what stops being true. It is not a log — the

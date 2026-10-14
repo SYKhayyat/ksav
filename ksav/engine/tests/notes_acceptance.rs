@@ -40,6 +40,29 @@ fn laid(name: &str) -> (Vec<probe::TextRun>, Vec<(f64, f64)>) {
     (probe::text_runs(&doc), probe::page_sizes(&doc))
 }
 
+/// Read the decimal suffixes from every occurrence of a probe marker.
+///
+/// Corpus fixtures deliberately put the marker in the text, rather than making
+/// a test depend on a coordinate that happens to be true for today's fonts.
+fn marker_numbers(text: &str, marker: &str) -> Vec<usize> {
+    text.match_indices(marker)
+        .filter_map(|(at, _)| {
+            let after = &text[at + marker.len()..];
+            let digits: String = after.chars().take_while(char::is_ascii_digit).collect();
+            (!digits.is_empty()).then(|| digits.parse().unwrap())
+        })
+        .collect()
+}
+
+fn leading_number(text: &str) -> Option<usize> {
+    let digits: String = text
+        .trim_start()
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    (!digits.is_empty()).then(|| digits.parse().unwrap())
+}
+
 /// The lowest point anything printed at, in points from the top of the page.
 fn max_y(runs: &[probe::TextRun]) -> f64 {
     runs.iter().fold(0.0_f64, |a, r| a.max(r.y))
@@ -737,5 +760,195 @@ fn a_long_multi_paragraph_entry_still_splits_with_the_rhythm() {
     assert!(
         low <= PAGE_FOOT,
         "a split entry under the rhythm reached y={low:.2}, past the page number"
+    );
+}
+
+/// The grid keeps a daf's two registers together when it reaches a page edge.
+///
+/// This is a structural assertion: the paired probe markers must advance
+/// through c1..c12 and m1..m12 for each daf, with no line belonging to only one
+/// register. It deliberately does not name the y coordinate where daf 3 breaks.
+#[test]
+fn notes_corpus_perdaf_keeps_each_register_on_the_same_row() {
+    let lines = visual_lines(&laid("perdaf").0);
+    for daf in 1..=3 {
+        let mut rashi = Vec::new();
+        let mut gemara = Vec::new();
+        for line in &lines {
+            let r = marker_numbers(&line.reading, &format!("R{daf}c"));
+            let g = marker_numbers(&line.reading, &format!("G{daf}m"));
+            if r.is_empty() && g.is_empty() {
+                continue;
+            }
+            assert_eq!(
+                r.len(),
+                1,
+                "perdaf daf {daf} has a line without exactly one rashi marker: {:?}",
+                line.text()
+            );
+            assert_eq!(
+                g.len(),
+                1,
+                "perdaf daf {daf} has a line without exactly one gemara marker: {:?}",
+                line.text()
+            );
+            rashi.extend(r);
+            gemara.extend(g);
+        }
+        let expected: Vec<usize> = (1..=12).collect();
+        assert_eq!(rashi, expected, "perdaf daf {daf} rashi rows drifted");
+        assert_eq!(gemara, expected, "perdaf daf {daf} gemara rows drifted");
+    }
+}
+
+/// Grid note numbering is column-major: the first column consumes 1..3 before
+/// the second column starts at 4. The labels are probe terms, so this remains
+/// about reading order rather than a particular page coordinate.
+#[test]
+fn notes_corpus_numorder_is_column_major() {
+    let lines = visual_lines(&laid("numorder").0);
+    let expected = [
+        "note from RIGHT column item 1",
+        "note from RIGHT column item 2",
+        "note from RIGHT column item 3",
+        "note from LEFT column item 1",
+        "note from LEFT column item 2",
+        "note from LEFT column item 3",
+    ];
+    let mut observed = Vec::new();
+    let mut numbers = Vec::new();
+    for line in lines.iter().filter(|line| line.contains("note from")) {
+        let label = expected
+            .iter()
+            .find(|label| line.contains(label))
+            .unwrap_or_else(|| panic!("unexpected numorder probe line: {:?}", line.text()));
+        observed.push(*label);
+        numbers.push(leading_number(&line.reading).expect("note probe line has no number"));
+    }
+    assert_eq!(
+        observed, expected,
+        "numorder notes did not read column-major"
+    );
+    assert_eq!(
+        numbers,
+        (1..=6).collect::<Vec<_>>(),
+        "numorder sequence changed"
+    );
+}
+
+/// The Vilna fixture changes the active row shape from three columns to two,
+/// then to a full-width row. The marker families are the probe-visible
+/// description of those columns; no golden x or y coordinate is needed.
+#[test]
+fn notes_corpus_vilna_has_three_two_and_full_width_rows() {
+    let lines = visual_lines(&laid("vilna").0);
+    for row in 1..=6 {
+        let line = lines
+            .iter()
+            .find(|line| line.contains(&format!("RASHI{row}")))
+            .unwrap_or_else(|| panic!("vilna row {row} has no rashi probe term"));
+        assert!(line.contains(&format!("GEM{row}")));
+        assert!(line.contains(&format!("TOS{row}")));
+    }
+    for row in 7..=10 {
+        let line = lines
+            .iter()
+            .find(|line| line.contains(&format!("RASHI{row}")))
+            .unwrap_or_else(|| panic!("vilna row {row} has no rashi probe term"));
+        assert!(line.contains(&format!("TOS{row}")));
+        assert!(
+            !line.contains(&format!("GEM{row}")),
+            "vilna two-column row {row} still has a middle-column term"
+        );
+    }
+    for row in 11..=13 {
+        let line = lines
+            .iter()
+            .find(|line| line.contains(&format!("RASHI{row}")))
+            .unwrap_or_else(|| panic!("vilna row {row} has no rashi probe term"));
+        assert!(
+            !line.contains(&format!("GEM{row}")) && !line.contains(&format!("TOS{row}")),
+            "vilna full-width row {row} still has a side-column term"
+        );
+    }
+}
+
+/// Both flowtest streams continue through the same six-page corpus document.
+/// Every paragraph marker appears once and in order, while every page has both
+/// a stream represented; this is the useful flow claim without fixed positions.
+#[test]
+fn notes_corpus_flowtest_keeps_both_columns_flowing() {
+    let (runs, pages) = laid("flowtest");
+    assert_eq!(pages.len(), 6, "flowtest changed its structural page count");
+    let expected: Vec<usize> = (1..=70).collect();
+    let main: Vec<usize> = runs
+        .iter()
+        .flat_map(|run| marker_numbers(&run.text, "MAIN"))
+        .collect();
+    let perush: Vec<usize> = runs
+        .iter()
+        .flat_map(|run| marker_numbers(&run.text, "PERUSH"))
+        .collect();
+    assert_eq!(
+        main, expected,
+        "flowtest main stream did not continue in order"
+    );
+    assert_eq!(
+        perush, expected,
+        "flowtest commentary stream did not continue in order"
+    );
+    assert!(
+        runs.iter()
+            .any(|run| run.page == 1 && run.text.contains("MAIN"))
+            && runs
+                .iter()
+                .any(|run| run.page == 1 && run.text.contains("PERUSH")),
+        "flowtest's first page does not contain both column probe terms"
+    );
+    for page in 1..=pages.len() {
+        assert!(
+            runs.iter().any(|run| run.page == page
+                && (run.text.contains("MAIN") || run.text.contains("PERUSH"))),
+            "flowtest page {page} has no stream probe term"
+        );
+    }
+}
+
+/// The boxover fixture no longer overprints after its ninth entry: all twenty
+/// probe terms are present exactly once, and no page/line position is reused.
+#[test]
+fn notes_corpus_boxover_prints_all_twenty_notes_without_overprint() {
+    let lines = visual_lines(&laid("boxover").0);
+    let notes: Vec<_> = lines
+        .iter()
+        .filter(|line| line.contains("שער הציון"))
+        .collect();
+    assert_eq!(
+        notes.len(),
+        20,
+        "boxover printed {} of 20 notes",
+        notes.len()
+    );
+    for n in 1..=20 {
+        assert_eq!(
+            notes
+                .iter()
+                .filter(|line| line.contains(&format!("SHT{n} ")))
+                .count(),
+            1,
+            "boxover probe term SHT{n} was not printed exactly once"
+        );
+    }
+    let mut places: Vec<_> = notes
+        .iter()
+        .map(|line| (line.page, (line.y * 100.0).round() as i64))
+        .collect();
+    let before = places.len();
+    places.sort_unstable();
+    places.dedup();
+    assert_eq!(
+        places.len(),
+        before,
+        "boxover notes overprinted at one probe position"
     );
 }

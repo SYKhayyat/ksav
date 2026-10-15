@@ -2882,6 +2882,7 @@ dependencies = [
  "girsa-source",
  "serde",
  "serde_json",
+ "sha2",
  "tiny_http",
  "typst",
  "typst-as-lib",

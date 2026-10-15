@@ -638,8 +638,8 @@ export interface Orphan {
  * exactly the position that rule refuses — linting through `legalAt` would put
  * a red underline under a working table.
  */
-export function orphanChildren(doc: string): Orphan[] {
-  const sc = scan(doc);
+export function orphanChildren(doc: string, supplied?: import("./spans").Scan): Orphan[] {
+  const sc = supplied ?? scan(doc);
   const out: Orphan[] = [];
   for (const n of sc.nodes) {
     const parents = CHILD_PARENTS[n.name];

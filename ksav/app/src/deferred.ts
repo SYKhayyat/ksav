@@ -371,8 +371,8 @@ export interface Elsewhere {
   referenced?: Iterable<string>;
 }
 
-export function problems(text: string, elsewhere: Elsewhere = {}): Problem[] {
-  const { refs, defs } = scan(text);
+export function problems(text: string, elsewhere: Elsewhere = {}, spans?: SpanScan): Problem[] {
+  const { refs, defs } = scan(text, spans);
   const defined = new Set([...defs.map((d) => d.name), ...(elsewhere.defined ?? [])]);
   const referenced = new Set([...refs.map((r) => r.name), ...(elsewhere.referenced ?? [])]);
   const out: Problem[] = [];

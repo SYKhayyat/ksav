@@ -622,9 +622,9 @@ export interface Normalisable {
  * reports as a list with zero items — comes out as
  * `#רשימה(סמן: [–], פריט[א], פריט[ב])`.
  */
-export function bracketLists(doc: string): Normalisable[] {
+export function bracketLists(doc: string, supplied?: import("./spans").Scan): Normalisable[] {
   const out: Normalisable[] = [];
-  for (const n of scan(doc).nodes) {
+  for (const n of (supplied ?? scan(doc)).nodes) {
     if (n.role !== "list" || n.bodies.length === 0) continue;
     const kids = childrenOfRole(n, "item");
     const args = n.args;

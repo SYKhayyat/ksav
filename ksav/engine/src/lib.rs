@@ -77,6 +77,8 @@ pub mod policy;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod post;
 pub mod probe;
+/// The JSON scan used by the bracket-lint seam in Rust and WASM.
+pub mod scan;
 /// The catalogue of sefarim, and the order a source index prints them in.
 pub mod sefarim;
 /// Every engine service, once — what `server.rs`, the wasm binding and the

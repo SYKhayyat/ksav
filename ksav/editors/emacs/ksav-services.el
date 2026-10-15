@@ -28,6 +28,7 @@
     ("places" "POST" "/places" nil)
     ("spell" "POST" "/spell" nil)
     ("suggest" "POST" "/suggest" nil)
+    ("scan" "POST" "/scan" nil)
     ("commands" "GET" "/commands" nil)
     ("templates" "GET" "/templates" nil)
     ("sefarim" "GET" "/sefarim" nil)

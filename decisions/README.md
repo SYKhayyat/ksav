@@ -125,6 +125,7 @@ supersede an earlier one without rewriting it.
 | 2026-10-02 | [reledmac-verified-the-claims-are-false](2026-10-02-reledmac-verified-the-claims-are-false.md) |
 | 2026-10-11 | [keyed-dom-reconciliation](2026-10-11-keyed-dom-reconciliation.md) |
 | 2026-10-11 | [shared-assets-earn-a-sha-256-digest](2026-10-11-shared-assets-earn-a-sha-256-digest.md) |
+| 2026-10-14 | [rust-scan-service](2026-10-14-rust-scan-service.md) |
 | 2026-10-11 | [the-editor-scan-is-the-seam](2026-10-11-the-editor-scan-is-the-seam.md) |
 | 2026-10-13 | [a-scan-belongs-to-its-text](2026-10-13-a-scan-belongs-to-its-text.md) |
 | 2026-10-13 | [i18n-data-lives-apart](2026-10-13-i18n-data-lives-apart.md) |

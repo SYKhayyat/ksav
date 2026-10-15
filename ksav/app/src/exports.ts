@@ -8,6 +8,7 @@
 // neither and go straight from the source.
 
 import { analyze } from "./brackets";
+import { scanForBackend } from "./api";
 import {
   destinationForChannel,
   noteCounts,
@@ -70,8 +71,14 @@ export function setPages(text: string): pagerange.PageSpec {
  * word is not — the status line may have scrolled past by the time they hit
  * Export.
  */
-function warnIfHealed() {
-  const n = healedCount();
+async function warnIfHealed() {
+  const text = runtime.docText();
+  const docId = runtime.currentDoc?.id ?? null;
+  const scanned = await scanForBackend(runtime.backend, text);
+  const n = analyze(text, { delims: scanned.delims, comments: scanned.recoveryComments }).problems.length;
+  // An export can outlive a document switch. Do not report the old document's
+  // repair count over the new document's status bar.
+  if (docId !== (runtime.currentDoc?.id ?? null) || text !== runtime.docText()) return;
   if (n) runtime.setStatus(`⚠ ${tf("previewHealed", n)}`, "warn");
 }
 
@@ -146,7 +153,7 @@ export async function exportPdf() {
   // do rather than fail over — worth a line, since the file is already on disk.
   const note = res.diagnostics?.find((d) => d.severity === "warning")?.message;
   if (note) runtime.setStatus(`⚠ ${note}`, "warn");
-  else warnIfHealed();
+  else await warnIfHealed();
 }
 
 // `exportPdfPages` used to live here: a second export route whose only
@@ -174,7 +181,7 @@ export async function exportTypst() {
     return;
   }
   handOver(runtime.fileStem() + ".typ", new Blob([res.typst_source], { type: "text/plain" }));
-  warnIfHealed();
+  await warnIfHealed();
 }
 
 /**
@@ -237,7 +244,7 @@ export async function exportHtml() {
   // is said. A file *was* produced; it is pictures rather than text, and that is
   // worth a line because it is not what "Export HTML" implies.
   if (!html) runtime.setStatus(t("htmlFellBack") + (why ? ` — ${why}` : ""), "warn");
-  else warnIfHealed();
+  else await warnIfHealed();
 }
 
 // ---------------------------------------------------------------- Word handoff
@@ -484,6 +491,9 @@ export function doPrint() {
   w.document.write(pageImageHtml(banner));
   w.document.close();
   w.focus();
+  // Keep the click handler's immediate UI truthful even when the service is
+  // asynchronous; the shared scan below can refine the same answer later.
+  if (healed) runtime.setStatus(`⚠ ${tf("previewHealed", healed)}`, "warn");
   warnIfHealed();
   setTimeout(() => w.print(), 300);
 }

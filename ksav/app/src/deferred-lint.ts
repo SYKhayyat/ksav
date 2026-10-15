@@ -42,6 +42,8 @@ import {
 } from "./deferred";
 import type { Problem } from "./deferred";
 import { setStatus } from "./runtime";
+import * as runtime from "./runtime";
+import { scanForBackend } from "./api";
 import { t, tf } from "./i18n";
 
 /** Replace the whole document and put the caret somewhere. */
@@ -227,9 +229,12 @@ export function noteNamesElsewhere(next: Elsewhere): void {
 }
 
 const deferredLinter = linter(
-  (view) => {
+  async (view) => {
+    const doc = view.state.doc;
     const text = docTextOf(view.state.doc);
-    return problems(text, elsewhere).map((p): Diagnostic => {
+    const spans = await scanForBackend(runtime.backend, text);
+    if (view.state.doc !== doc) return [];
+    return problems(text, elsewhere, spans).map((p): Diagnostic => {
       const actions =
         p.kind === "dangling"
           ? [

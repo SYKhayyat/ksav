@@ -122,7 +122,7 @@ it at one you are already running — a desktop Ksav, or another Emacs — with
 
 ### Every service, and where it is
 
-The engine answers sixteen services and this package reaches all sixteen. That
+The engine answers nineteen services and this package reaches all nineteen. That
 is a claim `ksav/app/test/emacs.test.mjs` holds, with an exemption list that is
 **empty** — because the version before this one reached three of them, and a
 client that quietly cannot do thirteen of the things the product does cannot
@@ -138,6 +138,7 @@ the first as the second, every time.
 | `places` | `M-x ksav-places` — every place a line printed, for a part included more than once |
 | `spell` | `C-c C-s` |
 | `suggest` | `C-c C-w` |
+| `scan` | `M-x ksav-scan` |
 | `commands` | `C-c C-i` |
 | `templates` | `C-c C-n` |
 | `sefarim` | `C-c C-f`, and `completion-at-point` |

@@ -12,6 +12,7 @@
 
 import { SERVICE, SERVICE_PATH, type GitOp, type ServiceName } from "./services.gen";
 import { isOp } from "./git";
+import { hydrateScan, scan as scanLocal, assertScanText, type Scan, type ScanWire } from "./spans";
 
 export interface DocConfig {
   font: string;
@@ -924,6 +925,12 @@ export interface ServiceRow {
   nativeOnly: boolean;
 }
 
+/** The editor-facing portion of the Rust lexical scan service. */
+export interface ScanResult extends ScanWire {
+  /** Normal node assembly/classification over validated Rust lexical facts. */
+  scan: Scan;
+}
+
 /**
  * Per-compile hints the two transports need for different reasons.
  *
@@ -945,6 +952,7 @@ export interface CompileOpts {
 interface CallOpts {
   timeoutMs?: number;
   background?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface Backend {
@@ -994,6 +1002,8 @@ export interface Backend {
    * different answer from a line that is the main body.
    */
   places(body: string, cfg: DocConfig, at: BodySpot, assets?: RequestAssets): Promise<Places>;
+  /** Structural facts from the Rust scanner, for consumers that can await. */
+  scan(text: string, opts?: { signal?: AbortSignal }): Promise<ScanResult>;
   /** Check text against both lexicons plus the writer's own words. */
   spell(text: string, userWords: string, suggest?: boolean): Promise<SpellResult>;
   /** Suggestions for one word — asked for only when a menu is opened. */
@@ -1016,6 +1026,35 @@ export interface Backend {
    * has three different answers to give a reader.
    */
   git(op: GitOp, path: string, extra?: Record<string, unknown>): Promise<GitAnswer>;
+}
+
+/** Shared bounded async scan memo for lints, preview and export warnings. */
+const SERVICE_SCAN_CACHE = new WeakMap<object, { text: string; pending: Promise<Scan>; }[]>();
+export function scanForBackend(backend: Backend | undefined, text: string, signal?: AbortSignal): Promise<Scan> {
+  if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+  if (!backend || typeof backend.scan !== "function") return Promise.resolve(scanLocal(text));
+  let entries = SERVICE_SCAN_CACHE.get(backend);
+  if (!entries) { entries = []; SERVICE_SCAN_CACHE.set(backend, entries); }
+  const at = entries.findIndex((e) => e.text === text);
+  let entry = at < 0 ? undefined : entries.splice(at, 1)[0];
+  if (!entry) {
+    // The shared request belongs to the memo, never to its first consumer.
+    // A cancelled preview must not abort the lints awaiting the same facts.
+    const pending = Promise.resolve().then(() => backend.scan(text))
+      .then((result) => assertScanText(text, result.scan))
+      .catch(() => scanLocal(text));
+    entry = { text, pending };
+  }
+  entries.push(entry);
+  if (entries.length > 4) entries.shift();
+  if (!signal) return entry.pending;
+  const pending = entry.pending;
+  return new Promise((resolve, reject) => {
+    const abort = () => { cleanup(); reject(signal.reason ?? new DOMException("Aborted", "AbortError")); };
+    const cleanup = () => signal.removeEventListener("abort", abort);
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then((value) => { cleanup(); resolve(value); }, (error) => { cleanup(); reject(error); });
+  });
 }
 
 /**
@@ -1306,6 +1345,12 @@ abstract class ServiceClient {
     return out.suggestions ?? [];
   }
 
+  async scan(text: string, opts: { signal?: AbortSignal } = {}): Promise<ScanResult> {
+    const result = await this.ask<ScanWire>("scan", { text }, opts);
+    const scan = hydrateScan(text, result);
+    return { ...result, scan };
+  }
+
   async commands(): Promise<CommandDef[]> {
     return this.ask("commands");
   }
@@ -1457,8 +1502,8 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
     });
   }
 
-  protected async call(service: ServiceName, input = ""): Promise<string> {
-    const res = await this.fetchService(service, input);
+  protected async call(service: ServiceName, input = "", opts: CallOpts = {}): Promise<string> {
+    const res = await this.fetchService(service, input, opts.signal);
     // A refusal is an error here rather than a parsed empty answer, which is
     // what lets `inbox()` above swallow one deliberately and everything else
     // report it.

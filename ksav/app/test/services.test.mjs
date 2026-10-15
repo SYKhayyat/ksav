@@ -22,6 +22,7 @@
 
 import { check, ok, notOk } from "./harness.mjs";
 import { HttpBackend, TauriBackend, WasmBackend, sourcesOf } from "../.tmp-test/api.mjs";
+import { scanWire } from "../.tmp-test/spans.mjs";
 
 /**
  * Let every pending microtask run.
@@ -86,6 +87,7 @@ const CALLS = [
   ["places", (b) => b.places("שלום", {}, { line: 1 }), { places: [3, 7], first: 3 }],
   ["spell", (b) => b.spell("שלום", ""), { misspellings: [] }],
   ["suggest", (b) => b.suggest("שלום", ""), { suggestions: [] }],
+  ["scan", (b) => b.scan("abc#f[x]"), scanWire("abc#f[x]")],
   ["commands", (b) => b.commands(), []],
   ["templates", (b) => b.templates(), []],
   ["sefarim", (b) => b.sefarim(), { sefarim: [] }],

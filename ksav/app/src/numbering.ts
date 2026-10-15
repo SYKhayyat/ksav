@@ -344,8 +344,8 @@ export function sequence(doc: string, spans: Scan = scan(doc)): Numbered[] {
 }
 
 /** The members whose number disagrees with their position. */
-export function outOfSequence(doc: string): Numbered[] {
-  return sequence(doc).filter((n) => n.written !== n.wanted);
+export function outOfSequence(doc: string, spans?: Scan): Numbered[] {
+  return sequence(doc, spans ?? scan(doc)).filter((n) => n.written !== n.wanted);
 }
 
 /**

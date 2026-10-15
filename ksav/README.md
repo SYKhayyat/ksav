@@ -724,8 +724,8 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 8,304 editor assertions across 121 files,
-      1130 tests in the engine, formatting and `clippy -D warnings`, the engine
+      all nine jobs: the typechecker and 12,738 editor assertions across 122 files,
+      1148 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS, a build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
       the Emacs version it declares, the same package on a current Emacs, and
@@ -803,8 +803,8 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 8,304 assertions across 121 files |
-| `engine` | both | formatting, lints, then 1130 tests across 78 binaries |
+| `editor` | both | the typechecker, then 12,738 assertions across 122 files |
+| `engine` | both | formatting, lints, then 1148 tests across 79 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
@@ -1097,6 +1097,7 @@ registry**, `engine/src/services.rs`, and none of them keeps a list of its own:
 | `places` | `POST /places` | every place a line was printed, in reading order: `{body, line, column, …DocConfig}` → `{places: [line], first: line \| null}` — the list `reveal` uses only the first of, for a part included more than once. `first` is `reveal`'s own answer rather than `places[0]`, so a client does not reimplement *"first is reading order"* across the wire; `null` means the line is in no part, which is a different answer from one that is the main body |
 | `spell` | `POST /spell` | `{text, user_words, suggest}` → `{misspellings[], lexicon_sizes}` |
 | `suggest` | `POST /suggest` | `{word, user_words}` → `{suggestions[]}` |
+| `scan` | `POST /scan` | `{text}` → `{version, text_length, delims[], comments[]}` with JavaScript UTF-16 offsets |
 | `commands` | `GET /commands` | the command registry (JSON) |
 | `templates` | `GET /templates` | the template registry (JSON, includes each body) |
 | `sefarim` | `GET /sefarim` | the sefer catalogue, for citation autocomplete |

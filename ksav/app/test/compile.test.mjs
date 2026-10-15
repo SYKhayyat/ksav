@@ -24,6 +24,8 @@
 import { check, ok, notOk, fakeView, installChrome } from "./harness.mjs";
 import { bodyOnScreen, compileForExport, reflowableHtml, runCompile } from "../.tmp-test/compile.mjs";
 import { analyze } from "../.tmp-test/brackets.mjs";
+import { scanWire, hydrateScan, clearScanCache, lexPassCount } from "../.tmp-test/spans.mjs";
+import { scanForBackend } from "../.tmp-test/api.mjs";
 import * as docs from "../.tmp-test/docs.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
 import { readFile } from "node:fs/promises";
@@ -38,7 +40,13 @@ const lines = (s) => s.split(String.fromCharCode(10)).length;
 /** An engine that records what it was asked for and answers as told. */
 function backendThat(answer) {
   const seen = [];
+  seen.scanCalls = [];
   runtime.setBackend({
+    async scan(text) {
+      seen.scanCalls.push(text);
+      const wire = scanWire(text);
+      return { ...wire, scan: hydrateScan(text, wire) };
+    },
     async compile(body, config, opts) {
       seen.push({ body, config, opts });
       return typeof answer === "function" ? answer(body, opts) : answer;
@@ -102,6 +110,7 @@ export async function run() {
       await runCompile();
       const onScreen = bodyOnScreen();
       check("the plan on screen is exactly what the engine was sent", onScreen.body, seen[0].body);
+      check("the compile asks the asynchronous scan seam first", seen.scanCalls, [doc]);
       ok("the heal is reported, not silent", onScreen.healed > 0);
       check("and it counts the analyzer's own repairs", onScreen.healed, analyze(doc).problems.length);
 
@@ -113,6 +122,51 @@ export async function run() {
     }
 
     // ------------------------------------------------ what the export asks for
+
+    {
+      const doc = '#table(columns: (1fr, 2fr), cell[😀], cell[ב],)';
+      const wire = scanWire(doc);
+      clearScanCache();
+      let finish;
+      let scanCalls = 0;
+      let compileCalls = 0;
+      const backend = {
+        scan() { scanCalls++; return new Promise((resolve) => { finish = () => resolve({ ...wire, scan: hydrateScan(doc, wire) }); }); },
+        async compile() { compileCalls++; return { ok: true, pages_svg: [], diagnostics: [] }; },
+      };
+      runtime.setBackend(backend);
+      runtime.setView(fakeView(doc, 0));
+      const lint = scanForBackend(backend, doc);
+      const rendering = runCompile();
+      await Promise.resolve();
+      runtime.setView(fakeView(doc + '\nchanged', 0));
+      finish();
+      await Promise.all([lint, rendering]);
+      check("a stale scan cannot start an old document compile", compileCalls, 0);
+      check("compile and lint share the in-flight service scan", scanCalls, 1);
+      check("successful scan does not run the TS lexer", lexPassCount(), 0);
+    }
+
+    {
+      // Superseding the first preview cancels its wait, not the shared facts.
+      const doc = '#f[shared]';
+      const wire = scanWire(doc);
+      let finish;
+      let calls = 0;
+      const compiled = [];
+      runtime.setBackend({
+        scan() { calls++; return new Promise((resolve) => { finish = () => resolve({ ...wire, scan: hydrateScan(doc, wire) }); }); },
+        async compile(body) { compiled.push(body); return { ok: true, pages_svg: [], diagnostics: [] }; },
+      });
+      runtime.setView(fakeView(doc, 0));
+      const old = runCompile();
+      await Promise.resolve();
+      const next = runCompile();
+      finish();
+      await Promise.all([old, next]);
+      check("superseded compile cannot poison the shared service request", calls, 1);
+      check("only the current preview compiles", compiled.length, 1);
+    }
 
     {
       // The export path asks for the PDF and the assembled source; the preview

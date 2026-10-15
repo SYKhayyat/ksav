@@ -30,6 +30,9 @@ import type { EditorView } from "@codemirror/view";
 import { t, tf } from "./i18n";
 import { outOfSequence, resequenceAt } from "./numbering";
 import { docTextOf } from "./spans";
+import { scanForBackend } from "./api";
+import * as runtime from "./runtime";
+import type { Scan } from "./spans";
 
 /** One number that disagrees with its position: a range and what it should say. */
 export interface NumberMark {
@@ -47,8 +50,8 @@ export interface NumberMark {
  * is right and a mark on the wrong span is a defect no test of the model
  * catches, and here the span is a numeral three characters wide.
  */
-export function numberMarks(text: string): NumberMark[] {
-  return outOfSequence(text).map((n) => ({
+export function numberMarks(text: string, spans?: Scan): NumberMark[] {
+  return outOfSequence(text, spans).map((n) => ({
     from: n.from,
     to: n.to,
     written: n.written,
@@ -68,14 +71,18 @@ export function renumberAll(view: EditorView): number {
   return changed;
 }
 
-const numberingLinter = linter((view): Diagnostic[] =>
-  numberMarks(docTextOf(view.state.doc)).map((m) => ({
+const numberingLinter = linter(async (view): Promise<Diagnostic[]> => {
+  const doc = view.state.doc;
+  const text = docTextOf(doc);
+  const spans = await scanForBackend(runtime.backend, text);
+  if (view.state.doc !== doc) return [];
+  return numberMarks(text, spans).map((m) => ({
     from: m.from,
     to: m.to,
     severity: "warning" as const,
     message: tf("numberOutOfSequence", m.written, m.wanted),
     actions: [{ name: t("renumberSeries"), apply: (v: EditorView) => void renumberAll(v) }],
-  })),
-);
+  }));
+});
 
 export const numberingMarks = [numberingLinter];

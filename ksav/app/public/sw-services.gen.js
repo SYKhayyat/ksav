@@ -20,6 +20,7 @@ export const SERVICE_PATHS = [
   "/places",
   "/spell",
   "/suggest",
+  "/scan",
   "/commands",
   "/templates",
   "/sefarim",

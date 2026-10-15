@@ -20,7 +20,8 @@ import * as opendocs from "./opendocs";
 import { anyPreviewNarrowed, applyPreview, drawPagesEverywhere, filePages } from "./preview";
 import { docConfig, docConfigFor, settings } from "./settings";
 import * as runtime from "./runtime";
-import type { AssembledSource, CompileResult, DocConfig } from "./api";
+import { scanForBackend, type AssembledSource, type CompileResult, type DocConfig } from "./api";
+import type { Scan as SpanScan } from "./spans";
 
 /** Called after a compile lands, so the shell can refresh what depends on it. */
 let afterCompile: () => void = () => {};
@@ -302,8 +303,8 @@ export type RenderPlan = {
   healed: number;
 };
 
-function planFor(text: string): RenderPlan {
-  const { problems, healed } = analyze(text);
+function planFor(text: string, scanned?: SpanScan): RenderPlan {
+  const { problems, healed } = analyze(text, scanned && { delims: scanned.delims, comments: scanned.recoveryComments });
   return { ...withPreamble(problems.length ? healed : text), healed: problems.length };
 }
 
@@ -360,7 +361,18 @@ export async function runCompile() {
   // compile's plan once it lands, and nothing downstream re-derives the heal —
   // the three independent recompositions this module used to carry are the
   // RenderPlan's reason for existing.
-  const plan = planFor(userDoc);
+  let plan: RenderPlan;
+  try {
+    // The Rust scan is the asynchronous half of the lexer seam. Keep the local
+    // scanner as a compatibility fallback for an older server or a temporarily
+    // unavailable worker; a missing optimisation must not blank the preview.
+    const scanned = await scanForBackend(backend, userDoc, abort.signal);
+    if (mine !== generation || (runtime.currentDoc?.id ?? null) !== forDoc || runtime.docText() !== userDoc) return;
+    plan = planFor(userDoc, scanned);
+  } catch {
+    if (abort.signal.aborted || mine !== generation || (runtime.currentDoc?.id ?? null) !== forDoc || runtime.docText() !== userDoc) return;
+    plan = planFor(userDoc);
+  }
   const { body, offset, healed: healedCount } = plan;
   try {
     const res = await backend.compile(body, docConfig(), {

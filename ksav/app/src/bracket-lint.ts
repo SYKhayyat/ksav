@@ -15,6 +15,8 @@ import { orphanChildren } from "./mode";
 import { bracketLists } from "./lists";
 import type { Problem } from "./brackets";
 import { t, tf } from "./i18n";
+import { scanForBackend } from "./api";
+import * as runtime from "./runtime";
 
 function message(p: Problem): string {
   if (p.kind === "unclosed") {
@@ -71,8 +73,8 @@ export function healAll(view: EditorView): number {
  * list around it, or to have typed something else entirely, and a quick fix
  * that guesses wrong on a structural command is worse than none.
  */
-function orphanDiagnostics(text: string): Diagnostic[] {
-  return orphanChildren(text).map((o) => ({
+function orphanDiagnostics(text: string, spans?: import("./spans").Scan): Diagnostic[] {
+  return orphanChildren(text, spans).map((o) => ({
     from: o.from,
     to: o.to,
     severity: "error" as const,
@@ -90,8 +92,8 @@ function orphanDiagnostics(text: string): Diagnostic[] {
  * so add-item, split, indent, outdent and both moves are grey until the list is
  * in that form, and this is the one click that puts it there.
  */
-function bracketListDiagnostics(text: string): Diagnostic[] {
-  return bracketLists(text).map((l) => ({
+function bracketListDiagnostics(text: string, spans?: import("./spans").Scan): Diagnostic[] {
+  return bracketLists(text, spans).map((l) => ({
     from: l.from,
     to: l.to,
     severity: "info" as const,
@@ -117,10 +119,13 @@ function bracketListDiagnostics(text: string): Diagnostic[] {
 }
 
 const bracketLinter = linter(
-  (view) => {
+  async (view) => {
+    const doc = view.state.doc;
     const text = docTextOf(view.state.doc);
-    const orphans = orphanDiagnostics(text).concat(bracketListDiagnostics(text));
-    const { problems } = analyze(text);
+    const spans = await scanForBackend(runtime.backend, text);
+    if (view.state.doc !== doc) return [];
+    const orphans = orphanDiagnostics(text, spans).concat(bracketListDiagnostics(text, spans));
+    const { problems } = analyze(text, { delims: spans.delims, comments: spans.recoveryComments });
     if (!problems.length) return orphans;
     return orphans.concat(problems.map((p): Diagnostic => {
       const actions = [{ name: t("healAction"), apply: (v: EditorView) => healOne(v, p) }];

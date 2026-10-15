@@ -9,7 +9,7 @@
 // service reaches all four builds by being added once, in Rust.
 
 /** Every service the engine can be asked for. A typo here is a `tsc` error. */
-export type ServiceName = "compile" | "assemble" | "jump" | "reveal" | "places" | "spell" | "suggest" | "commands" | "templates" | "sefarim" | "inbox" | "mekoros" | "linkify" | "refresh" | "clipboard-source" | "saved-here" | "git";
+export type ServiceName = "compile" | "assemble" | "jump" | "reveal" | "places" | "spell" | "suggest" | "scan" | "commands" | "templates" | "sefarim" | "inbox" | "mekoros" | "linkify" | "refresh" | "clipboard-source" | "saved-here" | "git";
 
 export interface ServiceDef {
   readonly name: ServiceName;
@@ -31,6 +31,7 @@ export const SERVICES: readonly ServiceDef[] = [
   { name: "places", method: "POST", path: "/places", cost: "layout", nativeOnly: false },
   { name: "spell", method: "POST", path: "/spell", cost: "work", nativeOnly: false },
   { name: "suggest", method: "POST", path: "/suggest", cost: "work", nativeOnly: false },
+  { name: "scan", method: "POST", path: "/scan", cost: "work", nativeOnly: false },
   { name: "commands", method: "GET", path: "/commands", cost: "quick", nativeOnly: false },
   { name: "templates", method: "GET", path: "/templates", cost: "quick", nativeOnly: false },
   { name: "sefarim", method: "GET", path: "/sefarim", cost: "quick", nativeOnly: false },

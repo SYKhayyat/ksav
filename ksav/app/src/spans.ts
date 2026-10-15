@@ -261,6 +261,9 @@ export interface Scan {
   /** The calls that sit inside no other call. */
   roots: Node[];
   comments: Comment[];
+  /** Recovery-mode comments, paired with `delims` for bracket analysis. */
+  recoveryComments: Comment[];
+  delims: Delimiter[];
   /**
    * Raw regions — `` `…` `` and ```` ```…``` ```` — backticks included.
    *
@@ -466,7 +469,7 @@ export function langOf(name: string): "he" | "en" {
 
 // -------------------------------------------------------------------- lexing
 
-interface Head {
+export interface Head {
   from: number;
   nameFrom: number;
   nameTo: number;
@@ -614,7 +617,9 @@ function lexCore(
   heads: Head[];
   frames: Frame[];
   delims: Delimiter[];
+  needsRecovery: boolean;
 } {
+  LEX_PASSES++;
   const comments: Comment[] = [];
   /** Raw regions — literal text, and not commands. See the backtick branch. */
   const raws: Comment[] = [];
@@ -627,6 +632,7 @@ function lexCore(
   const delims: Delimiter[] = [];
   const stack: { pos: number; code: number; ctx: Ctx; frame: Frame; structural: boolean }[] = [];
   let ctx: Ctx = "content";
+  let needsRecovery = false;
   // An open `#let`/`#set`/`#show` statement: code mode until the first newline
   // at the bracket depth it started on, so a definition whose value spans a
   // `{…}` or a `(…)` still ends where the statement does.
@@ -784,15 +790,18 @@ function lexCore(
         if (want === 0x5b) contentGroups.push({ from: top.pos + 1, to: i });
         stack.pop();
         ctx = top.ctx;
-      } else if (opts.recover) {
+      } else {
+        // Recovery changes the state only when there is a frame to unwind or
+        // code mode to leave. A stray closer in top-level prose needs no re-lex.
+        if (top || ctx !== "content") needsRecovery = true;
         // Whatever the closer was, unwind one level. On a balanced document this
         // is exactly the branch above; on an unbalanced one it is what keeps the
         // lint reading the rest of the text the way the renderer will.
-        if (top) {
+        if (opts.recover && top) {
           top.frame.close = i;
           stack.pop();
           ctx = top.ctx;
-        } else {
+        } else if (opts.recover) {
           ctx = "content";
         }
       }
@@ -869,7 +878,120 @@ function lexCore(
   // `frames` is already in document order: a frame is pushed at its opener, and
   // openers arrive left to right. Nested frames therefore run outermost-first,
   // which is the order `framesAt` hands back.
-  return { comments, raws, strings, contentGroups, closes, heads, frames, delims };
+  return { comments, raws, strings, contentGroups, closes, heads, frames, delims, needsRecovery };
+}
+
+type Lex = ReturnType<typeof lexCore>;
+const LEX_CACHE: { text: string; strict: Lex; recovery?: Lex }[] = [];
+let LEX_PASSES = 0;
+
+function lexical(text: string): (typeof LEX_CACHE)[number] {
+  const at = LEX_CACHE.findIndex((entry) => entry.text === text);
+  if (at >= 0) {
+    const hit = LEX_CACHE.splice(at, 1)[0];
+    LEX_CACHE.push(hit);
+    return hit;
+  }
+  const entry = { text, strict: lexCore(text, { recover: false, delims: true }) };
+  LEX_CACHE.push(entry);
+  if (LEX_CACHE.length > CACHE_SIZE) LEX_CACHE.shift();
+  return entry;
+}
+
+/** Actual full lexer passes, including the exceptional recovery pass. */
+export function lexPassCount(): number { return LEX_PASSES; }
+
+/** Version-one service facts. All offsets are JavaScript UTF-16 positions. */
+export interface ScanWire extends Delimiters {
+  version: 1;
+  text_length: number;
+  strictComments: Comment[];
+  raws: Comment[];
+  strings: Group[];
+  contentGroups: Group[];
+  closes: [number, number][];
+  heads: Head[];
+  frames: Frame[];
+}
+
+/** TS lexical projection used by the cross-language parity fixture. */
+export function scanWire(text: string): ScanWire {
+  const { strict } = lexical(text);
+  return {
+    version: 1, text_length: text.length, ...delimiters(text),
+    strictComments: strict.comments, raws: strict.raws, strings: strict.strings,
+    contentGroups: strict.contentGroups, closes: [...strict.closes],
+    heads: strict.heads, frames: strict.frames,
+  };
+}
+
+/** Validate a wire projection without re-lexing it, then use normal assembly. */
+export function hydrateScan(text: string, value: unknown): Scan {
+  const bad = (): never => { throw new Error("scan returned invalid lexical facts"); };
+  if (!value || typeof value !== "object") return bad();
+  const v = value as ScanWire;
+  if (v.version !== 1 || v.text_length !== text.length) return bad();
+  const offset = (n: number, end = text.length) => Number.isInteger(n) && n >= 0 && n <= end;
+  const context = (ctx: Ctx) => ctx === "code" || ctx === "content";
+  const ranges = (items: Group[], comment = false) => {
+    if (!Array.isArray(items)) return bad();
+    let previous = -1;
+    for (const g of items) {
+      if (!g || !offset(g.from) || !offset(g.to) || g.to < g.from || g.from < previous ||
+          (comment && (g as Comment).unterminated !== undefined &&
+            typeof (g as Comment).unterminated !== "boolean")) return bad();
+      previous = g.from;
+    }
+  };
+  ranges(v.comments, true);
+  ranges(v.strictComments, true);
+  ranges(v.raws, true);
+  ranges(v.strings);
+  ranges(v.contentGroups);
+  if (!Array.isArray(v.delims) || !Array.isArray(v.closes) ||
+      !Array.isArray(v.heads) || !Array.isArray(v.frames)) return bad();
+  let previous = -1;
+  for (const d of v.delims) {
+    if (!d || !offset(d.pos, text.length - 1) || d.pos <= previous ||
+        !"[({])}".includes(d.ch) || d.ch.length !== 1 || text[d.pos] !== d.ch ||
+        typeof d.opener !== "boolean" || d.opener !== "[({".includes(d.ch) ||
+        typeof d.structural !== "boolean" || typeof d.name !== "string" ||
+        (!d.opener && d.name !== "")) return bad();
+    previous = d.pos;
+  }
+  const closes = new Map<number, number>();
+  const closePositions = new Set<number>();
+  const closeFor = ["]", ")", "}"];
+  for (const pair of v.closes) {
+    if (!Array.isArray(pair) || pair.length !== 2) return bad();
+    const [open, close] = pair;
+    if (!offset(open, text.length - 1) || !offset(close, text.length - 1) || open >= close ||
+        closes.has(open) || closePositions.has(close) ||
+        !"[({".includes(text[open]) || closeFor["[({".indexOf(text[open])] !== text[close]) return bad();
+    closes.set(open, close);
+    closePositions.add(close);
+  }
+  previous = -1;
+  for (const h of v.heads) {
+    if (!h || !offset(h.from) || !offset(h.nameFrom) || !offset(h.nameTo) ||
+        h.from <= previous || h.nameTo <= h.nameFrom || typeof h.hash !== "boolean" ||
+        h.nameFrom !== h.from + (h.hash ? 1 : 0) || (h.hash && text[h.from] !== "#") ||
+        !context(h.ctx) || !isNameStart(text.charCodeAt(h.nameFrom))) return bad();
+    for (let i = h.nameFrom; i < h.nameTo; i++) if (!isNameCh(text.charCodeAt(i))) return bad();
+    previous = h.from;
+  }
+  previous = -1;
+  for (const f of v.frames) {
+    if (!f || !offset(f.open, text.length - 1) || !offset(f.close) || f.open <= previous ||
+        f.close <= f.open || !context(f.ctx) || typeof f.name !== "string" ||
+        !"[({#".includes(text[f.open])) return bad();
+    previous = f.open;
+  }
+  for (const g of v.contentGroups) {
+    if (text[g.from - 1] !== "[" || closes.get(g.from - 1) !== g.to) return bad();
+  }
+  return assembleScan(text, { comments: v.strictComments, delims: v.delims, raws: v.raws,
+    strings: v.strings, contentGroups: v.contentGroups, closes, heads: v.heads, frames: v.frames }, v.comments, true);
 }
 
 // ----------------------------------------------------------------- assembly
@@ -1015,7 +1137,48 @@ function trimmed(text: string, g: Group): Group {
   return { from, to };
 }
 
-function classify(text: string, node: Node, closes: Map<number, number>): void {
+type AssemblyLex = Pick<Lex, "comments" | "raws" | "strings" | "contentGroups" | "closes" | "heads" | "frames" | "delims">;
+
+interface ArgFacts {
+  closes: Map<number, number>;
+  ignored: Map<number, number>;
+}
+
+/** Prepared once for all calls; a nested body is one lookup, not another walk. */
+function argumentFacts(facts: AssemblyLex, length: number): ArgFacts {
+  const ignored = new Map<number, number>();
+  for (const g of facts.comments) ignored.set(g.from, g.to);
+  for (const g of facts.raws) ignored.set(g.from, g.to);
+  for (const g of facts.strings) ignored.set(g.from - 1, Math.min(length, g.to + 1));
+  return { closes: facts.closes, ignored };
+}
+
+function splitArgsFromFacts(text: string, from: number, to: number, facts: ArgFacts): Group[] {
+  const out: Group[] = [];
+  let depth = 0;
+  let start = from;
+  for (let i = from; i < to; i++) {
+    const ignoredEnd = facts.ignored.get(i);
+    if (ignoredEnd !== undefined) {
+      i = Math.min(to, ignoredEnd) - 1;
+      continue;
+    }
+    const close = facts.closes.get(i);
+    if (close !== undefined && close < to) { i = close; continue; }
+    // Unpaired groups can occur inside a call with balanced outer delimiters.
+    // Keep the argument walk's pop-on-any-closer behavior for those groups.
+    if ("[({".includes(text[i])) depth++;
+    else if ("])}".includes(text[i])) depth = Math.max(0, depth - 1);
+    else if (depth === 0 && text[i] === ",") {
+      out.push({ from: start, to: i });
+      start = i + 1;
+    }
+  }
+  out.push({ from: start, to });
+  return out.filter((g) => text.slice(g.from, g.to).trim() !== "");
+}
+
+function classify(text: string, node: Node, closes: Map<number, number>, facts?: ArgFacts): void {
   const { name } = node;
 
   if (NOT_HEADINGS.has(name)) return; // named so this stays a decision, not an omission
@@ -1029,7 +1192,7 @@ function classify(text: string, node: Node, closes: Map<number, number>): void {
     // a body, which is why an outline built from `[…]` groups on the line found
     // the title and an editing model built from `#name[…]` found nothing at all.
     node.titleGroups = node.args
-      ? splitArgs(text, node.args.from, node.args.to)
+      ? (facts ? splitArgsFromFacts(text, node.args.from, node.args.to, facts) : splitArgs(text, node.args.from, node.args.to))
           .map((g) => trimmed(text, g))
           .filter((g) => text[g.from] === "[")
           .map((g) => ({ from: g.from + 1, to: g.to - 1 }))
@@ -1070,7 +1233,7 @@ function classify(text: string, node: Node, closes: Map<number, number>): void {
 
   if (TABLE_NAMES.has(name)) {
     node.role = "table";
-    readColumns(text, node, closes);
+    readColumns(text, node, closes, facts);
     return;
   }
 
@@ -1099,7 +1262,7 @@ function classify(text: string, node: Node, closes: Map<number, number>): void {
  * is the control that *produces* a track list — rewrote a three-column table as
  * `עמודות: 2` with the cells reflowed into the wrong rows.
  */
-function readColumns(text: string, node: Node, closes: Map<number, number>): void {
+function readColumns(text: string, node: Node, closes: Map<number, number>, facts?: ArgFacts): void {
   node.cols = 2;
   node.widths = null;
   if (!node.args) return;
@@ -1111,7 +1274,7 @@ function readColumns(text: string, node: Node, closes: Map<number, number>): voi
   if (text[valueAt] === "(") {
     const shut = closes.get(valueAt);
     if (shut == null) return;
-    const widths = splitArgs(text, valueAt + 1, shut).map((g) => text.slice(g.from, g.to).trim());
+     const widths = (facts ? splitArgsFromFacts(text, valueAt + 1, shut, facts) : splitArgs(text, valueAt + 1, shut)).filter((g) => text.slice(g.from, g.to).trim() !== "").map((g) => text.slice(g.from, g.to).trim());
     if (widths.length) {
       node.widths = widths;
       node.cols = widths.length;
@@ -1171,6 +1334,7 @@ export function scanMissCount(): number {
 /** Reset only the uncached-lex counter, without evicting any scan. */
 export function resetScanInstrumentation(): void {
   SCAN_MISSES = 0;
+  LEX_PASSES = 0;
 }
 
 /**
@@ -1275,20 +1439,18 @@ export function scanDoc(doc: { toString(): string }): Scan {
 /** Drop every memo. Only tests need this — a scan is a pure function of its text. */
 export function clearScanCache(): void {
   CACHE.length = 0;
-  DELIM_CACHE.length = 0;
+  LEX_CACHE.length = 0;
   KEYED = new WeakMap();
   TEXTS = new WeakMap();
   DELIM_KEYED = new WeakMap();
   resetScanInstrumentation();
 }
 
-function scanUncached(text: string): Scan {
-  const { comments, raws, strings, contentGroups, closes, heads, frames } = lexCore(text, {
-    recover: false,
-    delims: false,
-  });
+function assembleScan(text: string, lex: AssemblyLex, recoveryComments: Comment[], suppliedFacts = false): Scan {
+  const { comments, raws, strings, contentGroups, closes, heads, frames, delims } = lex;
   const nodes: Node[] = [];
   const byStart = new Map<number, Node>();
+  const preparedArgs = suppliedFacts ? argumentFacts(lex, text.length) : undefined;
 
   for (const h of heads) {
     const name = text.slice(h.nameFrom, h.nameTo);
@@ -1333,7 +1495,7 @@ function scanUncached(text: string): Scan {
       children: [],
       role: "other",
     };
-    classify(text, node, closes);
+    classify(text, node, closes, preparedArgs);
     nodes.push(node);
     byStart.set(node.from, node);
   }
@@ -1357,12 +1519,18 @@ function scanUncached(text: string): Scan {
   for (const node of nodes) {
     if (node.role !== "table" || !node.args) continue;
     node.cells = node.children.filter((c) => c.role === "cell");
-    node.options = splitArgs(text, node.args.from, node.args.to)
+    node.options = (preparedArgs ? splitArgsFromFacts(text, node.args.from, node.args.to, preparedArgs) : splitArgs(text, node.args.from, node.args.to))
       .map((g) => text.slice(g.from, g.to).trim())
       .filter((a) => !CELL_ARG.test(a) && !COLS_ARG_HEAD.test(a));
   }
 
-  return { nodes, roots, comments, raws, strings, contentGroups, byStart, closes, frames, text };
+  return { nodes, roots, comments, recoveryComments, delims, raws, strings, contentGroups, byStart, closes, frames, text };
+}
+
+function scanUncached(text: string): Scan {
+  const { strict } = lexical(text);
+  const recovery = delimiters(text);
+  return assembleScan(text, { ...strict, delims: recovery.delims }, recovery.comments);
 }
 
 // ------------------------------------------------------------------- context
@@ -1451,21 +1619,15 @@ export type Delimiters = { delims: Delimiter[]; comments: Comment[] };
  * verbatim, and because every caller hands in the shared `docTextOf` string the
  * value probe below is a pointer compare that hits immediately.
  */
-const DELIM_CACHE: { text: string; value: Delimiters }[] = [];
-
 export function delimiters(text: string): Delimiters {
-  for (let i = 0; i < DELIM_CACHE.length; i++) {
-    if (DELIM_CACHE[i].text === text) {
-      const hit = DELIM_CACHE.splice(i, 1)[0];
-      DELIM_CACHE.push(hit);
-      return hit.value;
-    }
+  const entry = lexical(text);
+  // Balanced documents use exactly the same lexical result as scan(). Only a
+  // mismatched closer/unwind asks for the recovery pass used by the lint.
+  if (!entry.strict.needsRecovery) {
+    return { delims: entry.strict.delims, comments: entry.strict.comments };
   }
-  const { delims, comments } = lexCore(text, { recover: true, delims: true });
-  const value: Delimiters = { delims, comments };
-  DELIM_CACHE.push({ text, value });
-  if (DELIM_CACHE.length > CACHE_SIZE) DELIM_CACHE.shift();
-  return value;
+  const recovery = entry.recovery ?? (entry.recovery = lexCore(text, { recover: true, delims: true }));
+  return { delims: recovery.delims, comments: recovery.comments };
 }
 
 /** The delimiters of a CodeMirror document, paying for its text at most once. */

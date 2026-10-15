@@ -31,7 +31,7 @@
 // It is deliberately dependency-free and pure (text in, findings out) so it can
 // be tested without a browser or a CodeMirror instance.
 
-import { delimiters } from "./spans";
+import { delimiters, type Delimiters } from "./spans";
 
 /**
  * Which delimiters close themselves as you type, as two switches.
@@ -173,8 +173,8 @@ function trimBack(text: string, pos: number): number {
  * The same scan powers all three layers, so the gutter marker, the heal action
  * and the rescued preview can never disagree about what is wrong.
  */
-export function analyze(text: string): Analysis {
-  const { delims, comments } = delimiters(text);
+export function analyze(text: string, supplied?: Delimiters): Analysis {
+  const { delims, comments } = supplied ?? delimiters(text);
   const problems: Problem[] = [];
 
   const unterminated = comments.find((c) => c.unterminated);

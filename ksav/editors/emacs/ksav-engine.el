@@ -323,6 +323,14 @@ of it is one they cannot search for."
      (refused (error "Ksav: %s" refused))
      (t answer))))
 
+(defun ksav-scan (text)
+  "Ask the Rust scanner for structural facts about TEXT.
+
+This is intentionally a thin door rather than a second parser in Emacs.  The
+browser's editor uses the same `scan' service for asynchronous work, while
+CodeMirror-only decoration paths remain synchronous in TypeScript."
+  (ksav-call "scan" `((text . ,text))))
+
 (defun ksav--refused (answer)
   "The engine's own words when ANSWER is a refusal, or nil when it is not.
 

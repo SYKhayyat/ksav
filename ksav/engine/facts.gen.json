@@ -1677,6 +1677,13 @@
       "reach": "all"
     },
     {
+      "name": "scan",
+      "method": "post",
+      "path": "/scan",
+      "cost": "work",
+      "reach": "all"
+    },
+    {
       "name": "commands",
       "method": "get",
       "path": "/commands",

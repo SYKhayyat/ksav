@@ -37,7 +37,7 @@ import { ENGINE, SRC } from "./paths.mjs";
 
 const OUT = join(ENGINE, "tests", "fixtures", "scan-oracle.json");
 
-const { scan, ctxAt } = await load("spans");
+const { scan, scanWire, ctxAt } = await load("spans");
 
 /**
  * The two documents a writer meets before they have written anything.
@@ -77,7 +77,7 @@ function starters() {
  * `scan_oracle.rs` is checked in both directions.
  */
 const REGRESSIONS = {
-  "paren-gershayim": "פסק כדברי (רש\"י) ולא כדברי הרמב\"ם, עיין שם.",
+  "paren-gershayim": "פסק כדברי (רש\"י) ולא כדברי הרמב\"ם, עיין שם.\n#f([😀)\n😀 #f(\"😀[\")[😀]",
   "paren-gershayim-in-item": "#רשימה(\n  פריט[דברי (רש\"י) כאן],\n  פריט[שני],\n)",
   "paren-gershayim-in-body": "#הדגשה[שו\"ע או\"ח (סימן א׳) סעיף ב׳]",
   "paren-opens-a-line": "(א) ראשית הכל.\n(ב) ואחר כך.",
@@ -191,6 +191,9 @@ function beliefs(text) {
     // exists to catch it disagreeing with the compiler was not looking at raw
     // at all.
     raws: s.raws.map((r) => [r.from, r.to]),
+    // Complete version-one service projection, including recovery facts and
+    // strict assembly facts. The engine parity test consumes this directly.
+    service: scanWire(text),
   };
 }
 

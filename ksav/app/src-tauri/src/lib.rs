@@ -480,6 +480,65 @@ async fn ksav_confirm_write(
     Ok(yes)
 }
 
+/// Fit the window to the display it opened on.
+///
+/// The window is created from `tauri.conf.json`'s `width`/`height`, and those
+/// two numbers used to be a claim about the *screen*: 1280×820, which is taller
+/// than a 1366×768 display. On such a screen the compositor truncated the
+/// window to roughly 1280×732, and the chrome was laid out into whatever height
+/// survived — the ribbon rows collided and the group captions overprinted one
+/// another. Found on 2026-10-15 while producing a UAT build; #102, #103.
+///
+/// So the configured size is a **cap, not a claim**. A cap may safely exceed
+/// any one display, because the fit below takes it down to what is actually
+/// there; a hardcoded minimum cannot, and that is what was wrong.
+///
+/// Tauri 2 does not expose a monitor's work area, so the margin keeps the
+/// window off the very edge of the screen, where a compositor is free to put a
+/// panel. That is a preference. The property being restored is the simpler one:
+/// **the window is never larger than the display it opened on.**
+///
+/// The configured `minWidth`/`minHeight` still apply, and they are a floor on
+/// what Ksav supports. On a display narrower than that floor nothing here can
+/// help — the writer needs a bigger screen, not a smaller window.
+fn fit_window_to_monitor(app: &tauri::App) {
+    use tauri::Manager as _;
+
+    /// Comfortable for a two-pane writing surface on a desktop display, and
+    /// the reason the 820 was ever written down in the first place.
+    const MAX_WIDTH: f64 = 1280.0;
+    const MAX_HEIGHT: f64 = 820.0;
+    /// Off the very edge of the screen.
+    const MARGIN: f64 = 32.0;
+    /// The supported floor. Mirrors `minWidth`/`minHeight` in
+    /// `tauri.conf.json`, which the window manager enforces independently.
+    const MIN_WIDTH: f64 = 800.0;
+    const MIN_HEIGHT: f64 = 560.0;
+
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let Ok(Some(monitor)) = window.primary_monitor() else {
+        // No monitor to ask — a headless session, or a window manager that
+        // does not answer. The configured size stands. This is not a reason to
+        // refuse to open the editor.
+        log::warn!("no primary monitor; leaving the window at its configured size");
+        return;
+    };
+
+    let screen = monitor.size().to_logical::<f64>(monitor.scale_factor());
+    let width = (screen.width - MARGIN).clamp(MIN_WIDTH, MAX_WIDTH);
+    let height = (screen.height - MARGIN).clamp(MIN_HEIGHT, MAX_HEIGHT);
+
+    if let Err(e) = window.set_size(tauri::LogicalSize::new(width, height)) {
+        log::warn!("could not fit the window to the display: {e}");
+        return;
+    }
+    if let Err(e) = window.center() {
+        log::warn!("could not centre the window: {e}");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let built = tauri::Builder::default();
@@ -541,6 +600,11 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             use tauri::Manager as _;
+
+            // Before anything is drawn, and before the first `?` can appear in
+            // the editor: a window that opens larger than the screen is the
+            // first thing a writer sees and the first thing they judge.
+            fit_window_to_monitor(app);
 
             // The writer's own Typst libraries: `#import "@local/…"` resolved
             // from a `packages/` directory beside the dictionary, which is

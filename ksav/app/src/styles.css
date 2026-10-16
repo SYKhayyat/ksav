@@ -1,3 +1,60 @@
+/* ---- the UI's own Hebrew faces -------------------------------------------
+   The chrome is laid out around the metrics of Frank Ruhl / David Libre:
+   30px controls, 9.5px captions, `white-space: nowrap` labels that must not
+   collide. It was asking for them by *family name only* and shipping no
+   `@font-face`, so the names resolved against whatever the machine happened to
+   have installed.
+
+   On a machine without them — measured 2026-10-16 on NixOS — `fc-match` sent all
+   three to **Noto Sans**, which has no Hebrew at all, and the Hebrew fell
+   through to **DejaVu Sans**. The chrome then rendered at metrics nothing in
+   this file was designed against, which is what made the ribbon look crushed
+   and the captions collide.
+
+   The desktop build shipped these faces already, but only inside
+   `engine/assets/fonts/`, where the **Typst engine** reaches them for PDF
+   output. The webview never saw them: same repository, two font strategies, and
+   the one the reader looks at was the one that had none.
+
+   So they are served from the app now, and the family names below are the ones
+   this file already asks for — `--hebrew` is unchanged, and the fix is that the
+   names now mean something. OFL-1.1 and GUST; see `licenses/` and
+   THIRD-PARTY-NOTICES.md.
+
+   `font-display: block` rather than `swap`: a swap paints the chrome once in the
+   fallback and again in the real face, which on a 9.5px caption is a visible
+   reflow of the whole ribbon a frame after first paint. Blocking hides the
+   ribbon for the few milliseconds the faces take to arrive and shows it once,
+   correctly laid out. */
+@font-face {
+  font-family: "Frank Ruhl Libre";
+  src: url("/fonts/FrankRuhlHofshi-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Frank Ruhl Libre";
+  src: url("/fonts/FrankRuhlHofshi-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "David Libre";
+  src: url("/fonts/DavidLibre-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "David Libre";
+  src: url("/fonts/DavidLibre-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   --bg: #eef1f5;
   --panel: #ffffff;

@@ -518,11 +518,28 @@ fn fit_window_to_monitor(app: &tauri::App) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
-    let Ok(Some(monitor)) = window.primary_monitor() else {
+    // Prefer the display the window is actually on. During setup a window can
+    // exist before its compositor has placed it, so fall back to the primary
+    // display and then to the largest available one.
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .or_else(|| {
+            app.available_monitors()
+                .ok()?
+                .into_iter()
+                .max_by_key(|candidate| {
+                    let size = candidate.size();
+                    u64::from(size.width) * u64::from(size.height)
+                })
+        });
+    let Some(monitor) = monitor else {
         // No monitor to ask — a headless session, or a window manager that
         // does not answer. The configured size stands. This is not a reason to
         // refuse to open the editor.
-        log::warn!("no primary monitor; leaving the window at its configured size");
+        log::warn!("no monitor found; leaving the window at its configured size");
         return;
     };
 

@@ -157,6 +157,26 @@ export const CHECKS = [
     why: "The shell is Rust too, and nothing was linting it.",
   },
   {
+    id: "shell-webkit",
+    group: "shell",
+    tree: "shell",
+    name: "desktop webkit scale",
+    cwd: "app",
+    command: ["node", "../tools/check-webkit-scale.mjs"],
+    // The cheapest check here, and the only one that can fail on a commit that
+    // changes no code at all. `flake.lock` pins nixpkgs, so `nix flake update`
+    // swaps the browser engine underneath the application without touching a
+    // single line — and between 2.44.3 and 2.52.5 that engine reports a
+    // *negative* device pixel ratio on Wayland (#103), which no other check in
+    // this file can see, because nothing else looks at the shell at all.
+    //
+    // Measured, not version-guessed: the list it holds is one version that was
+    // run on this machine and printed `devicePixelRatio 1`. Widening it is a
+    // claim somebody has to go and measure first, which is what the failure
+    // message says.
+    why: "A fresh nixpkgs pin must not be able to ship a browser that cannot lay out a page.",
+  },
+  {
     id: "shell-tests",
     group: "shell",
     tree: "shell",

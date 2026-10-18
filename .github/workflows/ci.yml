@@ -582,7 +582,8 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 update
           sudo apt-get install -y libwebkit2gtk-4.1-dev \
             librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev \
-            libayatana-appindicator3-dev
+            libayatana-appindicator3-dev \
+            xvfb xauth
       # Both components named, because this job's checks now need both and the
       # runner image happening to carry them is not a declaration. `clippy` ran
       # here for weeks on nothing but that luck.
@@ -609,4 +610,9 @@ jobs:
       # because it is the *faster answer*, not because it is the only one.
       - name: Check
         working-directory: ./ksav
-        run: node tools/gate.mjs shell
+        # `xvfb-run` because `shell-render` opens a real window and asks the page
+        # what display scale it was given — the only check here that cannot pass
+        # without a display. Xvfb is X11, which is the backend that already worked;
+        # a developer on native Wayland gets the stronger check by running the gate
+        # by hand. See #101 and the header of app/tools/render-check.mjs.
+        run: xvfb-run -a node tools/gate.mjs shell

@@ -556,6 +556,124 @@ fn fit_window_to_monitor(app: &tauri::App) {
     }
 }
 
+/// The render check's view of the webview, and the only thing this crate
+/// compiles for its sake.
+///
+/// # Why this exists
+///
+/// On NixOS 26.05 under native Wayland, WebKitGTK 2.52.5 hands the page a
+/// `devicePixelRatio` of `-1/96` and an `innerWidth` of `-96 × outerWidth`: the
+/// chrome collapses and the editor is unusable. `GDK_BACKEND=x11` avoids it, which
+/// is what `main.rs` now arranges. Nothing about that is measured by any check,
+/// because nothing here rendered the application at all — a plain `cargo test`
+/// never opens a window, so the whole shipped UI had zero coverage.
+///
+/// Finding it took a day, and most of that day went on drawing wrong conclusions
+/// from **screenshots**: the windows stack behind one another, and a screenshot
+/// read as proof that an app was working was several times in fact showing an
+/// unrelated window. A number the page reports about itself cannot be fooled that
+/// way, which is the entire argument for this module.
+///
+/// # What it does not decide
+///
+/// Nothing here explains *why* WebKitGTK does this. As of #103 the cause is
+/// unknown, the third-party Tauri app tried renders fine on the same machine with
+/// the same WebKitGTK, and no older Tauri could be built to compare. This checks
+/// the symptom, deliberately, because the symptom is the thing a user meets.
+///
+/// # When it runs
+///
+/// Only in a build made with `--features dpr-probe`, and only when the check sets
+/// `KSAV_DPR_OUT`. A binary anybody downloads has neither the command nor this
+/// thread, so this is absent from every shipped artefact rather than dormant in
+/// it.
+#[cfg(feature = "dpr-probe")]
+mod render_probe {
+    use std::io::Write;
+
+    /// Where the page's answer goes. Set by `tools/render-check.mjs`.
+    fn output_path() -> Option<std::path::PathBuf> {
+        std::env::var_os("KSAV_DPR_OUT").map(std::path::PathBuf::from)
+    }
+
+    /// Called from the page. Writes the measurement, so that the check can read a
+    /// number rather than judge a picture.
+    #[tauri::command]
+    pub fn ksav_dpr_probe(payload: String) {
+        let Some(path) = output_path() else { return };
+        if let Ok(mut file) = std::fs::File::create(&path) {
+            let _ = file.write_all(payload.as_bytes());
+        }
+    }
+
+    /// Asks the page what it thinks the display is, repeatedly.
+    ///
+    /// Repeatedly because the answer is read at a moment we do not control: a
+    /// webview has no "now laid out" signal for this, and a first read taken
+    /// before the surface is configured is exactly the kind of early wrong
+    /// measurement that made this bug hard to see in the first place. Writing on
+    /// every attempt means the check reads the *last* answer, not the first.
+    pub fn spawn(handle: tauri::AppHandle) {
+        use tauri::Manager as _;
+
+        if output_path().is_none() {
+            return;
+        }
+        std::thread::spawn(move || {
+            for _ in 0..40 {
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.eval(JS);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+        });
+    }
+
+    /// The measurement, taken in the page so that nothing between here and the
+    /// browser can lie about it.
+    const JS: &str = r#"(function () {
+  var header = document.querySelector("header");
+  var app = document.getElementById("app");
+  window.__TAURI_INTERNALS__.invoke("ksav_dpr_probe", { payload: JSON.stringify({
+    devicePixelRatio: devicePixelRatio,
+    innerWidth: innerWidth,
+    innerHeight: innerHeight,
+    outerWidth: outerWidth,
+    outerHeight: outerHeight,
+    headerHeight: header ? Math.round(header.getBoundingClientRect().height) : null,
+    appChildren: app ? app.childElementCount : 0,
+    bodyChildren: document.body.childElementCount,
+    href: location.href
+  }) });
+})();"#;
+}
+
+/// The shell's command list, written once.
+///
+/// The render check needs one command the page can call to report what it thinks
+/// the display scale is. Listing these eleven a second time inside a `cfg` arm to
+/// add a twelfth entry is exactly the duplication this file's header is about, so
+/// the extra entry is a macro argument instead — absent in a shipped build,
+/// present in the check's build, and never transcribed twice.
+macro_rules! ksav_commands {
+    ($($extra:path),* $(,)?) => {
+        tauri::generate_handler![
+            ksav_call,
+            ksav_file_stamp,
+            ksav_read_file,
+            ksav_open_file,
+            ksav_save_file,
+            ksav_write_file,
+            ksav_path_allowed,
+            ksav_confirm_write,
+            ksav_dictionary_read,
+            ksav_dictionary_write,
+            ksav_dictionary_where
+            $(, $extra),*
+        ]
+    };
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let built = tauri::Builder::default();
@@ -622,6 +740,11 @@ pub fn run() {
             // the editor: a window that opens larger than the screen is the
             // first thing a writer sees and the first thing they judge.
             fit_window_to_monitor(app);
+
+            // Compiled in only for `tools/render-check.mjs`, and inert without
+            // `KSAV_DPR_OUT` — see `render_probe` for why this is worth having.
+            #[cfg(feature = "dpr-probe")]
+            render_probe::spawn(app.handle().clone());
 
             // The writer's own Typst libraries: `#import "@local/…"` resolved
             // from a `packages/` directory beside the dictionary, which is
@@ -756,19 +879,14 @@ pub fn run() {
         // Twenty-one entries, of which thirteen were engine services listed
         // here by hand and one of those had no caller anywhere. What is left is
         // the engine, once, and the things only an installed application can do.
-        .invoke_handler(tauri::generate_handler![
-            ksav_call,
-            ksav_file_stamp,
-            ksav_read_file,
-            ksav_open_file,
-            ksav_save_file,
-            ksav_write_file,
-            ksav_path_allowed,
-            ksav_confirm_write,
-            ksav_dictionary_read,
-            ksav_dictionary_write,
-            ksav_dictionary_where
-        ])
+        .invoke_handler({
+            // The list itself is written once, in `ksav_commands!`. Only the
+            // twelfth entry is conditional, and only for the render check.
+            #[cfg(feature = "dpr-probe")]
+            { ksav_commands!(render_probe::ksav_dpr_probe) }
+            #[cfg(not(feature = "dpr-probe"))]
+            { ksav_commands!() }
+        })
         // `build` and then `run(callback)`, where this used to be
         // `run(context)`.
         //

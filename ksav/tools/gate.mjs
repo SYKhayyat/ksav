@@ -150,7 +150,11 @@ export const CHECKS = [
     tree: "shell",
     name: "desktop shell lints",
     cwd: "app/src-tauri",
-    command: ["cargo", "clippy", "--all-targets", "--", "-D", "warnings"],
+    // `dpr-probe` so the render check's command is linted somewhere. A check
+    // that is compiled only by the check that runs it is a check whose code can
+    // rot unobserved, and the next person to run it gets a clippy error on code
+    // they have never read.
+    command: ["cargo", "clippy", "--all-targets", "--features", "dpr-probe", "--", "-D", "warnings"],
     // Added with this runner. Clippy was gated on one of the three Rust trees,
     // which is the same shape as the formatting gap: a rule stated once and
     // applied where somebody happened to write the step.
@@ -162,8 +166,25 @@ export const CHECKS = [
     tree: "shell",
     name: "desktop shell tests",
     cwd: "app/src-tauri",
-    command: ["cargo", "test"],
+    command: ["cargo", "test", "--features", "dpr-probe"],
     why: "The path allowlist, the deep link and the Girsa desk.",
+  },
+  {
+    id: "shell-render",
+    group: "shell",
+    tree: "shell",
+    name: "desktop render scale",
+    // `app/src-tauri`, not `app`: a check belongs in the cwd of the tree it is
+    // about, and the editor checks already own `app`. The script sits in
+    // `app/tools` with the app's other tooling and resolves its own paths, so it
+    // does not care which directory it is called from.
+    cwd: "app/src-tauri",
+    command: ["node", "../tools/render-check.mjs"],
+    // The first check here that opens a window, and the only one that can fail
+    // for a reason no amount of `cargo test` can see: WebKitGTK handing the page
+    // a device scale of -1/96 under native Wayland, which collapses the chrome
+    // and makes the editor unusable while every unit test stays green (#101).
+    why: "The shipped UI had no coverage at all — a cargo test never opens a window.",
   },
 ];
 
@@ -237,6 +258,7 @@ export const GATE_VERBS = [
   "npx tsc",
   "npm test",
   "node test/run.mjs",
+  "tools/render-check.mjs",
 ];
 
 /** One check, run where it belongs. Returns the seconds it took, or null if it failed. */

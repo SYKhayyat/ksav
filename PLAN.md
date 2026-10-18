@@ -49,6 +49,23 @@ shipped**, and twice a survey believed a stale *comment* rather than the code be
 - #12 does not exist.
 
 ## Phase 1 — Foundations first (unblock everything below)
+- [ ] #116 **the editor test suite cannot run at HEAD.** `run.mjs:100-115` bundles with
+  `esbuild.build({bundle:true})` and no CSS asset config, so the 4 root-absolute
+  `/fonts/…` `url()`s added by `768b414` resolve against the filesystem root and the
+  build step fails before any test runs. Files are present and tracked; **`vite build`
+  succeeds** — product and fence use different bundlers and only one got the fix.
+  `styles.css` had **zero** `url()` before `768b414`, which is why nothing was ever
+  configured. This is the repo's primary fence, down. (High)
+- [ ] #107 build toolchain stated 4 ways with 3 disagreeing Node values; `.nvmrc` read by
+  nothing; the shipped Linux installers build on Node 20, which `flake.nix:66-70` records
+  as EOL. Rust likewise: `rust-toolchain.toml:4` pins `1.97.1` against 11 "stable" sites.
+  Fence: one distinct value, read from the files. (High)
+- [ ] #115 the single-source gate fence sweeps exactly two file classes
+  (`gate.test.mjs:343-358`) and `GATE_VERBS` (`gate.mjs:233-240`) has **no build verb**,
+  so build recipes are structurally exempt and `app/tools/`, `packaging/`,
+  `.github/scripts/` are invisible to it. Highest value per effort: `facts.mjs:52`
+  exports `REGENERATE` with **zero importers** while three sibling files re-spell it
+  byte-identically. (High)
 - [x] #25 heal seam ×3 → centralize into one RenderPlan; runCompile/compileUnfocused/bodyOnScreen derive from it. (High)
 - [x] #27 all three English tables are facts values now; each with a cross-check that exits 1. (High)
 - [x] #28 the templates' collective guarantee is a predicate; it found three unreachable capabilities. (Medium)
@@ -93,6 +110,23 @@ still right.
   only shape where a reader returned a **different interface**, and that is now a
   compile error.
 ## Phase 3 — Correctness Highs
+- [ ] #106 the paper-size table is written **twice** and the copies **disagree**:
+  `ksav.typ:2426-2434` `_pg_paper_width` (a3/a5/us-letter/letter, silent `else 210mm`)
+  vs `lib.rs:590-604` `paper_cm_of` (ten papers, `_ => return None`). `b5` is **176mm vs
+  210mm** — 34mm apart; `a2` 420mm vs 210mm; `letter` is one-sided and `sanitize_paper`
+  does not map it. `lib.rs:576` then answers `.unwrap_or((21.0, 29.7))` — a **silent
+  A4**. The same pair also disagrees about sanitising (`:576` raw vs `:615` sanitized).
+  Class: #38's shape, a supervising truth with two copies and no cross-check. (Critical)
+- [ ] #108 setting `KSAV_TOKEN` disables all **7** `nativeOnly` services for every browser
+  client. The server demands `X-Ksav-Token` (`server.rs:627`) and it appears in **zero**
+  `.ts` files. `server.rs:603-604` documents the design but not the consequence, and the
+  refusal names a header no client can send. The desktop build is unaffected, so the
+  operator's own machine looks fine. (High)
+- [ ] #109 `api.ts:1564` `COMPILE_TIMEOUT_MS = 20_000` is hardcoded and its comment says
+  it *mirrors the server's* — true only at the default. `server.rs:238-245` is
+  env-overridable via `KSAV_COMPILE_TIMEOUT_MS`. Raise the server's budget and the
+  desktop app abandons at 20s while `api.ts:1588-1606` promises the compile finishes in
+  the background. No test relates the two. (High)
 - [x] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan).
   (Critical) — six of the audit's seven no longer reproduce; the deliverable is
   `engine/tests/note_layout.rs`, and what was left was a note sent to a
@@ -373,6 +407,30 @@ still right.
   it now names the spec as written and lists what **is** bundled. (from #67)
 
 ## Phase 4 — Mediums (engine quality)
+- [ ] #110 four engine limits have **no override** while the engine's two sibling values
+  do — `git.rs:62` 120s (the only network timeout), `server.rs:289` the in-flight cap
+  pinned to cores (user-visible at `:319`; `worker_count()` is also the pool size, two
+  policies on one expression), `server.rs:190` 64MiB body, `assets.rs:61` 256MiB cache.
+  Vehicle is an env var beside the constant, matching `server.rs:239` — **not** a config
+  file; there is no config system here to extend. (Medium)
+- [ ] #111 the dev-server CORS allowlist (`server.rs:539-544`) is closed and
+  un-overridable, and holds **dead port 1420** — 3 hits repo-wide: two list entries and
+  the test at `:1004` that asserts the list. The real dev origin is `5173`
+  (`tauri.conf.json:8`, `vite.config.ts:217`). A stale entry kept alive by a green test
+  is proof the list rots unfenced. (Medium)
+- [ ] #112 the update-feed origin (`update.ts:18`) is the product's only outbound origin
+  with no deployer control, welded to `policy/csp.txt` whose three copies are fenced to
+  agree **with each other** — never with the origin the client calls. `policy/README.md`
+  records this coupling already breaking the feature once. `update.ts:76-78` swallows
+  every failure. (Medium)
+- [ ] #113 `tauri.conf.json:8` `devUrl` and `vite.config.ts:217` `server.port` are two
+  unlinked `5173` literals and there is **no `strictPort`**, so Vite silently slides to
+  5174 and `npm run tauri dev` opens a blank window with no error. No test links them.
+  (Medium)
+- [ ] #114 the Girsa inbox capacity (`post.rs:111`, `WAITING_ROOM = 64`) is justified by
+  an argument about **one writer** but enforced on a queue `server.rs:406` documents as
+  bindable to `0.0.0.0`. The 65th sender is refused with "editor not running" — which is
+  false; the editor is full. (Medium)
 - [x] #63 include diamond re-expansion. (from #63) — **A budget somebody chose, in two
   limits, and it is a setting.** The exponential is real (2^depth, and the cycle guard
   cannot see it because the first inclusion is popped before the second is looked at) but

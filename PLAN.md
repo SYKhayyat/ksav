@@ -728,9 +728,10 @@ still right.
 - [ ] #64 linked commentary ordering — sort peirush into reference order via linkers (auto/explicit, scoped, stable sort; generalises sortBodies).
 - [ ] #68 transfer source headings into sorted commentary (companion to #64) — configurable levels/scope/shift, copy+V1 with easy regenerate, live sync deferred.
 - [ ] #69 templated headings and lists — per-level קידומת/סיומת *orthogonal* to מספור/התחלה/כיוון/צעדים (e.g. דף alone, ב alone, or דף ב together; up/down) via _hd_show + _hb_num; lists per-depth same shape.
-- [ ] #43 top/bottom streams proposal, #65 commentary wrapped around central block (berech/Vilna knees via measured fitPrefix; in-flow wrap, not horizontal seam like #15/#43), #42 Rust-rewrite vision (decision only).
+- [ ] #43 top/bottom streams proposal, #65 commentary wrapped around central block (berech/Vilna knees via measured fitPrefix; in-flow wrap, not horizontal seam like #15/#43), #42 Rust-rewrite vision (decision only) — **see #117 for Wordcraft UI adoption plan resolving #42, #8, #9**.
 - [ ] Interop/docs: #39, #38, #37, #35, #34, #33, #32, #31.
-- [ ] Frontend: #23 i18n hoist, #22 main.ts split, #11 Leo workflow, #9/#8 LibreOffice UX, #14 UAT.
+- [ ] Frontend: #23 i18n hoist, #22 main.ts split, #11 Leo workflow, #9/#8 LibreOffice UX — **see #117 for Wordcraft UI adoption delivering full ribbon paradigm**, #14 UAT.
+- [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified
 
@@ -983,5 +984,5 @@ Any AI opening an issue here MUST insert it into the phase above it belongs in (
 ## User-feedback priority (proposed)
 1. Make large documents feel instant (scan consumers, keyed updates) — speed.
 2. Add source-readability toggles (#88 invisible chars, #84 nested indent) — UI clarity.
-3. Run first real-user feedback pass (#14 UAT) before broader UI overhaul (#8/#9/#11).
+3. Run first real-user feedback pass (#14 UAT) before broader UI overhaul (#8/#9/#11) — **see #117 for Wordcraft UI adoption as unified path for #8, #9, #42**.
 Defer writer tools, commentary ordering, templated headings, and interop until feedback.

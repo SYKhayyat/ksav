@@ -98,6 +98,51 @@ export function commentRegions(text: string): { from: number; to: number; unterm
   return delimiters(text).comments;
 }
 
+/**
+ * Find the next closing bracket after `pos` that matches an opener before `pos`.
+ * Returns the position after the closer, or null if no matching closer is found.
+ * This is used for "move out of bracket" functionality.
+ */
+export function findNextCloser(text: string, pos: number): number | null {
+  const { delims } = delimiters(text);
+  let depth = 0;
+  let targetCloser: Closer | null = null;
+
+  // First, find all openers before pos and track the deepest one
+  for (const d of delims) {
+    if (d.pos >= pos) break;
+    if (d.opener && d.structural) {
+      depth++;
+      targetCloser = CLOSER_OF[d.ch as Opener];
+    } else if (!d.opener && d.structural) {
+      const opener = OPENER_OF[d.ch as Closer];
+      if (depth > 0 && CLOSER_OF[opener] === d.ch) {
+        depth--;
+        if (depth === 0) targetCloser = null;
+      }
+    }
+  }
+
+  if (!targetCloser) return null;
+
+  // Now find the matching closer after pos
+  depth = 0;
+  for (const d of delims) {
+    if (d.pos <= pos) continue;
+    if (d.opener && d.structural && CLOSER_OF[d.ch as Opener] === targetCloser) {
+      depth++;
+    } else if (!d.opener && d.structural && d.ch === targetCloser) {
+      depth--;
+      if (depth === 0) {
+        // Found the matching closer, return position after it
+        return d.pos + 1;
+      }
+    }
+  }
+
+  return null;
+}
+
 // The `#command` an opener belongs to — for the lint message, because "#הערה is
 // never closed" reads as an instruction and "unclosed [ at offset 8412" does
 // not. It is a question about the markup, so it comes off the delimiter that

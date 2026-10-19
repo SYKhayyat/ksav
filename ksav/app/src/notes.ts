@@ -459,6 +459,22 @@ function arrange(spans: NoteSpan[], parentOf: (n: NoteSpan) => NoteSpan | null):
 }
 
 /**
+ * Whether the caret is inside a note's body (inline or deferred).
+ */
+export function canParaInNote(note: NoteSpan | null, pos: number): note is NoteSpan {
+  return note !== null && note.hasBody && note.bodyFrom <= pos && pos <= note.bodyTo;
+}
+
+/**
+ * Insert a paragraph break (blank line) inside a note body at `pos`.
+ */
+export function paraInNote(doc: string, note: NoteSpan, pos: number): Edit | null {
+  if (!canParaInNote(note, pos)) return null;
+  const snippet = "\n\n";
+  return { text: doc.slice(0, pos) + snippet + doc.slice(pos), caret: pos + snippet.length };
+}
+
+/**
  * The innermost note at `pos`, if any.
  *
  * Either end counts: the marker in the prose and the `#גוף_הערה` at the end of

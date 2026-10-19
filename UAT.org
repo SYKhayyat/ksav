@@ -1,0 +1,24 @@
+- When scrolling up in the source, the preview jumps to the bottom, which makes for a very jarring experience. Same for when I put my cursor at the end of source. Even if it is very short, so the corrosponding preview is the beginning of the page, both of these bump you to the bottom of the preview page.
+- Every time I click a heading, the heading section pops up on top, forcing the page down, which is also jarring.
+- The prose mode button (the A) works, but it is always blue highlighted, so you can never tell if it is on.  
+- I tried import from org - as soon as I hit the import from org line in the dropdown, there was a fatal crash.
+- shortcut keys seem not to work when my keyboard is in english. In word and libreoffice, they do work, Even in emacs, where they do not work, emacs lets you type in hebrew by providing its own ctrl slash.
+- The scroll speed through settings is very fast. I can't tell, but it looks like typewriter mode is on, even when it is unchecked.
+- There should be a shortcut so you can move out of a bracket (or out of all brackets), optionally with going to the next line, in source.
+- Even when typing hebrew, in the source, the cursor is on the wrong side. If I type אבג, the cursor goes on the right of the last letter not the left. In general, it feels very LTR.
+- I can't figure out how to make a new paragraph within a note item.
+- Pressing enter in the middle of a footnote in a list write פריט, which can't make a list item (since it is in a []), and so it literally writes פריט. This is an outgrowth of every enter making a new list item.
+- Error messages, when clicking on the red, are covered by the preview window.
+- There is no way to type [ to close off a [], and thus make the error go away, since it always types both together.
+- When I click file - open, ksav crashes.
+- Enhancement - I think unless a mode is enabled or a key held, moving the cursor should skip the typst part.
+- Save as crashes ksav.
+- Import from word crashes ksav.
+- The copy a link error message when there is no girsa is cryptic.
+- In export as pdf, it does not let you pick where.            
+- There are a bunch of ways to make a new document, and it is confusing what each is.
+- In the exported txt file, there are extra line breaks for headers and slashes which were used to make line breaks. Those should not exist in the plaintext version. This problem also exists in the md and org exported files.
+- The exported typst file is outrageously large.
+- It saves a .doc, not a .docx, when exporting to word.
+- The html exported is LTR.
+- At least in the provided article template (and maybe always), the endnote is too close to the end of the text, so it is almost unreadable.  

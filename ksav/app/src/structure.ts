@@ -176,7 +176,7 @@ function makeContext(doc: string, pos: number): StructureContext {
   const list = once(() => lists.listAt(doc, pos));
   const item = once(() => {
     const l = list();
-    return l ? lists.itemAt(l, pos) : null;
+    return l ? lists.itemAt(l, pos, doc) : null;
   });
   const table = once(() => tables.tableAt(doc, pos));
   const geometry = once(() => {

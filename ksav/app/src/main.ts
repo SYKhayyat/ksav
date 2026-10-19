@@ -36,7 +36,7 @@ import { tagDim } from "./tagdim";
 import { minimapExtension, type Placement } from "./minimap";
 import { openMinimap, closeMinimap, minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
 import { bracketLint, healAll } from "./bracket-lint";
-import { pairedDelimiters } from "./brackets";
+import { pairedDelimiters, findNextCloser } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
 import { numberingMarks, renumberAll } from "./numbering-lint";
@@ -61,7 +61,7 @@ import type { Mekor, Mekoros, Refreshed, Refreshing, TemplateDef } from "./api";
 import type * as api from "./api";
 import * as git from "./git";
 import * as panelviews from "./panelviews";
-import { getLang, hasKey, isRtlUi, setLang, t, tf } from "./i18n";
+import { getLang, hasKey, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
@@ -244,6 +244,7 @@ import * as hiding from "./hiding";
 import * as lists from "./lists";
 import * as header from "./header";
 import * as panelrows from "./panelrows";
+import * as notes from "./notes";
 import type { PanelList, PanelRow } from "./panelrows";
 import { keyedReconciler, type KeyedReconciler } from "./reconcile";
 
@@ -1086,6 +1087,9 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // arrangement the feature exists for.
   { id: "narrow", run: (v) => (narrowHere(v), true) },
   { id: "widen", run: (v) => (widenHere(v), true) },
+  // Move the caret past the closing bracket of the current bracket pair.
+  { id: "moveOutOfBracket", run: (v) => moveOutOfBracket(v, false) },
+  { id: "moveOutOfBracketToNextLine", run: (v) => moveOutOfBracket(v, true) },
   // Fold *to a depth*: chapters only, or chapters and simanim. `foldAll` takes
   // every collapsible thing in the document down at once, which is a different
   // question and the only one this editor could answer.
@@ -1439,14 +1443,49 @@ function reconfigureShortcuts() {
 
 /** Convert a keydown event to a CodeMirror key string ("Mod-Shift-k"). */
 function eventToKey(e: KeyboardEvent): string | null {
-  const k = e.key;
-  if (["Control", "Meta", "Alt", "Shift"].includes(k)) return null; // modifier only
+  const code = e.code;
+  if (["ControlLeft", "ControlRight", "MetaLeft", "MetaRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight"].includes(code)) return null;
   const parts: string[] = [];
   if (e.ctrlKey || e.metaKey) parts.push("Mod");
   if (e.altKey) parts.push("Alt");
   if (e.shiftKey) parts.push("Shift");
-  parts.push(k.length === 1 ? k.toLowerCase() : k);
+  parts.push(codeToKey(code));
   return parts.join("-");
+}
+
+/** Convert a physical key code to the logical key name CodeMirror expects. */
+function codeToKey(code: string): string {
+  if (code.startsWith("Key")) return code.slice(3).toLowerCase();
+  if (code.startsWith("Digit")) return code.slice(5);
+  if (code.startsWith("F") && /^F\d+$/.test(code)) return code;
+  if (code.startsWith("Arrow")) return code;
+  const special: Record<string, string> = {
+    BracketLeft: "[",
+    BracketRight: "]",
+    Backslash: "\\",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+    Backquote: "`",
+    Minus: "-",
+    Equal: "=",
+    Space: "Space",
+    Enter: "Enter",
+    Tab: "Tab",
+    Escape: "Escape",
+    Backspace: "Backspace",
+    Delete: "Delete",
+    Insert: "Insert",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
+    CapsLock: "CapsLock",
+    ContextMenu: "ContextMenu",
+  };
+  return special[code] ?? code;
 }
 
 /** What to call a command that is not the registry's. */
@@ -1937,6 +1976,7 @@ function setProseHere(prose: boolean) {
   settings.prose = prose;
   saveSettings();
   runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw(prose)) });
+  rerenderChrome();
 }
 
 /** What to call a bidi control character, in the interface's language. */
@@ -2693,6 +2733,26 @@ function widenHere(v: EditorView): void {
   setStatus(t("widened"), "ok");
   refreshPaneHeads();
   applyPreviewWindows();
+}
+
+/**
+ * Move the caret past the closing bracket of the current bracket pair.
+ * If `toNextLine` is true, also move to the start of the next line.
+ */
+function moveOutOfBracket(v: EditorView, toNextLine: boolean): boolean {
+  const doc = docTextOf(v.state.doc);
+  const pos = v.state.selection.main.head;
+  const nextPos = findNextCloser(doc, pos);
+  if (nextPos === null) return false;
+  let target = nextPos;
+  if (toNextLine) {
+    const line = v.state.doc.lineAt(nextPos);
+    if (line.number < v.state.doc.lines) {
+      target = v.state.doc.line(line.number + 1).from;
+    }
+  }
+  v.dispatch({ selection: { anchor: target } });
+  return true;
 }
 
 /** A heading with no title still has to be nameable in a sentence. */
@@ -3867,7 +3927,16 @@ function followCaretInPreview() {
     if (!view) return;
     const head = view.state.selection.main.head;
     const lineNo = view.state.doc.lineAt(head).number - 1;
-    const frac = fractionAtLine(printedMap(), lineNo);
+    const map = printedMap();
+    // Interpolate between this line and the next, like syncLinkedScroll does,
+    // so the preview moves smoothly rather than snapping per-line. Also avoids
+    // jumping to the bottom when the caret is at the end of a short document:
+    // fractionAtLine for the last line returns 1, and with middle anchor (0.5)
+    // the calculation overshoots to the bottom. Interpolation keeps it at the
+    // last printable position.
+    const block = view.lineBlockAt(head);
+    const within = block.height > 0 ? clamp01((head - block.from) / block.length) : 0;
+    const frac = lerp(fractionAtLine(map, lineNo), fractionAtLine(map, lineNo + 1), within);
     const mp = matchFraction();
     const at = clampScroll(frac * host.scrollHeight - mp * host.clientHeight, host);
     // Claim the floor and record the write so the preview's own scroll event —
@@ -5017,7 +5086,7 @@ async function jumpFromClick(e: MouseEvent) {
  * that has no substitute, because a reader can at least *find* a word in the
  * source by eye, and cannot find a coordinate on a page at all.
  */
-async function revealCursor(opts: { quiet?: boolean; from?: number } = {}): Promise<boolean> {
+async function revealCursor(opts: { quiet?: boolean; from?: number; anchor?: number } = {}): Promise<boolean> {
   const quiet = opts.quiet ?? false;
   if (!runtime.backend) return true;
   const pages = currentPages();
@@ -5087,9 +5156,11 @@ async function revealCursor(opts: { quiet?: boolean; from?: number } = {}): Prom
     // the eye does not have to travel. `from` is that height, and it is absent
     // for everything that is not a click — which is why `clickTarget` cannot
     // silently change what the reveal *command* does.
-    const mp = settings.clickTarget === "keep" && opts.from !== undefined
-      ? clamp01(opts.from)
-      : matchFraction();
+    const mp = opts.anchor !== undefined
+      ? opts.anchor
+      : settings.clickTarget === "keep" && opts.from !== undefined
+        ? clamp01(opts.from)
+        : matchFraction();
     // The page's offset inside the scroller, plus the point's offset inside the
     // page, minus where in the viewport it should sit.
     const pageTop = node.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
@@ -7477,8 +7548,8 @@ function buildHeader(): HTMLElement {
     open: openFile,
     save: saveFile,
     saveAs: saveFileAs,
-    importWord: () => void importWord(),
-    importOrg: () => void importOrg(),
+    importWord: () => importWord(),
+    importOrg: () => importOrg(),
     shareRead: () => void copyShareLink(false),
     shareReview: () => void copyShareLink(true),
     saveAsTemplate,
@@ -8932,7 +9003,7 @@ function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: docs.Sn
 function goToOffset(at: number) {
   const where = settings.outlineJump ?? "source";
   jumpTo(at, where !== "preview");
-  if (where !== "source") voidAction("general", () => revealCursor({ quiet: true }));
+  if (where !== "source") voidAction("general", () => revealCursor({ quiet: true, anchor: 0 }));
 }
 
 /**
@@ -8962,7 +9033,7 @@ function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
       // a note's marker, an auto-numbered siman — shows the page and leaves the
       // caret alone rather than putting it somewhere plausible.
       if (row.at !== undefined) goToOffset(row.at);
-      if (row.page !== undefined && row.y !== undefined) revealPrinted(row.page, row.y);
+      if (row.page !== undefined && row.y !== undefined) revealPrinted(row.page, row.y, 0);
     },
   }, snaps);
 }
@@ -8976,7 +9047,7 @@ function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
  * page element, the box, the inverse of `jump.ts`'s arithmetic, the match point
  * — is the same problem and would have been the same code written twice.
  */
-function revealPrinted(page: number, y: number) {
+function revealPrinted(page: number, y: number, anchor?: number) {
   const pages = currentPages();
   const index = page - 1;
   const box = pageBox(pages[index]);
@@ -8986,8 +9057,9 @@ function revealPrinted(page: number, y: number) {
     if (!node) continue;
     const spot = pixelInPage({ page: index, x_pt: 0, y_pt: y }, node.getBoundingClientRect(), box);
     const pageTop = node.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
+    const mp = anchor !== undefined ? anchor : matchFraction();
     host.scrollTo({
-      top: clampScroll(pageTop + spot.y - matchFraction() * host.clientHeight, host),
+      top: clampScroll(pageTop + spot.y - mp * host.clientHeight, host),
       behavior: "smooth",
     });
   }
@@ -10127,10 +10199,23 @@ async function importAs(
   );
 }
 
-const importWord = () =>
-  importAs(".docx", async (f) => docx.importDocx(new Uint8Array(await f.arrayBuffer())));
+const importWord = async () => {
+  try {
+    await importAs(".docx", async (f) => docx.importDocx(new Uint8Array(await f.arrayBuffer())));
+  } catch (e) {
+    const bad = troubleSaid(e, "general");
+    setStatus(`${t("importFailed")} — ${bad.said}`, "err", bad.detail);
+  }
+};
 
-const importOrg = () => importAs(".org", async (f) => org.fromOrg(await f.text()));
+const importOrg = async () => {
+  try {
+    await importAs(".org", async (f) => org.fromOrg(await f.text()));
+  } catch (e) {
+    const bad = troubleSaid(e, "general");
+    setStatus(`${t("importFailed")} — ${bad.said}`, "err", bad.detail);
+  }
+};
 
 /**
  * Install the service worker, where there is any point in one.
@@ -10655,6 +10740,23 @@ function structureKeymap() {
         const tag = tagContaining(view.state.doc.toString(), view.state.selection.main.head);
         if (!tag) return false;
         selectTag(view, tag, mode as TagSelection);
+        return true;
+      },
+    });
+  }
+  // Paragraph break inside a note body (Mod-Enter when in a note body).
+  const noteParaKey = kb["note.paraInNote"];
+  if (noteParaKey) {
+    out.push({
+      key: noteParaKey,
+      run: (view) => {
+        const doc = docTextOf(view.state.doc);
+        const pos = view.state.selection.main.head;
+        const note = notes.noteAt(doc, pos);
+        if (!notes.canParaInNote(note, pos)) return false;
+        const edit = notes.paraInNote(doc, note, pos);
+        if (!edit) return false;
+        view.dispatch({ changes: { from: edit.from, to: edit.to, insert: edit.insert }, selection: { anchor: edit.caret } });
         return true;
       },
     });
@@ -14275,7 +14377,9 @@ function nameGutterMarks() {
 
 function applyUiDir() {
   document.documentElement.lang = getLang();
-  document.documentElement.dir = isRtlUi() ? "rtl" : "ltr";
+  // Use the document's direction for the HTML element so the editor's cursor
+  // positioning works correctly in RTL documents even when the UI is LTR.
+  document.documentElement.dir = docConfig().dir;
 }
 
 function rerenderChrome() {

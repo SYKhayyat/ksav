@@ -12,7 +12,7 @@
 // document plus where the caret goes. That is what lets the keys, the ribbon
 // and the menu all be the same code, and what lets the tests be real tests.
 
-import { SPELLING, childrenOfRole, scan, type ListKind, type Node } from "./spans";
+import { SPELLING, childrenOfRole, scan, bodyAt, type ListKind, type Node } from "./spans";
 
 export type { ListKind };
 
@@ -114,9 +114,17 @@ export function listAt(doc: string, pos: number): ListInfo | null {
 }
 
 /** The item of `list` containing `pos`, and its index. */
-export function itemAt(list: ListInfo, pos: number): { item: ItemInfo; index: number } | null {
+export function itemAt(list: ListInfo, pos: number, doc?: string): { item: ItemInfo; index: number } | null {
   const i = list.items.findIndex((it) => pos >= it.bodyFrom && pos <= it.bodyTo);
-  return i < 0 ? null : { item: list.items[i], index: i };
+  if (i < 0) return null;
+  if (doc) {
+    const s = scan(doc);
+    const body = bodyAt(s, pos);
+    if (body && body.from > list.items[i].bodyFrom && body.to < list.items[i].bodyTo) {
+      return null;
+    }
+  }
+  return { item: list.items[i], index: i };
 }
 
 /** Where the caret is, as every operation below needs it. */
@@ -203,7 +211,7 @@ function itemName(l: ListInfo): string {
  * stays compact and one added to an indented list lines up.
  */
 export function addItem(doc: string, list: ListInfo, pos: number): Edit {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   // Written on its own line when the list is written on lines, inline when it
   // is written inline — matching what is already there is the whole trick to an
   // edit that does not look like a machine made it.
@@ -255,7 +263,7 @@ function itemEndBefore(list: ListInfo, pos: number): number {
  * it reads as the list being broken.
  */
 export function splitItem(doc: string, list: ListInfo, pos: number): Edit {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   if (!here) return addItem(doc, list, pos);
   const tail = doc.slice(pos, here.item.bodyTo);
   const multiline = doc.slice(list.argsFrom, list.argsTo).includes("\n");
@@ -281,7 +289,7 @@ export function splitItem(doc: string, list: ListInfo, pos: number): Edit {
  * `canBreakInItem` for what that produced and how it was found.
  */
 export function breakInItem(doc: string, list: ListInfo, pos: number): Edit | null {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   if (!canBreakInItem(here)) return null;
   const snippet = " \\\n";
   return { text: doc.slice(0, pos) + snippet + doc.slice(pos), caret: pos + snippet.length };
@@ -296,7 +304,7 @@ export function breakInItem(doc: string, list: ListInfo, pos: number): Edit | nu
  * and says so by not moving.
  */
 export function indentItem(doc: string, list: ListInfo, pos: number): Edit | null {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   if (!canIndentItem(here)) return null;
   const prev = list.items[here.index - 1];
   const body = doc.slice(here.item.bodyFrom, here.item.bodyTo);
@@ -344,7 +352,7 @@ export function indentItem(doc: string, list: ListInfo, pos: number): Edit | nul
  * Shift+Tab. An item already at the top level has nowhere to go.
  */
 export function outdentItem(doc: string, list: ListInfo, pos: number): Edit | null {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   if (!canOutdentItem(doc, list, here)) return null;
   const outer = listAt(doc, list.from - 1)!;
   const body = doc.slice(here.item.bodyFrom, here.item.bodyTo);
@@ -375,7 +383,7 @@ export function outdentItem(doc: string, list: ListInfo, pos: number): Edit | nu
 
 /** Delete the item at `pos`, comma and all. */
 export function deleteItem(doc: string, list: ListInfo, pos: number): Edit | null {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   if (!canDeleteItem(here)) return null;
   let cut = here.item.to;
   while (cut < list.argsTo && (doc[cut] === "," || doc[cut] === " ")) cut++;
@@ -409,7 +417,7 @@ export function deleteItem(doc: string, list: ListInfo, pos: number): Edit | nul
  * keeps its number and gains a paragraph — see `engine/tests/lists.rs`.
  */
 export function paraInItem(doc: string, list: ListInfo, pos: number): Edit | null {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   if (!canBreakInItem(here)) return null;
   const snippet = "\n\n";
   return { text: doc.slice(0, pos) + snippet + doc.slice(pos), caret: pos + snippet.length };
@@ -562,7 +570,7 @@ export function setKind(doc: string, list: ListInfo, kind: ListKind, pos = 0): E
 
 /** Move the item at `pos` one place up or down within its list. */
 export function moveItem(doc: string, list: ListInfo, pos: number, by: -1 | 1): Edit | null {
-  const here = itemAt(list, pos);
+  const here = itemAt(list, pos, doc);
   if (!canMoveItem(list, here, by)) return null;
   const other = list.items[here.index + by];
   const a = here.index < here.index + by ? here.item : other;

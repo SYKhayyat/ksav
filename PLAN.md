@@ -48,6 +48,87 @@ shipped**, and twice a survey believed a stale *comment* rather than the code be
   notices) is it. See decisions/2026-09-25-the-registry-wire-is-a-palette.md.
 - #12 does not exist.
 
+## UAT follow-up — 2026-10-20
+
+Investigated against `UAT.org`, `HEAD` (`8d70c80`), recent history, and the current
+source. The latest "Fix 10 UAT items" commit was not accepted as evidence by itself:
+`nix develop --command npm run build` currently stops at `bindings.ts:136` before any
+editor test runs. Confirmed residuals are filed here; links are deliberately grouped
+only where the same root cause owns the sibling symptoms.
+
+- [ ] #119 [UAT 1] caret-follow interpolation uses a character offset instead of a
+  visual line position and still has a last-line/short-document bottom jump.
+- [ ] #120 [UAT 6] Settings-drawer touchpad scrolling delegates raw deltas to native
+  `overflow: auto` with no app-level policy or boundary behavior.
+- [ ] #121 [UAT 7] bracket escape shortcuts have no all-brackets action and the new
+  matcher is not typed-stack-correct for mixed nesting.
+- [ ] #122 [UAT 8] the attempted Hebrew-caret fix sets the whole HTML root to the
+  document direction, breaking the independent UI direction.
+- [ ] #123 [UAT 9, 28] the UAT fix commit leaves HEAD unbuildable; after the syntax typo,
+  the note paragraph producer/consumer still disagree about the edit shape.
+- [ ] #124 [UAT 11] actionable diagnostics live in the low status strip with no
+  guaranteed readable surface above the preview panes.
+- [ ] #125 [UAT 13, 15] File-menu Open and Save As wire rejected async handlers
+  directly, bypassing `asyncaction.ts` and reaching the crash handler.
+- [ ] #126 [UAT 14] source navigation has no semantic mode that skips Typst markup
+  while retaining a deliberate raw-character navigation mode.
+- [ ] #127 [UAT 18] PDF export always uses the generic download path; desktop never
+  offers the native destination picker.
+- [ ] #128 [UAT 19, 25, 26, 27] document title/filename identity and the Documents/File
+  menus are duplicated, while row actions remain icon-only and hover-dependent.
+- [ ] #129 [UAT 20] plain text, Markdown, and Org exports preserve layout markers and
+  add unwanted breaks through shared, non-normalizing atom renderers.
+- [ ] #130 [UAT 21] `.typ` export inlines the complete prelude with no compact/project
+  export contract.
+- [ ] #131 [UAT 22] Word export is HTML-in-`.doc`, while the visible product promise
+  and filename do not make that handoff explicit.
+- [ ] #132 [UAT 23] native reflowable HTML trusts Typst HTML defaults and does not add
+  or verify the document direction; fallback/Word paths disagree.
+- [ ] #133 [UAT 28] Windows shortcut/startup still lacks a clean-build and packaged
+  smoke test; the exact Windows failure remains to be retested with a launch log.
+- [ ] #134 [UAT 2, 3, 4, 5, 10, 12, 16, 17] verify the recent-fix claims in a
+  buildable application, with focused regression tests and sibling-path coverage;
+  source inspection is explicitly not sufficient.
+- [ ] #135 [UAT 30] English first-run and plain/legacy `.ksav` documents can fall
+  through to the shipped RTL default; initialize the starter after a document
+  exists, define the no-config migration policy, and verify LTR persistence.
+- [ ] #136 [UAT 31] the alignment toolbar has a hand-authored, direction-dependent
+  visual order without a toolbar/settings ordering contract or regression fence.
+  Keep the UI/document direction separation in #122.
+- [ ] #137 [UAT 32] linked source-to-preview scrolling uses an approximate rAF
+  estimate followed by delayed exact settling and a direction-dependent anchor;
+  scrolling jitters and upward scrolling can miss the preview top. Sibling of
+  #119, not a replacement for its caret-follow cases.
+- [ ] #138 [UAT 34] opening documents does not match the intended Emacs-like
+  window/buffer model: default `openIn: reuse` creates arrangements for
+  unrepresented documents, and `tabs.showing()` ignores non-focused panes.
+- [ ] #139 [UAT 35] moving panes between tabs allows a mixed-document tree to
+  enter a globally single-document renderer, so target panes/previews can be
+  overwritten or duplicated; define whether a new-tab move carries one pane or
+  a source/preview pair and fence stale async moves.
+- [ ] #119 follow-up [UAT 33] Select All is routed through caret-follow using
+  `selection.main.head`, so a full-document selection moves the preview toward
+  the bottom. Add this regression case to #119.
+
+The following UAT items were previously believed fixed or not reproduced by source
+inspection. That is now tracked as an explicit verification issue, #134; none of
+these items should be treated as closed until that issue has real application
+evidence.
+
+- **2, 3, 4, 5, 12, 16**: the current code contains focused changes for heading
+  reveal anchoring, prose chip state, import catches, physical-key bindings, paired
+  bracket close, and Word import catches. They still need regression coverage after
+  #123 restores a buildable frontend; #134 is the verification record.
+- **10**: the list path now excludes nested bracket bodies before applying list-item
+  Enter behavior. A broader nested-structure audit belongs with #121/#126 if a
+  reproduction remains; #134 is the verification record.
+- **17**: the no-Girsa paths now use the explicit `girsaNeedsApp` message rather than
+  exposing transport text; no residual cryptic path was found in the current source,
+  but #134 must verify every Girsa entry point in the running app.
+- **24**: the provided article template was rendered with the engine probe. Its notes
+  were on the page foot and the deferred body was visible; the reported unreadable
+  endnote spacing did not reproduce on the current template, so no issue was filed.
+
 ## Phase 1 — Foundations first (unblock everything below)
 - [ ] #116 **the editor test suite cannot run at HEAD.** `run.mjs:100-115` bundles with
   `esbuild.build({bundle:true})` and no CSS asset config, so the 4 root-absolute

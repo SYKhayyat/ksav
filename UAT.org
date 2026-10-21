@@ -21,4 +21,15 @@
 - The exported typst file is outrageously large.
 - It saves a .doc, not a .docx, when exporting to word.
 - The html exported is LTR.
-- At least in the provided article template (and maybe always), the endnote is too close to the end of the text, so it is almost unreadable.  
+- At least in the provided article template (and maybe always), the endnote is too close to the end of the text, so it is almost unreadable.
+- The notion of document name and file name is confusing.
+_ Many things (like new doc, save as) are duplicated between Document and File dropdowns. Both save ases crash ksav.
+- It is not easy to tell what the different icons do in the lists in the document dropdown.
+- Now, ksav will not open, even when I click the keyboard shortcut. There is still much UAT work to do.
+---------------------------
+- An english ksav doc open RTL. It should be LTR.
+- The right align button is the one on the left, which is very unintuitive. I even tried setting LTR in settings, but it did not work.
+- Scrolling in the source makes jerky scrolling in the preview. And scrolling in the source never gets you to the top of the preview.
+- When I select all, the preview scrolls to the very bottom.
+- It is easy to swap or split, but not intuitive how to open a new document or a different document within a tab. We should follow the emcas model, as usual.  
+- Move to a new tab often does not work. When I tried to move one window to an empty tab, it moved it twice, once with the preview, I think. When I tried to move one to a tab with something, it knocked out what was there already, and brought it with another copy and a preview.

@@ -1,0 +1,133 @@
+#document(size: 11pt, lang: "en")[
+#title[UAT Test Document — Ksav]
+
+#subtitle[User Acceptance Testing workbook]
+
+This document is a UAT workbook for Ksav. Each section names a feature, shows what it can do in English, and gives a Hebrew exercise you can try. Compile it to PDF to confirm rendering.
+
+#hrule
+
+#hlevel(level: 1)[1. Text styling]
+
+English text styling works inline: #bold[bold], #italic[italic], #uline[underline], #sthrough[strike], #scaps[small caps], #big[big], #tiny[tiny], #sup[superscript], #sub_[subscript], #mark[marked], and #color(rgb("#b91c1c"))[coloured text].
+
+#hlevel(level: 2)[Hebrew exercise]
+
+Try typing Hebrew with nikud: #bold[שָׁלוֹם] and #italic[עוֹלָם], then a mixed line: Hello #bold[שלום] world.
+
+#hlevel(level: 1)[2. Headings and table of contents]
+
+#hlevel(level: 2)[A second-level heading]
+
+#hlevel(level: 3)[Third level]
+
+#toc
+
+#hlevel(level: 1)[3. Lists]
+
+#bullets(
+  item[First bullet],
+  item[Second bullet with a nested list:
+    #bullets(
+      item[sub-item a],
+      item[sub-item b],
+    )],
+  item[Third bullet],
+)
+
+#numbered(
+  item[Step one],
+  item[Step two],
+  item[Step three],
+)
+
+Hebrew exercise: build a list of mishnayot using #bullets and #numbered with Hebrew items.
+
+#hlevel(level: 1)[4. Tables]
+
+#mktable(columns: 3,
+  cell[Name], cell[Value], cell[Note],
+  cell[Alpha], cell[1], cell[first],
+  cell[Beta], cell[2], cell[second],
+)
+
+#hlevel(level: 1)[5. Notes and apparatus]
+
+A sentence with a footnote#fnote[This is a footnote at the page foot.] and an endnote#endnote[This is an endnote collected at the end.].
+
+#hlevel(level: 2)[Hebrew exercise]
+
+Write a Hebrew sentence: בראשית ברא#fnote[הערה בעברית] אלקים, then add a sidenote in the margin.
+
+#endnotes
+
+#hlevel(level: 1)[6. Page setup and columns]
+
+The document uses A4 by default. Try changing paper size and margins via #document.
+
+#hlevel(level: 1)[7. Formulas]
+
+Inline formula: $ x^2 + y^2 = z^2 $. Display:
+
+$ integral_0^1 x^2 "dx" = 1/3 $
+
+#hlevel(level: 1)[8. Hebrew text direction]
+
+#hlevel(level: 2)[Exercise: mixed direction]
+
+Type a paragraph mixing English and Hebrew: The word שלום means peace. Check that punctuation lands correctly.
+
+#hlevel(level: 1)[9. Images]
+
+(Image exercise: insert an image with #img and adjust width.)
+
+#hlevel(level: 1)[10. Version history and review]
+
+Mark text as #inserted[inserted] or #deleted[deleted]. Add a #comment_[text comment].
+
+#hlevel(level: 1)[11. Side notes and margin]
+
+Place a note in the margin: this sentence has a sidenote#sidenote[Margin note text.].
+
+Wrap a passage for two-sided margin notes:
+
+#twosided[Content with notes on both sides.]
+
+#hlevel(level: 1)[12. Note channels]
+
+Define channels and route notes:
+
+#channel("peirush", placement: "foot", height: 3cm)
+
+בראשית ברא#fnote(channel: "peirush")[עיין רש״י] אלקים.
+
+#show_region("peirush")
+
+#hlevel(level: 1)[13. Section endnotes]
+
+#endnote_config
+
+A section with endnotes collected per section.
+
+#hlevel(level: 1)[14. Review and changes]
+
+#review_config
+
+Inserted #inserted[added text], deleted #deleted[removed text], and a #comment_[reviewer comment].
+
+#hlevel(level: 1)[15. Hebrew exercises]
+
+Exercise 1: Write a paragraph entirely in Hebrew with nikud.
+
+Exercise 2: Mix RTL and LTR on one line: The value is 5 and שלום is peace.
+
+Exercise 3: Create a numbered list of halachot in Hebrew.
+
+Exercise 4: Add a footnote to a Hebrew word: תורה#fnote[תורה שבעל פה].
+
+#hlevel(level: 1)[Conclusion]
+
+All features above should compile and render. Report any mismatch.
+]
+EOF
+/home/shaul/ksav/ksav/engine/target/release/ksav /home/shaul/ksav/UAT.ksav /tmp/uatout 2>&1 | head -40

@@ -102,7 +102,7 @@ whatever else is open.
 ## 3 · Running it
 
 ```sh
-cd ksav && node tools/gate.mjs            # the whole gate, nine checks
+cd ksav && node tools/gate.mjs            # the whole gate, ten checks
 cd ksav && node tools/gate.mjs engine     # one tree — includes its formatting
 cd ksav/app && npm test -- panels spans   # the inner loop, by substring
 ```

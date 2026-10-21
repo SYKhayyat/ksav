@@ -124,7 +124,7 @@
             echo "  cargo   $(cargo --version | cut -d' ' -f2)"
             echo "  emacs   $(emacs --version | head -1 | cut -d' ' -f3)"
             echo
-            echo "  cd ksav && node tools/gate.mjs      # the whole gate, 9 checks"
+            echo "  cd ksav && node tools/gate.mjs      # the whole gate, 10 checks"
           '';
         in
         {

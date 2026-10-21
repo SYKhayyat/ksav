@@ -106,6 +106,18 @@ export const CHECKS = [
     why: "The third Rust tree, and the one that used to hold most of the drift.",
   },
   {
+    id: "editor-imports",
+    group: "editor",
+    tree: "editor",
+    name: "editor import graph",
+    cwd: "app",
+    command: ["node", "tools/imports.mjs"],
+    why: "The main.ts split adds modules by the wave; the rule is one-waypoint " +
+      "imports and an acyclic graph, and no typecheck will say so. Type-only " +
+      "imports are erased at emit and are not edges; junk names (misc, utils, " +
+      "helpers, common) are refused by the same walk.",
+  },
+  {
     id: "editor-types",
     group: "editor",
     tree: "editor",

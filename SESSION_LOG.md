@@ -10242,3 +10242,62 @@ commit; suite 124 files / 12,775 passed / 0 failed.
 
 `main.ts` is 15,321 lines. Waves 2–10 follow; the import-cycle check lands in
 wave 2 before anything could create one.
+
+---
+
+## 2026-10-21 · main.ts split, wave 2 — the pane system
+
+**Commits `8ef5208` (gate check #10), `b574007` (the move), this one (docs).**
+Gates at the end: tsc clean, vite build, editor gate green (125 files /
+12,881 assertions / 0 failed, import graph acyclic at 112 modules).
+
+The pane tree, its editors, its strip, its drag, its scroll link, its menu,
+its arrangements, and the tab strip moved out of main.ts into eight modules:
+`panestate.ts` (460, the state leaf), `paneview.ts` (147), `panehost.ts`
+(735), `panedrag.ts` (261), `panescroll.ts` (443), `panemenu.ts` (170),
+`panearrangements.ts` (269), `tabstrip.ts` (409). 96 declarations moved, 39
+drifted — every drift a state-direction rewrite, enumerated in the move
+commit. main.ts is 12,721 lines.
+
+- **The wiring object is the wave's design finding.** The plan said "leaf +
+  main's wiring" without a mechanism; `PaneWiring` (declared in panestate,
+  registered once in `installHooks` via `wirePanes`) is how the leaf calls
+  back without a cycle: the state factory, the prose flag, the editing
+  modes, the side-pane draws, the handed-over `openDoc`, `askText`, and the
+  render hooks. No pane module imports main; `imports.mjs` holds it.
+
+- **The cycle check changed three placements.** `previewWindowOf`/
+  `applyPreviewWindows` live in panestate (paneview's narrow/widen ask for
+  them and cannot import their builder); `applyPaneZoom`/`cyclePaneZoom` in
+  panehost (main's key and the strip's chip both ask); `showPagesFor` in
+  preview.ts (its two callers are main's `openDoc` and tabstrip's
+  `handOverPages`, and tabstrip cannot import main).
+
+- **Rule 3 produced named mutators, not bare writes:** panescroll exports
+  `noteScrollWrite`, `claimFloor`, `cancelCaretFollow` (the echo ledger, the
+  scroll floor, the caret-follow timer — all written from outside the
+  module), plus `clamp01`/`clampScroll` for main's reveal arithmetic. In
+  main.ts itself, the session restore now writes through
+  `setPaneTree`/`setFocusedPane`.
+
+- **Fences rekeyed in the same commit (rule 6):** opening.test attributes
+  `openDoc` calls across main.ts and tabstrip.ts (the wiring's `installHooks`
+  is an allowed owner, named for what it is); asyncaction's INVENTORY rekeys
+  `settleNow` to panescroll.ts; jump/paneplaces/retention/settings fences
+  follow the moved code. The wave's rule-7 fence, `panesystem.test.mjs`
+  (99 assertions), holds the passenger lists as live exports, the wiring's
+  refusal before registration, the no-`./main` rule read off the files, and
+  the scroll clamps' arithmetic.
+
+- **What the carve caught in the monolith:** a `jumpFromClick` doc-comment
+  two functions above its function and a doubled doc above `toggleMinimap` —
+  both pre-existing, both kept verbatim. The carver's one defect (an
+  off-by-one at the `mirrorChange` doc seam, leaving a stray `*/`) was fixed
+  in the move commit, the doc attached where it landed.
+
+- **Environment note:** Chromium is not in the persistent store on this
+  machine; it was made available transiently with `nix-shell -p chromium`
+  and supplied via `KSAV_CHROMIUM`, as in the 2026-10-11 session. Without it
+  `browserlang.test.mjs` asserts nothing and the runner says so.
+
+`main.ts` is 12,721 lines. Wave 3 (app chrome) is next.

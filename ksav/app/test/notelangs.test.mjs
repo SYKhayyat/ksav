@@ -285,10 +285,16 @@ export async function run() {
     "the note menu asks notes.ts where a note could go",
     MAIN.includes("destinationTargets(doc, note)"),
   );
+  // The end anchor used to be `function closeNoteMenu`. Wave 1 of the main.ts
+  // split moved that closer to `spellcheck.ts` — and the anchor had been stale
+  // long before that: closeNoteMenu sat *above* openNoteMenu in main.ts, so
+  // `indexOf` returned a smaller offset and the sweep ran on an empty string,
+  // passing without reading anything. The honest bound was always this one
+  // menu's own body, which is what the sweep asserts on now.
   ok(
     "and does not build the list out of the destination table itself",
     !/destinationTargets|DESTINATIONS/.test(
-      MAIN.slice(MAIN.indexOf("function openNoteMenu"), MAIN.indexOf("function closeNoteMenu")).replace(
+      MAIN.slice(MAIN.indexOf("function openNoteMenu"), MAIN.indexOf("function editDoc(")).replace(
         "const targets = destinationTargets(doc, note);",
         "",
       ),

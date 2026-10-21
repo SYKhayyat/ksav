@@ -71,11 +71,14 @@ export const HE: Dict = {
   // list & table editing (labels for STRUCTURE_ACTIONS)
   tableAt: "טבלה · שורה {0}/{2}, עמודה {1}/{3}",
   listAt: "רשימה · פריט {0}/{1}, רמה {2}",
+  noteAt: "הערה · קינון {0}",
   inProse: "טקסט רגיל — אין כאן מבנה לפעול עליו",
   // Why a greyed control is greyed. One per operation, read off its own
   // predicate — see `StructureAction.why`. Short enough to sit under the
   // item's name without turning a menu into a page of prose.
   "why.notIn.list": "אין הסמן בתוך רשימה",
+  "why.notIn.note": "אין הסמן בתוך הערה",
+  "why.notOnNoteBody": "הסמן צריך להיות בתוך גוף ההערה",
   "why.alreadyAList": "הסמן כבר בתוך רשימה",
   "why.nothingToList": "אין כאן טקסט לעשות ממנו רשימה",
   "why.notIn.table": "אין הסמן בתוך טבלה",
@@ -131,6 +134,7 @@ export const HE: Dict = {
   listSplitItem: "פיצול הפריט",
   listBreakInItem: "שורה חדשה בתוך הפריט",
   listParaInItem: "פסקה חדשה באותו פריט",
+  noteParaInNote: "פסקה חדשה בתוך ההערה",
   listDeleteItem: "מחיקת הפריט",
   listIndentItem: "הזחה פנימה (תת־פריט)",
   listOutdentItem: "הזחה החוצה",
@@ -157,6 +161,7 @@ export const HE: Dict = {
   "structure.heading": "כותרות ומדורים",
   "structure.list": "רשימות",
   "structure.table": "טבלה",
+  "structure.note": "הערות",
   headingAt: "כותרת · מדור {0}/{1}, רמה {2}",
   headingPromote: "רמה אחת למעלה",
   headingDemote: "רמה אחת למטה",
@@ -1354,7 +1359,6 @@ export const HE: Dict = {
   "sc.lineBreak": "מעבר שורה",
   "sc.paraBreak": "מעבר פסקה",
   "sc.pageBreak": "מעבר עמוד",
-  "sc.note.paraInNote": "מעבר פסקה בהערה",
   "sc.foldLevel1": "קפל לרמה 1",
   "sc.foldLevel2": "קפל לרמה 2",
   "sc.foldLevel3": "קפל לרמה 3",

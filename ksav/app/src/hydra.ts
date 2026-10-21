@@ -133,10 +133,13 @@ export function hydraFor(
 }
 
 /** Every hydra, in registry order. */
+const HYDRA_KINDS: Structure[] = ["list", "table", "heading"];
 export function allHydras(overrides: Record<string, string> = {}): Hydra[] {
-  const kinds: Structure[] = [];
-  for (const a of STRUCTURE_ACTIONS) if (!kinds.includes(a.structure)) kinds.push(a.structure);
-  return kinds.map((k) => hydraFor(k, overrides));
+  // The registry's kinds, not `STRUCTURE_ACTIONS`' union: a note body carries
+  // one operation, and a hydra of one — when the operation already holds its own
+  // key — is a second route answering slower than the direct one. `hydra.test.mjs`
+  // pins this list so the accidental adding of a kind does not arrive silently.
+  return HYDRA_KINDS.map((k) => hydraFor(k, overrides));
 }
 
 /**

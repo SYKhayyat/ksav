@@ -36,6 +36,9 @@ rather than leaving two actions on one key.
 | `Ctrl+Shift+Enter` | Page break | מעבר עמוד |
 | `Ctrl+Alt+,` | Show only this section | הצג רק את הסימן הזה |
 | `Ctrl+Alt+.` | Show the whole document | הצג את כל המסמך |
+| `Ctrl+]` | Move out of bracket | צא מהסוגריים |
+| `Ctrl+Alt+Shift+]` | Move out of bracket to next line | צא מהסוגריים לשורה הבאה |
+| `Ctrl+Enter` | New paragraph inside this note | פסקה חדשה בתוך ההערה |
 | `Ctrl+Alt+1` | Fold to level 1 | קפל לרמה 1 |
 | `Ctrl+Alt+2` | Fold to level 2 | קפל לרמה 2 |
 | `Ctrl+Alt+3` | Fold to level 3 | קפל לרמה 3 |

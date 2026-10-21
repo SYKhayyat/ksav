@@ -244,7 +244,6 @@ import * as hiding from "./hiding";
 import * as lists from "./lists";
 import * as header from "./header";
 import * as panelrows from "./panelrows";
-import * as notes from "./notes";
 import type { PanelList, PanelRow } from "./panelrows";
 import { keyedReconciler, type KeyedReconciler } from "./reconcile";
 
@@ -10723,9 +10722,9 @@ function structureKeymap() {
     const act = want === a.id ? a : structure.actionById(want);
     if (act) out.push({ key, run: () => runStructureAction(act) });
   }
-  // #86 — the two tag selections. Not in `STRUCTURE_ACTIONS`, which is generated
-  // from the list, table and heading registries and whose `structure` field has
-  // nothing to say about a note; they read the same `keybindings()` registry, so a
+  // #86 — the two tag selections. Not in `STRUCTURE_ACTIONS`: a tag is not the
+  // kind of structure the registry's ribbon view is for. They read the same
+  // `keybindings()` registry, so a
   // rebind in Settings moves the click's keyboard twin with it.
   //
   // Returning `false` when the caret is not in a tag is the arrangement
@@ -10740,23 +10739,6 @@ function structureKeymap() {
         const tag = tagContaining(view.state.doc.toString(), view.state.selection.main.head);
         if (!tag) return false;
         selectTag(view, tag, mode as TagSelection);
-        return true;
-      },
-    });
-  }
-  // Paragraph break inside a note body (Mod-Enter when in a note body).
-  const noteParaKey = kb["note.paraInNote"];
-  if (noteParaKey) {
-    out.push({
-      key: noteParaKey,
-      run: (view) => {
-        const doc = docTextOf(view.state.doc);
-        const pos = view.state.selection.main.head;
-        const note = notes.noteAt(doc, pos);
-        if (!notes.canParaInNote(note, pos)) return false;
-        const edit = notes.paraInNote(doc, note, pos);
-        if (!edit) return false;
-        view.dispatch({ changes: { from: edit.from, to: edit.to, insert: edit.insert }, selection: { anchor: edit.caret } });
         return true;
       },
     });

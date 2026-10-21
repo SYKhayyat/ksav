@@ -127,13 +127,18 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // are the Alt forms and neither was taken.
   narrow: "Mod-Alt-,",
   widen: "Mod-Alt-.",
-  // Move out of the current bracket pair. `Mod-]` for the first, `Mod-Shift-]` for the second.
+  // Move out of the current bracket pair. `Mod-]` for the first; the second, the
+  // same one step further, sits where the folding pair lives (`Mod-Alt-[
+  // folds, `Mod-Alt-]` unfolds) and not on `Mod-Shift-]`, which is
+  // `selectTagWhole`'s (#86) and was deliberate about it. Caught friendrily by
+  // the bindings fence: two actions on one combination is a keystroke that
+  // reads whichever registry it met first.
   moveOutOfBracket: "Mod-]",
-  moveOutOfBracketToNextLine: "Mod-Shift-]",
+  moveOutOfBracketToNextLine: "Mod-Alt-Shift-]",
   // Paragraph break inside a note body (blank line, not a Typst command).
   // Shares Mod-Enter with list.paraInItem — they are mutually exclusive since
   // you cannot be in a list item and a note body at the same time.
-  note.paraInNote: "Mod-Enter",
+  "note.paraInNote": "Mod-Enter",
   // Fold to a depth — the outline collapsed to chapters, or to simanim. `foldAll`
   // takes everything down at once and answers a different question.
   foldLevel1: "Mod-Alt-1",

@@ -55,6 +55,7 @@ import {
   type Errand,
 } from "./deferred";
 import type { NoteMarker } from "./api";
+import type { Edit } from "./structure";
 import {
   PLACEMENTS,
   channelLine,

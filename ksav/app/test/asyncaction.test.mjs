@@ -98,8 +98,6 @@ const INVENTORY = {
   "src/main.ts:openSpellMenu": "guarded; the menu's own failure path",
   "src/main.ts:linkifySelection": "guarded; a newer linkify run supersedes this one",
   "src/main.ts:loadRegistries": "guarded; a registry that will not load is reported once",
-  "src/main.ts:importOrg": "guarded; an import that fails leaves the document untouched",
-  "src/main.ts:importWord": "guarded; an import that fails leaves the document untouched",
   "src/save.ts:saveNow": "guarded; the save module's own try/catch and notice",
 
   // --- no promise at all ------------------------------------------------------

@@ -38,6 +38,7 @@
 import * as heads from "./headings";
 import * as lists from "./lists";
 import * as tables from "./table";
+import * as notes from "./notes";
 
 export interface Edit {
   text: string;
@@ -45,7 +46,7 @@ export interface Edit {
 }
 
 /** Which structure the caret is inside. */
-export type Structure = "list" | "table" | "heading";
+export type Structure = "list" | "table" | "heading" | "note";
 
 export interface StructureAction {
   /** Stable identifier: the key binding, the macro step, the config entry. */
@@ -149,6 +150,8 @@ export interface StructureContext {
    * the caret is inside a table.
    */
   cursor(): { row: number; col: number };
+  /** The innermost note containing the caret — its marker for an inline note, its body for a deferred one. */
+  note(): notes.NoteSpan | null;
   /** Every heading in the document, in source order. */
   headings(): heads.HeadingInfo[];
   /** The heading whose section contains the caret — the one at or above it. */
@@ -193,6 +196,7 @@ function makeContext(doc: string, pos: number): StructureContext {
       ? { row: p.row, col: p.col }
       : { row: Math.max(0, g.rows - 1), col: Math.max(0, g.cols - 1) };
   });
+  const note = once(() => notes.noteAt(doc, pos));
   const all = once(() => heads.headings(doc));
   return {
     doc,
@@ -202,6 +206,7 @@ function makeContext(doc: string, pos: number): StructureContext {
     table,
     geometry,
     cursor,
+    note,
     headings: all,
     section: once(() => heads.sectionAt(doc, pos, all())),
     headingHere: once(() => heads.headingAt(doc, pos, all())),
@@ -242,9 +247,11 @@ export function whyNot(action: StructureAction, doc: string, pos: number): strin
   if (action.enabled(ctx)) return null;
   const inside =
     action.structure === "list"
-      ? ctx.list() !== null
-      : action.structure === "table"
-        ? ctx.table() !== null
+    ? ctx.list() !== null
+    : action.structure === "table"
+      ? ctx.table() !== null
+      : action.structure === "note"
+        ? ctx.note() !== null
         : ctx.section() !== null;
   return inside ? action.why : `why.notIn.${action.structure}`;
 }
@@ -985,10 +992,48 @@ const HEADING_ACTIONS: StructureAction[] = [
   // where a thing that puts something new on the page belongs. See `menus.ts`.
 ];
 
+// ---------------------------------------------------------------- notes
+//
+// A note body is a structure in the strictest sense the registry serves: the
+// ribbon greys operations the caret cannot reach, and until the note was one of
+// them its only operation — the paragraph break — was hand-bound in `main.ts`,
+// invisible to the palette, the settings drawer, the help list and the keymap
+// gate that certifies which actions may share a key.
+
+/** Wrap a note operation so it finds its own note and reports inapplicability. */
+function onNote(
+  can: (note: notes.NoteSpan, pos: number) => boolean,
+  fn: (doc: string, note: notes.NoteSpan, pos: number) => Edit | null,
+): Pick<StructureAction, "enabled" | "run"> {
+  return op(
+    (ctx) => {
+      const note = ctx.note();
+      return note !== null && can(note, ctx.pos);
+    },
+    (ctx) => fn(ctx.doc, ctx.note()!, ctx.pos),
+  );
+}
+
+const NOTE_ACTIONS: StructureAction[] = [
+  {
+    id: "note.paraInNote",
+    why: "why.notOnNoteBody",
+    structure: "note",
+    group: "notes",
+    glyph: "¶",
+    label: "noteParaInNote",
+    ...onNote(
+      (note, here) => notes.canParaInNote(note, here),
+      (doc, note, pos) => notes.paraInNote(doc, note, pos),
+    ),
+  },
+];
+
 export const STRUCTURE_ACTIONS: StructureAction[] = [
   ...LIST_ACTIONS,
   ...TABLE_ACTIONS,
   ...HEADING_ACTIONS,
+  ...NOTE_ACTIONS,
 ];
 
 /** Look one up by id — what a key binding, a macro step or a hydra holds. */
@@ -1007,11 +1052,17 @@ export function structureAt(doc: string, pos: number): Structure | null {
 }
 
 function structureOf(ctx: StructureContext): Structure | null {
-  const list = ctx.list();
-  const table = ctx.table();
-  if (list && table) return list.from > table.from ? "list" : "table";
-  if (list) return "list";
-  if (table) return "table";
+  // Innermost wins: a list inside a table cell is a list, a note inside one of
+  // those is a note. The compare is by span start, so a note whose marker sits
+  // inside a list item is a list where both can act — the note's *body*
+  // (inline) reaches the caret first only when the body starts after the list's
+  // opening, and then the note wins.
+  const spans = [
+    ...(ctx.list() ? [{ structure: "list" as const, from: ctx.list()!.from }] : []),
+    ...(ctx.table() ? [{ structure: "table" as const, from: ctx.table()!.from }] : []),
+    ...(ctx.note() ? [{ structure: "note" as const, from: ctx.note()!.from }] : []),
+  ];
+  if (spans.length) return spans.sort((a, b) => b.from - a.from)[0].structure;
   // A heading last, and deliberately so: every position after the first heading
   // is inside *some* section, so it would otherwise claim the caret everywhere
   // and no list or table would ever get the ribbon.
@@ -1094,6 +1145,10 @@ export function whereAmI(
       col: h.level,
       cols: heads.MAX_LEVEL,
     };
+  }
+  if (structure === "note") {
+    const n = ctx.note()!;
+    return { structure, row: n.depth + 1, rows: n.depth + 1, col: 1, cols: 1 };
   }
   if (structure === "table") {
     const g = ctx.geometry()!;

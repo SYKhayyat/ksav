@@ -6,9 +6,9 @@
 // action id into the readable chord under the mode that holds the keyboard,
 // and `hintIsMode()` answers for callers whose class changes with it.
 //
-// Defers to `bindings.ts` for the table itself and the mode-aware hint it
-// is pure above, `keymodes.ts` for which mode is on and what its commands
-// are called, `settings.ts` for the rebindings.
+// Defers to `bindings.ts` for the table itself and the mode-aware hint, both
+// pure there; `keymodes.ts` for which mode is on and what its commands
+// are called; and `settings.ts` for the rebindings.
 //
 // Refuses to answer for drawing `<code>` cells (`keyCode` stays in
 // main.ts — it builds a node, it does not answer a question) and for the
@@ -18,11 +18,14 @@ import { keyHint, keybindingsFrom } from "./bindings";
 import { settings } from "./settings";
 
 /**
- * The bindings, and the aliases, now live in `bindings.ts` (B31, B36).
+ * The writer's table as the settings have it, now.
  *
- * Out of this file for two reasons: it is the one module in `src` without a test
- * file, which the grade calls *the tell*; and `tools/card.mjs` reads them to
- * generate the shortcut card B36 asks for, so the card cannot drift from the keys.
+ * The keys themselves — the shipped table and the parser that overwrites it —
+ * live in `bindings.ts` (B31, B36), and `tools/card.mjs` reads the bindings
+ * there to generate the shortcut card, so the card cannot drift from the keys.
+ * This is the read half: what the writer changed, rebuilt on each read, never
+ * captured, because the Shortcuts editor and the settings write it between
+ * two draws of any chord.
  */
 export function keybindings(): Record<string, string> {
   return keybindingsFrom(settings.keybindings);

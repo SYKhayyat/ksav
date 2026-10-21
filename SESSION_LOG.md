@@ -10192,3 +10192,53 @@ feature that could be opened but not closed, behind a fully green suite.** Every
 have written in this file about tautologies and missing fixtures is a variation on it.
 The one thing none of them prepared me for is a test file that is 33 assertions long,
 about a panel, and never once closes it.
+
+## 2026-10-21 · the main.ts split, wave 1 — the spell-check UI, and a verifier to guarantee the rest
+
+The plan at `~/plans/ksav-main-split-PLAN.md` feeds wave by wave; wave 1 was the
+proving wave — spell-check UI region (banner through `closeNoteMenu`, ~300
+lines) out of the 15,640-line `main.ts`. Commits `2496cd8` (the verifier),
+`0bade6a` (the pure move), `33194b9` (commit-B doc fixes). Gates green at every
+commit; suite 124 files / 12,775 passed / 0 failed.
+
+- **`tools/moved.mjs` first** (`2496cd8`): rule 1 of the split ("pure moves
+  only") is now a checkable claim. Token-compares every top-level declaration
+  against `HEAD~1`; comments and whitespace travel, renames and reformats are
+  drift. The move commit asked it to verify 21 passengers — 18 to
+  `spellcheck.ts`, 3 to `keyhint.ts` — and it printed *21 moved, zero drift*.
+
+- **The plan's own seams were two off, and Shaul made both calls before the
+  move:**
+  1. `snapshotNote` reaches `hintFor`, which lived in main.ts; importing it
+     would have been the first module cycle. The trio
+     (`keybindings`/`hintFor`/`hintIsMode`) moved too, verbatim, to a new leaf,
+     `keyhint.ts` — both fences on it (prohibitions' sweep, styleediting's
+     `hintFor` regex) stayed green unedited because call sites did not move.
+  2. `autoExtension` shared the spell banner by file order only; it is
+     autocomplete and stays in main.ts with the extension assembly.
+
+- **What the move found that the plan did not:** spell state is shared — three
+  main.ts sites (document swap, word removal, dictionary import) wrote the
+  dirty/pending bookkeeping directly. The owner now exports
+  `spellCheckFromScratch()` and `runFullSpellCheck()`; the three sites call
+  them, same semantics, and the calls read better than the assignments.
+
+- **Two fences corrected in the same commit (rule 6):** asyncaction's sweep keys
+  entries by the *call site's* file, and the calls did not move — the INVENTORY
+  key stays `src/main.ts:openSpellMenu`, contrary to the plan's rekey
+  instruction. And notelangs' menu sweep had been **vacuous** for a while: its
+  end anchor (`function closeNoteMenu`) sat *above* its own start anchor in
+  main.ts, so `indexOf` came out smaller and the sweep read an empty string,
+  passing without looking at anything. Re-anchored to openNoteMenu's own body;
+  it reads now.
+
+- **Rule-7 fences on the new files, same commit:** `spellcheck.test.mjs` (the
+  export list the wiring leans on, the widening arithmetic with both clamps,
+  no `./main` import, no Compartment) and `keyhint.test.mjs` (a rebinding moves
+  the printed chord, the unbound print nothing, no module-level `let`). The
+  runner's disk-read list is what makes the "every new file gets a fence" rule
+  self-enforcing: without these files the suite fails on the import rule, not
+  on a promise.
+
+`main.ts` is 15,321 lines. Waves 2–10 follow; the import-cycle check lands in
+wave 2 before anything could create one.

@@ -812,6 +812,10 @@ still right.
 - [ ] #43 top/bottom streams proposal, #65 commentary wrapped around central block (berech/Vilna knees via measured fitPrefix; in-flow wrap, not horizontal seam like #15/#43), #42 Rust-rewrite vision (decision only) — **see #117 for Wordcraft UI adoption plan resolving #42, #8, #9**.
 - [ ] Interop/docs: #39, #38, #37, #35, #34, #33, #32, #31.
 - [ ] Frontend: #23 i18n hoist, #22 main.ts split, #11 Leo workflow, #9/#8 LibreOffice UX — **see #117 for Wordcraft UI adoption delivering full ribbon paradigm**, #14 UAT.
+  - #22 (the split): **wave 1 closed 2026-10-21** (`2496cd8`/`0bade6a`/`33194b9`) —
+    spellcheck.ts + keyhint.ts out, `tools/moved.mjs` built, 21 moved / zero
+    drift, gates green. See `decisions/2026-10-21-main-ts-split-wave-1-spellcheck-and-keyhint.md`.
+    Waves 2–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

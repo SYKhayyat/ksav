@@ -29,6 +29,10 @@ import { dirOf } from "../tools/paths.mjs";
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
 const COMPILE = readFileSync(path.join(SRC, "compile.ts"), "utf8");
+// Wave-2 carve: the preview banner lives in `panehost.ts`, the scroll link in
+// `panescroll.ts`. The fences follow the code.
+const PANEHOST = readFileSync(path.join(SRC, "panehost.ts"), "utf8");
+const PANESCROLL = readFileSync(path.join(SRC, "panescroll.ts"), "utf8");
 
 export async function run() {
   // ------------------------------------------------- the ceilings, and who sets them
@@ -117,9 +121,10 @@ export async function run() {
 
   {
     // And the writer is told, on the page it is about, with the way out on it.
-    ok("every preview pane can say it is behind", /class: "preview-stale"/.test(MAIN));
-    ok("...in words", /t\("previewStale"\)/.test(MAIN) && /t\("previewStaleHow"\)/.test(MAIN));
-    ok("...and pressing it lays the sefer out", /"preview-stale"[\s\S]{0,120}compileNow\(\)/.test(MAIN));
+    // The banner is part of the pane host (wave-2 carve): the fence follows it.
+    ok("every preview pane can say it is behind", /class: "preview-stale"/.test(PANEHOST));
+    ok("...in words", /t\("previewStale"\)/.test(PANEHOST) && /t\("previewStaleHow"\)/.test(PANEHOST));
+    ok("...and pressing it lays the sefer out", /"preview-stale"[\s\S]{0,120}compileNow\(\)/.test(PANEHOST));
     ok("...and the shell is told when to show it", /onStale\(\(v\) =>/.test(MAIN));
   }
 
@@ -129,15 +134,16 @@ export async function run() {
     // The half of #5 that is wiring rather than rule — the rules are in
     // `scrollmap.test.mjs`, where they can be exercised. What is asserted here
     // is that the shell reaches for them, and that the settle exists at all.
-    ok("the follow asks for the anchor by direction", /anchorFor\(settings\.syncMatch, dir\)/.test(MAIN));
-    ok("...and the direction is read off the movement", /moved > 0 \? 1 : moved < 0 \? -1 : 0/.test(MAIN));
-    ok("...and a drift under the dead zone is dropped", /worthFollowing\(moved, settings\.syncDeadZone\)/.test(MAIN));
+    // All of it lives in `panescroll.ts` (wave-2 carve); the fence followed.
+    ok("the follow asks for the anchor by direction", /anchorFor\(settings\.syncMatch, dir\)/.test(PANESCROLL));
+    ok("...and the direction is read off the movement", /moved > 0 \? 1 : moved < 0 \? -1 : 0/.test(PANESCROLL));
+    ok("...and a drift under the dead zone is dropped", /worthFollowing\(moved, settings\.syncDeadZone\)/.test(PANESCROLL));
     // Before the floor is claimed, or a two-pixel shiver would lock the other
     // pane out for the length of the floor while following nothing itself.
     ok(
       "...before this pane claims the floor",
-      MAIN.indexOf("worthFollowing(moved, settings.syncDeadZone)") <
-        MAIN.indexOf("scrollFloor = { pane: pane.id"),
+      PANESCROLL.indexOf("worthFollowing(moved, settings.syncDeadZone)") <
+        PANESCROLL.indexOf("scrollFloor = { pane: pane.id"),
     );
   }
 
@@ -145,24 +151,24 @@ export async function run() {
     // Estimate while moving, exact when it settles. The estimate is a
     // line-height model and the exact answer is the compiler's; asking the
     // compiler per scroll event would be a layout per frame.
-    ok("there is a settle", /function settleExactly\(/.test(MAIN));
-    ok("...on a delay the writer sets", /settings\.syncSettleMs \?\? 150/.test(MAIN));
-    ok("...which can be turned off", /settings\.syncExact === false/.test(MAIN));
+    ok("there is a settle", /function settleExactly\(/.test(PANESCROLL));
+    ok("...on a delay the writer sets", /settings\.syncSettleMs \?\? 150/.test(PANESCROLL));
+    ok("...which can be turned off", /settings\.syncExact === false/.test(PANESCROLL));
     ok(
       "...and it asks the engine",
-      /function settleNow\([\s\S]{0,1200}\.reveal\(/.test(MAIN),
+      /function settleNow\([\s\S]{0,1200}\.reveal\(/.test(PANESCROLL),
     );
     // A gesture that started while the compiler was thinking wins: a preview
     // that jumps a second after you have moved on is worse than a few pixels.
     ok(
       "...and a newer gesture beats a late answer",
-      /function settleNow\([\s\S]{0,2000}scrollFloor\.pane !== from\.id/.test(MAIN),
+      /function settleNow\([\s\S]{0,2000}scrollFloor\.pane !== from\.id/.test(PANESCROLL),
     );
     // Our own write, recognised as an echo — or the settle reads as a person
     // scrolling the preview and gets followed back into the source.
     ok(
       "...and the settle is not mistaken for a reader",
-      /function settleNow\([\s\S]{0,2400}scrollWritten\.set\(to\.id/.test(MAIN),
+      /function settleNow\([\s\S]{0,2400}scrollWritten\.set\(to\.id/.test(PANESCROLL),
     );
   }
 }

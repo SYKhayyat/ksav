@@ -88,7 +88,7 @@ const INVENTORY = {
   "src/main.ts:runErrand": "guarded; a background errand reports its own failure",
   "src/main.ts:saveNow": "guarded; reports a failed save as a notice, which is the point",
   "src/main.ts:saveFile": "guarded; same notice path as saveNow",
-  "src/main.ts:settleNow": "guarded; settling after a save cannot fail the save",
+  "src/panescroll.ts:settleNow": "guarded; settling after a save cannot fail the save",
   "src/main.ts:takeSnapshot": "guarded; a snapshot that fails leaves the previous one",
   "src/main.ts:removeDoc": "guarded; a refused removal is reported in place",
   "src/main.ts:removeAsset": "guarded; a refused removal is reported in place",

@@ -31,10 +31,16 @@ const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
  * a refactor that moved the thing being checked out of the path entirely.
  */
 function bodyOf(name) {
-  const at = MAIN.indexOf(`function ${name}(`);
-  if (at < 0) return null;
-  const end = MAIN.indexOf("\n}\n", at);
-  return end < 0 ? null : MAIN.slice(at, end);
+  // The pane-state functions moved to `panestate.ts` in the wave-2 carve; the
+  // fence follows the code.
+  for (const file of ["main.ts", "panestate.ts"]) {
+    const src = readFileSync(path.join(HERE, "..", "src", file), "utf8");
+    const at = src.indexOf(`function ${name}(`);
+    if (at < 0) continue;
+    const end = src.indexOf("\n}\n", at);
+    return end < 0 ? null : src.slice(at, end);
+  }
+  return null;
 }
 
 export async function run() {

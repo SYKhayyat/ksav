@@ -26,9 +26,11 @@
 //
 // Three kinds. `tabs.showing` is real behaviour and is unit-tested. The setting
 // is checked for existing with the default the report argues for. And the
-// wiring is read out of `main.ts` as text — the established technique in this
-// repository for *"which function got called"*, which is what this defect was
-// and what no amount of green arithmetic could see.
+// wiring is read out of `main.ts` and `tabstrip.ts` as text — the established
+// technique in this repository for *"which function got called"*, which is what
+// this defect was and what no amount of green arithmetic could see. (The funnel
+// and the routes it serves moved to `tabstrip.ts` in the wave-2 carve; the
+// fence follows the code, and the prohibition did not loosen with it.)
 
 import { check, ok, notOk } from "./harness.mjs";
 import * as tabs from "../.tmp-test/tabs.mjs";
@@ -40,13 +42,20 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+const TAB = readFileSync(path.join(SRC, "tabstrip.ts"), "utf8");
 
-/** Every line of `main.ts` calling `name(`, with its 1-based number. */
+/** `main.ts` and `tabstrip.ts`, as one line list tagged with its source. */
+const LINES = [
+  ...MAIN.split("\n").map((line, i) => ({ src: "main.ts", n: i + 1, line })),
+  ...TAB.split("\n").map((line, i) => ({ src: "tabstrip.ts", n: i + 1, line })),
+];
+
+/** Every line of either file calling `name(`, with its position in `LINES`. */
 function callsTo(name) {
   const re = new RegExp(`(^|[^\\w.])${name}\\(`);
-  return MAIN.split("\n")
-    .map((line, i) => ({ n: i + 1, line: line.trim() }))
-    .filter(({ line }) => re.test(line) && !line.startsWith("*") && !line.startsWith("//"));
+  return LINES.map((l, at) => ({ ...l, at })).filter(
+    ({ line }) => re.test(line) && !line.trim().startsWith("*") && !line.trim().startsWith("//"),
+  );
 }
 
 /** A one-pane arrangement showing `docId`. */
@@ -127,6 +136,7 @@ export async function run() {
       ["enterDoc", "the funnel itself"],
       ["selectTab", "restoring the document a tab was showing"],
       ["closeTab", "the document the tab that takes its place was showing"],
+      ["installHooks", "the pane wiring: the handed-over call tabstrip routes through"],
     ]);
     // Attribution is by the *enclosing top-level function*, found by scanning
     // for every `function` at column zero — not by "the nearest permitted name
@@ -135,8 +145,9 @@ export async function run() {
     // because `closeTab` happened to be the last allowed name before it. It
     // passed a deliberate regression. Which is the shape this repository calls
     // `ONLY_AT_TOP`, and the reason a fence nobody has watched fail is not one.
-    const lines = MAIN.split("\n");
-    const owners = lines.map((line) => /^(?:export )?(?:async )?function (\w+)\b/.exec(line)?.[1] ?? null);
+    const owners = LINES.map(
+      ({ line }) => /^(?:export )?(?:async )?function (\w+)\b/.exec(line)?.[1] ?? null,
+    );
     const owner = (n) => {
       for (let i = n - 1; i >= 0; i--) if (owners[i]) return owners[i];
       return null;
@@ -145,17 +156,18 @@ export async function run() {
       ok(`${fn} is still a top-level function, so calls can be attributed to it`, owners.includes(fn));
     }
     const stray = callsTo("openDoc").filter(
-      ({ n, line }) => !/^(async )?function openDoc\b/.test(line) && !ALLOWED.has(owner(n)),
+      ({ at, line }) =>
+        !/^(async )?function openDoc\b/.test(line.trim()) && !ALLOWED.has(owner(at)),
     );
     check(
       `openDoc is called only from the switch paths (stray: ${stray
-        .map((s) => `${s.n}: ${s.line}`)
+        .map((s) => `${s.src}:${s.n}: ${s.line}`)
         .join(" · ")})`,
       stray.length,
       0,
     );
-    ok("...and there is a funnel to call instead", /async function enterDoc\(/.test(MAIN));
-    ok("...which reads the setting", /settings\.openIn \?\? "reuse"/.test(MAIN));
+    ok("...and there is a funnel to call instead", /async function enterDoc\(/.test(TAB));
+    ok("...which reads the setting", /settings\.openIn \?\? "reuse"/.test(TAB));
     ok("...and there are routes coming through it", callsTo("enterDoc").length >= 10);
   }
 

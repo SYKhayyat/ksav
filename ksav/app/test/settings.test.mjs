@@ -360,7 +360,12 @@ export async function run() {
 // with the control forgotten, which reads to a writer as a feature that does not
 // exist.
 function everyPreferenceHasAControl() {
-  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+  // The pane modules (wave-2 carve) hold controls of their own — `previewSide`
+  // is named by the splitter `panedrag.ts` builds — so a preference is reachable
+  // if any module the application ships names it.
+  const srcs = ["main.ts", "panedrag.ts", "panehost.ts", "panescroll.ts", "panemenu.ts", "panearrangements.ts", "tabstrip.ts"]
+    .map((f) => readFileSync(path.join(SRC, f), "utf8"))
+    .join("\n");
   // The two that are not typed into a row and never will be. `layout` is which
   // arrangement of panes is on screen — chosen from the view menu by pressing
   // the arrangement itself — and `previewFrac` is where the divider between the
@@ -371,7 +376,7 @@ function everyPreferenceHasAControl() {
   // point — an exemption anybody can read beats a check nobody wrote.
   const NOT_A_ROW = ["layout", "previewFrac", "minimapAt"];
   const missing = Object.keys(settings.DEFAULTS).filter(
-    (key) => !NOT_A_ROW.includes(key) && !main.includes(`"${key}"`),
+    (key) => !NOT_A_ROW.includes(key) && !srcs.includes(`"${key}"`),
   );
   check("every shipped preference is reachable from the application", missing, []);
   for (const key of NOT_A_ROW) {
@@ -411,7 +416,20 @@ function everyPreferenceHasAControl() {
  * finding, and the shape that has no symptom until somebody turns it off.
  */
 function eachSyncSwitchGatesItsOwnBehaviour() {
-  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+  // Wave-2 carve: the scroll link and the caret follow live in `panescroll.ts`,
+  // the preview click in `panehost.ts`. The fence follows the code.
+  const srcs = ["main.ts", "panescroll.ts", "panehost.ts"].map((f) =>
+    readFileSync(path.join(SRC, f), "utf8"),
+  );
+  const bodyOf = (fn) => {
+    for (const src of srcs) {
+      const at = src.indexOf(`function ${fn}(`);
+      if (at < 0) continue;
+      const end = src.indexOf("\n}", at);
+      return src.slice(at, end < 0 ? src.length : end);
+    }
+    return null;
+  };
   // Behaviour → the function that performs it → the setting that must gate it.
   const GATES = [
     ["linked panes scrolling together", "wirePaneScroll", "syncScroll"],
@@ -420,13 +438,9 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
     ["a preview click moving the caret", "jumpFromClick", "clickToSource"],
   ];
   for (const [what, fn, key] of GATES) {
-    const at = main.indexOf(`function ${fn}(`);
-    ok(`${fn} is still a function in main.ts`, at >= 0);
-    if (at < 0) continue;
-    // To the next line that closes at column zero — the end of the function,
-    // since everything inside it is indented.
-    const end = main.indexOf("\n}", at);
-    const body = main.slice(at, end < 0 ? main.length : end);
+    const body = bodyOf(fn);
+    ok(`${fn} is still a function in the shell or its pane modules`, !!body);
+    if (!body) continue;
     ok(`${what} is gated on settings.${key}`, body.includes(`settings.${key} === false`));
     // And on nothing else from this family. This is the half that catches the
     // original defect: `followCaretInPreview` reading `syncScroll` passed every

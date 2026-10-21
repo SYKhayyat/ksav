@@ -171,7 +171,11 @@ export function run() {
   // — the first was an `indexOf` that found a function's *declaration* instead
   // of its call.
   {
-    const src = readFileSync(path.join(APP, "src", "main.ts"), "utf8");
+    // The click path moved to `panehost.ts` in the wave-2 carve (it is
+    // `jumpFromClick`, a preview-pane behaviour); the fence follows the code.
+    const src =
+      readFileSync(path.join(APP, "src", "main.ts"), "utf8") +
+      readFileSync(path.join(APP, "src", "panehost.ts"), "utf8");
     // Comments stripped first, and on the same rule `prohibitions.test.mjs`
     // uses: a block comment must begin its own line, because `i18n.ts` holds a
     // `/*` inside a Hebrew string and a greedy strip deletes three hundred lines.
@@ -184,7 +188,7 @@ export function run() {
     // A **floor**, not an exact count: the import is one occurrence and the call
     // is another, and a third is nobody's business.
     ok(
-      "main.ts names it twice — imported and called",
+      "the click path's file names it twice — imported and called",
       [...code.matchAll(/\bclickedChapter\b/g)].length >= 2,
       `${[...code.matchAll(/\bclickedChapter\b/g)].length} in stripped code`,
     );

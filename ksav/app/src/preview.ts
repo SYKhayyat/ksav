@@ -568,6 +568,34 @@ export function clearPages(): void {
   }
 }
 
+/**
+ * What the preview shows in the second before the incoming document's compile
+ * lands.
+ *
+ * There used to be no answer to this: `openDoc` ended at `scheduleCompile`, and
+ * a compile is 0.4–3 s away, so for that whole time every preview pane went on
+ * showing **the sefer you just left** — under the new document's title, with the
+ * new document's outline beside it, and click-to-jump measuring against pages
+ * belonging to neither. A pane stating one document while the editor holds
+ * another is the exact family this application is audited for.
+ *
+ * The three answers are the writer's to choose (`tabCompile`); what none of them
+ * may do is leave the last document's pages standing.
+ */
+export function showPagesFor(id: string): void {
+  // `onSwitch`: the writer has asked for nothing kept, so there is nothing to
+  // draw and the empty pane is the honest report.
+  if (settings.tabCompile === "onSwitch") {
+    clearPages();
+    return;
+  }
+  // Otherwise: this document's own last pages if we have them — under `idle`
+  // they are a current layout, under `keep` they are as of when it was last on
+  // screen — and an empty pane if we do not, which is a document being opened
+  // for the first time this session.
+  if (!drawRemembered(id)) clearPages();
+}
+
 /** A document that is gone takes its pages with it. */
 export function forgetPages(docId: string): void {
   remembered.delete(docId);

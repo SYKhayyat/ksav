@@ -10572,3 +10572,42 @@ check, the knob form and its two doors. main.ts 8,319 → 6,540 lines. 58 moved
 
 Waves 9–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---
+
+## 2026-10-22 · main.ts split, wave 9 — the form's doors and the document's tenants
+
+**Commit `1a83d80` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,902
+assertions / 0 failed; import graph acyclic at 130 modules.
+
+The monolith's remaining feature regions left in seven files, one shape
+each: formmodal.ts (196 — openModal/closeModal/ask/askArrival/askText, and
+settlePendingModals exported for the panel registry's Escape path),
+destinations.ts (261), reviewpanel.ts (125), sectionsetup.ts (59),
+formulas.ts (77), noteschooser.ts (297), assets.ts (139). main.ts
+6,540 → 5,536 lines. 46 moved, 0 wiring drift.
+
+- **The wave boundary arithmetic, twice.** CustomStylesWiring retired — the
+  form modal became a module, so customstyles imports it and the wiring
+  whose only purpose was the boundary goes with the boundary; conversely
+  destinations keeps a wiring for the editor's write-back (replaceAll),
+  which wave 10 will move. A wiring names a seam; when the seam passes, the
+  wiring is the first thing to go.
+- **The plan's panelrows alternative, taken the other way, on record:** the
+  destination rows are destination-shaped, and list-row machinery already
+  has a home (rowlists.ts, wave 6) — panelrows.ts would have been a second
+  one.
+- **Zero drift, honestly counted:** destinationRows (wireStyles, wave 8),
+  applyNotePick (wireInsert, wave 5), askText (ChromeWiring/MacrosWiring),
+  bodyHome (SettingsWiring) — the borrowings preceded the move, so the move
+  re-pointed main's own references and nothing else.
+- **Fences rekeyed in the same commit (rule 6):** asyncaction's INVENTORY
+  (runErrand/fillNotePreview → noteschooser), coverage (destination fences →
+  destinations.ts, the review writer's arm → reviewpanel.ts, the message now
+  says "a control writes it"), insert's guarded-form fence (the three
+  callers that insert on their own behalf read beside main), docs.test (the
+  destinations wiring registered, wave 9's modules imported for the
+  runner's fence). README's count rekeyed (12,899 → 12,902).
+
+Wave 10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+---

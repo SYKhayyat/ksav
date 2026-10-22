@@ -873,7 +873,16 @@ still right.
     entityAct and styleActions stayed main, 58 moved / 0 drift, main.ts
     6,540 lines. See
     `decisions/2026-10-22-main-ts-split-wave-8-the-styles-system.md`.
-    Waves 9–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+    **Wave 9 closed 2026-10-22** (`1a83d80`) — seven files, one shape: the
+    form modal out into formmodal.ts (196, settlePendingModals exported for
+    the registry's close hook, customstyles' wave-8 wiring for it retired to
+    a direct import); destinations (261, the declarations' rows — the plan's
+    panelrows.ts alternative recorded as taken the other way), review (125),
+    section setup (59), formulas (77), the notes chooser (297, errand kept
+    with its only caller), assets (139); 46 moved / 0 wiring drift (the
+    borrowings were wired at earlier waves), main.ts 5,536 lines. See
+    `decisions/2026-10-22-main-ts-split-wave-9-the-forms-doors-and-the-documents-tenants.md`.
+    Wave 10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

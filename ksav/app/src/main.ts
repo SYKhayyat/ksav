@@ -63,7 +63,6 @@ import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
 import * as panes from "./panes";
-import * as paneplaces from "./paneplaces";
 import * as tabs from "./tabs";
 import {
   ACTION_COMMAND,
@@ -84,7 +83,6 @@ import {
   markSpellDirty,
   openSpellMenu,
   scheduleSpellCheck,
-  spellCheckFromScratch,
 } from "./spellcheck";
 import { hintFor, keybindings } from "./keyhint";
 
@@ -93,10 +91,27 @@ import * as entity from "./entity";
 import * as styles from "./styles";
 import { narrowing } from "./narrowing";
 
-// The modules `main.ts` was split into. What is left here is the shell: the
-// editor itself, the chrome around it, the panels, and boot. Everything with a
-// life of its own — the store, saving, compiling, exporting, the diagnostics
-// vocabulary, the settings — now lives beside this file rather than inside it.
+// The modules `main.ts` was split into, wave by wave, and what each one took —
+// the map the refactor's end-state acceptance promised would live here:
+//
+//   store/save/compile/api — the bottom shelf: bytes, writes, the engine pipe.
+//   runtime.ts — the seam: state and verbs every module shares (the open
+//     document, the view, the status line, rerenderChrome). Nothing below
+//     imports upwards past it.
+//   settings + settingsdrawer — the app's own record, and its drawer.
+//   rowlists/panelviews/snapshots/gitui/commandsdrawer/help — the list-dressed
+//     panels and drawers (wave 6/7): rows, version control, help.
+//   macros/hydra — the recorder and the structure keyboard (wave 5/7), the
+//     engine vocabulary each in one file.
+//   stylespanel/customstyles — the formatting panel and the writer's own
+//     styles (wave 8), the row family the borrowings share.
+//   formmodal/destinations/reviewpanel/sectionsetup/formulas/noteschooser/
+//     assets — the form's doors and the document's tenants (wave 9).
+//   starter/docswitch — the first screen and the switch machine (wave 10),
+//     borrowing makeState and syncGlobals through their wirings.
+//   What stayed: makeState and its extension composition, the compartments,
+//   buildShortcutKeymap + reconfigureShortcuts, syncGlobals/setEditingMode,
+//   the Girsa poll, boot() — the recipe for how the whole app is assembled.
 import {
   el,
   noticeHost,
@@ -153,7 +168,7 @@ import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 // names in the list above.
 import { action, voidAction } from "./asyncaction";
 import * as save from "./save";
-import { scheduleSave, saveNow, flushSaves, reportSaveFailure } from "./save";
+import { scheduleSave, flushSaves, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, compileNow, onStale, onAfterCompile, onSchedule, bodyOnScreen } from "./compile";
 import * as whitespace from "./whitespace";
 import * as commands from "./commands";
@@ -161,21 +176,13 @@ import {
   applyPreview,
   currentPages,
   drawCurrentInto,
-  forgetPages,
-  showPagesFor,
   pageBox,
-  rememberPages,
 } from "./preview";
 import {
   setPaneTree,
   setFocusedPane,
   paneTree,
-  showInEveryPane,
-  rememberPlaces,
-  restorePlaces,
-  restorePreviewPlaces,
   sourceViews,
-  rememberPanes,
   wirePanes,
 } from "./panestate";
 import { renderPanes, refreshPaneHeads, cyclePaneZoom, gotoPart } from "./panehost";
@@ -196,7 +203,7 @@ import {
 import { openArrangements, applyPageView } from "./panearrangements";
 import { drawMark, isPlainClick, pixelInPage } from "./jump";
 import { BIDI_MARKS, bidiSupport, toggleIsolate, visibleBidiMarks } from "./bidi";
-import { changeGutter, changeHighlight, changes, nameMarks, setBaseline } from "./changes";
+import { changeGutter, changeHighlight, changes, nameMarks } from "./changes";
 import { focusCompartment, focusExtension } from "./focus";
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
@@ -208,7 +215,7 @@ import * as update from "./update";
 import * as watch from "./watch";
 import { overviewRuler } from "./ruler";
 import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
-import { forgetDismissed, onGoToLine, onGoToPart, onMarkLines } from "./diagview";
+import { onGoToLine, onGoToPart, onMarkLines } from "./diagview";
 import { nikudKeymap, buildNikudBar } from "./nikud";
 import * as exports from "./exports";
 import * as zoom from "./zoom";
@@ -243,6 +250,20 @@ import { openSectionSetup } from "./sectionsetup";
 import { openFormula } from "./formulas";
 import { openNotesChooser, applyNotePick, bodyHome, renderNotesChooser } from "./noteschooser";
 import { insertImage, addFont, removeAsset } from "./assets";
+import { starterDoc, swapUntouchedStarter, searchPhrases, wireStarter } from "./starter";
+import {
+  openDoc,
+  openSwitcher,
+  goToLastDoc,
+  closeOpenDoc,
+  refreshBaseline,
+  newNamedDoc,
+  duplicateDoc,
+  removeDoc,
+  renameDoc,
+  updateTitleBar,
+  wireDocswitch,
+} from "./docswitch";
 import { takeSnapshot, restoreSnapshot, openHistory, renderHistory, wireSnapshots } from "./snapshots";
 import { refreshGit, openGit, forgetGit, gitMayHaveChanged, gitForHeader, renderGitPanel, wireGit } from "./gitui";
 import { openCommands, openKeys, buildCommandsDrawer, renderCommands } from "./commandsdrawer";
@@ -274,120 +295,22 @@ import {
 import { openPalette, paletteKey, renderPaletteList, wirePalette } from "./palette";
 import * as header from "./header";
 
-// ---------------------------------------------------------------- editor
-//
-// The first screen. There are two of them, because there was only ever one and
-// it was Hebrew: an English writer opened Ksav to a page of Hebrew they had to
-// delete before they could type a word. That is the right default for a
-// Hebrew-first tool and the wrong first impression for the other half of what it
-// claims. The English one is its own document, not a translation — the two say
-// the same three things about the product in the idiom of their own language.
-const STARTER_HE = `#שער[ברוכים הבאים לכְּתָב]
-#תת_שער[מערכת הכתיבה העברית · על גבי Typst אמיתי]
-
-#קו_מפריד
-
-#כותרת1[מבוא]
-
-זהו עורך #הדגשה[כְּתָב]. כל פקודה כאן היא פונקציית Typst אמיתית, ולכן #נטוי[הקינון בלתי מוגבל] עובד מאליו — טבלה בתוך הערה בתוך כותרת בתוך רשימה, הכול מוצג נכון.
-
-#רשימה(
-  פריט[בחרו תבנית מתפריט #הדגשה[תבניות].],
-  פריט[פתחו את #הדגשה[פקודות] עם Ctrl+K.],
-  פריט[החליפו בין עברית לאנגלית, ומצב פרוזה, מלמעלה.],
-)
-`;
-
-const STARTER_EN = `#title[Welcome to Ksav]
-#subtitle[A Hebrew writing system, on real Typst]
-
-#hrule
-
-#h1[Getting started]
-
-This is the #bold[Ksav] editor. Every command here is a real Typst function, so
-#italic[nesting has no limit] — a table inside a footnote inside a heading inside
-a list all typesets correctly, without anything special being done about it.
-
-#bullets(
-  item[Pick a starting point from the #bold[Templates] menu.],
-  item[Open #bold[Commands] with Ctrl+K to see everything there is.],
-  item[Switch between English and Hebrew, and prose mode, from the top bar.],
-)
-
-Hebrew and English can share a page: #rtl_[כתב עברי] sets right to left in the
-middle of this sentence, and the spelling of both is checked.
-`;
-
-/** The first document, in the language of the interface it was opened in. */
-function starterDoc(): string {
-  return getLang() === "en" ? STARTER_EN : STARTER_HE;
-}
 
 /**
- * Follow the interface language with the starter, while it is still the starter.
+ * Reconfigure the compartments that belong to the *application* rather than to
+ * the document, after a state swap.
  *
- * The interface opens in Hebrew, because Ksav is Hebrew-first and that is the
- * right default. So an English writer's actual first move is to switch the
- * language — at which point choosing the starter "by interface language" at boot
- * has already happened and chosen Hebrew, and they are back to deleting a page
- * of Hebrew. Switching the language a second later has to bring the welcome text
- * with it or the English starter is a document almost nobody would ever see.
- *
- * The guard is exact equality with one of the two starters. The moment a writer
- * has typed a single character it is their document, and nothing here may touch
- * it — a "helpful" replacement of real text would be unforgivable, and there is
- * no undo across a document swap.
+ * A state carries the compartment values it was built with, which is right for
+ * the document's own — its prose mode, its direction — and wrong for everything
+ * else: a state created before the writer switched to the dark theme would come
+ * back light, and one created before they rebound a key would come back with
+ * the old binding. Cheaper and far more reliable than trying to reach into every
+ * stored state whenever a setting changes, and it runs once per switch.
  */
-function swapUntouchedStarter() {
-  const body = docTextOf(runtime.view.state.doc);
-  const want = starterDoc();
-  if (body === want || (body !== STARTER_HE && body !== STARTER_EN)) return;
-  const dir = getLang() === "en" ? "ltr" : "rtl";
-  if (docConfig().dir !== dir) setSetting("dir", dir);
-  loadBody(want);
-}
-
 const proseCompartment = new Compartment();
 const dirCompartment = new Compartment();
 const themeCompartment = new Compartment();
 const phraseCompartment = new Compartment();
-
-/**
- * CodeMirror's own words, in the language the rest of the window is in.
- *
- * The find/replace panel is the library's, and it shipped as the library wrote
- * it: `Find`, `Replace`, `next`, `previous`, `all`, `match case`, `regexp`,
- * `by word`, `replace all` — nine English labels in a right-to-left Hebrew
- * product, in the one panel a writer opens to look for a word in their sefer.
- * Every other surface here is translated; this one was never asked.
- *
- * `EditorState.phrases` is keyed on the library's own literals, which is why
- * `i18n.ts` carries them under a `find.` prefix rather than under names of our
- * own: a phrase table is a translation of somebody else's strings.
- */
-function searchPhrases(): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const word of SEARCH_WORDS) out[word] = t(`find.${word}`);
-  return out;
-}
-
-/** Every label CodeMirror's search panel puts on the screen. */
-const SEARCH_WORDS = [
-  "Find",
-  "Replace",
-  "next",
-  "previous",
-  "all",
-  "match case",
-  "regexp",
-  "by word",
-  "replace",
-  "replace all",
-  "close",
-  "Go to line",
-  "go",
-] as const;
 
 const editorTheme = (dark: boolean) =>
   EditorView.theme(
@@ -410,231 +333,13 @@ const editorTheme = (dark: boolean) =>
     { dark },
   );
 
-// ---------------------------------------------------------------- the open document
+// ---------------------------------------------------------------- the application compartments
 //
-// The app used to hold one nameless document in one localStorage key. It now
-// holds a library; `runtime.currentDoc` is whichever one is open, and `runtime.currentBinding` is
-// the real file it saves to, when it has one.
-/** Set while runtime.switching documents, so the editor's own change events don't write
- *  the outgoing document's text over the incoming one. */
+// The state carries the document's own compartments (prose, direction) and the
+// shell re-reads the application's own after every swap: theme, focus, the
+// shortcut keymap, the auto-complete, the structure keys. This is the notebook
+// assembly the plan keeps in main — the recipe, not a feature.
 
-/**
- * Show a document, opening it if it was not already open.
- *
- * This used to be a **text edit** into one long-lived editor, which is the
- * single line of code the whole "no concept of an open document" finding was
- * hiding behind: one text, one caret, one undo history, for every document a
- * writer would ever hold. `runtime.swapDocument` made that swap survivable by
- * resetting the history; it is not called from here any more, because there is
- * no longer one history to reset.
- *
- * A document is a state now (see `opendocs.ts`). Switching stashes what the view
- * holds for the outgoing document — its text, its caret, its undo stack, where
- * it was scrolled to — and hands the view the incoming one. Nothing is
- * reconstructed, so nothing can come back subtly different from how it was left.
- *
- * The document being *already open* is the ordinary case now rather than the
- * only case, and it costs one `setState`.
- */
-/**
- * How many document switches have been asked for.
- *
- * `openDoc` awaits three times and mutates global state after each of them, and
- * its only guard was an early return for *the same* id — so two switches to
- * **different** documents, which is one click in the switcher panel or one
- * `Mod-1` tab key, interleaved freely. What that produced: `refreshBaseline()`
- * dispatching document A's snapshot baseline into a view now holding B,
- * `rememberPages(leaving)` filing B's on-screen pages under A's id, and
- * `retargetPanes(leaving, id)` relabelling panes for a document that is no
- * longer the one arriving.
- *
- * `setSwitching` looks like the guard and is not one: it is a flag the change
- * listener reads, it is cleared in the middle of the function, and it does not
- * stop a second entry.
- *
- * A ticket, the way `runCompile` and `runSpellCheck` take one — and the way this
- * very function's binding recall already does five lines from the end, which is
- * where the shape was read off. Its comment says *"a newer switch has won"*; the
- * rest of the function did not ask.
- */
-let switchGeneration = 0;
-
-async function openDoc(id: string, opts: { handedOver?: boolean } = {}) {
-  const mine = ++switchGeneration;
-  const stale = () => mine !== switchGeneration;
-  const next = await docs.getDoc(id);
-  if (!next || stale()) return;
-  // Already on screen — and *fully* so. Both halves are checked because closing
-  // a document moves the open set's focus before this runs, so the set can name
-  // a document the view is not yet showing.
-  if (opendocs.focusedId() === id && runtime.currentDoc?.id === id) return;
-  await flushSaves();
-  // The last await before the synchronous run of mutations below. Everything
-  // from here to `refreshBaseline` happens in one turn, so a newer switch can
-  // only overtake at this line and at the one after it.
-  if (stale()) return;
-  runtime.setSwitching(true);
-  stashFocused();
-  const leaving = runtime.currentDoc?.id ?? null;
-  // Where each pane is standing, before the document is taken out from under
-  // them. The open set has one caret per document; a window has one per pane.
-  // **Unless the caller has already done it**, which is not an optimisation:
-  // this function yields twice before it reaches here, and a caller that has
-  // rebuilt the panes cannot wait that long — see `handOverPages`. By the time
-  // this line runs for such a caller, the pages on screen are the *arriving*
-  // document's, and filing them under the departing one would put one sefer's
-  // layout under another sefer's name, which is the defect this whole mechanism
-  // exists to close.
-  if (!opts.handedOver) {
-    rememberPlaces(leaving);
-    // Keep this document's pages before anything points somewhere else, so
-    // coming back to it shows it rather than a blank pane and a wait. See
-    // `showPagesFor` for the other half, and `preview.ts` for why the pages are
-    // kept at all.
-    if (leaving) rememberPages(leaving);
-  }
-  runtime.setCurrentDoc(next);
-  docs.setCurrentId(next.id);
-  // The incoming document is a different text; its first spell check must be a
-  // full one, and the outgoing document's dirty region has no meaning here.
-  spellCheckFromScratch();
-  // Same rule, for the same reason, one line further out: a warning the writer
-  // waved away is a fact they accepted about *that* sefer — its fonts, its
-  // apparatus — and carrying it here would hide a true thing about this one.
-  forgetDismissed();
-  if (!opendocs.isOpen(id)) {
-    opendocs.put({ id, state: makeState(next.body, !!settings.prose), scrollTop: 0, prose: !!settings.prose });
-  }
-  const entry = opendocs.focus(id)!;
-  showInEveryPane(entry.state);
-  syncGlobals();
-  runtime.view.scrollDOM.scrollTop = entry.scrollTop;
-  // …and then each pane that has been in this document before goes back to
-  // where it was, which the line above can only answer for the focused one.
-  restorePlaces(id);
-  runtime.setSwitching(false);
-  // The binding and the "as we found it" mtime stamp have no bearing on what is
-  // drawn — `markInSync` in particular is a real filesystem stat, over IPC on
-  // the desktop, on a path that may be a synced or network drive. Resolve them
-  // after the text is on screen and let the title bar catch up when they land,
-  // exactly as `boot()` does. Clear the outgoing binding first so nothing reads
-  // the *previous* document's while the recall is in flight.
-  runtime.setCurrentBinding(null);
-  void files.recallBinding(next.id).then((b) => {
-    // A newer switch may already have won; only stamp if this is still the doc.
-    if (runtime.currentDoc?.id !== next.id) return;
-    runtime.setCurrentBinding(b);
-    return watch.markInSync(next.id, b);
-  });
-  // **Not** `save.markFileSaved()`. That used to be here, and with one global
-  // flag for a library of documents it cleared the mark on the document being
-  // *left* as well: switch away from an edited file and back, and the dot in
-  // the title bar was gone and the write-back was skipped — a file with unsaved
-  // changes reporting itself as saved.
-  //
-  // The flag is per document now, so there is nothing to clear: whatever was
-  // true of this one is still true of it. Opening it says nothing new about
-  // whether the file on disk has caught up, and pretending otherwise is what
-  // the bug was.
-  // The panes in this arrangement now show the incoming document, so the tab
-  // can say what it is holding. See `retargetPanes` for why this is a mutation.
-  retargetPanes(leaving, id);
-  refreshTabStrip();
-  rememberPanes();
-  await refreshBaseline();
-  // `refreshBaseline` reads the document out of the store and dispatches a
-  // snapshot baseline into the view. A switch that started while it was in
-  // flight has already put a different document there, and everything below —
-  // `forgetGit`, `updateTitleBar`, `rerenderChrome`, `refreshPaneHeads`,
-  // `showPagesFor`, `restorePreviewPlaces` — describes whichever document that
-  // turn believes is current. Let the newer switch finish the job.
-  if (stale()) return;
-  // A different document is a different folder and possibly a different
-  // repository. Anything version control learned about the last one is now a
-  // claim about the wrong file, and a chip reporting three uncommitted changes
-  // that belong to a sefer you closed is precisely the class of lie this
-  // application is being audited for.
-  forgetGit();
-  updateTitleBar();
-  rerenderChrome();
-  // Narrowing rides with the document, because it is stored in the document's
-  // state and `stashFocused` above put that state away with the anchor still in
-  // it. Coming back to a sefer you were working through one siman at a time
-  // finds you where you were. The strip has to be told, or it goes on naming the
-  // section of the document you just left.
-  refreshPaneHeads();
-  runtime.view.focus();
-  showPagesFor(id);
-  // After the pages are drawn, for the reason `restorePreviewPlaces` gives:
-  // there is nothing to scroll through until they are.
-  restorePreviewPlaces(id);
-  scheduleCompile();
-}
-
-/**
- * The open documents, as a list a person can look at and choose from.
- *
- * Most recently used first, which makes the *second* row the answer to "the one
- * I was just in" — the same order `lastDoc` jumps by, so the key and the panel
- * cannot disagree about what "last" means.
- */
-function openSwitcher() {
-  if (opendocs.count() < 2) {
-    setStatus(t("onlyOneOpen"), "");
-    return;
-  }
-  const list = document.getElementById("switcher-list")!;
-  list.replaceChildren(
-    el("div", { class: "menu-cat" }, [t("openDocs")]),
-    ...opendocs.openDocs().map((entry, i) => {
-      const meta = docs.library().find((e) => e.id === entry.id);
-      return el(
-        "button",
-        {
-          class: "pal-item" + (i === 0 ? " active" : ""),
-          onClick: () => {
-            closePanel("switcher");
-            voidAction("save_file", () => enterDoc(entry.id));
-          },
-        },
-        [
-          el("b", {}, [(i === 0 ? "● " : "") + (meta?.title ?? entry.id)]),
-          el("span", { class: "menu-desc" }, [meta?.fileName ?? ""]),
-        ],
-      );
-    }),
-  );
-  openPanel("switcher");
-}
-
-/** Straight to the document before this one. Nothing to do with one open. */
-function goToLastDoc() {
-  const to = opendocs.previous();
-  if (!to) {
-    setStatus(t("onlyOneOpen"), "");
-    return;
-  }
-  voidAction("save_file", () => openDoc(to));
-}
-
-/** Put what the view currently holds back into the open set, before leaving it. */
-function stashFocused() {
-  const id = opendocs.focusedId();
-  if (!id || !runtime.view) return;
-  opendocs.stash(id, runtime.view.state, runtime.view.scrollDOM.scrollTop);
-}
-
-/**
- * Reconfigure the compartments that belong to the *application* rather than to
- * the document, after a state swap.
- *
- * A state carries the compartment values it was built with, which is right for
- * the document's own — its prose mode, its direction — and wrong for everything
- * else: a state created before the writer switched to the dark theme would come
- * back light, and one created before they rebound a key would come back with
- * the old binding. Cheaper and far more reliable than trying to reach into every
- * stored state whenever a setting changes, and it runs once per switch.
- */
 function syncGlobals() {
   const effects = [
     themeCompartment.reconfigure(editorTheme(settings.theme === "dark")),
@@ -691,183 +396,6 @@ async function setEditingMode(mode: unknown): Promise<void> {
   reconfigureShortcuts();
 }
 
-/**
- * Close a document — put it away, do not destroy it.
- *
- * The distinction the inventory insists on, and the reason the control that does
- * this must never wear the `×` the Documents menu uses to delete: *"closing and
- * deleting appearing as the same glyph in two strips is not survivable"*. The
- * document stays in the library, with its text, its history and its file
- * binding; what goes is the open state — the caret, the undo stack, the scroll.
- *
- * Saved first, unconditionally. Closing something is exactly the moment a writer
- * assumes their work has been dealt with.
- */
-async function closeOpenDoc(id: string) {
-  await flushSaves();
-  if (opendocs.focusedId() === id) stashFocused();
-  // No pane is standing in a document that is not open, and one that is
-  // reopened is opened at its own caret. Keeping the rows would put a pane back
-  // at a place in a sefer measured against a text edited since.
-  paneplaces.forgetDoc(id);
-  // And the file stamp — one of the two callers `watch.forget`'s comment names,
-  // the other being the delete path below.
-  //
-  // **This comment used to say "Nothing called it", and it was wrong by the time
-  // anyone read it** — the call is the next line. It described the state before
-  // the fix, in the present tense, which is how #36 came to be filed: an audit
-  // read `watch.forget`, found the call sites in the same file, and filed the
-  // claim a second time against a comment that agreed with it. A note recording
-  // what used to be true is worse than no note, because it is the kind that gets
-  // believed.
-  watch.forget(id);
-  const next = opendocs.close(id);
-  if (next) {
-    // `openDoc` does the whole switch, and it proceeds because `runtime.currentDoc`
-    // is still the document just closed. One path in, so a document arriving on
-    // screen always arrives the same way.
-    await openDoc(next);
-    // *After* the switch, not before: leaving a document is what files its
-    // pages, so releasing them first would be undone one line later. They are
-    // megabytes of SVG for a tab that is no longer there.
-    forgetPages(id);
-    return;
-  }
-  // The last one. An editor with no document is not a state this application
-  // has, so closing the only open document opens a new empty one rather than
-  // leaving a writer looking at nothing.
-  await newNamedDoc();
-  forgetPages(id);
-}
-
-/**
- * Point the change gutter at this document's newest snapshot.
- *
- * Called whenever the comparison could have moved: on opening a document, and
- * after a snapshot is taken — at which point everything is unchanged again,
- * which is the honest reading and the reason the gutter clears itself rather
- * than accumulating a session's worth of green.
- *
- * A document with no history yet has no baseline, and the gutter shows nothing.
- * That is right: against nothing, every line is new, and a solid stripe down the
- * whole document says less than an empty gutter does.
- */
-async function refreshBaseline() {
-  if (!runtime.currentDoc) return;
-  let baseline: string | null = null;
-  try {
-    baseline = (await docs.latestSnapshot(runtime.currentDoc.id))?.body ?? null;
-  } catch {
-    // The history store being unreachable is reported by the code that writes
-    // to it; a gutter is not the place to raise it a second time.
-    baseline = null;
-  }
-  runtime.view.dispatch({ effects: setBaseline.of(baseline) });
-}
-
-async function newNamedDoc() {
-  closeMenus();
-  await flushSaves();
-  const doc = await docs.createDoc(t("untitled"), "");
-  await openDoc(doc.id);
-}
-
-async function duplicateDoc(id: string) {
-  const src = await docs.getDoc(id);
-  if (!src) return;
-  // A duplicate is the same sefer, which includes how it is laid out. Copying
-  // the body and leaving the page setup behind gave the copy this writer's
-  // *new-document* default, so duplicating a Letter-sized document produced an
-  // A4 one — the same fact going missing that `serializeDoc` used to drop.
-  const copy = await docs.createDoc(
-    src.title + " ‏(2)",
-    src.body,
-    src.assets,
-    src.customCommands,
-    src.config ?? {},
-  );
-  await enterDoc(copy.id);
-}
-
-/**
- * Delete a document from the library.
- *
- * Distinct from [`closeOpenDoc`], and the distinction is the point: this
- * destroys the sefer, that one puts it away. A deleted document also has to
- * leave the open set — an entry pointing at a record that no longer exists is a
- * switcher row that opens nothing.
- */
-async function removeDoc(id: string) {
-  const entry = docs.library().find((e) => e.id === id);
-  if (!entry) return;
-  if (!(await ask(tf("confirmDeleteDoc", entry.title), { danger: true, okLabel: t("delete") }))) return;
-  const wasFocused = opendocs.focusedId() === id;
-  await docs.deleteDoc(id);
-  await files.rememberBinding(id, null);
-  paneplaces.forgetDoc(id);
-  // The other half of what `watch.forget`'s comment describes: the binding is
-  // gone, so the stamp is a claim about a file this document no longer has.
-  watch.forget(id);
-  const next = opendocs.close(id);
-  if (wasFocused) {
-    // Whatever was next in the open set, or the library's newest, or a new one.
-    // Three fallbacks because all three are reachable: closing the last open
-    // document of several, deleting the only open one, and deleting the last
-    // document there is.
-    const to = next ?? docs.library().find((e) => e.id !== id)?.id;
-    if (to) await openDoc(to);
-    else await newNamedDoc();
-  } else {
-    rerenderChrome();
-  }
-  // A deleted document's kept pages are a layout of text that no longer exists.
-  // After the switch, for the reason `closeOpenDoc` gives.
-  forgetPages(id);
-}
-
-async function renameDoc() {
-  const name = await askText(t("renamePrompt"), runtime.currentDoc.title);
-  if (name === null) return;
-  runtime.currentDoc.title = name.trim() || t("untitled");
-  void saveNow();
-  updateTitleBar();
-  rerenderChrome();
-}
-
-/** The document title shown in the header, with the bound file beside it. */
-function updateTitleBar() {
-  const el0 = document.getElementById("doc-title");
-  if (!el0 || !runtime.currentDoc) return;
-  el0.textContent = runtime.currentDoc.title;
-  const sub0 = document.getElementById("doc-file");
-  if (sub0) {
-    // A dot when the bound file on disk is behind the editor. The writer used to
-    // first hear of unsaved changes only in the browser's leave-page dialog,
-    // though the save layer already knew — this surfaces it where the file is
-    // named. Only shown when there is a file to be behind.
-    //
-    // **And only when there is a file at all.** A download-tier binding is the
-    // *name* of a copy that left the browser once; there is nothing on the
-    // other end of it to be behind, nothing any Save can bring up to date, and
-    // a dot that can never be cleared is a warning the writer learns to ignore.
-    // So the name still shows — it is how they know which copy they downloaded
-    // — and the hover says what kind of thing it is.
-    const real = files.canWriteBack(runtime.currentBinding);
-    const dirty = real && save.hasUnsavedFileChanges();
-    sub0.textContent = runtime.currentBinding ? (dirty ? "● " : "") + runtime.currentBinding.name : "";
-    sub0.classList.toggle("dirty", dirty);
-    sub0.title = runtime.currentBinding
-      ? real
-        ? (dirty ? t("unsavedChanges") + " · " : "") +
-          (runtime.currentBinding.path || runtime.currentBinding.name)
-        : t("copyOnly")
-      : t("noFileBound");
-  }
-  document.title =
-    (files.canWriteBack(runtime.currentBinding) && save.hasUnsavedFileChanges() ? "● " : "") +
-    runtime.currentDoc.title +
-    " · Ksav";
-}
 
 // ---- configurable keyboard shortcuts ----
 // Each action has an id (localized in Settings) and a runner. Keys are CM key
@@ -4871,6 +4399,10 @@ function installHooks() {
   });
   // The destinations' editor write-back.
   wireDestinations({ replaceAll: (text, caret) => replaceAll(text, caret) });
+  // The starter follows a language switch with a body swap and a setting write.
+  wireStarter({ loadBody: (body) => loadBody(body), setSetting });
+  // The switch machine borrows the state factory and the compartment sweep.
+  wireDocswitch({ makeState, syncGlobals });
   // The rows' wiring: the dispatch verbs the list-shaped surfaces share.
   wireRows({
     runAction: (id) => {

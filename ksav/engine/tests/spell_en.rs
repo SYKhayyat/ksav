@@ -169,10 +169,10 @@ fn neither_starter_document_opens_covered_in_squiggles() {
     // very first screen. The lexicon is built from Torah texts and from
     // pre-war literature, so it knew no word for "function" or "nesting".
     //
-    // Reaching into `main.ts` for the two literals is not elegant. It is the
+    // Reaching into `starter.ts` for the two literals is not elegant. It is the
     // only way to hold text that has to exist before the engine has loaded, and
     // it fails loudly rather than silently if the literals move.
-    let source = include_str!("../../app/src/main.ts");
+    let source = include_str!("../../app/src/starter.ts");
     let he = hebrew::Lexicon::bundled();
     let english = en();
     let checker = Checker::new(Some(&he), Some(english));

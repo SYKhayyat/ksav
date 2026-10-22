@@ -307,8 +307,9 @@ ok(
   check("every label the search panel draws is translated", missing, []);
   const untranslated = shown.filter((w) => t("find." + w) === w);
   check("and none of them is still the English word in Hebrew", untranslated, []);
-  ok("main.ts lists exactly these", (await mainSource()).includes('"replace all",'));
-  const listed = /const SEARCH_WORDS = \[([\s\S]*?)\] as const;/u.exec(await mainSource())?.[1] ?? "";
+  const starterSource = () => readFile(path.join(SRC, "starter.ts"), "utf8");
+  ok("the starter lists exactly these", (await starterSource()).includes('"replace all",'));
+  const listed = /const SEARCH_WORDS = \[([\s\S]*?)\] as const;/u.exec(await starterSource())?.[1] ?? "";
   const declared = [...listed.matchAll(/"([^"]+)"/gu)].map((m) => m[1]);
   check("the list in main.ts and the list here agree", declared, shown);
 }

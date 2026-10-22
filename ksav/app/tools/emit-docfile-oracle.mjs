@@ -173,13 +173,13 @@ function corpus() {
     }
   }
 
-  // Both starter documents, read out of `main.ts` rather than restated — a
+  // Both starter documents, read out of `starter.ts` rather than restated — a
   // second copy of the starter would be a document the oracle checks and the
   // product does not ship. Same trick as `emit-scan-oracle.mjs`.
-  const src = readFileSync(join(SRC, "main.ts"), "utf8");
+  const src = readFileSync(join(SRC, "starter.ts"), "utf8");
   for (const name of ["STARTER_HE", "STARTER_EN"]) {
     const at = src.indexOf(`const ${name} = \``);
-    if (at < 0) throw new Error(`${name} is not in main.ts`);
+    if (at < 0) throw new Error(`${name} is not in starter.ts`);
     const from = src.indexOf("`", at) + 1;
     let to = from;
     while (to < src.length && !(src[to] === "`" && src[to - 1] !== "\\")) to++;

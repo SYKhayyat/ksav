@@ -22,6 +22,8 @@ import * as sectionsetup from "../.tmp-test/sectionsetup.mjs";
 import * as formulas from "../.tmp-test/formulas.mjs";
 import * as noteschooser from "../.tmp-test/noteschooser.mjs";
 import * as assets from "../.tmp-test/assets.mjs";
+import { wireDocswitch, docswitchWiring } from "../.tmp-test/docswitch.mjs";
+import { wireStarter, starterWiring } from "../.tmp-test/starter.mjs";
 
 export async function run() {
   // ------------------------------------------------------------ round trip
@@ -558,4 +560,22 @@ export async function run() {
       noteschooser.applyNotePick !== undefined &&
       assets.insertImage !== undefined,
   );
+}
+
+{
+  // The switch machine borrows the state factory and the compartment sweep;
+  // the starter borrows the body swap and the setting write that a language
+  // switch performs on an untouched document.
+  const SWITCH = {
+    makeState: (body) => body,
+    syncGlobals: () => {},
+  };
+  wireDocswitch(SWITCH);
+  ok("the switch machine's wiring hands back what was registered", docswitchWiring() === SWITCH);
+  const START = {
+    loadBody: () => {},
+    setSetting: () => {},
+  };
+  wireStarter(START);
+  ok("the starter's wiring hands back what was registered", starterWiring() === START);
 }

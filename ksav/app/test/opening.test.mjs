@@ -44,11 +44,15 @@ const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
 const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 const TAB = readFileSync(path.join(SRC, "tabstrip.ts"), "utf8");
+const DOCSWITCH = readFileSync(path.join(SRC, "docswitch.ts"), "utf8");
 
-/** `main.ts` and `tabstrip.ts`, as one line list tagged with its source. */
+/** `main.ts`, `tabstrip.ts` and `docswitch.ts`, as one line list tagged with its source. */
 const LINES = [
   ...MAIN.split("\n").map((line, i) => ({ src: "main.ts", n: i + 1, line })),
   ...TAB.split("\n").map((line, i) => ({ src: "tabstrip.ts", n: i + 1, line })),
+  // The switch paths moved to `docswitch.ts` in wave 10; their call sites are
+  // attributed there the same way.
+  ...DOCSWITCH.split("\n").map((line, i) => ({ src: "docswitch.ts", n: i + 1, line })),
 ];
 
 /** Every line of either file calling `name(`, with its position in `LINES`. */
@@ -158,7 +162,7 @@ export async function run() {
     }
     const stray = callsTo("openDoc").filter(
       ({ at, line }) =>
-        !/^(async )?function openDoc\b/.test(line.trim()) && !ALLOWED.has(owner(at)),
+        !/^(?:export )?(?:async )?function openDoc\b/.test(line.trim()) && !ALLOWED.has(owner(at)),
     );
     check(
       `openDoc is called only from the switch paths (stray: ${stray

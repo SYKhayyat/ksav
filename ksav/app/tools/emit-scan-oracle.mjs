@@ -42,16 +42,17 @@ const { scan, scanWire, ctxAt } = await load("spans");
 /**
  * The two documents a writer meets before they have written anything.
  *
- * Read out of `main.ts` rather than restated, the same way
+ * Read out of `starter.ts` rather than restated, the same way
  * `tests/spell_en.rs` reads them — a second copy of the starter would be a
- * document the oracle checks and the product does not ship.
+ * document the oracle checks and the product does not ship. (Wave 10 moved
+ * them out of `main.ts`; this follows the code.)
  */
 function starters() {
-  const src = readFileSync(join(SRC, "main.ts"), "utf8");
+  const src = readFileSync(join(SRC, "starter.ts"), "utf8");
   const out = [];
   for (const name of ["STARTER_HE", "STARTER_EN"]) {
     const at = src.indexOf(`const ${name} = \``);
-    if (at < 0) throw new Error(`${name} is not in main.ts`);
+    if (at < 0) throw new Error(`${name} is not in starter.ts`);
     const from = src.indexOf("`", at) + 1;
     let to = from;
     while (to < src.length && !(src[to] === "`" && src[to - 1] !== "\\")) to++;

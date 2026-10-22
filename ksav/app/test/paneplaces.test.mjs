@@ -21,6 +21,7 @@ import * as places from "../.tmp-test/paneplaces.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
+const DOCSWITCH = readFileSync(path.join(HERE, "..", "src", "docswitch.ts"), "utf8");
 
 /**
  * One top-level function's body, by name.
@@ -33,7 +34,7 @@ const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
 function bodyOf(name) {
   // The pane-state functions moved to `panestate.ts` in the wave-2 carve; the
   // fence follows the code.
-  for (const file of ["main.ts", "panestate.ts"]) {
+  for (const file of ["docswitch.ts", "main.ts", "panestate.ts"]) {
     const src = readFileSync(path.join(HERE, "..", "src", file), "utf8");
     const at = src.indexOf(`function ${name}(`);
     if (at < 0) continue;
@@ -123,7 +124,7 @@ export async function run() {
 
   {
     const openDoc = bodyOf("openDoc");
-    ok("openDoc is still a function in main.ts", !!openDoc);
+    ok("openDoc is still a function in the shell it switches", !!openDoc);
     if (openDoc) {
       const remember = openDoc.indexOf("rememberPlaces(");
       const show = openDoc.indexOf("showInEveryPane(");
@@ -164,7 +165,7 @@ export async function run() {
     }
     ok(
       "closing a document forgets where the panes were in it",
-      /paneplaces\.forgetDoc\(/u.test(MAIN),
+      /paneplaces\.forgetDoc\(/u.test(MAIN) || /paneplaces\.forgetDoc\(/u.test(DOCSWITCH),
     );
   }
 }

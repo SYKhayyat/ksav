@@ -12,6 +12,7 @@ import * as settings from "../.tmp-test/settings.mjs";
 import * as store from "../.tmp-test/store.mjs";
 import { StorageFullError } from "../.tmp-test/store.mjs";
 import { wireSnapshots, snapWiring } from "../.tmp-test/snapshots.mjs";
+import { wireGit, gitWiring } from "../.tmp-test/gitui.mjs";
 
 export async function run() {
   // ------------------------------------------------------------ round trip
@@ -489,4 +490,16 @@ export async function run() {
   };
   wireSnapshots(WIRING);
   ok("the snapshots wiring hands back what was registered", snapWiring() === WIRING);
+}
+
+{
+  // The version-control wiring: the modal question and the body swap of a
+  // commit restore arrive registered; the handback is the same object, and the
+  // wired halves are guarded with voidAction in the drawer's own calls.
+  const WIRING = {
+    ask: async () => false,
+    loadBody: () => {},
+  };
+  wireGit(WIRING);
+  ok("the git drawer's wiring hands back what was registered", gitWiring() === WIRING);
 }

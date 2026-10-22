@@ -16,7 +16,7 @@
 // operation gets a key the day it is written, and the key never moves under a
 // writer's fingers because the list happened to grow.
 
-import { STRUCTURE_ACTIONS } from "./structure";
+import { STRUCTURE_ACTIONS, structureAt, isEnabled } from "./structure";
 import type { Structure, StructureAction } from "./structure";
 
 export interface HydraEntry {
@@ -165,4 +165,210 @@ export function entryFor(hydra: Hydra, key: string): HydraEntry | undefined {
  */
 export function closesAfter(action: StructureAction): boolean {
   return action.id === "table.delete" || action.id === "heading.delete";
+}
+
+
+// # The panel half
+//
+// The transient keymap above is the whole mechanism; the half below is its one
+// legend on screen and the keys it listens to while open. It sits in the same
+// file because the legend's rows, the capture's entries and the module's own
+// kinds contract are one vocabulary — a pinned-legend test reading two files
+// would assert an adjacency nothing maintains.
+//
+// Owns: the open-hydra state, the render, the capture listener, the reset the
+// panel's close hook runs. Defers: what a structural operation does when a key
+// fires (the shell's runStructureAction, via the wiring) and the panel system's
+// own hook registration (main's boot wires "hydra"'s close through resetHydra).
+// Refuses: a hydra that stays open after its structure is gone — seen from the
+// hook, and by the chrome wiring's dismiss-foreign gate.
+
+import { el } from "./dom";
+import { t, getLang } from "./i18n";
+import * as settings from "./settings";
+import { setStatus } from "./runtime";
+import * as runtime from "./runtime";
+import { openPanel, closePanel, panelHead } from "./panels";
+import { docTextOf } from "./spans";
+
+export interface HydraWiring {
+  /** Perform the structural operation, wherever the caret is. */
+  runStructure(action: StructureAction, sticky: boolean): boolean;
+}
+
+let wired: HydraWiring | undefined;
+
+/** Register the hydra wiring. Called once, from main.ts's boot. */
+export function wireHydra(w: HydraWiring): void {
+  wired = w;
+}
+
+/** The wiring, registered at boot. */
+export const hydraWiring = () => {
+  if (!wired) throw new Error("wireHydra was never called: the hydra wiring is missing");
+  return wired;
+};
+
+// ---------------------------------------------------------------- hydra
+//
+// One key opens a panel listing every operation available where the caret is,
+// each on a single letter, and the panel stays up so repeating is one keystroke.
+// Escape or `q` leaves. It is a third view over `STRUCTURE_ACTIONS` — not a
+// third list — so an operation added to the registry appears here the same day.
+
+let openHydraState: Hydra | null = null;
+
+/** Whatever the caret is in, opened as a hydra. */
+export function openHydra() {
+  if (!runtime.view) return;
+  const doc = docTextOf(runtime.view.state.doc);
+  const pos = runtime.view.state.selection.main.head;
+  const kind = structureAt(doc, pos);
+  if (!kind) {
+    setStatus(t("hydraNothingHere"), "");
+    return;
+  }
+  openHydraState = hydraFor(kind, settings.settings.hydraKeys ?? {});
+  // Capture phase, on `window`, so the hydra genuinely gets the key before the
+  // vim and emacs plugins do. See `captureHydraKeys` for why no arrangement of
+  // the editor's extensions could achieve that. Removed by the panel's own
+  // `close` hook, which is the one path every way of closing goes through —
+  // the ×, the backdrop, Escape, and `closePanel` alike.
+  window.addEventListener("keydown", captureHydraKeys, true);
+  renderHydra();
+}
+
+export function closeHydra() {
+  closePanel("hydra");
+}
+
+export function renderHydra() {
+  const panel = document.getElementById("hydra")!;
+  const h = openHydraState;
+  if (!h) return;
+  const doc = docTextOf(runtime.view.state.doc);
+  const pos = runtime.view.state.selection.main.head;
+
+  let group = "";
+  const cells: Node[] = [];
+  for (const entry of h.entries) {
+    if (group && entry.action.group !== group) cells.push(el("span", { class: "hydra-break" }));
+    group = entry.action.group;
+    // Greyed rather than hidden, for the same reason the menus grey: a hydra
+    // whose contents shuffle between openings is one nobody memorises.
+    const enabled = isEnabled(entry.action, doc, pos);
+    cells.push(
+      el("button", {
+        class: "hydra-key" + (enabled ? "" : " disabled"),
+        disabled: enabled ? null : "true",
+        onClick: () => runHydraEntry(entry),
+      }, [
+        // The key the writer's own keyboard can actually produce. On a Hebrew
+        // layout the physical `a` sends `ש`, so a Hebrew-interface hydra
+        // labelled `a s b d i o m v u n h` was showing eleven keys none of which
+        // existed. Both alphabets are accepted either way (see `entryFor`); this
+        // only decides which one to print.
+        el("kbd", {}, [getLang() === "he" && entry.he ? entry.he : entry.key]),
+        el("span", {}, [t(entry.action.label)]),
+      ]),
+    );
+  }
+  // A visible exit as well as Escape and `q`. The rule this codebase learned the
+  // hard way: a surface that takes over the keyboard and can only be dismissed
+  // by a key you have to already know is a surface people get stuck in. The head
+  // is built by `panelHead` like every other, which is also what put the hydra
+  // into the Escape sweep it had been missing from.
+  const head = panelHead("hydra", "structure." + h.structure, {
+    level: "h3",
+    cls: "hydra-head",
+    extra: [el("span", {}, [t("hydraHint")]), el("div", { class: "spacer" })],
+  });
+  panel.replaceChildren(head, el("div", { class: "hydra-keys" }, cells));
+  openPanel("hydra");
+}
+
+export function runHydraEntry(entry: HydraEntry) {
+  // The hydra is opened by a chord and driven by a pointer-free keyboard, but
+  // it is offered from the same sticky reading the ribbon uses, so it acts on
+  // the same structure the writer can see listed.
+  const ran = hydraWiring().runStructure(entry.action, true);
+  if (!ran) return;
+  if (closesAfter(entry.action)) {
+    closeHydra();
+    return;
+  }
+  // Still open, and redrawn: what is possible changes as the document does —
+  // after deleting the second-to-last row, "delete row" has to grey out.
+  requestAnimationFrame(renderHydra);
+}
+
+/**
+ * The hydra's keys, while it is open — on `window`, in the capture phase.
+ *
+ * Swallowing every plain letter, because a transient keymap that let `r`
+ * through to the document would type an `r` into the table it was meant to add
+ * a row to. That much was always true. What was not true was *where* it sat.
+ *
+ * This was a `Prec.highest(keymap.of(…))` entry in the editor's extensions,
+ * under a comment saying it was ahead of the vim and emacs keymaps. Driven in a
+ * browser with vim mode on, it was not: open a list hydra, press the `a` its own
+ * legend offers for "new item", and vim goes to INSERT instead. Press `b` and
+ * the caret moves back a word, leaves the list, and the structure watch closes
+ * the panel — eleven operations on screen with their keys beside them, and not
+ * one of them doing what it said. Escape did not close it either; vim took that
+ * to leave visual mode.
+ *
+ * No place in that array would have fixed it. `@replit/codemirror-vim` handles
+ * keys from a **ViewPlugin event handler** (`vimPlugin`'s `keydown`), and a
+ * plugin's DOM handlers run ahead of the whole `keymap` facet whatever its
+ * precedence. Precedence orders facet inputs against each other; it does not
+ * order a facet against a plugin.
+ *
+ * So the listener goes where being first is a property of the DOM rather than a
+ * hope about a library: `window`, capture phase, above the content element every
+ * one of those handlers is attached to. Installed when a hydra opens and removed
+ * when it closes, so there is nothing listening the rest of the time — which
+ * also means a mode gets every key exactly as it did before, because this is not
+ * there to be got past.
+ */
+export function captureHydraKeys(event: KeyboardEvent) {
+  if (!openHydraState) return;
+  const stop = () => {
+    event.preventDefault();
+    event.stopPropagation();
+    // `stopImmediatePropagation` as well: the point is that nothing else on the
+    // way down or back up sees this key, and vim's handler is on a descendant.
+    event.stopImmediatePropagation();
+  };
+  if (event.key === "Escape" || event.key === "q") {
+    stop();
+    closeHydra();
+    return;
+  }
+  // Let modified keys through: Mod-S while a hydra is up should still save.
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  // Tab, Enter, the arrows: not hydra keys, and swallowing them would trap the
+  // keyboard in a panel whose own × is reachable by Tab.
+  if (event.key.length !== 1) return;
+  const entry = entryFor(openHydraState, event.key);
+  stop(); // swallowed either way: an unbound letter must not be typed
+  if (entry) runHydraEntry(entry);
+}
+
+/** The panel-close hook: forgotten state and no listener left behind. */
+export function resetHydra(): void {
+  openHydraState = null;
+  // Paired with `openHydra`'s `addEventListener`, deliberately here rather than
+  // in `closeHydra`: this hook is what *every* way of closing the panel runs
+  // through — the ×, the backdrop, the Escape sweep and `closePanel` — so a
+  // capture listener on `window` cannot outlive the panel that installed it
+  // down some path nobody thought about.
+  window.removeEventListener("keydown", captureHydraKeys, true);
+  runtime.view?.focus();
+}
+
+/** A new structure arrived under the caret; a foreign hydra must not outlive it. */
+export function dismissForeignHydra(structure: string | null): void {
+  if (!openHydraState) return;
+  if (structure !== openHydraState.structure) closeHydra();
 }

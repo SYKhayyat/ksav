@@ -26,7 +26,7 @@ import { keybindings } from "./keyhint";
 import * as keymodes from "./keymodes";
 import { settings } from "./settings";
 import * as runtime from "./runtime";
-import { openPanel } from "./panels";
+import { openPanel, panelHead } from "./panels";
 import { closeMenus } from "./runtime";
 
 export interface HelpEntry {
@@ -361,4 +361,21 @@ export function renderHelp(query: string) {
     : [el("p", { class: "help-lede" }, [t("helpNothing")])];
 
   box.replaceChildren(...body);
+}
+
+export function buildHelpPanel(): HTMLElement {
+  const input = el("input", {
+    id: "help-search",
+    type: "search",
+    placeholder: t("helpSearch"),
+    "data-i18n-placeholder": "helpSearch",
+    class: "help-search",
+  }) as HTMLInputElement;
+  input.addEventListener("input", () => renderHelp(input.value));
+  return el("aside", { id: "help-panel", class: "drawer drawer-help", "aria-label": t("help"), "data-i18n-label": "help" }, [
+    panelHead("help-panel", "helpTitle"),
+    el("p", { class: "help-lede", "data-i18n": "helpLede" }, [t("helpLede")]),
+    input,
+    el("div", { id: "help-body" }),
+  ]);
 }

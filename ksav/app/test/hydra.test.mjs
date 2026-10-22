@@ -159,7 +159,8 @@ export async function run() {
 {
   const { readFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
-  const main = await readFile(join(SRC, "main.ts"), "utf8");
+  const main = await readFile(join(SRC, "hydra.ts"), "utf8");
+  const MAIN = await readFile(join(SRC, "main.ts"), "utf8");
   // Comments stripped before the prohibition sweep, or the paragraph in
   // `main.ts` explaining what the old arrangement was trips the test that
   // forbids it. Every source-level prohibition in this suite has to do this;
@@ -192,10 +193,13 @@ export async function run() {
   // off through the path *every* way of closing goes through — the ×, the
   // backdrop, the Escape sweep and `closePanel` alike — which is the panel
   // registry's own `close` hook, not `closeHydra`.
-  const wiring = main.slice(main.indexOf('wirePanel("hydra"'));
-  const hook = wiring.slice(0, wiring.indexOf("\n  });"));
-  ok("removed by the panel registry's close hook", hook.includes("removeEventListener"));
-  ok("beside the state it is paired with", hook.includes("openHydraState = null"));
+  // The reset itself is hydra.ts's own state machine (resetHydra); the hook is
+  // registered at boot by main and named in MAIN.
+  const reset = main.slice(main.indexOf("export function resetHydra"));
+  ok("removed by the panel registry's close hook", reset.includes("removeEventListener"));
+  ok("beside the state it is paired with", reset.includes("openHydraState = null"));
+  const hook = MAIN.slice(MAIN.indexOf('wirePanel("hydra"'));
+  ok("and main's hook names it", hook.includes("resetHydra()"));
 
   // Modified keys are handed on rather than swallowed, or Mod-S stops saving
   // the moment a panel is up.

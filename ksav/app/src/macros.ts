@@ -160,3 +160,202 @@ export function parseAll(raw: unknown): Macro[] {
   }
   return out;
 }
+
+// # The recorder
+//
+// The state half the engine above existed for: what is being recorded, the
+// saved list (read defensively and cached), the names, and the replay. The
+// engine stays pure; everything here touches settings, the view or the shell,
+// and what it may not touch — the modal, the shortcut re-configuration —
+// arrives as the registered wiring rather than as an import of main.
+//
+// Owns: `recording`/`replaying`/`macroCache`, the note hooks (`noteAction`,
+// `noteTyped`, `noteSnippet` — the recorder's three ears), `toggleRecording`,
+// `finishRecording`, `playMacro`, `deleteMacro` and `macroName` (the one
+// resolver for all three name sources).
+// Defers: what runs (`runAction` is the shell's action door and stays
+// main-held; replay reaches it through the wiring), what names a modal
+// (askText), what rebinds (reconfigureShortcuts), and the settings file
+// itself is `settings.ts`'s. Refuses: a second cache of the saved list —
+// `macroCache` is the one, keyed on the setting by identity.
+
+import { settings, saveSettings } from "./settings";
+import { t, tf } from "./i18n";
+import { setStatus, rerenderChrome, view } from "./runtime";
+import { insertSnippet } from "./insert";
+import { scheduleCompile } from "./compile";
+import * as structure from "./structure";
+import * as styles from "./styles";
+
+export interface MacrosWiring {
+  /** Any action by id — built-in, structural, or a previously saved macro. */
+  actionById(id: string): { id: string; run: (v: unknown) => boolean } | undefined;
+  /** The shell's namable-prompt modal. */
+  askText(message: string, initial?: string): Promise<string | null>;
+  /** Rebuild the shortcut registry after the saved list changes. */
+  reconfigureShortcuts(): void;
+}
+
+let wired: MacrosWiring | undefined;
+
+/** Register the macros wiring. Called once, from main.ts's boot. */
+export function wireMacros(w: MacrosWiring): void {
+  wired = w;
+}
+
+/** The wiring, registered at boot. */
+export const macroWiring = (): MacrosWiring => {
+  if (!wired) throw new Error("wireMacros was never called: the macros wiring is missing");
+  return wired;
+};
+
+let recording: Step[] | null = null;
+
+/**
+ * The saved macros, read defensively — a bad preference must not stop the app.
+ *
+ * **Cached on the raw value.** `parseAll` re-validates every step of every macro
+ * and allocates a fresh object per step, and this is called from `actions()`,
+ * which the palette calls **per keystroke** while somebody is typing a command
+ * name. A writer with thirty macros of a dozen steps each was paying tens of
+ * thousands of allocations per keypress to produce a list that had not changed
+ * since the session started.
+ *
+ * Keyed on `settings.macros` by identity rather than by a dirty flag: the only
+ * thing that replaces it is `settings.macros = …`, which every writer here does
+ * (`macroSave`, `macroDelete`), so a stale cache is not reachable without
+ * mutating the array in place — which nothing does and which the assignment
+ * makes awkward.
+ */
+let macroCache: { raw: unknown; parsed: Macro[] } | null = null;
+export function savedMacros(): Macro[] {
+  const held = macroCache;
+  if (held && held.raw === settings.macros) return held.parsed;
+  const parsed = parseAll(settings.macros);
+  macroCache = { raw: settings.macros, parsed };
+  return parsed;
+}
+
+export function macroName(id: string): string {
+  const structural = structure.actionById(id);
+  if (structural) return t(structural.label);
+  // A style names itself. `t("sc.style.PIRUSH")` would print the raw key, which
+  // is the "shipped unnamed" row `bindings.test.mjs` exists to refuse.
+  const style = styles.styleOfAction(id);
+  if (style) return tf("styleActionName", style);
+  const mac = savedMacros().find((m) => actionIdOf(m) === id);
+  return mac ? mac.name : t("sc." + id);
+}
+
+/**
+ * Set while a macro is replaying, so its steps are not recorded again.
+ *
+ * A macro can play another macro — `macroPlay` is an action like any other — and
+ * recording a replay would turn one step into all of the inner macro's, which
+ * then diverge the moment the inner one is edited. The outer action is the step.
+ */
+let replaying = false;
+
+/** The chipbar reads this; the update listener gates its typed-text loop on it. */
+export function isRecording(): boolean {
+  return recording !== null;
+}
+
+/** The recording itself, or null — a read the chrome's menus hold a step name of. */
+export function currentRecording(): Step[] | null {
+  return recording;
+}
+
+/** Note an action for the recorder. Called by `runAction`, and by nothing else. */
+export function noteAction(id: string) {
+  if (recording && !replaying) recording.push({ kind: "action", id });
+}
+
+/** Note typed text for the recorder. */
+export function noteTyped(text: string) {
+  if (recording && !replaying && text) recording.push({ kind: "text", text });
+}
+
+/** Note a command inserted with no action behind it — the toolbar, the palette. */
+export function noteSnippet(snippet: string) {
+  if (recording && !replaying && snippet) recording.push({ kind: "snippet", snippet });
+}
+
+export function toggleRecording() {
+  if (recording) {
+    finishRecording();
+    return;
+  }
+  recording = [];
+  setStatus(t("macroRecording"), "");
+  rerenderChrome();
+}
+
+async function finishRecording() {
+  const steps = compact(recording ?? []);
+  recording = null;
+  const macro: Macro = { id: newId(), name: "", steps };
+  if (isEmpty(macro)) {
+    setStatus(t("macroEmpty"), "");
+    rerenderChrome();
+    return;
+  }
+  const suggested = describe(macro, macroName).slice(0, 40);
+  const name = await macroWiring().askText(t("macroNamePrompt"), suggested);
+  if (name === null) {
+    setStatus(t("macroDiscarded"), "");
+    rerenderChrome();
+    return;
+  }
+  macro.name = name.trim() || suggested;
+  settings.macros = [...savedMacros(), macro];
+  saveSettings();
+  // A saved macro is an action like any other from this point on: it appears in
+  // the shortcut list and can be bound to a key without another line of code.
+  macroWiring().reconfigureShortcuts();
+  rerenderChrome();
+  setStatus(tf("macroSaved", macro.name), "ok");
+}
+
+/** Run a macro's steps, in order, from wherever the caret is. */
+export function playMacro(macro: Macro, times = 1) {
+  const valid = validate(macro, (id) => macroWiring().actionById(id) !== undefined);
+  if (valid.steps.length < macro.steps.length) {
+    // Said out loud rather than silently: a macro doing four of its five things
+    // is a macro whose next result will surprise somebody.
+    setStatus(tf("macroStepsDropped", macro.name), "");
+  }
+  const wasReplaying = replaying;
+  replaying = true;
+  try {
+  for (let i = 0; i < times; i++) {
+    for (const step of valid.steps) {
+      if (step.kind === "text") {
+        const sel = view.state.selection.main;
+        view.dispatch({
+          changes: { from: sel.from, to: sel.to, insert: step.text },
+          selection: { anchor: sel.from + step.text.length },
+        });
+      } else if (step.kind === "snippet") {
+        insertSnippet(step.snippet);
+      } else {
+        // `run` rather than the wiring's runner: replaying a macro must not
+        // record its own steps if the writer is recording a macro that plays
+        // another one. The outer `macroPlay` is the step, and it is already noted.
+        macroWiring().actionById(step.id)?.run(view);
+      }
+    }
+  }
+  } finally {
+    replaying = wasReplaying;
+  }
+  scheduleCompile();
+  view.focus();
+}
+
+export function deleteMacro(id: string) {
+  settings.macros = savedMacros().filter((m) => m.id !== id);
+  saveSettings();
+  macroWiring().reconfigureShortcuts();
+  rerenderChrome();
+}

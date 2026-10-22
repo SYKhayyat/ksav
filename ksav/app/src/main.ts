@@ -57,7 +57,6 @@ const GIRSA_POLL_MS = 1000;
 const GIRSA_POLL_MAX_MS = 30_000;
 import type { TemplateDef } from "./api";
 import type * as api from "./api";
-import * as git from "./git";
 import * as panelviews from "./panelviews";
 import { getLang, hasKey, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
@@ -252,7 +251,6 @@ import { troubleSaid } from "./diagnostics";
 import { insertionAt } from "./mode";
 import * as structure from "./structure";
 import * as heads from "./headings";
-import * as hydra from "./hydra";
 import * as macros from "./macros";
 import { openHelp, renderHelp, wireHelp } from "./help";
 import {
@@ -265,13 +263,29 @@ import {
   renderFindPane,
   openNoteMenu,
   drawList,
-  drawRow,
   runRow,
   LOOKS,
   wireRows,
 } from "./rowlists";
 import { buildSettingsDrawer, toggleSettings, captureShortcut, resetShortcuts, wireSettings } from "./settingsdrawer";
 import { takeSnapshot, restoreSnapshot, openHistory, renderHistory, wireSnapshots } from "./snapshots";
+import { refreshGit, openGit, forgetGit, gitMayHaveChanged, gitForHeader, renderGitPanel, wireGit } from "./gitui";
+import { openCommands, openKeys, buildCommandsDrawer, renderCommands } from "./commandsdrawer";
+import { buildHelpPanel } from "./help";
+import {
+  noteAction,
+  noteTyped,
+  noteSnippet,
+  toggleRecording,
+  savedMacros,
+  playMacro,
+  deleteMacro,
+  macroName,
+  isRecording,
+  currentRecording,
+  wireMacros,
+} from "./macros";
+import { openHydra, resetHydra, dismissForeignHydra, wireHydra } from "./hydra";
 import { insertSnippet, insertCommand, tieredNoteHere, snippetTab, docLang, dirLang, wireInsert } from "./insert";
 import * as hiding from "./hiding";
 import { LIST_DEPTHS } from "./lists";
@@ -285,7 +299,6 @@ import {
 } from "./girsa";
 import { openPalette, paletteKey, renderPaletteList, wirePalette } from "./palette";
 import * as header from "./header";
-import * as panelrows from "./panelrows";
 
 // ---------------------------------------------------------------- editor
 //
@@ -1911,7 +1924,7 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
         // button all record as the text they produced rather than as the keys
         // that produced them — which is the difference between a macro that
         // replays Hebrew and one that replays a keyboard layout.
-        if (u.docChanged && recording) {
+        if (u.docChanged && isRecording()) {
           for (const tr of u.transactions) {
             if (!tr.isUserEvent("input")) continue;
             let typed = "";
@@ -2592,7 +2605,7 @@ function headerState(): header.HeaderState {
     nikud: !!settings.nikud,
     notesPane: !!settings.notesPane,
     marksPane: !!settings.marksPane,
-    recording: !!recording,
+    recording: isRecording(),
     // Absent until something has actually asked git. See `gitForHeader`: "not
     // asked" and "clean" are different states, and only one of them is a claim.
     vcs: gitForHeader(),
@@ -2821,180 +2834,6 @@ function replaceAll(text: string, caret: number) {
   runtime.view.focus();
 }
 
-// ---------------------------------------------------------------- version control
-//
-// The drawer over `engine/src/git.rs`. Three rules run through all of it:
-//
-//   * **Every unavailable state says which one it is.** `git.standing` returns
-//     one of three reasons and each has its own sentence — save the document,
-//     use the installed application, install git. A drawer that greys out with
-//     no explanation is the fault this repository is named after.
-//   * **git's own words are shown, never rephrased.** "Permission denied
-//     (publickey)" is the one string a reader can search for.
-//   * **The comparison is the change gutter.** "Compare with now" sets the same
-//     baseline the snapshot history sets, so a git commit and a snapshot are
-//     read the same way, by one diff, in the margin the writer already knows.
-//     A second diff view over `git diff`'s unified text would be a second
-//     opinion about what changed in one document, in one application.
-
-/** What the drawer last learned, so a redraw does not restart a subprocess. */
-let gitState: api.GitStatus | null = null;
-/** The last thing git said, shown until the next operation replaces it. */
-let gitSaid = "";
-/** An operation is in flight; the buttons are disabled and say so. */
-let gitBusy = false;
-/** `true` while the history list is showing the whole repository. */
-let gitWholeRepo = false;
-let gitCommits: api.GitCommit[] = [];
-let gitBranches: api.GitBranch[] = [];
-let gitRemotes: api.GitRemote[] = [];
-
-/** Where version control stands for the document that is open now. */
-function gitStanding(): git.Standing {
-  return git.standing(runtime.currentBinding, runtime.backend?.kind ?? "");
-}
-
-/**
- * Ask git one thing.
- *
- * Returns `null` when this document cannot be asked about at all, which the
- * callers treat as "the drawer already says why" rather than as a failure —
- * every one of them is reached from a button that only exists once `standing`
- * is `ready`.
- */
-async function askGit(op: git.GitOp, extra: Record<string, unknown> = {}): Promise<api.GitAnswer | null> {
-  const where = gitStanding();
-  if (where.kind !== "ready" || !runtime.backend) return null;
-  gitBusy = true;
-  renderGitPanel();
-  try {
-    return await runtime.backend.git(op, where.path, extra);
-  } catch (e) {
-    // A transport that threw is not git refusing: the engine went away, or the
-    // desktop command failed. Shown as it arrived, for the same reason git's
-    // own sentences are.
-    return { ok: false, git: null, root: null, error: String((e as Error)?.message ?? e) };
-  } finally {
-    gitBusy = false;
-  }
-}
-
-/**
- * Re-read the whole state and redraw.
- *
- * One `status` and, when there is a repository, the three lists beside it.
- * Asked together rather than lazily per section: they are four short
- * subprocesses on a local directory, and a drawer that fills in section by
- * section as each returns is a drawer that is wrong three times on the way to
- * being right.
- */
-async function refreshGit(): Promise<void> {
-  const where = gitStanding();
-  if (where.kind !== "ready") {
-    gitState = null;
-    renderGitPanel();
-    rerenderChrome();
-    return;
-  }
-  const status = (await askGit("status")) as api.GitStatus | null;
-  gitState = status;
-  if (status?.root) {
-    const [log, branches, remotes] = await Promise.all([
-      askGit("log", { scope: gitWholeRepo ? "repo" : "file", limit: 50 }),
-      askGit("branches"),
-      askGit("remotes"),
-    ]);
-    gitCommits = log?.commits ?? [];
-    gitBranches = branches?.branches ?? [];
-    gitRemotes = remotes?.remotes ?? [];
-  } else {
-    gitCommits = [];
-    gitBranches = [];
-    gitRemotes = [];
-  }
-  renderGitPanel();
-  // The chip reports what the drawer found. Without this the state is only
-  // visible while the drawer is open, which is the opposite of what a chip is
-  // for.
-  rerenderChrome();
-}
-
-/** Run an operation, show what git said, and re-read everything. */
-async function runGit(op: git.GitOp, extra: Record<string, unknown> = {}): Promise<api.GitAnswer | null> {
-  const answer = await askGit(op, extra);
-  const said = git.outcome(answer);
-  gitSaid = said.said;
-  await refreshGit();
-  return answer;
-}
-
-function openGit() {
-  closeMenus();
-  openPanel("git-panel");
-}
-
-function isGitOpen(): boolean {
-  return isPanelOpen("git-panel");
-}
-
-/**
- * Throw away what git said about the *previous* document.
- *
- * Called when the open document changes and when it is saved to a new file.
- * The state here is about one path on disk, and keeping it across a switch
- * would leave the chip reporting a branch and a change count belonging to a
- * sefer that is no longer on screen. Re-asked immediately when the drawer is
- * open, because a drawer that empties and waits for a click is its own small
- * lie.
- */
-function forgetGit(): void {
-  gitState = null;
-  gitSaid = "";
-  gitCommits = [];
-  gitBranches = [];
-  gitRemotes = [];
-  if (isGitOpen()) voidAction("general", () => refreshGit());
-}
-
-/** The file on disk changed under version control's feet: re-read, if open. */
-function gitMayHaveChanged(): void {
-  if (isGitOpen()) voidAction("general", () => refreshGit());
-}
-
-/**
- * What the chipbar is told.
- *
- * `undefined` until something has actually asked git, because "not asked" and
- * "clean" are different states and a chip that reads clean before a `git
- * status` has run is the interface lying about what it displays.
- */
-function gitForHeader(): header.HeaderState["vcs"] {
-  if (!gitState) return undefined;
-  const h = git.health(gitState);
-  return {
-    health: h,
-    branch: gitState.root ? git.position(gitState).branch : "",
-    changes: git.changed(gitState).length,
-  };
-}
-
-/**
- * The drawer.
- *
- * Rebuilt whole on every change rather than patched, like every other panel
- * here: the alternative is a set of update paths that each have to remember
- * which of six sections a `git merge` can change, and the answer is all of
- * them.
- *
- * **Which sections there are is `git.face`'s decision, not this function's.**
- * That split is not tidiness. The assembled run drives a browser against
- * `ksav serve`, where a document is bound through a file handle and therefore
- * has no path — so everything below the first `switch` is unreachable by the
- * one test in this product that looks at the screen. Every state a writer
- * actually uses this drawer in could have been wrong and the suite would have
- * been green. `git.face` can be driven with a status nothing had to produce,
- * and `git.test.mjs` does.
- */
 /** What the keys drawer's search box holds. Lives here because the view is a
  *  pure function of it and the drawer is rebuilt on every keystroke. */
 let keysQuery = "";
@@ -3064,99 +2903,6 @@ function renderKeysPanel(): void {
   );
 }
 
-function renderGitPanel(): void {
-  const box = document.getElementById("git-body");
-  if (!box) return;
-  const fresh = panelviews.gitPanel(
-      {
-        face: git.face(gitStanding(), gitState, gitCommits, gitBranches, gitRemotes),
-        status: gitState,
-        commits: gitCommits,
-        branches: gitBranches,
-        remotes: gitRemotes,
-        said: gitSaid,
-        busy: gitBusy,
-        wholeRepo: gitWholeRepo,
-      },
-      {
-        run: (op, extra) => voidAction("general", () => runGit(op, extra)),
-        compare: (c) => voidAction("general", () => compareWithCommit(c)),
-        restore: (c) => voidAction("save_file", () => restoreCommit(c)),
-        revert: (c) => voidAction("save_file", () => revertCommit(c)),
-        setScope: (whole) => {
-          gitWholeRepo = whole;
-          voidAction("general", () => refreshGit());
-        },
-      },
-    );
-  // The panel view remains a pure builder, but its status rows have semantic
-  // identities. Reuse unchanged rows across a refresh so a focused action or a
-  // row-level selection survives; changed rows are replaced with fresh
-  // listeners and content rather than retaining stale closures.
-  reuseGitRows(box, fresh);
-  box.replaceChildren(...fresh);
-}
-
-function reuseGitRows(previous: HTMLElement, fresh: Node[]): void {
-  const old = new Map<string, HTMLElement>();
-  previous.querySelectorAll<HTMLElement>("[data-git-row]").forEach((row) => {
-    const key = row.getAttribute("data-git-row");
-    if (key) old.set(key, row);
-  });
-  const visit = (node: Node): void => {
-    if (!(node instanceof HTMLElement)) return;
-    const key = node.getAttribute("data-git-row");
-    if (key) {
-      const prior = old.get(key);
-      if (prior && prior.getAttribute("data-git-signature") === node.getAttribute("data-git-signature")) {
-        node.replaceWith(prior);
-      }
-      return;
-    }
-    [...node.children].forEach(visit);
-  };
-  fresh.forEach(visit);
-}
-/**
- * Compare the document with how it was at a commit.
- *
- * The change gutter's baseline, which is the same mechanism the snapshot
- * history uses — one diff, one set of marks in the margin, one thing to learn.
- * It holds until the next snapshot resets it, which is what `refreshBaseline`
- * already does and is worth saying rather than leaving to be discovered.
- */
-async function compareWithCommit(c: api.GitCommit): Promise<void> {
-  const answer = await askGit("show", { rev: c.hash });
-  if (!answer || answer.ok === false || typeof answer.text !== "string") {
-    gitSaid = git.outcome(answer).said;
-    renderGitPanel();
-    return;
-  }
-  runtime.view.dispatch({ effects: setBaseline.of(answer.text) });
-  setStatus(`${t("git.compare")} · ${c.short}`, "ok");
-}
-
-async function restoreCommit(c: api.GitCommit): Promise<void> {
-  const stamp = git.when(c.when, getLang());
-  if (!(await ask(tf("git.confirmRestore", stamp), { danger: true }))) return;
-  // A snapshot first, exactly as restoring a snapshot takes one: whatever is in
-  // the editor now must survive being replaced.
-  await takeSnapshot(true);
-  const answer = await askGit("show", { rev: c.hash });
-  if (!answer || answer.ok === false || typeof answer.text !== "string") {
-    gitSaid = git.outcome(answer).said;
-    renderGitPanel();
-    return;
-  }
-  loadBody(answer.text);
-  setStatus(tf("git.restored", stamp), "ok");
-  await refreshGit();
-}
-
-async function revertCommit(c: api.GitCommit): Promise<void> {
-  if (!(await ask(tf("git.confirmRevert", c.subject || c.short), { danger: true }))) return;
-  await runGit("revert", { rev: c.hash });
-}
 // ---------------------------------------------------------------- templates / exports
 function loadBody(body: string) {
   runtime.view.dispatch({
@@ -3983,231 +3729,6 @@ function structureKeymap() {
 }
 const structureCompartment = new Compartment();
 
-// ---------------------------------------------------------------- the commands drawer
-//
-// The 122 commands, grouped by the registry's own categories, searchable, with
-// nothing left out and nothing capped. The inventory's reader could not reach
-// them from any of the four surfaces that advertise them and asked for this
-// instead; `panelrows.commandGroups` carries the argument for why it is not the
-// palette again.
-
-function openCommands() {
-  closeMenus();
-  openPanel("commands-drawer");
-}
-
-function openKeys() {
-  closeMenus();
-  openPanel("keys-drawer");
-}
-
-function renderCommands(query: string) {
-  const box = document.getElementById("commands-body");
-  if (!box) return;
-  const { groups, empty } = panelrows.commandGroups(
-    commands.available(runtime.commandsReg),
-    keybindings(),
-    query,
-    getLang(),
-    keymodes.activeMode(),
-  );
-  if (empty) {
-    box.replaceChildren(el("div", { class: "outline-empty" }, [t(empty)]));
-    return;
-  }
-  box.replaceChildren(
-    ...groups.map((g) =>
-      el("section", { class: "help-section" }, [
-        el("h3", {}, [t(g.title)]),
-        ...g.rows.map((r) => drawRow(r, LOOKS.commands, false, [])),
-      ]),
-    ),
-  );
-}
-
-function buildCommandsDrawer(): HTMLElement {
-  const input = el("input", {
-    id: "commands-search",
-    type: "search",
-    placeholder: t("commandsSearch"),
-    "data-i18n-placeholder": "commandsSearch",
-    class: "help-search",
-  }) as HTMLInputElement;
-  input.addEventListener("input", () => renderCommands(input.value));
-  return el(
-    "aside",
-    {
-      id: "commands-drawer",
-      class: "drawer drawer-help",
-      "aria-label": t("commandsTitle"),
-      "data-i18n-label": "commandsTitle",
-    },
-    [
-      panelHead("commands-drawer", "commandsTitle"),
-      el("p", { class: "help-lede", "data-i18n": "commandsLede" }, [t("commandsLede")]),
-      input,
-      el("div", { id: "commands-body" }),
-    ],
-  );
-}
-
-function buildHelpPanel(): HTMLElement {
-  const input = el("input", {
-    id: "help-search",
-    type: "search",
-    placeholder: t("helpSearch"),
-    "data-i18n-placeholder": "helpSearch",
-    class: "help-search",
-  }) as HTMLInputElement;
-  input.addEventListener("input", () => renderHelp(input.value));
-  return el("aside", { id: "help-panel", class: "drawer drawer-help", "aria-label": t("help"), "data-i18n-label": "help" }, [
-    panelHead("help-panel", "helpTitle"),
-    el("p", { class: "help-lede", "data-i18n": "helpLede" }, [t("helpLede")]),
-    input,
-    el("div", { id: "help-body" }),
-  ]);
-}
-
-// ---------------------------------------------------------------- macros
-//
-// Record what you did, do it again. The recorder logs *actions* and typed text —
-// never keystrokes, never document positions — so a macro replays correctly from
-// wherever the caret happens to be, which is the property that makes it worth
-// having. Recording the positions would produce a macro that works exactly once.
-
-let recording: macros.Step[] | null = null;
-
-/**
- * The saved macros, read defensively — a bad preference must not stop the app.
- *
- * **Cached on the raw value.** `parseAll` re-validates every step of every macro
- * and allocates a fresh object per step, and this is called from `actions()`,
- * which the palette calls **per keystroke** while somebody is typing a command
- * name. A writer with thirty macros of a dozen steps each was paying tens of
- * thousands of allocations per keypress to produce a list that had not changed
- * since the session started.
- *
- * Keyed on `settings.macros` by identity rather than by a dirty flag: the only
- * thing that replaces it is `settings.macros = …`, which every writer here does
- * (`macroSave`, `macroDelete`), so a stale cache is not reachable without
- * mutating the array in place — which nothing does and which the assignment
- * makes awkward.
- */
-let macroCache: { raw: unknown; parsed: macros.Macro[] } | null = null;
-function savedMacros(): macros.Macro[] {
-  const held = macroCache;
-  if (held && held.raw === settings.macros) return held.parsed;
-  const parsed = macros.parseAll(settings.macros);
-  macroCache = { raw: settings.macros, parsed };
-  return parsed;
-}
-
-function macroName(id: string): string {
-  const structural = structure.actionById(id);
-  if (structural) return t(structural.label);
-  // A style names itself. `t("sc.style.PIRUSH")` would print the raw key, which
-  // is the "shipped unnamed" row `bindings.test.mjs` exists to refuse.
-  const style = styles.styleOfAction(id);
-  if (style) return tf("styleActionName", style);
-  const mac = savedMacros().find((m) => macros.actionIdOf(m) === id);
-  return mac ? mac.name : t("sc." + id);
-}
-
-/**
- * Set while a macro is replaying, so its steps are not recorded again.
- *
- * A macro can play another macro — `macroPlay` is an action like any other — and
- * recording a replay would turn one step into all of the inner macro's, which
- * then diverge the moment the inner one is edited. The outer action is the step.
- */
-let replaying = false;
-
-/** Note an action for the recorder. Called by `runAction`, and by nothing else. */
-function noteAction(id: string) {
-  if (recording && !replaying) recording.push({ kind: "action", id });
-}
-
-/** Note typed text for the recorder. */
-function noteTyped(text: string) {
-  if (recording && !replaying && text) recording.push({ kind: "text", text });
-}
-
-/** Note a command inserted with no action behind it — the toolbar, the palette. */
-function noteSnippet(snippet: string) {
-  if (recording && !replaying && snippet) recording.push({ kind: "snippet", snippet });
-}
-
-function toggleRecording() {
-  if (recording) {
-    finishRecording();
-    return;
-  }
-  recording = [];
-  setStatus(t("macroRecording"), "");
-  rerenderChrome();
-}
-
-async function finishRecording() {
-  const steps = macros.compact(recording ?? []);
-  recording = null;
-  const macro: macros.Macro = { id: macros.newId(), name: "", steps };
-  if (macros.isEmpty(macro)) {
-    setStatus(t("macroEmpty"), "");
-    rerenderChrome();
-    return;
-  }
-  const suggested = macros.describe(macro, macroName).slice(0, 40);
-  const name = await askText(t("macroNamePrompt"), suggested);
-  if (name === null) {
-    setStatus(t("macroDiscarded"), "");
-    rerenderChrome();
-    return;
-  }
-  macro.name = name.trim() || suggested;
-  settings.macros = [...savedMacros(), macro];
-  saveSettings();
-  // A saved macro is an action like any other from this point on: it appears in
-  // the shortcut list and can be bound to a key without another line of code.
-  reconfigureShortcuts();
-  rerenderChrome();
-  setStatus(tf("macroSaved", macro.name), "ok");
-}
-
-/** Run a macro's steps, in order, from wherever the caret is. */
-function playMacro(macro: macros.Macro, times = 1) {
-  const valid = macros.validate(macro, (id) => !!actionById(id));
-  if (valid.steps.length < macro.steps.length) {
-    // Said out loud rather than silently: a macro doing four of its five things
-    // is a macro whose next result will surprise somebody.
-    setStatus(tf("macroStepsDropped", macro.name), "");
-  }
-  const wasReplaying = replaying;
-  replaying = true;
-  try {
-  for (let i = 0; i < times; i++) {
-    for (const step of valid.steps) {
-      if (step.kind === "text") {
-        const sel = runtime.view.state.selection.main;
-        runtime.view.dispatch({
-          changes: { from: sel.from, to: sel.to, insert: step.text },
-          selection: { anchor: sel.from + step.text.length },
-        });
-      } else if (step.kind === "snippet") {
-        insertSnippet(step.snippet);
-      } else {
-        // `run` rather than `runAction`: replaying a macro must not record its
-        // own steps if the writer is recording a macro that plays another one.
-        // The outer `macroPlay` is the step, and it is already noted.
-        actionById(step.id)?.run(runtime.view);
-      }
-    }
-  }
-  } finally {
-    replaying = wasReplaying;
-  }
-  scheduleCompile();
-  runtime.view.focus();
-}
 
 /** Any action by id — built-in, structural, or a saved macro. */
 function actionById(id: string): { id: string; run: (v: EditorView) => boolean } | undefined {
@@ -4257,159 +3778,6 @@ function runAction(id: string, v: EditorView = runtime.view): boolean {
  * one that survives the registry snippet changing under it.
  */
 let inAction = 0;
-
-function deleteMacro(id: string) {
-  settings.macros = savedMacros().filter((m) => m.id !== id);
-  saveSettings();
-  reconfigureShortcuts();
-  rerenderChrome();
-}
-
-// ---------------------------------------------------------------- hydra
-//
-// One key opens a panel listing every operation available where the caret is,
-// each on a single letter, and the panel stays up so repeating is one keystroke.
-// Escape or `q` leaves. It is a third view over `STRUCTURE_ACTIONS` — not a
-// third list — so an operation added to the registry appears here the same day.
-
-let openHydraState: hydra.Hydra | null = null;
-
-/** Whatever the caret is in, opened as a hydra. */
-function openHydra() {
-  if (!runtime.view) return;
-  const doc = docTextOf(runtime.view.state.doc);
-  const pos = runtime.view.state.selection.main.head;
-  const kind = structure.structureAt(doc, pos);
-  if (!kind) {
-    setStatus(t("hydraNothingHere"), "");
-    return;
-  }
-  openHydraState = hydra.hydraFor(kind, settings.hydraKeys ?? {});
-  // Capture phase, on `window`, so the hydra genuinely gets the key before the
-  // vim and emacs plugins do. See `captureHydraKeys` for why no arrangement of
-  // the editor's extensions could achieve that. Removed by the panel's own
-  // `close` hook, which is the one path every way of closing goes through —
-  // the ×, the backdrop, Escape, and `closePanel` alike.
-  window.addEventListener("keydown", captureHydraKeys, true);
-  renderHydra();
-}
-
-function closeHydra() {
-  closePanel("hydra");
-}
-
-function renderHydra() {
-  const panel = document.getElementById("hydra")!;
-  const h = openHydraState;
-  if (!h) return;
-  const doc = docTextOf(runtime.view.state.doc);
-  const pos = runtime.view.state.selection.main.head;
-
-  let group = "";
-  const cells: Node[] = [];
-  for (const entry of h.entries) {
-    if (group && entry.action.group !== group) cells.push(el("span", { class: "hydra-break" }));
-    group = entry.action.group;
-    // Greyed rather than hidden, for the same reason the menus grey: a hydra
-    // whose contents shuffle between openings is one nobody memorises.
-    const enabled = structure.isEnabled(entry.action, doc, pos);
-    cells.push(
-      el("button", {
-        class: "hydra-key" + (enabled ? "" : " disabled"),
-        disabled: enabled ? null : "true",
-        onClick: () => runHydraEntry(entry),
-      }, [
-        // The key the writer's own keyboard can actually produce. On a Hebrew
-        // layout the physical `a` sends `ש`, so a Hebrew-interface hydra
-        // labelled `a s b d i o m v u n h` was showing eleven keys none of which
-        // existed. Both alphabets are accepted either way (see `entryFor`); this
-        // only decides which one to print.
-        el("kbd", {}, [getLang() === "he" && entry.he ? entry.he : entry.key]),
-        el("span", {}, [t(entry.action.label)]),
-      ]),
-    );
-  }
-  // A visible exit as well as Escape and `q`. The rule this codebase learned the
-  // hard way: a surface that takes over the keyboard and can only be dismissed
-  // by a key you have to already know is a surface people get stuck in. The head
-  // is built by `panelHead` like every other, which is also what put the hydra
-  // into the Escape sweep it had been missing from.
-  const head = panelHead("hydra", "structure." + h.structure, {
-    level: "h3",
-    cls: "hydra-head",
-    extra: [el("span", {}, [t("hydraHint")]), el("div", { class: "spacer" })],
-  });
-  panel.replaceChildren(head, el("div", { class: "hydra-keys" }, cells));
-  openPanel("hydra");
-}
-
-function runHydraEntry(entry: hydra.HydraEntry) {
-  // The hydra is opened by a chord and driven by a pointer-free keyboard, but
-  // it is offered from the same sticky reading the ribbon uses, so it acts on
-  // the same structure the writer can see listed.
-  const ran = runStructureAction(entry.action, true);
-  if (!ran) return;
-  if (hydra.closesAfter(entry.action)) {
-    closeHydra();
-    return;
-  }
-  // Still open, and redrawn: what is possible changes as the document does —
-  // after deleting the second-to-last row, "delete row" has to grey out.
-  requestAnimationFrame(renderHydra);
-}
-
-/**
- * The hydra's keys, while it is open — on `window`, in the capture phase.
- *
- * Swallowing every plain letter, because a transient keymap that let `r`
- * through to the document would type an `r` into the table it was meant to add
- * a row to. That much was always true. What was not true was *where* it sat.
- *
- * This was a `Prec.highest(keymap.of(…))` entry in the editor's extensions,
- * under a comment saying it was ahead of the vim and emacs keymaps. Driven in a
- * browser with vim mode on, it was not: open a list hydra, press the `a` its own
- * legend offers for "new item", and vim goes to INSERT instead. Press `b` and
- * the caret moves back a word, leaves the list, and the structure watch closes
- * the panel — eleven operations on screen with their keys beside them, and not
- * one of them doing what it said. Escape did not close it either; vim took that
- * to leave visual mode.
- *
- * No place in that array would have fixed it. `@replit/codemirror-vim` handles
- * keys from a **ViewPlugin event handler** (`vimPlugin`'s `keydown`), and a
- * plugin's DOM handlers run ahead of the whole `keymap` facet whatever its
- * precedence. Precedence orders facet inputs against each other; it does not
- * order a facet against a plugin.
- *
- * So the listener goes where being first is a property of the DOM rather than a
- * hope about a library: `window`, capture phase, above the content element every
- * one of those handlers is attached to. Installed when a hydra opens and removed
- * when it closes, so there is nothing listening the rest of the time — which
- * also means a mode gets every key exactly as it did before, because this is not
- * there to be got past.
- */
-function captureHydraKeys(event: KeyboardEvent) {
-  if (!openHydraState) return;
-  const stop = () => {
-    event.preventDefault();
-    event.stopPropagation();
-    // `stopImmediatePropagation` as well: the point is that nothing else on the
-    // way down or back up sees this key, and vim's handler is on a descendant.
-    event.stopImmediatePropagation();
-  };
-  if (event.key === "Escape" || event.key === "q") {
-    stop();
-    closeHydra();
-    return;
-  }
-  // Let modified keys through: Mod-S while a hydra is up should still save.
-  if (event.ctrlKey || event.metaKey || event.altKey) return;
-  // Tab, Enter, the arrows: not hydra keys, and swallowing them would trap the
-  // keyboard in a panel whose own × is reachable by Tab.
-  if (event.key.length !== 1) return;
-  const entry = hydra.entryFor(openHydraState, event.key);
-  stop(); // swallowed either way: an unbound letter must not be typed
-  if (entry) runHydraEntry(entry);
-}
 
 /** Perform one structural operation, wherever the caret is. */
 /**
@@ -8098,7 +7466,7 @@ function wirePanels() {
   wirePanel("review-panel", { open: renderReviewPanel, rebuild: renderReviewPanel });
   // Opening it is what asks git. Nothing polls: `git status` is a subprocess,
   // and a drawer nobody has opened must not be starting one every second.
-  wirePanel("git-panel", { open: () => voidAction("general", () => refreshGit()), rebuild: renderGitPanel });
+  wirePanel("git-panel", { open: () => voidAction("general", () => refreshGit()), rebuild: () => renderGitPanel() });
   wirePanel("keys-drawer", {
     open: () => {
       // A fresh search every time. A drawer that reopens holding the last query
@@ -8166,16 +7534,9 @@ function wirePanels() {
   // drives keys against it; outliving that structure is how it came to eat
   // keystrokes aimed at ordinary prose.
   wirePanel("hydra", {
-    close: () => {
-      openHydraState = null;
-      // Paired with `openHydra`'s `addEventListener`, and deliberately here
-      // rather than in `closeHydra`: this hook is what *every* way of closing
-      // the panel runs through — the ×, the backdrop, the Escape sweep and
-      // `closePanel` — so a capture listener on `window` cannot outlive the
-      // panel that installed it down some path nobody thought about.
-      window.removeEventListener("keydown", captureHydraKeys, true);
-      runtime.view?.focus();
-    },
+    // The reset is hydra's own state and machine; the hook is the one path
+    // every way of closing runs through, so it calls out rather than deletes.
+    close: () => resetHydra(),
   });
   wirePanel("welcome", { close: () => localStorage.setItem("ksav.onboarded", "1") });
 }
@@ -8252,7 +7613,7 @@ function installHooks() {
     newNamedDoc,
     saveFileAs,
     refreshSources,
-    recording: () => recording,
+    recording: currentRecording,
     toggleRecording,
     savedMacros,
     playMacro,
@@ -8264,7 +7625,7 @@ function installHooks() {
       if (isPanelOpen("styles-panel")) renderStylesPanel();
     },
     dismissForeignHydra: (s) => {
-      if (openHydraState && s !== openHydraState.structure) closeHydra();
+      dismissForeignHydra(s);
     },
   });
   // The palette's wiring: what the rows beyond the content registry can be.
@@ -8283,6 +7644,16 @@ function installHooks() {
   });
   // Help runs its entries through the shell's row runner.
   wireHelp({ runRow: (does) => runRow(does) });
+  // The macros' modal, rebind and action door; the recorder is macros.ts's.
+  wireMacros({
+    actionById: (id) => actionById(id) as { id: string; run: (v: unknown) => boolean } | undefined,
+    askText,
+    reconfigureShortcuts,
+  });
+  // The hydra: a structural operation performed where the caret is.
+  wireHydra({ runStructure: (action, sticky) => runStructureAction(action, sticky) });
+  // The git drawer's modal and the body swap of a commit restore.
+  wireGit({ ask, loadBody });
   // The rows' wiring: the dispatch verbs the list-shaped surfaces share.
   wireRows({
     runAction: (id) => {

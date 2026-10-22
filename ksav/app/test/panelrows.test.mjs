@@ -12,6 +12,7 @@ import {
 } from "../.tmp-test/panelrows.mjs";
 import { markersFor, notesIn } from "../.tmp-test/notes.mjs";
 import { LOOKS } from "../.tmp-test/rowlists.mjs";
+import * as commandsdrawer from "../.tmp-test/commandsdrawer.mjs";
 import { outline } from "../.tmp-test/ksav-lang.mjs";
 
 // What the four list panels list, asked directly.
@@ -499,7 +500,17 @@ export async function run() {
   // The dress every list-shaped surface's row wears is named in one table now
   // (rowlists.ts). A surface missing there — or misspelled — builds its row
   // from `undefined`, and the machinery above would run on nothing.
-  for (const who of ["outline", "notes", "marks", "history", "palette"]) {
+  for (const who of ["outline", "notes", "marks", "history", "palette", "commands"]) {
     ok(`the ${who} list has its row dress`, typeof LOOKS[who]?.row === "string");
   }
+}
+
+{
+  // The commands drawer is the fifth panel over drawRow — the sixth entry in
+  // the LOOKS table — read from the source that draws it, so a second drawing
+  // path cannot quietly fork the dress.
+  ok(
+    "the commands drawer reads the shared row dress",
+    commandsdrawer !== undefined && LOOKS.commands.row === LOOKS.palette.row,
+  );
 }

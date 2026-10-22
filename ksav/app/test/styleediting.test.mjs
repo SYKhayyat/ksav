@@ -44,6 +44,7 @@ import { dirOf } from "../tools/paths.mjs";
 
 const HERE = dirOf(import.meta.url);
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
+const MACROS_SRC = readFileSync(path.join(HERE, "..", "src", "macros.ts"), "utf8");
 const RIBBON = readFileSync(path.join(HERE, "..", "src", "ribbon.ts"), "utf8");
 const CONTEXTBAR = readFileSync(path.join(HERE, "..", "src", "contextbar.ts"), "utf8");
 const PRELUDE = readFileSync(
@@ -125,7 +126,7 @@ export async function run() {
     );
     ok(
       "...and a style row in the keys drawer is named, not a raw key",
-      /styles\.styleOfAction\(id\)[\s\S]{0,120}tf\("styleActionName"/.test(MAIN),
+      /styles\.styleOfAction\(id\)[\s\S]{0,120}tf\("styleActionName"/.test(MACROS_SRC),
     );
   }
 

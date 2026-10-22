@@ -882,7 +882,21 @@ still right.
     with its only caller), assets (139); 46 moved / 0 wiring drift (the
     borrowings were wired at earlier waves), main.ts 5,536 lines. See
     `decisions/2026-10-22-main-ts-split-wave-9-the-forms-doors-and-the-documents-tenants.md`.
-    Wave 10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+    **Wave 10 closed 2026-10-22** (`78d0e68`) — the switch machine out into
+    docswitch.ts (426: openDoc with its generation ticket, the switcher and
+    last-doc doors, close/create/duplicate/delete/rename, refreshBaseline,
+    updateTitleBar) behind a `DocswitchWiring` (makeState, syncGlobals); the
+    starter out into starter.ts (141: the two starter documents,
+    swapUntouchedStarter's exact-equality guard, CodeMirror's translated
+    search phrases) behind a `StarterWiring` (loadBody, setSetting);
+    syncGlobals/setEditingMode stayed main (compartment assembly, recorded
+    against the plan's move list), 15 moved / 0 drift, main.ts 5,068 lines,
+    and its header is now the map the end-state acceptance promised. The
+    refactor's ten waves are closed; §4 item 1's line number (≤ ~1,500) is
+    the one recorded gap — the contents test is met, but the assembly itself
+    plus one never-slated region (templates/exports, ~950 lines) put main at
+    5,068. See
+    `decisions/2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

@@ -10611,3 +10611,38 @@ formulas.ts (77), noteschooser.ts (297), assets.ts (139). main.ts
 
 Wave 10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---
+
+## 2026-10-22 · main.ts split, wave 10 — the document lifecycle and the starter; the ten waves closed
+
+**Commit `78d0e68` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,905
+assertions / 0 failed; import graph acyclic at 132 modules.
+
+The split's last planned wave: docswitch.ts (426 — openDoc with its
+switch-generation ticket, the switcher and last-doc doors, stash, close,
+refreshBaseline, create/duplicate/delete/rename, updateTitleBar) behind a
+`DocswitchWiring` (makeState, syncGlobals); starter.ts (141 — the two
+starter documents, swapUntouchedStarter's exact-equality guard, CodeMirror's
+translated search phrases) behind a `StarterWiring` (loadBody, setSetting).
+main.ts 5,536 → 5,068 lines, and its header now names every module it wires
+and the reason — rule 10, the map the end-state acceptance promised. 15
+moved, 0 drift.
+
+- **syncGlobals/setEditingMode stayed main, against the plan's move list.**
+  They are compartment composition — the stay list claims "its extension
+  composition"; moving them would have wired main to docswitch for main's
+  own assembly. Recorded, not laundered.
+- **The fences followed, including the engine's:** spell_en.rs's
+  include_str! reads starter.ts, and the two engine oracles with it — the
+  lexicon test red before the gate did, which is the fence working.
+- **The end state, honestly counted (§4):** the contents test is met —
+  boot, the notebook assembly wave 10 explicitly retained, the wirings, the
+  header map. The number is not: main.ts is 5,068, not ≤ ~1,500. The
+  assembly itself is ~3,700 comment-dense lines, and one feature region —
+  templates/exports, ~950 lines — was never slated to any wave in §3.
+  Closing that gap is one more wave-shaped move; §3 does not authorise it
+  on its own, so it is recorded as the refactor's one open decision.
+
+The ten waves are closed; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+---

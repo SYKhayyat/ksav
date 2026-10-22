@@ -202,6 +202,23 @@ export function onOpenDoc(fn: (id: string) => Promise<void>) {
   openDocHook = fn;
 }
 
+// ---- the single insertion path (`insertSnippet`) ----
+//
+// main.ts owns the insertion path until its wave moves it to `insert.ts`.
+// Modules that must write into the document go through this hook rather than
+// importing the monolith, in the shape of `onRerenderChrome`.
+let insertHook: (raw: string) => boolean = () => false;
+
+export function onInsertSnippet(fn: (raw: string) => boolean) {
+  insertHook = fn;
+}
+
+/** The one insertion path: toolbar, menu, palette, hydra, macro and key all
+ * end here — the rule in one place (`deferNoteBodies`, `insertionAt`). */
+export function insertSnippet(raw: string): boolean {
+  return insertHook(raw);
+}
+
 /** Rebuild the header and the settings drawer from current state. */
 export function rerenderChrome() {
   rerenderHook();

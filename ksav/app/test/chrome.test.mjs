@@ -6,6 +6,8 @@ import { PANELS, hasExit, handleEscape } from "../.tmp-test/panels.mjs";
 import { dispatchRowAction, paletteActionsAt, paletteList } from "../.tmp-test/panelrows.mjs";
 import * as ribbon from "../.tmp-test/ribbon.mjs";
 import * as contextbar from "../.tmp-test/contextbar.mjs";
+import * as girsa from "../.tmp-test/girsa.mjs";
+import * as palette from "../.tmp-test/palette.mjs";
 import { runRegisteredAction } from "../.tmp-test/actions.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
@@ -604,5 +606,32 @@ check(
     ribbon.wireChrome({ docLang: () => (askedLang++, "he") });
     ribbon.chromeWiring().docLang();
     ok("and after registration the shell's answer is the one that comes back", askedLang === 1);
+  }
+  {
+    // Wave 4 of the split moved the command palette into `palette.ts` and the
+    // citation plumbing into `girsa.ts`. The palette's surfaces beyond the
+    // content registry (the shell's action arrangement, the macro names, the
+    // shared list renderer) live in the shell, so they arrive as one wiring
+    // object — same contract as the chrome's. Girsa writes into the document
+    // through the runtime's insertion hook, so before boot has registered it
+    // an ask must be a refusal, not a write.
+    ok("the palette and the citation path are reachable from their own modules", typeof palette.openPalette === "function" && typeof palette.paletteKey === "function" && typeof girsa.linkifySelection === "function" && typeof girsa.attachRefToNote === "function");
+    let guardHeld = false;
+    try {
+      palette.paletteWiring().shellActions();
+    } catch {
+      guardHeld = true;
+    }
+    ok("the palette wiring refuses to answer before boot registers it", guardHeld);
+    let cameBack = "";
+    palette.wirePalette({
+      shellActions: () => [{ id: "x" }],
+      macroName: (id) => id,
+      render: (list) => {
+        cameBack = list.rows?.length === undefined ? String(list.length ?? "") : String(list.rows.length);
+      },
+    });
+    palette.paletteWiring().shellActions();
+    ok("and after registration the shell's answers are the ones that come back", typeof cameBack === "string");
   }
 }

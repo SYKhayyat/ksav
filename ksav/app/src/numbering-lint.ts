@@ -30,6 +30,7 @@ import type { EditorView } from "@codemirror/view";
 import { t, tf } from "./i18n";
 import { outOfSequence, resequenceAt } from "./numbering";
 import { docTextOf } from "./spans";
+import { settings } from "./settings";
 import { scanForBackend } from "./api";
 import * as runtime from "./runtime";
 import type { Scan } from "./spans";
@@ -86,3 +87,51 @@ const numberingLinter = linter(async (view): Promise<Diagnostic[]> => {
 });
 
 export const numberingMarks = [numberingLinter];
+
+// ------------------------------------------------------- keeping a series in order
+//
+// A siman's number is written into the source by hand, because that is what a
+// siman *is*. Insert one in the middle and `insertSnippet` renumbers the rest;
+// delete one, or move one, and nothing did — there was a warning on the line
+// and a click to take it.
+//
+// The wait is deliberately long. This rewrites the writer's own characters, and
+// doing it between two keystrokes of a numeral they are in the middle of typing
+// would be a fight rather than a help; a second of quiet is the difference
+// between "I finished an edit" and "I am mid-word".
+let renumberTimer: number | undefined;
+const RENUMBER_DEBOUNCE_MS = 1000;
+
+
+/** The debounced keeper of the series, called from the shell's change path. */
+export function scheduleRenumber() {
+  clearTimeout(renumberTimer);
+  if (settings.renumberAuto === false) return;
+  renumberTimer = window.setTimeout(renumberNow, RENUMBER_DEBOUNCE_MS);
+}
+
+/**
+ * Put every series back in order, if any of it is out.
+ *
+ * Two refusals, and both are about not fighting the writer. A selection that
+ * covers a number being rewritten is an edit in progress — leave it. And a
+ * caret **inside** one of the numerals about to change is somebody typing that
+ * numeral, which is the one case where the document is out of order *on
+ * purpose*, for as long as it takes to finish the word.
+ */
+export function renumberNow() {
+  const view = runtime.view;
+  if (!view || settings.renumberAuto === false) return;
+  const text = docTextOf(view.state.doc);
+  const wrong = outOfSequence(text);
+  if (!wrong.length) return;
+  const sel = view.state.selection.main;
+  if (wrong.some((n) => sel.from <= n.to && sel.to >= n.from)) return;
+  const changed = renumberAll(view);
+  // Said out loud, and configurably so — the item asks for it in those words.
+  // Software that rewrites the writer's own characters and says nothing is
+  // software the writer cannot trust, however right it is.
+  if (changed && settings.renumberReport !== false) {
+    runtime.setStatus(tf("renumbered", changed), "ok");
+  }
+}

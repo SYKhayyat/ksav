@@ -93,6 +93,7 @@ const INVENTORY = {
   "src/main.ts:removeAsset": "guarded; a refused removal is reported in place",
   "src/main.ts:copyShareLink": "guarded; a clipboard refusal is reported, not swallowed",
   "src/main.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
+  "src/girsa.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
   "src/main.ts:fillNotePreview": "guarded; a note that will not preview is left alone",
   "src/main.ts:openSpellMenu": "guarded; the menu's own failure path",
   "src/main.ts:linkifySelection": "guarded; a newer linkify run supersedes this one",

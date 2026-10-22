@@ -38,6 +38,10 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+// Wave 4 of the split moved the series machinery (`scheduleRenumber`,
+// `renumberNow`) into `numbering-lint.ts`; these two reads are the split's
+// halves — the shell's change path, and the machinery itself.
+const NL = readFileSync(path.join(SRC, "numbering-lint.ts"), "utf8");
 const PRELUDE = readFileSync(
   path.join(dirOf(import.meta.url), "..", "..", "engine", "typst", "ksav.typ"),
   "utf8",
@@ -189,7 +193,7 @@ export async function run() {
     );
     check(
       "...and the wait is long enough not to fight a writer mid-numeral",
-      /RENUMBER_DEBOUNCE_MS = 1000/.test(MAIN),
+      /RENUMBER_DEBOUNCE_MS = 1000/.test(NL),
       true,
     );
   }
@@ -201,12 +205,12 @@ export async function run() {
     // order on purpose.
     check(
       "an edit in progress is left alone",
-      /function renumberNow\(\)[\s\S]{0,900}sel\.from <= n\.to && sel\.to >= n\.from/.test(MAIN),
+      /function renumberNow\(\)[\s\S]{0,900}sel\.from <= n\.to && sel\.to >= n\.from/.test(NL),
       true,
     );
     check(
       "...and it can be switched off",
-      /function renumberNow\(\)[\s\S]{0,400}settings\.renumberAuto === false/.test(MAIN),
+      /function renumberNow\(\)[\s\S]{0,400}settings\.renumberAuto === false/.test(NL),
       true,
     );
     // Software that rewrites the writer's own characters and says nothing is
@@ -214,7 +218,7 @@ export async function run() {
     check(
       "and it says that it happened",
       /function renumberNow\(\)[\s\S]{0,1200}settings\.renumberReport !== false[\s\S]{0,120}renumbered/.test(
-        MAIN,
+        NL,
       ),
       true,
     );

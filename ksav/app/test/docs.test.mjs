@@ -13,6 +13,8 @@ import * as store from "../.tmp-test/store.mjs";
 import { StorageFullError } from "../.tmp-test/store.mjs";
 import { wireSnapshots, snapWiring } from "../.tmp-test/snapshots.mjs";
 import { wireGit, gitWiring } from "../.tmp-test/gitui.mjs";
+import { wireStyles, stylesWiring } from "../.tmp-test/stylespanel.mjs";
+import { wireCustomStyles, customStylesWiring } from "../.tmp-test/customstyles.mjs";
 
 export async function run() {
   // ------------------------------------------------------------ round trip
@@ -502,4 +504,30 @@ export async function run() {
   };
   wireGit(WIRING);
   ok("the git drawer's wiring hands back what was registered", gitWiring() === WIRING);
+}
+
+{
+  // The styles panel borrows what only the shell has: the destinations' rows
+  // (their own wave), the preset apply/undo, the keymap rebuild for a chord
+  // captured on a "my styles" row, and the edit door the writer's styles
+  // open through.
+  const WIRING = {
+    destinationRows: () => [],
+    applySkin: () => {},
+    undoSkin: () => {},
+    reconfigureShortcuts: () => {},
+    openStyleEditor: () => {},
+  };
+  wireStyles(WIRING);
+  ok("the styles panel's wiring hands back what was registered", stylesWiring() === WIRING);
+}
+
+{
+  // The custom styles' gestures carry no shell of their own beyond the form
+  // modal, which is registered like every other borrowing since wave 4.
+  const WIRING = {
+    openModal: () => {},
+  };
+  wireCustomStyles(WIRING);
+  ok("the custom styles' wiring hands back what was registered", customStylesWiring() === WIRING);
 }

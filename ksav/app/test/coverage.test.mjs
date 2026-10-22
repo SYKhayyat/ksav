@@ -88,6 +88,7 @@ const NOT_OFFERED = {
 export async function run() {
 
 const MAIN = read("main.ts");
+const STYLES_PANEL = read("stylespanel.ts");
 const RIBBON = read("ribbon.ts");
 const CONTEXTBAR = read("contextbar.ts");
 const commands = registry();
@@ -148,11 +149,13 @@ for (const c of commands) {
         read("styles.ts").includes(c.he),
       );
       ok(
-        `#${c.he}: and a control in main.ts writes it`,
+        `#${c.he}: and a control writes it`,
         // Either through the panel's own helper or through `styles.setStyleArgs`
         // directly — the review view is set from the review drawer, not from
         // the Styles panel, and both are controls a person can press.
         MAIN.includes(`setStyleArgs("${exempt.kindKey}"`) ||
+          STYLES_PANEL.includes(`setStyleArgs("${exempt.kindKey}"`) ||
+          STYLES_PANEL.includes(`setStyleArgs(doc, "${exempt.kindKey}"`) ||
           MAIN.includes(`setStyleArgs(doc, "${exempt.kindKey}"`),
       );
       break;
@@ -357,7 +360,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   ok("…with a key", read("bindings.ts").includes('"list.paraInItem"'));
   // Per level, which Typst has always read and no control could write.
   ok("numbering is per level", read("styles.ts").includes('"numbering-levels"'));
-  ok("…and the panel composes the pattern", MAIN.includes("function levelsControl("));
+  ok("…and the panel composes the pattern", STYLES_PANEL.includes("function levelsControl("));
   ok("a list can start at a number of its own", read("styles.ts").includes("התחלה: { kind:"));
 }
 

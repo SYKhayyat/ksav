@@ -43,6 +43,7 @@ const PRELUDE = readFileSync(path.join(ENGINE, "typst", "ksav.typ"), "utf8");
 // `styleediting.test.mjs`, and `runner.test.mjs` for the rule.
 import { COMMAND_EN } from "../.tmp-test/engine.gen.mjs";
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
+const PANEL = readFileSync(path.join(HERE, "..", "src", "stylespanel.ts"), "utf8");
 
 /** A Typst tuple of quoted names, as a list. */
 function preludeList(name) {
@@ -202,16 +203,16 @@ export async function run() {
     // The half that makes precedence legible. An apparatus overruling the
     // shared style says so, by knob name — otherwise the shared control appears
     // to do nothing for that apparatus and nothing on the screen says why.
-    ok("an apparatus that overrules the shared style says so", /function overridingShared\(/.test(MAIN));
+    ok("an apparatus that overrules the shared style says so", /function overridingShared\(/.test(PANEL));
     ok(
       "...naming the knobs it is answering for itself",
-      /overridingShared[\s\S]{0,800}SHARED_NOTE_FIELDS\[k\]\.label/.test(MAIN),
+      /overridingShared[\s\S]{0,800}SHARED_NOTE_FIELDS\[k\]\.label/.test(PANEL),
     );
     ok(
       "...on every one of the six and not on the other sections",
-      /styles\.NOTE_KINDS as readonly string\[\]\)\.includes\(section\.kind\)/.test(MAIN),
+      /styles\.NOTE_KINDS as readonly string\[\]\)\.includes\(section\.kind\)/.test(PANEL),
     );
-    ok("the shared section has rows", /function sharedNoteRows\(\)/.test(MAIN));
-    ok("...and the endnote section has its own", /function endnoteStyleRows\(\)/.test(MAIN));
+    ok("the shared section has rows", /function sharedNoteRows\(\)/.test(PANEL));
+    ok("...and the endnote section has its own", /function endnoteStyleRows\(\)/.test(PANEL));
   }
 }

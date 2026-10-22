@@ -45,6 +45,7 @@ import { dirOf } from "../tools/paths.mjs";
 const HERE = dirOf(import.meta.url);
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
 const MACROS_SRC = readFileSync(path.join(HERE, "..", "src", "macros.ts"), "utf8");
+const STYLES_PANEL = readFileSync(path.join(HERE, "..", "src", "stylespanel.ts"), "utf8");
 const RIBBON = readFileSync(path.join(HERE, "..", "src", "ribbon.ts"), "utf8");
 const CONTEXTBAR = readFileSync(path.join(HERE, "..", "src", "contextbar.ts"), "utf8");
 const PRELUDE = readFileSync(
@@ -136,14 +137,17 @@ export async function run() {
     const kinds = panelviews.STYLE_SECTIONS.map((s) => s.kind);
     ok("the styles panel has a section for the writer's own styles", kinds.includes("mine"));
     check("...and it is the first thing in it", kinds[0], "mine");
-    ok("...which the shell fills", /section\.kind === "mine"[\s\S]{0,60}myStyleRows\(\)/.test(MAIN));
+    ok(
+      "...which the shell fills",
+      /section\.kind === "mine"[\s\S]{0,60}myStyleRows\(\)/.test(STYLES_PANEL),
+    );
     ok(
       "...with one edit affordance per style rather than one for all of them",
-      /function myStyleRows\(\)[\s\S]{0,1600}openStyleEditor\(st\.name\)/.test(MAIN),
+      /function myStyleRows\(\)[\s\S]{0,1600}openStyleEditor\(st\.name\)/.test(STYLES_PANEL),
     );
     ok(
       "...and one chord per style, captured the way every other action is",
-      /function myStyleRows\(\)[\s\S]{0,1600}captureShortcut\(id, key\)/.test(MAIN),
+      /function myStyleRows\(\)[\s\S]{0,1600}captureShortcut\(id, key\)/.test(STYLES_PANEL),
     );
   }
 
@@ -179,8 +183,8 @@ export async function run() {
 
   {
     check("size is a typed value, not a preset", styles.STYLE_FIELDS["גודל"].kind, "size-em");
-    ok("...drawn as a number and a unit", /function sizeControl\(/.test(MAIN));
-    ok("...which the field control reaches for", /case "size-em":\s*\n\s*return sizeControl\(/.test(MAIN));
+    ok("...drawn as a number and a unit", /function sizeControl\(/.test(STYLES_PANEL));
+    ok("...which the field control reaches for", /case "size-em":\s*\n\s*return sizeControl\(/.test(STYLES_PANEL));
     // The regression this replaces. Named here so that putting the list back —
     // which is the cheap way to "fix" any complaint about a control — fails.
     notOk("the seven-preset list is gone", MAIN.includes('["1.15em", "115%"]'));
@@ -204,12 +208,12 @@ export async function run() {
     );
     ok(
       "the panel offers every level rather than the six that had names",
-      /length: heads\.MAX_LEVEL \}, \(_, i\) => \[\s*\n\s*String\(i \+ 1\)/.test(MAIN),
+      /length: heads\.MAX_LEVEL \}, \(_, i\) => \[\s*\n\s*String\(i \+ 1\)/.test(STYLES_PANEL),
     );
-    notOk("...and not a hand-written six", MAIN.includes("...([1, 2, 3, 4, 5, 6].map("));
+    notOk("...and not a hand-written six", STYLES_PANEL.includes("...([1, 2, 3, 4, 5, 6].map("));
     ok(
       "...and a ramp written for one level is long enough to hold it",
-      /function rampFor\(key: string\)[\s\S]{0,400}heads\.MAX_LEVEL/.test(MAIN),
+      /function rampFor\(key: string\)[\s\S]{0,400}heads\.MAX_LEVEL/.test(STYLES_PANEL),
     );
   }
 }

@@ -43,6 +43,7 @@ import { plan } from "../.tmp-test/insert.mjs";
 
 const HERE = dirOf(import.meta.url);
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
+const ROWLISTS = readFileSync(path.join(HERE, "..", "src", "rowlists.ts"), "utf8");
 const NOTES_SRC = readFileSync(path.join(HERE, "..", "src", "notes.ts"), "utf8");
 const CHANNELS_SRC = readFileSync(path.join(HERE, "..", "src", "channels.ts"), "utf8");
 const APPARATUS_SRC = readFileSync(path.join(HERE, "..", "src", "apparatus.ts"), "utf8");
@@ -283,7 +284,7 @@ export async function run() {
   // become" for itself, so the fix is that it has no answer of its own.
   ok(
     "the note menu asks notes.ts where a note could go",
-    MAIN.includes("destinationTargets(doc, note)"),
+    ROWLISTS.includes("destinationTargets(doc, note)"),
   );
   // The end anchor used to be `function closeNoteMenu`. Wave 1 of the main.ts
   // split moved that closer to `spellcheck.ts` — and the anchor had been stale
@@ -296,10 +297,7 @@ export async function run() {
   ok(
     "and does not build the list out of the destination table itself",
     !/destinationTargets|DESTINATIONS/.test(
-      MAIN.slice(MAIN.indexOf("function openNoteMenu"), MAIN.indexOf("function replaceAll(")).replace(
-        "const targets = destinationTargets(doc, note);",
-        "",
-      ),
+      ROWLISTS.slice(ROWLISTS.indexOf("function openNoteMenu"), ROWLISTS.indexOf("function drawList(")).replace("const targets = destinationTargets(doc, note);", ""),
     ),
   );
 

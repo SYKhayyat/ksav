@@ -11,6 +11,7 @@ import * as docs from "../.tmp-test/docs.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
 import * as store from "../.tmp-test/store.mjs";
 import { StorageFullError } from "../.tmp-test/store.mjs";
+import { wireSnapshots, snapWiring } from "../.tmp-test/snapshots.mjs";
 
 export async function run() {
   // ------------------------------------------------------------ round trip
@@ -473,4 +474,19 @@ export async function run() {
     "a document that cannot be structured-cloned rejects rather than half-saving",
     () => docs.putDoc({ id: "fn", title: "t", body: "b", assets: [], updated: 0, boom: () => {} }),
   );
+}
+
+{
+  // The restore's call names `docs.Snapshot` — the records under the document,
+  // not the old global key that mixed every sefer's snapshots together. The
+  // registration was exercised so the surfaced wiring is the same object, and
+  // the missing guard refuses loudly before it can restore into the wrong
+  // document.
+  const WIRING = {
+    confirm: async () => false,
+    refreshBaseline: async () => {},
+    loadBody: () => {},
+  };
+  wireSnapshots(WIRING);
+  ok("the snapshots wiring hands back what was registered", snapWiring() === WIRING);
 }

@@ -42,6 +42,7 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 const TAB = readFileSync(path.join(SRC, "tabstrip.ts"), "utf8");
 
 /** `main.ts` and `tabstrip.ts`, as one line list tagged with its source. */
@@ -110,9 +111,9 @@ export async function run() {
     check("openIn ships as reuse", shipped.openIn, "reuse");
     ok(
       "...and the three answers are all offered in the drawer",
-      MAIN.includes('["reuse", t("openIn.reuse")]') &&
-        MAIN.includes('["newTab", t("openIn.newTab")]') &&
-        MAIN.includes('["current", t("openIn.current")]'),
+      SETTINGS_DRAWER.includes('["reuse", t("openIn.reuse")]') &&
+        SETTINGS_DRAWER.includes('["newTab", t("openIn.newTab")]') &&
+        SETTINGS_DRAWER.includes('["current", t("openIn.current")]'),
     );
   }
 

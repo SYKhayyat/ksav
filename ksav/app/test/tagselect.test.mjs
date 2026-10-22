@@ -202,12 +202,13 @@ export async function run() {
   // not a fence.**
   {
     const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const drawer = readFileSync(new URL("../src/settingsdrawer.ts", import.meta.url), "utf8");
     ok(
       "the extension is in the editor's list, not merely exported",
       /tagSelectExtension\(\(\) => settings\.clickSelectsTag \?\? "whole"\)/u.test(main),
       "without this the click does nothing and every pure test still passes",
     );
-    ok("the setting has a row in Settings", /selectRow\("clickSelectsTagLabel"/u.test(main));
+    ok("the setting has a row in Settings", /selectRow\("clickSelectsTagLabel"/u.test(drawer));
     ok(
       "both keys resolve against the shared registry",
       /kb\[mode === "whole" \? "selectTagWhole" : "selectTagBody"\]/u.test(main),

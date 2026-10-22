@@ -11,6 +11,7 @@ import {
   panelRowKey,
 } from "../.tmp-test/panelrows.mjs";
 import { markersFor, notesIn } from "../.tmp-test/notes.mjs";
+import { LOOKS } from "../.tmp-test/rowlists.mjs";
 import { outline } from "../.tmp-test/ksav-lang.mjs";
 
 // What the four list panels list, asked directly.
@@ -491,5 +492,14 @@ export async function run() {
     // sixty is the failure the palette's `hidden` count exists to confess to.
     const many = Array.from({ length: PALETTE_COMMANDS + 40 }, (_, i) => command("פקודה" + i));
     check("every command is listed", commandGroups(many, {}, "", "he", "default").shown, many.length);
+  }
+}
+
+{
+  // The dress every list-shaped surface's row wears is named in one table now
+  // (rowlists.ts). A surface missing there — or misspelled — builds its row
+  // from `undefined`, and the machinery above would run on nothing.
+  for (const who of ["outline", "notes", "marks", "history", "palette"]) {
+    ok(`the ${who} list has its row dress`, typeof LOOKS[who]?.row === "string");
   }
 }

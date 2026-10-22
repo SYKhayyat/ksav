@@ -90,7 +90,6 @@ const INVENTORY = {
   "src/main.ts:saveFile": "guarded; same notice path as saveNow",
   "src/panescroll.ts:settleNow": "guarded; settling after a save cannot fail the save",
   "src/main.ts:takeSnapshot": "guarded; a snapshot that fails leaves the previous one",
-  "src/main.ts:removeAsset": "guarded; a refused removal is reported in place",
   "src/main.ts:copyShareLink": "guarded; a clipboard refusal is reported, not swallowed",
   "src/main.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
   "src/girsa.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",

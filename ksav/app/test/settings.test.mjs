@@ -35,6 +35,7 @@
 
 import { check, ok, notOk, resetStorage } from "./harness.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
+import { wireSettings, settingsWiring } from "../.tmp-test/settingsdrawer.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
@@ -86,7 +87,7 @@ function stored(raw) {
  * away, and that is a number, not a hunch.
  */
 function everyNoteSitsBesideItsOwnControl() {
-  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+  const main = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 
   // Every control row in source order, with the offset it sits at. Taken from
   // the *calls*, so the count is the number of rows a writer would walk past.
@@ -363,7 +364,7 @@ function everyPreferenceHasAControl() {
   // The pane modules (wave-2 carve) hold controls of their own — `previewSide`
   // is named by the splitter `panedrag.ts` builds — so a preference is reachable
   // if any module the application ships names it.
-  const srcs = ["main.ts", "panedrag.ts", "panehost.ts", "panescroll.ts", "panemenu.ts", "panearrangements.ts", "tabstrip.ts"]
+  const srcs = ["main.ts", "settingsdrawer.ts", "panedrag.ts", "panehost.ts", "panescroll.ts", "panemenu.ts", "panearrangements.ts", "tabstrip.ts"]
     .map((f) => readFileSync(path.join(SRC, f), "utf8"))
     .join("\n");
   // The two that are not typed into a row and never will be. `layout` is which
@@ -473,10 +474,10 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
     // would stay green through a `runRow` that went back to `jumpTo` and
     // ignored it, which is precisely the shape this repository keeps rebuilding:
     // a working mechanism nothing is wired to.
-    const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+    const main = readFileSync(path.join(SRC, "rowlists.ts"), "utf8");
     ok("a panel row goes through goToOffset", /dispatchRowAction\(does,[\s\S]*jump: goToOffset/u.test(main));
     const at = main.indexOf("function goToOffset(");
-    ok("goToOffset is a function in main.ts", at >= 0);
+    ok("goToOffset is a function in rowlists.ts", at >= 0);
     const body = main.slice(at, main.indexOf("\n}", at));
     ok("it reads the setting", body.includes("settings.outlineJump"));
     // The three answers, each doing something different. `preview` is the one
@@ -485,7 +486,7 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
     // down their own file. The caret still moves, because the preview half is
     // answered by asking the compiler where the *caret* printed.
     ok("preview leaves the source pane alone", /jumpTo\(at, where !== "preview"\)/u.test(body));
-    ok("and anything but source reveals in the preview", /where !== "source".*revealCursor/su.test(body));
+    ok("and anything but source reveals in the preview", /where !== "source".*revealCaret/su.test(body));
 
     check(
       "the three answers are the ones the setting declares",

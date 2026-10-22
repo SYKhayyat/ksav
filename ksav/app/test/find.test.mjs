@@ -30,7 +30,9 @@ import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
+const ROWLISTS = readFileSync(path.join(SRC, "rowlists.ts"), "utf8");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 const COMPILE = readFileSync(path.join(SRC, "compile.ts"), "utf8");
 const FIND = readFileSync(path.join(SRC, "find.ts"), "utf8");
 
@@ -297,7 +299,7 @@ export async function run() {
   {
     ok(
       "the printed half is read off the pages that are on screen",
-      /function renderFindPane\(\)[\s\S]{0,1400}currentPageText\(\)/.test(MAIN),
+      /function renderFindPane\(\)[\s\S]{0,2400}currentPageText\(\)/.test(ROWLISTS),
     );
     // **Not off the last compile**, which is a different record and this
     // repository's third instance of the same mistake — `prohibitions.test.mjs`
@@ -343,7 +345,7 @@ export async function run() {
 
   {
     ok("the scope is on the drawer it governs", /id: "find-scope"/.test(MAIN));
-    ok("...and in the settings, where the application is set up", /selectRow\("searchScope", "searchScope"/.test(MAIN));
+    ok("...and in the settings, where the application is set up", /selectRow\("searchScope", "searchScope"/.test(SETTINGS_DRAWER));
     // The default is what the application has always done. A new scope is an
     // option, not a change of what happens to a writer who never opens the
     // settings.

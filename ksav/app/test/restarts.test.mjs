@@ -38,6 +38,7 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 // Wave 4 of the split moved the series machinery (`scheduleRenumber`,
 // `renumberNow`) into `numbering-lint.ts`; these two reads are the split's
 // halves — the shell's change path, and the machinery itself.
@@ -222,10 +223,10 @@ export async function run() {
       ),
       true,
     );
-    check("both are rows in the settings", /checkRow\("renumberAuto", "renumberAuto"\)/.test(MAIN), true);
+    check("both are rows in the settings", /checkRow\("renumberAuto", "renumberAuto"\)/.test(SETTINGS_DRAWER), true);
     check(
       "...and reporting is its own question",
-      /checkRow\("renumberReport", "renumberReport"\)/.test(MAIN),
+      /checkRow\("renumberReport", "renumberReport"\)/.test(SETTINGS_DRAWER),
       true,
     );
   }

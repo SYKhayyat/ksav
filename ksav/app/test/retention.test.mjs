@@ -28,6 +28,8 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+const SNAPSHOTS = readFileSync(path.join(SRC, "snapshots.ts"), "utf8");
+const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 const COMPILE = readFileSync(path.join(SRC, "compile.ts"), "utf8");
 // Wave-2 carve: the preview banner lives in `panehost.ts`, the scroll link in
 // `panescroll.ts`. The fences follow the code.
@@ -88,10 +90,10 @@ export async function run() {
     // *shown*, the reason a big sefer gets fewer restore points is said in
     // words, and there is a way to stop paying it. A number with no explanation
     // and no lever is a complaint, not a control.
-    ok("the history says what it costs", /tf\(\s*"historyCost"/.test(MAIN));
-    ok("...and why a big sefer keeps fewer", /t\("historyWholeBodies"\)/.test(MAIN));
-    ok("...and offers a way to clear it", /t\("historyClear"\)/.test(MAIN) && /docs\.clearHistory\(/.test(MAIN));
-    const history = MAIN.slice(MAIN.indexOf("async function renderHistory"));
+    ok("the history says what it costs", /tf\(\s*"historyCost"/.test(SNAPSHOTS));
+    ok("...and why a big sefer keeps fewer", /t\("historyWholeBodies"\)/.test(SNAPSHOTS));
+    ok("...and offers a way to clear it", /t\("historyClear"\)/.test(SNAPSHOTS) && /docs\.clearHistory\(/.test(SNAPSHOTS));
+    const history = SNAPSHOTS.slice(SNAPSHOTS.indexOf("function renderHistory"));
     ok("...and refresh removes its whole unmanaged footer", /history-scope, \.history-footer/.test(history));
     ok("...so refresh creates one footer owner", /class: "history-footer"/.test(history));
     ok("...which takes the newest-snapshot pointer with it", /LATEST_SUFFIX/.test(
@@ -103,7 +105,7 @@ export async function run() {
 
   {
     check("the preview still updates as you type by default", DEFAULTS.previewDelay ?? "live", "live");
-    ok("...and manual is a third answer", /\["manual", t\("previewDelay\.manual"\)\]/.test(MAIN));
+    ok("...and manual is a third answer", /\["manual", t\("previewDelay\.manual"\)\]/.test(SETTINGS_DRAWER));
   }
 
   {

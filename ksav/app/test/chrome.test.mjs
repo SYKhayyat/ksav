@@ -52,6 +52,9 @@ const FILES = readdirSync(SRCDIR).filter((f) => f.endsWith(".ts"));
 const SOURCES = new Map(FILES.map((f) => [f, readFileSync(path.join(SRCDIR, f), "utf8")]));
 const MAIN = SOURCES.get("main.ts");
 const INSERT = SOURCES.get("insert.ts");
+const ROWLISTS = SOURCES.get("rowlists.ts");
+const SETTINGS_DRAWER = SOURCES.get("settingsdrawer.ts");
+const SNAPSHOTS = SOURCES.get("snapshots.ts");
 
 /** Every file but `panels.ts`, which is where all of this is allowed to live. */
 function elsewhere(re) {
@@ -391,7 +394,7 @@ check(
 // Filtering can retain a former second row while removing the selected first
 // row. The filtered result must still select its first visible row.
 {
-  const draw = MAIN.slice(MAIN.indexOf("function drawList"));
+  const draw = ROWLISTS.slice(ROWLISTS.indexOf("function drawList"));
   const body = draw.slice(0, draw.indexOf("\n}\n") + 3);
   ok("palette filtering restores first-row selection", /look\.selectable[\s\S]{0,500}remove\("sel"\)[\s\S]{0,180}add\("sel"\)/.test(body));
 }

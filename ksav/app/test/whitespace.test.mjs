@@ -181,10 +181,10 @@ export function run() {
       DEFAULTS.showWhitespace,
       false,
     );
-    ok("and the row is in the drawer", /checkRow\("showWhitespaceLabel", "showWhitespace"\)/u.test(code("main.ts")));
+    ok("and the row is in the drawer", /checkRow\("showWhitespaceLabel", "showWhitespace"\)/u.test(code("settingsdrawer.ts")));
     ok(
       "with a note saying why it is off",
-      /t\("showWhitespaceNote"\)/u.test(code("main.ts")),
+      /t\("showWhitespaceNote"\)/u.test(code("settingsdrawer.ts")),
     );
     // Both languages, or an English interface reads a Hebrew key — which is the
     // exact failure #3 was closed for.

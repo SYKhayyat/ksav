@@ -843,7 +843,7 @@ const filed = (text) => scan(text).defs.map((d) => d.name);
 // Derived from `DESTINATIONS`, so a seventh destination arrives here needing a
 // row rather than silently having none.
 {
-  const drawer = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+  const drawer = readFileSync(new URL("../src/settingsdrawer.ts", import.meta.url), "utf8");
   ok(
     "settings: the drawer carries the global answer",
     drawer.includes('"data-setting": "noteBodyHome"'),

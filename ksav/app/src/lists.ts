@@ -661,3 +661,7 @@ export function bracketLists(doc: string, supplied?: import("./spans").Scan): No
   }
   return out;
 }
+
+/** The list depths the lists feature offers — shared by the ribbon's list row
+ * and main's action-command door builder. */
+export const LIST_DEPTHS = [1, 2, 3] as const;

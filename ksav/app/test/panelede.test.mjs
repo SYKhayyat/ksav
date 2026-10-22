@@ -27,6 +27,7 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+const RIBBON = readFileSync(path.join(SRC, "ribbon.ts"), "utf8");
 const I18N = ["i18n-he.ts", "i18n-en.ts"]
   .map((file) => readFileSync(path.join(SRC, file), "utf8"))
   .join("\n");
@@ -87,7 +88,7 @@ export async function run() {
     // the chord actually reaches for.
     ok(
       "the menu offers every level",
-      /length: heads\.MAX_LEVEL \}, \(_, i\) => i \+ 1\)\.map\(\(level\) =>\s*\n\s*el\("button"/.test(MAIN),
+      /length: heads\.MAX_LEVEL \}, \(_, i\) => i \+ 1\)\.map\(\(level\) =>\s*\n\s*el\("button"/.test(RIBBON),
     );
     ok(`MAX_LEVEL is what both count off`, MAX_LEVEL >= 9);
   }
@@ -127,6 +128,6 @@ export async function run() {
       ok(`${id} has a key`, !!DEFAULT_KEYS[id]);
       ok(`...and a name`, new RegExp(`"sc\\.${id}": "`).test(I18N));
     }
-    ok("and a menu row each", /t\("entityActs"\)/.test(MAIN));
+    ok("and a menu row each", /t\("entityActs"\)/.test(RIBBON));
   }
 }

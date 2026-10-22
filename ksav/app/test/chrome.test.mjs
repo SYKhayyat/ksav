@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { PANELS, hasExit, handleEscape } from "../.tmp-test/panels.mjs";
 import { dispatchRowAction, paletteActionsAt, paletteList } from "../.tmp-test/panelrows.mjs";
+import * as ribbon from "../.tmp-test/ribbon.mjs";
+import * as contextbar from "../.tmp-test/contextbar.mjs";
 import { runRegisteredAction } from "../.tmp-test/actions.mjs";
 import { dirOf } from "../tools/paths.mjs";
 
@@ -583,4 +585,24 @@ check(
   );
 }
 
+  {
+    // Wave 3 of the main.ts split moved the toolbar and the caret strip into
+    // `ribbon.ts` and `contextbar.ts`. The surfaces themselves are checked
+    // where they are bound (toolbar.test over the ribbon) — what must hold
+    // here is the contract between the chrome and the shell: the chrome
+    // answers for nothing until boot has registered the wiring, and after
+    // registration the shell's answers are the ones that come back.
+    ok("the toolbar and the caret strip are reachable from their own modules", typeof ribbon.buildToolbar === "function" && typeof contextbar.contextBar === "function" && typeof contextbar.updateContextBar === "function");
+    let guardHeld = false;
+    try {
+      ribbon.chromeWiring();
+    } catch {
+      guardHeld = true;
+    }
+    ok("the wiring refuses to answer before boot registers it", guardHeld);
+    let askedLang = 0;
+    ribbon.wireChrome({ docLang: () => (askedLang++, "he") });
+    ribbon.chromeWiring().docLang();
+    ok("and after registration the shell's answer is the one that comes back", askedLang === 1);
+  }
 }

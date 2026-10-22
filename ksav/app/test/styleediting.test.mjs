@@ -44,6 +44,8 @@ import { dirOf } from "../tools/paths.mjs";
 
 const HERE = dirOf(import.meta.url);
 const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
+const RIBBON = readFileSync(path.join(HERE, "..", "src", "ribbon.ts"), "utf8");
+const CONTEXTBAR = readFileSync(path.join(HERE, "..", "src", "contextbar.ts"), "utf8");
 const PRELUDE = readFileSync(
   path.join(HERE, "..", "..", "engine", "typst", "ksav.typ"),
   "utf8",
@@ -119,7 +121,7 @@ export async function run() {
     );
     ok(
       "...and the keymap is rebuilt when that set changes",
-      /levelSel\.dataset\.styles = names;[\s\S]{0,600}reconfigureShortcuts\(\);/.test(MAIN),
+      /levelSel\.dataset\.styles = names;[\s\S]{0,600}reconfigureShortcuts\(\);/.test(CONTEXTBAR),
     );
     ok(
       "...and a style row in the keys drawer is named, not a raw key",
@@ -149,13 +151,13 @@ export async function run() {
     // binding has to appear there too — *"wherever the style appears"*.
     ok(
       "the style dropdown prints the style's chord",
-      /custom:\$\{s\.name\}[\s\S]{0,200}hint/.test(MAIN) &&
-        /hintFor\(styles\.styleActionId\(s\.name\)\)/.test(MAIN),
+      /custom:\$\{s\.name\}[\s\S]{0,200}hint/.test(RIBBON) &&
+        /hintFor\(styles\.styleActionId\(s\.name\)\)/.test(RIBBON),
     );
     // Through `hintFor`, so a mode that has taken the keyboard prints what to
     // type instead of a chord that now does something else. The application-wide
     // rule is `prohibitions.test.mjs`'s; this is the two new surfaces meeting it.
-    notOk("...and no new surface spells a chord itself", /readable\(kb\[/.test(MAIN));
+    notOk("...and no new surface spells a chord itself", /readable\(kb\[/.test(MAIN) || /readable\(kb\[/.test(RIBBON) || /readable\(kb\[/.test(CONTEXTBAR));
   }
 
   // ---------------------------------------------------------------- the knobs

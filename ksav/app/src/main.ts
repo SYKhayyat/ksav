@@ -71,11 +71,8 @@ import * as tabs from "./tabs";
 import type { DocAsset } from "./docs";
 import {
   ACTION_COMMAND,
-  BREAKS,
   BREAK_COMMAND,
-  BREAK_GLYPH,
   PLACED_COMMANDS,
-  actionForCommand,
   runRegisteredAction,
 } from "./actions";
 import * as store from "./store";
@@ -86,7 +83,6 @@ import {
   destinationTargets,
   markersFor,
   noteAt,
-  noteDepthAt,
   noteDestination,
   notesIn,
   regionShown,
@@ -132,7 +128,6 @@ import {
   type NotePick,
 } from "./channels";
 import * as marks from "./marks";
-import * as menus from "./menus";
 import { marksIn } from "./marks";
 import * as channels from "./channels";
 import * as apparatus from "./apparatus";
@@ -147,7 +142,6 @@ import {
   noticeHost,
   glyphBtn,
   iconBtn,
-  tbGroup,
   fieldRow,
   textField,
   numberField,
@@ -157,7 +151,21 @@ import {
   humanSize,
 } from "./dom";
 import * as runtime from "./runtime";
-import { setStatus, closeMenus, jumpTo } from "./runtime";
+import { setStatus, closeMenus, jumpTo, editDoc } from "./runtime";
+import {
+  buildToolbar,
+  buildDocsMenu,
+  buildMacroMenu,
+  buildFormatMenu,
+  buildSourcesMenu,
+  buildTableMenu,
+  buildInsertMenu,
+  lazyMenu,
+  docTextNow,
+  menu,
+  wireChrome,
+} from "./ribbon";
+import { contextBar, updateContextBar } from "./contextbar";
 import { setSafeSvg } from "./svgsafe";
 import {
   openPanel,
@@ -169,7 +177,6 @@ import {
   closeOnEscape,
   handleEscape,
   closeOnOutsideClick,
-  toggleMenu,
   panelHead,
   panelLede,
   overlayPanel,
@@ -178,7 +185,6 @@ import {
 } from "./panels";
 import { BUNDLED_NOTICES, COMMAND_EN } from "./engine.gen";
 import { bodyAt, docTextOf, plainText, scanDoc } from "./spans";
-import { minimalChange } from "./diff";
 import {
   settings,
   saveSettings,
@@ -238,7 +244,6 @@ import {
   closeTab,
   newTab,
   newDocTab,
-  openInNewTab,
   enterDoc,
   retargetPanes,
   buildTabStrip,
@@ -266,7 +271,7 @@ import * as zoom from "./zoom";
 import * as pagerange from "./pagerange";
 import * as fonts from "./fonts";
 import { troubleSaid } from "./diagnostics";
-import { docLang as modeDocLang, insertionAt, legalAt } from "./mode";
+import { docLang as modeDocLang, insertionAt } from "./mode";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as hydra from "./hydra";
@@ -274,6 +279,7 @@ import * as macros from "./macros";
 import * as help from "./help";
 import { plan as planInsertion } from "./insert";
 import * as hiding from "./hiding";
+import { LIST_DEPTHS } from "./lists";
 import * as lists from "./lists";
 import * as header from "./header";
 import * as panelrows from "./panelrows";
@@ -968,7 +974,6 @@ function insertCommand(he: string): boolean {
  * depths of it would be nine rows nobody reads. The commands themselves have no
  * such limit — `foldAll` still takes everything.
  */
-const LIST_DEPTHS = [1, 2, 3] as const;
 
 const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Every action that inserts a registry command, generated from the one table
@@ -1311,23 +1316,7 @@ function styleActions(): { id: string; run: (v: EditorView) => boolean }[] {
   }));
 }
 
-/**
- * The `<code>` that goes beside a menu item, or an empty slot.
- *
- * The empty `<span>` is not decoration: the rows are a grid, and a missing cell
- * shifts everything after it left. It survives because an action can still be
- * deliberately unbound — under a mode there is always something to say.
- *
- * `kb` is taken rather than read, so the callers that hoist it out of a loop go
- * on hoisting it: `keybindings()` rebuilds the whole map from settings on every
- * call, and the context bar asks seventeen times for one table.
- */
-function keyCode(id: string, kb?: Record<string, string>, cls?: string): HTMLElement {
-  const hint = hintFor(id, kb);
-  if (!hint) return el("span");
-  const classes = [cls, hintIsMode() ? "sc-key-mode" : ""].filter(Boolean).join(" ");
-  return classes ? el("code", { class: classes }, [hint]) : el("code", {}, [hint]);
-}
+
 
 function buildShortcutKeymap(): KeyBinding[] {
   // A mode that is really here takes the whole keyboard.
@@ -3112,53 +3101,7 @@ function moveRunningIntoDoc(which: "header" | "footer") {
   runtime.view.focus();
 }
 
-/**
- * How many heading levels the table of contents shows.
- *
- * One control that means two things depending on what the document already
- * says, and that is the point rather than a shortcut: before there is a
- * contents it decides what the next one will be, and after there is one it
- * rewrites that call. A separate "edit the contents" door would have been a
- * second implementation of one choice, which is the shape this repository keeps
- * having to collapse.
- */
-function contentsDepthRow(): HTMLElement {
-  const doc = docTextNow();
-  const live = heads.contentsDepth(doc);
-  const has = !heads.canAddContents(doc);
-  const sel = el(
-    "select",
-    {
-      id: "contents-depth",
-      onChange: (e: Event) => {
-        const raw = (e.target as HTMLSelectElement).value;
-        const depth = raw === "" ? null : Number(raw);
-        const made = has
-          ? heads.setContentsDepth(doc, depth)
-          : heads.addContents(doc, docLang(), depth);
-        closeMenus();
-        if (!made) return;
-        editDoc(made.text, made.caret);
-        runtime.view?.focus();
-      },
-    },
-    [
-      el("option", { value: "", ...(live === null ? { selected: "selected" } : {}) }, [
-        t("contentsDepthAll"),
-      ]),
-      ...[1, 2, 3, 4, 5].map((n) =>
-        el("option", { value: String(n), ...(live === n ? { selected: "selected" } : {}) }, [
-          tf("contentsDepthN", n),
-        ]),
-      ),
-    ],
-  );
-  return el("div", { class: "menu-input-row" }, [
-    el("span", { class: "menu-cat" }, [t("contentsDepth")]),
-    sel,
-    el("div", { class: "menu-desc" }, [t(has ? "contentsDepthEdits" : "contentsDepthMakes")]),
-  ]);
-}
+
 
 /** A fold: collapsible while writing, and every word of it prints. */
 function insertFold() {
@@ -3305,1124 +3248,6 @@ function toggleNikud() {
   togglePanel("nikud-bar", settings.nikud);
   reconfigureShortcuts();
   rerenderChrome();
-}
-
-// ---------------------------------------------------------------- app chrome
-//
-// Every button in this app is a glyph. That is defensible for a dense editing
-// toolbar and indefensible without names: a `title` tooltip is not an accessible
-// name, so a screen reader announced the toolbar as "†, button", "⁑, button",
-// "▤, button" — forty-two of them, page-wide, with zero `aria-label` and no
-// landmarks. Worse for everyone, sighted users included: ⁑ ⇥ ⇤ ▣ § א. ‡ ▤ ⋯ ◫
-// ◧ ⊟ ⊞ ＃ is a private vocabulary with nothing to learn it from, in a product
-// whose competition is Word's labelled ribbon groups.
-//
-// So `iconBtn` requires a name and sets `aria-label` from it, and the toolbar is
-// a set of *labelled* groups — visible captions for sighted users, `role=group`
-// with `aria-label` for assistive technology.
-
-/**
- * The open document's text, or `""` when there is no editor yet.
- *
- * The obvious spelling is a nullish coalesce straight into `docTextOf`, with an
- * empty string as the fallback — and it **throws**. `docTextOf` memoises on a
- * `WeakMap` keyed by the `Text` object, and a `WeakMap` refuses a primitive key,
- * so the branch that looks like the safe default is the one that cannot work.
- * The chrome is built once before the editor exists, which is that branch, on
- * every boot: it took the whole application down with a blank page and nothing
- * in the console, because an unhandled rejection in `boot()` is not a console
- * message.
- */
-function docTextNow(): string {
-  return runtime.view ? docTextOf(runtime.view.state.doc) : "";
-}
-
-/**
- * The paragraph-style control: what this paragraph *is*, and the two doors out.
- *
- * The dropdown is the readout — rebuilt on every selection change by
- * `updateContextBar`, so it says where the caret actually is rather than what
- * was last pressed — and it is bound to the same registry operations as
- * everything else: a level runs `heading.levelN`, "body text" unwraps.
- *
- * Three things the margin asked for and it did not have:
- *
- *   - **A number.** Nine levels in a dropdown means levels 4 to 9 are a scroll,
- *     and a writer working at depth knows the number they want. Typing it is one
- *     gesture where picking it is three.
- *   - **Other.** The tenth entry every word processor has — a style of the
- *     writer's own, named, created and applied in one act. See `styles.ts`.
- *   - **Edit this one.** The formatting behind whatever is applied here, without
- *     first working out which of the styles panel's nine sections owns it. For a
- *     heading that is the Headings section at *this* level; for a custom style it
- *     is that style's own knobs.
- */
-function paragraphStyleControl(): HTMLElement {
-  const sel = el("select", {
-    id: "heading-level",
-    class: "heading-select",
-    title: t("paragraphStyle"),
-    "aria-label": t("paragraphStyle"),
-  }) as HTMLSelectElement;
-  fillParagraphStyles(sel);
-  sel.addEventListener("change", () => applyParagraphStyle(sel.value));
-
-  // 1 to `MAX_LEVEL`, and no zero: "not a heading" is a different answer and it
-  // is the dropdown's, where it can be named. A blank box means *this paragraph
-  // is not one*, which is also what it shows when the caret is in body text.
-  const level = el("input", {
-    type: "number",
-    class: "heading-number",
-    min: 1,
-    max: heads.MAX_LEVEL,
-    step: 1,
-    id: "heading-level-number",
-    title: t("headingLevel"),
-    "aria-label": t("headingLevel"),
-  }) as HTMLInputElement;
-  level.addEventListener("change", () => {
-    const want = parseInt(level.value, 10);
-    if (!Number.isFinite(want) || want < 1 || want > heads.MAX_LEVEL) {
-      setStatus(tf("headingLevelRange", String(heads.MAX_LEVEL)), "warn");
-      updateContextBar();
-      return;
-    }
-    applyParagraphStyle(String(want));
-  });
-
-  return el("span", { class: "tb-split" }, [
-    sel,
-    level,
-    iconBtn("✎", t("editThisStyle"), () => editParagraphStyle(sel.value)),
-  ]);
-}
-
-/** The dropdown's options: body text, the levels, this document's own styles, other. */
-function fillParagraphStyles(sel: HTMLSelectElement) {
-  const doc = docTextNow();
-  sel.replaceChildren(el("option", { value: "0" }, [t("bodyText")]));
-  for (let i = 1; i <= heads.MAX_LEVEL; i++) {
-    sel.append(el("option", { value: String(i) }, [t("headingLevel" + i)]));
-  }
-  const own = styles.findCustomStyles(doc);
-  if (own.length) {
-    sel.append(
-      el(
-        "optgroup",
-        { label: t("customStyles") },
-        // The chord beside the name, which is the other half of *"that binding
-        // must appear wherever the style appears"*. An `<option>` holds text
-        // and nothing else, so it is spelled into the label — and through
-        // `hintFor`, so under a mode it prints what to type instead.
-        own.map((s) => {
-          const hint = hintFor(styles.styleActionId(s.name));
-          return el("option", { value: `custom:${s.name}` }, [
-            hint ? `${s.name} · ${hint}` : s.name,
-          ]);
-        }),
-      ),
-    );
-  }
-  sel.append(el("option", { value: "new" }, [t("newStyle")]));
-}
-
-/** What the dropdown should be showing, given where the caret is. */
-function paragraphStyleAt(doc: string, pos: number): string {
-  const own = styles.customStyleAt(doc, pos);
-  if (own) return `custom:${own.name}`;
-  const heading = heads.headingAt(doc, pos);
-  return String(heading ? heading.level : 0);
-}
-
-function applyParagraphStyle(value: string) {
-  const doc = docTextOf(runtime.view.state.doc);
-  const pos = runtime.view.state.selection.main.head;
-  if (value === "new") {
-    openNewStyle();
-    return;
-  }
-  if (value.startsWith("custom:")) {
-    applyCustomStyle(value.slice("custom:".length));
-    return;
-  }
-  const want = parseInt(value, 10);
-  if (want === 0) {
-    // Body text unwraps whichever of the two this paragraph is. The custom style
-    // first, because a styled heading is a heading with a wrapper inside it and
-    // taking the outer one off would take the heading with it.
-    const own = styles.customStyleAt(doc, pos);
-    if (own) {
-      unwrapCustomStyle(own.name);
-      return;
-    }
-    const h = heads.headingAt(doc, pos);
-    if (!h) return;
-    // Null for a heading whose level the prelude fixes (`#סימן`): unwrapping
-    // one would drop its number, which is the writer's text.
-    const e = heads.unwrapHeading(doc, h);
-    if (!e) return;
-    editDoc(e.text, e.caret);
-    scheduleCompile();
-    runtime.view.focus();
-    return;
-  }
-  const action = structure.actionById(`heading.level${want}`);
-  if (action) runStructureAction(action);
-  runtime.view.focus();
-}
-
-/** The pencil: open whatever is applied here for editing, and say when nothing is. */
-function editParagraphStyle(value: string) {
-  if (value.startsWith("custom:")) {
-    openStyleEditor(value.slice("custom:".length));
-    return;
-  }
-  const level = parseInt(value, 10);
-  if (!level) {
-    // Body text has no style of its own to open — the document's own text
-    // settings are page setup, which is a different drawer, so say that rather
-    // than opening the wrong one.
-    setStatus(t("noStyleToEdit"), "warn");
-    return;
-  }
-  // The Headings section already edits per-level design; this points it at the
-  // level in hand, which is the step a writer otherwise has to work out.
-  headingLevel = level;
-  openStyles();
-}
-
-/**
- * The colour the highlighter is about to use.
- *
- * Session state and not a setting: it is the *last colour picked*, which is what
- * every word processor's highlighter remembers and what nobody wants to find in
- * a settings drawer. It starts on Typst's own default so the button, the palette
- * and `#סימון[…]` typed by hand all put the same thing on the page.
- */
-let highlightColour = styles.DEFAULT_HIGHLIGHT;
-
-/**
- * The highlighter, and the colour it will use.
- *
- * *"Highlight should offer a colour"* — and the engine had offered one all
- * along, under a second name (`#רקע`) that the toolbar was not wired to. The
- * colour is an argument on `#סימון` now, so this is one control: press the pen
- * to highlight, press the swatch to change what colour it highlights in. The
- * swatch is a real `input[type=color]` rather than a palette of five, because
- * the argument takes any colour and a fixed palette would be the product being
- * narrower than the document format again.
- */
-function highlightControl(writing: Lang): HTMLElement {
-  const cmd = runtime.commandsReg.find((c) => c.he === "סימון");
-  if (!cmd) return el("span");
-  const name = writing === "he" ? cmd.he : cmd.en;
-  const desc = getLang() === "he" ? cmd.desc_he : cmd.desc_en;
-  const swatch = el("input", {
-    type: "color",
-    class: "tb-swatch",
-    value: highlightColour,
-    title: t("highlightColour"),
-    "aria-label": t("highlightColour"),
-  }) as HTMLInputElement;
-  const apply = () => {
-    highlightColour = swatch.value;
-    // The default colour is written as the bare command, so the common case
-    // leaves the source exactly as it was before there was a swatch — and a
-    // document-wide restyle of highlights stays possible for the writer who
-    // never asked for a particular one.
-    // Written in Hebrew and translated by `insert.plan`, like every other
-    // snippet: an English document gets `#mark(color: …)`.
-    insertSnippet(
-      highlightColour.toLowerCase() === styles.DEFAULT_HIGHLIGHT
-        ? "#סימון[|]"
-        : `#סימון(צבע: rgb(${typstString(highlightColour)}))[|]`,
-    );
-  };
-  // Picking a colour highlights with it. A swatch that only *records* a choice
-  // would make every use two gestures, and the second one invisible.
-  swatch.addEventListener("change", apply);
-  return el("span", { class: "tb-split" }, [
-    iconBtn("🖍", `${desc} · #${name}`, apply, "", { "data-command": cmd.he }),
-    swatch,
-  ]);
-}
-
-/**
- * A note button, labelled with its name *and* its shortcut.
- *
- * `snippet: null` means "read the caret" — the tiered note is `#הערה_א` in
- * prose, `#הערה_ב` inside a note and `#הערה_ג` inside two, which is the only
- * way one button can mean "a note on this".
- */
-function noteBtn(action: string, glyph: string, snippet: string | null): HTMLElement {
-  const hint = hintFor(action);
-  const title = t("sc." + action) + (hint ? ` · ${hint}` : "");
-  // `iconBtn` writes `title` **and** `aria-label` from the one string above, so
-  // one `data-i18n-both` covers both — and the chord is an argument rather than
-  // part of the key, because `Ctrl+Shift+F` is `Ctrl+Shift+F` in Hebrew and the
-  // sentence around it is not. Measured 2026-09-27: this one function left every
-  // note button in Hebrew after a switch to English.
-  const i18n: Record<string, string> = hint
-    ? { "data-i18n-both": "msg.shortcut", "data-i18n-both-args": JSON.stringify([`:sc.${action}`, hint]) }
-    : { "data-i18n-both": `sc.${action}` };
-  return iconBtn(
-    glyph,
-    title,
-    () => {
-      const st = runtime.view.state;
-      insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
-    },
-    "",
-    { "data-action": action, ...i18n },
-  );
-}
-
-function buildToolbar(): HTMLElement {
-  const lang = getLang();
-  // Two languages in one tooltip, and they are not the same question. The
-  // *description* is the interface's, because it is being read; the **command
-  // name** is the document's, because it is what the button is about to write.
-  // An English toolbar reading "Bold text · #הדגשה" over a button that inserts
-  // `#bold` is naming something that will not be in the document.
-  const writing = docLang();
-  const byName = (he: string) => runtime.commandsReg.find((c) => c.he === he);
-  /**
-   * A button in a group its category does not name, with the reason why.
-   *
-   * The ribbon groups by *what a writer reaches for*; the registry groups by
-   * *what a command is*. Those two agree almost everywhere, and where they do
-   * not, the disagreement is a product decision worth writing down rather than
-   * a mistake worth hiding. `toolbar.test.mjs` checks membership against the
-   * registry and lets a `guest` through — so the check stays total, and every
-   * exception to it is one line away from the button it excuses.
-   *
-   * `why` is never read at runtime. It is there to be read by a person, and to
-   * make declaring a guest cost a sentence of justification rather than nothing.
-   */
-  const guest = (he: string, label: string, _why: string) => b(he, label);
-  const b = (he: string, label: string) => {
-    const c = byName(he);
-    if (!c) return el("span");
-    const title = lang === "he" ? c.desc_he : c.desc_en;
-    return iconBtn(label, `${title} · #${writing === "he" ? c.he : c.en}`, () => insertSnippet(c.insert), "", {
-      "data-command": c.he,
-    });
-  };
-
-  return el("div", { class: "toolbar", role: "toolbar", "aria-label": t("toolbar") }, [
-    tbGroup(t("cat.style"), [
-      b("הדגשה", "B"),
-      b("נטוי", "I"),
-      b("קו_תחתון", "U"),
-      b("קו_חוצה", "S"),
-      highlightControl(writing),
-    ]),
-    // The paragraph-style control, which is a word processor's single most-used
-    // widget and which Ksav did not have. Three fixed buttons could only reach
-    // three of nine levels, and could not tell the writer which one they were
-    // standing in — a dropdown does both, and is where a Word user looks first.
-    // **"Styles", not "Headings".** Reported from the writing side: *"it says
-    // Heading, when it should be styles"*, and they were right about what the
-    // group holds. The dropdown under this label offers body text, the nine
-    // heading levels, **every style the writer has defined in this document**,
-    // and "new style…" — so a label naming one of those four was telling a
-    // writer their own styles were somewhere else. It is the Styles group in
-    // every word processor there is, for the same reason.
-    //
-    // Its own key rather than a changed one: `cat.heading` is the *command
-    // registry's* category, and the Insert menu's Headings section is correctly
-    // named by it.
-    tbGroup(t("styleGroup"), [paragraphStyleControl()]),
-    tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1.")]),
-    // Its own group, because a table is not a list.
-    //
-    // `#טבלה` sat in the group captioned "Lists" until a writer said so:
-    // *"Table is still under lists. That is not at all accurate."* — and
-    // "still" is the word that matters. `menus.ts` had already given tables
-    // their own menu, and `commands.rs` had already categorised every table
-    // command as `table`; the ribbon is hand-assembled and had never heard of
-    // either. So the taxonomy was fixed in the two places that publish it and
-    // wrong in the one place a writer actually looks.
-    //
-    // The captions here **are** registry category keys, which is what makes
-    // `toolbar.test.mjs` able to check membership against the registry rather
-    // than against a second list. That check is the point of this change: one
-    // misfiled button is a nuisance, and the mechanism that let it stay misfiled
-    // through a taxonomy rewrite is the defect.
-    tbGroup(t("cat.table"), [b("טבלה", "▦")]),
-    // The toolbar told the truth about one of these three.
-    //
-    // `†` was right. `⁑` inserted `#הערה_על_הערה`, which sounds like the tiered
-    // mechanism and is a cosmetic alias — 0.6pt smaller and slanted, in the same
-    // block and the same running sequence — while the real tiered note had no
-    // button at all. And the endnote, which the engine has always had, was
-    // reachable from nowhere: no button, no Insert item, and picking it out of
-    // the palette silently lost every note because nothing wrote the dump call.
-    // A writer clicks what the toolbar offers, so the toolbar has to offer the
-    // thing it names.
-    // Three, not four. `⁑` — a note *on* a note, which renders as a slightly
-    // smaller, indented, separately-lettered entry in the same block — is a real
-    // sefer apparatus and a rare one, and the toolbar is the most expensive
-    // surface in the product. It keeps its Insert-menu item, its place in the
-    // Notes chooser and `Ctrl+Shift+N`; it does not keep a button beside the
-    // footnote that nearly everybody actually wants.
-    tbGroup(t("cat.footnote"), [
-      noteBtn("footnote", "†", "#הערה[|]"),
-      noteBtn("endnote", "⁋", "#הערתסיום[|]"),
-      // And the third one was a blue box.
-      //
-      // This was `b("הערת_צד", "▣")` — `#הערת_צד`, which the registry calls
-      // `callout` and describes as *תיבת הדגשה (כחול)*. Its Hebrew name reads
-      // "side note", it sat between the footnote and the endnote, and a writer
-      // who wanted a note down the margin pressed it and got a blue box. The
-      // real margin note, `#הערת_גיליון`, had no button at all — only the Notes
-      // chooser, under "margin", for whoever thought to look.
-      //
-      // Which is the same sentence as the paragraph above about `⁑`, written
-      // about a different button in the same group. A note button that inserts
-      // something other than a note is this group's recurring failure, and
-      // `toolbar.test.mjs` now checks the group against the registry so the
-      // third instance is caught by a test rather than by a writer.
-      noteBtn("sidenote", "▣", "#הערת_גיליון[|]"),
-    ]),
-    tbGroup(t("cat.align"), [b("ימין", "⇥"), b("מרכז", "≡"), b("שמאל", "⇤")]),
-    tbGroup(t("cat.torah"), [
-      // A guest, declared rather than smuggled.
-      //
-      // `#ציטוט` is a block quote and the registry is right to categorise it
-      // `block`. It is here because of what a writer setting a sefer is doing
-      // when they reach for the toolbar: quoting is the gesture that sits
-      // beside siman, se'if and mareh makom, and the block-quote category holds
-      // nothing else anyone reaches for at that moment.
-      //
-      // `guest` exists so that this is a *statement* with a reason attached to
-      // the button, and not an exception list inside `toolbar.test.mjs`. An
-      // exception list in the test would be a second opinion about the taxonomy
-      // kept in the one file whose job is to have no opinions — which is the
-      // exact shape of the problem that put the table under Lists.
-      guest("ציטוט", "❝", "a sefer quotes where it cites; block holds nothing else a writer reaches for here"),
-      b("סימן", "§"),
-      b("סעיף", "א."),
-      b("מראה_מקום", "‡"),
-    ]),
-    tbGroup(t("tools"), [
-      // "Region" until this button got a name that says what it does. It makes
-      // a fold — the text prints in full — and `#אזור` is now a real command
-      // for a fixed area on the page, so the old label named the wrong one of
-      // the two things it could have meant.
-      iconBtn("▤", t("fold"), insertFold),
-      iconBtn("⋯", t("palette"), openPalette),
-    ]),
-  ]);
-}
-
-// A Word-like Insert menu: every command from the registry, grouped by
-// category, so nothing requires knowing the markup.
-/** The Documents menu: every document in the library, newest first. */
-function buildDocsMenu(): HTMLElement {
-  return lazyMenu("documents", "🗂 " + t("documents"), docsMenuItems);
-}
-
-/**
- * Rebuilt on every open, so it never shows a stale library.
- *
- * **Two lists, and they are two different facts.** *Open* is what this session
- * is holding — with a caret, an undo history and a scroll position each. *All
- * documents* is what exists. Before the open set they were the same list with a
- * dot on one row, which is exactly the conflation that made "new document" look
- * like it had destroyed the open one.
- *
- * The controls on each row are deliberately unlike each other. Closing puts a
- * document away and destroys nothing; deleting destroys it. The inventory is
- * blunt about this — *"closing and deleting appearing as the same glyph in two
- * strips is not survivable"* — so the close control is a `⌄` labelled "close",
- * and `×` continues to mean delete and only delete.
- */
-function docsMenuItems(): (Node | string)[] {
-  const items: (Node | string)[] = [
-    el("button", {
-      class: "menu-item",
-      // Named for the same reason the rows below carry `data-doc`: the label is
-      // translated, and the acceptance run has to be able to say *this* item.
-      "data-doc-action": "new",
-      onClick: () => voidAction("save_file", () => newNamedDoc()),
-    }, [t("newDoc")]),
-    // **Here**, and not in the arrangement panel, because this is where a writer
-    // asks for a new anything. The arrangement panel is where somebody who
-    // already knows what an arrangement is goes to change one; the report
-    // *"I don't see how to make a new tab"* came from a writer who did not, and
-    // who had — correctly — looked under Documents first.
-    el("button", {
-      class: "menu-item",
-      "data-doc-action": "new-tab",
-      onClick: () => voidAction("save_file", () => newDocTab()),
-    }, [`${t("newDocTab")} · ${hintFor("newDocTab")}`]),
-    el("button", { class: "menu-item", onClick: renameDoc }, [t("rename")]),
-    // "Save as" already existed, in the File menu. The margin comment asking
-    // *"do we have a save as something else.ksav option?"* was written by
-    // somebody looking at the document's name and its filename side by side and
-    // wondering how to change the second — which is here, not under File. The
-    // command is the same one; this is a second door onto it, at the place the
-    // question gets asked.
-    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => saveFileAs()) }, [t("saveAs")]),
-    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => duplicateDoc(runtime.currentDoc.id)) }, [
-      t("duplicate"),
-    ]),
-  ];
-
-  // The open set, most recently focused first — the order the switcher uses, so
-  // the two surfaces agree about what "the last document" means.
-  const open = opendocs.openDocs();
-  if (open.length > 1) {
-    items.push(el("div", { class: "menu-sep" }));
-    items.push(el("div", { class: "menu-cat" }, [`${t("openDocs")} · ${hintFor("switcher")}`]));
-    for (const entry of open) {
-      const meta = docs.library().find((e) => e.id === entry.id);
-      if (!meta) continue;
-      const here = entry.id === opendocs.focusedId();
-      items.push(
-        el("div", { class: "menu-item-row" }, [
-          el(
-            "button",
-            {
-              class: "menu-item menu-item-main" + (here ? " active" : ""),
-              // Which document this row switches to, for anything outside this
-              // file that has to say *that* one — the acceptance run's tab
-              // switch, today. The title is not an identity: two documents may
-              // share one, and it is translated besides.
-              "data-doc": entry.id,
-              onClick: () => {
-                closeMenus();
-                voidAction("save_file", () => enterDoc(entry.id));
-              },
-            },
-            [
-              el("b", {}, [(here ? "● " : "") + meta.title]),
-              el("span", { class: "menu-desc" }, [meta.fileName ?? ""]),
-            ],
-          ),
-          // Three controls on a row and three different amounts of destruction,
-          // which is the whole reason none of them share a glyph: `⧉` opens a
-          // second window onto this document and destroys nothing, `⌄` puts it
-          // away and destroys nothing, and in the library below `×` destroys the
-          // sefer. The inventory is blunt that two of those appearing as one
-          // glyph "is not survivable"; a third had to keep clear of both.
-          glyphBtn(
-            "⧉",
-            t("openInNewTab"),
-            (e: Event) => {
-              e.stopPropagation();
-              voidAction("save_file", () => openInNewTab(entry.id));
-            },
-            "menu-newtab",
-          ),
-          glyphBtn(
-            "⌄",
-            t("closeDoc"),
-            (e: Event) => {
-              e.stopPropagation();
-              voidAction("save_file", () => closeOpenDoc(entry.id));
-            },
-            "menu-close",
-          ),
-        ]),
-      );
-    }
-  }
-
-  items.push(el("div", { class: "menu-sep" }));
-  items.push(el("div", { class: "menu-cat" }, [t("library")]));
-  for (const entry of docs.library()) {
-    const here = entry.id === opendocs.focusedId();
-    const isOpen = opendocs.isOpen(entry.id);
-    items.push(
-      el("div", { class: "menu-item-row" }, [
-        el(
-          "button",
-          {
-            class: "menu-item menu-item-main" + (here ? " active" : ""),
-            "data-doc": entry.id,
-            onClick: () => {
-              closeMenus();
-              voidAction("save_file", () => enterDoc(entry.id));
-            },
-          },
-          [
-            // A document already open is marked as such, so a writer can see
-            // that choosing it will switch to what they left rather than
-            // reopening it from disk.
-            el("b", {}, [(here ? "● " : isOpen ? "◦ " : "") + entry.title]),
-            el("span", { class: "menu-desc" }, [
-              [entry.fileName, new Date(entry.updated).toLocaleString()].filter(Boolean).join(" · "),
-            ]),
-          ],
-        ),
-        glyphBtn(
-          "⧉",
-          t("openInNewTab"),
-          (e: Event) => {
-            e.stopPropagation();
-            voidAction("save_file", () => openInNewTab(entry.id));
-          },
-          "menu-newtab",
-        ),
-        el("button", {
-          class: "menu-del",
-          title: t("delete"),
-          "aria-label": t("delete"),
-          onClick: (e: Event) => {
-            e.stopPropagation();
-            void removeDoc(entry.id);
-          },
-        }, ["×"]),
-      ]),
-    );
-  }
-  return items;
-}
-
-/**
- * A Word-style menu over the structural registry.
- *
- * Same operations as the contextual ribbon, same enabled/disabled rule, same
- * keys — because they are the same list. The ribbon is for the writer who is
- * already in a table; a menu is for the one who is looking for the feature and
- * does not yet know that standing in a table is what reveals it. Word has both
- * for exactly that reason, and an item that greys out is itself information:
- * "this exists, and not here".
- *
- * The key is printed beside each item. A shortcut nobody can find is the same as
- * no shortcut.
- */
-function structureMenuItems(structures: structure.Structure[]): (Node | string)[] {
-  const doc = runtime.view ? docTextOf(runtime.view.state.doc) : "";
-  const caret = runtime.view?.state.selection.main.head ?? 0;
-  const pos = structure.structureNear(doc, caret)?.pos ?? caret;
-  const kb = keybindings();
-  const items: (Node | string)[] = [];
-
-  for (const kind of structures) {
-    const actions = structure.STRUCTURE_ACTIONS.filter((a) => a.structure === kind);
-    if (actions.length === 0) continue;
-    items.push(el("div", { class: "menu-cat" }, [t("structure." + kind)]));
-    let group = "";
-    for (const action of actions) {
-      if (group && action.group !== group) items.push(el("div", { class: "menu-sep" }));
-      group = action.group;
-      // Computed against the live document, so the menu tells the truth about
-      // this caret rather than about tables in general — and *asked*, not found
-      // out by running the operation and looking at the wreckage.
-      const why = structure.whyNot(action, doc, pos);
-      const enabled = why === null;
-      items.push(
-        el(
-          "button",
-          {
-            class: "menu-item menu-cmd" + (enabled ? "" : " disabled"),
-            disabled: enabled ? null : "true",
-            title: why ? t(why) : "",
-            onClick: () => {
-              closeMenus();
-              runStructureAction(action, true);
-            },
-          },
-          [
-            el("b", {}, [`${action.glyph}  ${t(action.label)}`]),
-            keyCode(action.id, kb),
-            // On screen, not on a tooltip. A greyed item says "this exists, and
-            // not here"; without the second half the writer is left to guess
-            // which of eighteen greyed arrows is greyed for its own reason and
-            // which because the caret is nowhere near a table. A tooltip does
-            // not answer that — it answers one item at a time, to whoever
-            // thinks to hover, and never on a touchscreen.
-            ...(why ? [el("span", { class: "menu-why" }, [t(why)])] : []),
-          ],
-        ),
-      );
-    }
-  }
-  return items;
-}
-
-/**
- * The Macros menu.
- *
- * Rebuilt on every open (`lazyMenu`), so a macro recorded thirty seconds ago is
- * in it, and one deleted is not. Each saved macro shows what it actually does
- * rather than only its name — a list of names is a list of things nobody
- * remembers the contents of, and a macro you cannot remember is a macro you
- * will not run.
- */
-function buildMacroMenu(): HTMLElement {
-  return lazyMenu("macros", "⏺ " + t("macros"), () => {
-    const kb = keybindings();
-    const items: (Node | string)[] = [
-      el("button", { class: "menu-item", onClick: () => (closeMenus(), toggleRecording()) }, [
-        el("b", {}, [recording ? "⏹  " + t("macroStop") : "⏺  " + t("macroRecord")]),
-        el("span", { class: "menu-desc" }, [t("macroRecordLede")]),
-      ]),
-      el("div", { class: "menu-sep" }),
-      el("div", { class: "menu-cat" }, [t("macroSaved2")]),
-    ];
-    const all = savedMacros();
-    if (!all.length) {
-      items.push(el("div", { class: "menu-desc", style: "padding: 6px 9px" }, [t("macroNone")]));
-      return items;
-    }
-    for (const m of all) {
-      const hint = hintFor(macros.actionIdOf(m), kb);
-      items.push(
-        el("div", { class: "menu-item-row" }, [
-          el("button", {
-            class: "menu-item menu-item-main",
-            onClick: () => (closeMenus(), playMacro(m)),
-          }, [
-            el("b", {}, [m.name]),
-            el("span", { class: "menu-desc" }, [
-              macros.describe(m, macroName) + (hint ? "  ·  " + hint : ""),
-            ]),
-          ]),
-          // Repeat, which is the reason a macro exists: the writer did the thing
-          // once and has eleven more to go.
-          el("button", {
-            class: "menu-del",
-            title: t("macroRepeat"),
-            onClick: async (e: Event) => {
-              e.stopPropagation();
-              const n = parseInt((await askText(t("macroRepeatPrompt"), "10")) ?? "", 10);
-              if (Number.isFinite(n) && n > 0) {
-                closeMenus();
-                playMacro(m, Math.min(n, 500));
-              }
-            },
-          }, ["×n"]),
-          el("button", {
-            class: "menu-del",
-            title: t("delete"),
-            "aria-label": t("delete"),
-            onClick: (e: Event) => {
-              e.stopPropagation();
-              deleteMacro(m.id);
-            },
-          }, ["×"]),
-        ]),
-      );
-    }
-    return items;
-  });
-}
-
-/** The categories the registry publishes, in the order it declares them. */
-function registryCategories(): string[] {
-  const cats: string[] = [];
-  for (const c of runtime.commandsReg) if (!cats.includes(c.category)) cats.push(c.category);
-  return cats;
-}
-
-function buildFormatMenu(): HTMLElement {
-  return lazyMenu("format", "¶ " + t("format"), () => [
-    // First, because it is the one thing a writer standing in prose can do to a
-    // list — every operation below it needs a list to already exist, and the
-    // margin note *"it looks like it is not a list"* was written by somebody
-    // who had none and no way to make one out of what they had typed.
-    el("button", { class: "menu-item", onClick: () => (closeMenus(), makeListHere()) }, [
-      el("b", {}, ["≔ " + t("makeList")]),
-      keyCode("makeList"),
-      el("span", { class: "menu-desc" }, [t("makeListLede")]),
-    ]),
-    el("div", { class: "menu-sep" }),
-    // The three acts on the construct in hand. Named for what they do to the
-    // *writer's words* rather than for the markup, because that is the
-    // distinction the report is about: one of these keeps them and one does
-    // not, and hand-deleting brackets is what a writer does when neither is
-    // offered. See `entity.ts`.
-    el("div", { class: "menu-cat" }, [t("entityActs")]),
-    ...([
-      ["select", "⌖", "sc.entitySelect", "entitySelect"],
-      ["unwrap", "⌫", "sc.entityUnwrap", "entityUnwrap"],
-      ["remove", "✕", "sc.entityRemove", "entityRemove"],
-    ] as const).map(([what, glyph, label, id]) =>
-      el("button", { class: "menu-item", onClick: () => (closeMenus(), entityAct(what)) }, [
-        el("b", {}, [`${glyph} ${t(label)}`]),
-        keyCode(id),
-      ]),
-    ),
-    el("div", { class: "menu-sep" }),
-    ...structureMenuItems(["heading", "list"]),
-    el("div", { class: "menu-cat" }, [t("foldLevels")]),
-    // Fold *to* a depth. The chips beside the toolbar take everything down or
-    // put everything back, which is the only folding this product could do from
-    // a door — and not the one somebody with a 300-page sefer wants.
-    ...Array.from({ length: heads.MAX_LEVEL }, (_, i) => i + 1).map((level) =>
-      el("button", { class: "menu-item", onClick: () => (closeMenus(), foldToLevel(runtime.view, level)) }, [
-        el("b", {}, [`⊟ ${tf("foldLevel", String(level))}`]),
-        keyCode(`foldLevel${level}`),
-      ]),
-    ),
-    // The other nesting. A list's depth is not a heading level and no surface
-    // could ask about it — *"the same for the siman/seif hierarchy and for
-    // lists, each of which has its own nesting"*. Simanim are headings, so the
-    // levels above already reach them; lists needed their own row.
-    el("div", { class: "menu-cat" }, [t("foldListDepths")]),
-    ...LIST_DEPTHS.map((depth) =>
-      el("button", { class: "menu-item", onClick: () => (closeMenus(), foldListsToDepth(runtime.view, depth)) }, [
-        el("b", {}, [`⊟ ${tf("foldListDepth", String(depth))}`]),
-        keyCode(`foldListDepth${depth}`),
-      ]),
-    ),
-    el("button", { class: "menu-item", onClick: () => (closeMenus(), void unfoldAll(runtime.view)) }, [
-      el("b", {}, ["⊞ " + t("unfoldAll")]),
-      keyCode("unfoldAll"),
-    ]),
-    el("div", { class: "menu-sep" }),
-    // Bold, italic, the colours and the three alignments. They were in Insert,
-    // which is a menu for putting something on the page, and not one of them
-    // does that: every one of them needs text to already be there. See
-    // `menus.ts` for the rule and for what it costs to have had none.
-    ...commandRows(menus.categoriesIn("format", registryCategories())),
-  ]);
-}
-
-/**
- * The three errands that go to the library, given a door.
- *
- * Inventory item 73: the service that justifies a whole process boundary with
- * Girsa had no caller at all for a long stretch, and when it got one, the one
- * it got was the command palette — which answers *"I know what I want, get me
- * there"* and cannot answer *"what is there?"*. Two of the three were worse
- * than palette-only: they were a literal `e.key` comparison in `wireKeys`,
- * which is a shortcut with no name, no entry and no way to find out it exists.
- *
- * A menu of their own rather than rows added to Insert or Format, because the
- * rule those two menus follow is about the *page* — Insert puts something new
- * on it, Format changes what is there — and not one of these does either. They
- * all ask the library a question about the words already written.
- *
- * Nothing here is hidden when Girsa is absent. Every one of them says
- * `girsaNeedsApp` when it is, which is a sentence a writer can act on; a menu
- * that quietly loses three items in the browser build is a product that looks
- * different for no stated reason.
- */
-function buildSourcesMenu(): HTMLElement {
-  return lazyMenu("sources", "⚯ " + t("sourcesMenu"), () => {
-    const kb = keybindings();
-    const item = (id: string, glyph: string, run: () => void) =>
-      el("button", { class: "menu-item", onClick: () => (closeMenus(), run()) }, [
-        el("b", {}, [`${glyph} ${t("sc." + id)}`]),
-        keyCode(id, kb),
-        el("span", { class: "menu-desc" }, [t(id + "Lede")]),
-      ]);
-    return [
-      item("citePhrase", "⌕", () => void askForMekor()),
-      item("linkifyCitations", "⚯", () => void linkifySelection()),
-      el("div", { class: "menu-sep" }),
-      item("refreshSources", "↻", () => void refreshSources()),
-    ];
-  });
-}
-
-function buildTableMenu(): HTMLElement {
-  return lazyMenu("table", "▦ " + t("tableMenu"), () => [
-    el("button", {
-      class: "menu-item",
-      onClick: () => {
-        closeMenus();
-        // The third hand-written copy of this snippet. The three agreed, which
-        // was luck: `commands.rs:97-102` records that a bare `עמודות: 2` lets
-        // Typst size each column to its contents, so an empty new table renders
-        // as a thumbnail shoved against the margin — a fix that landed in the
-        // registry and would have had to be remembered here twice more.
-        insertCommand(ACTION_COMMAND.table);
-      },
-    }, [el("b", {}, ["▦  " + t("insertTable")])]),
-    el("div", { class: "menu-sep" }),
-    ...structureMenuItems(["table"]),
-    // The cell commands and the table configuration line, beside the operations
-    // that act on a table. They were under Insert, three menus away from every
-    // other thing about a table.
-    ...commandRows(menus.categoriesIn("table", registryCategories())),
-  ]);
-}
-
-/**
- * The Insert menu.
- *
- * `lazyMenu`, and not by accident: the items are rebuilt every time the menu
- * opens, because whether a command is legal *here* depends on where the caret
- * is. Built once at startup — which is what it used to do, through `menu()`,
- * which takes an already-constructed array — every entry was evaluated against
- * an empty document at position 0, where everything is legal, and the greying
- * this menu exists to show never appeared. Caught by driving the running app,
- * not by any test: a menu that is wrong only after the caret moves looks
- * perfectly correct in a screenshot of the source.
- */
-function buildInsertMenu(): HTMLElement {
-  return lazyMenu("insert", "➕ " + t("insert"), insertMenuItems);
-}
-
-function insertMenuItems(): (Node | string)[] {
-  const kb = keybindings();
-  // Read once for the whole menu, and read here rather than per row, because
-  // every row in it is being built against the same caret.
-  const doc = docTextNow();
-  const pos = runtime.view?.state.selection.main.from ?? 0;
-  /** Insert ▸ Footnote / Endnote, where a Word user looks first. */
-  const noteItem = (action: string, glyph: string, snippet: string | null, why?: string) =>
-    el(
-      "button",
-      {
-        class: "menu-item" + (why ? " disabled" : ""),
-        disabled: why ? "true" : null,
-        title: why ? t(why) : "",
-        onClick: () => {
-          closeMenus();
-          const st = runtime.view.state;
-          insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
-        },
-      },
-      [
-        el("b", {}, [`${glyph} ${t("sc." + action)}`]),
-        keyCode(action, kb),
-        ...(why ? [el("span", { class: "menu-why" }, [t(why)])] : []),
-      ],
-    );
-  const items: (Node | string)[] = [
-    // Two plain items, at the top, named the way Word names them. The chooser
-    // below is the right tool for picking a sefer's apparatus; it is the wrong
-    // answer to "I want a footnote", which is what somebody who has only ever
-    // used Word is asking, and which had no menu entry at all. The endnote had
-    // none anywhere in the product.
-    noteItem("footnote", "†", "#הערה[|]"),
-    noteItem("endnote", "⁋", "#הערתסיום[|]"),
-    el("button", { class: "menu-item", onClick: openNotesChooser }, [
-      el("b", {}, ["✻ " + t("notesChooser")]),
-      el("span", { class: "menu-desc" }, [t("notesChooserLede")]),
-    ]),
-    // A note on a note is **not** a top-level offer, and that was the margin
-    // note: it sat third in this menu, above the chooser, as though it were one
-    // of the two things a person opens Insert to do. It is not — it is a second
-    // note hung off one that already exists, so in ordinary prose there is
-    // nothing for it to hang off and the command writes a note *beside* the
-    // sentence rather than under a note.
-    //
-    // Below the chooser, and greyed with its reason where it cannot act, which
-    // is this menu's own rule two dozen lines down: an item that silently
-    // vanishes when the caret moves is a product that looks broken.
-    noteItem(
-      "tieredNote",
-      "⁑",
-      null,
-      noteDepthAt(docTextNow(), runtime.view?.state.selection.main.from ?? 0) > 0
-        ? undefined
-        : "whyNoteOnNoteNeedsANote",
-    ),
-    el("button", { class: "menu-item", onClick: insertImage }, [
-      el("b", {}, ["🖼 " + t("insertImage")]),
-    ]),
-    el("button", { class: "menu-item", onClick: openFormula }, [
-      el("b", {}, ["∑ " + t("insertFormula")]),
-    ]),
-    el("button", { class: "menu-item", onClick: openSectionSetup }, [
-      el("b", {}, ["▭ " + t("sectionSetup")]),
-      el("span", { class: "menu-desc" }, [t("sectionSetupLede")]),
-    ]),
-    // Contents, which used to be in Format under Headings. It is neither: it
-    // does not change a heading, it puts a generated page at the top of the
-    // document — so it is an insertion, and this is Insert. Greyed with its
-    // reason once the document has one, the same rule every other item here
-    // follows. See `menus.ts` and `addContentsHere`.
-    (() => {
-      const already = !heads.canAddContents(docTextNow());
-      return el(
-        "button",
-        {
-          class: "menu-item" + (already ? " disabled" : ""),
-          disabled: already ? "true" : null,
-          onClick: () => (closeMenus(), addContentsHere()),
-        },
-        [
-          el("b", {}, ["☰ " + t("sc.toc")]),
-          keyCode("toc", kb),
-          ...(already ? [el("span", { class: "menu-why" }, [t("why.contentsAlready")])] : []),
-        ],
-      );
-    })(),
-    // How deep it goes — the other half of *"choose exactly what enters the
-    // table of contents"*. Beside the row that makes one, because it is the same
-    // decision: before there is a contents it chooses what will be made, and
-    // after there is one it edits the call in place rather than being greyed.
-    // The per-heading half is `heading.inContents`, which is where a heading is.
-    contentsDepthRow(),
-    // The breaks, from the one list that says what they are — see
-    // `actions.BREAKS` for the family and the fence that keeps it complete. In
-    // order of how much of the page each one moves, and each printing the key it
-    // answers to, which is what neither of the two that *had* keys used to do.
-    ...BREAKS.map((id) => {
-      // Greyed with its reason where the caret cannot take it, on exactly the
-      // rule the registry rows below use — `#מעבר_עמוד` inside a table cell or a
-      // note body does not break the page, it fails to compile, and
-      // `engine/tests/containers.rs` is where that is asserted. A named row that
-      // skipped this check would be a second, laxer opinion about legality
-      // sitting twenty lines above the strict one, which is how a menu comes to
-      // offer an insertion the grid already knows is broken.
-      const command = BREAK_COMMAND[id];
-      const legality = command ? legalAt(doc, pos, command) : { ok: true as const };
-      return el(
-        "button",
-        {
-          class: "menu-item" + (legality.ok ? "" : " disabled"),
-          disabled: legality.ok ? null : "true",
-          title: legality.ok ? "" : t(legality.reason!),
-          onClick: () => (
-            closeMenus(),
-            // The one that is not a registry command: a comment pair the editor
-            // writes, so the break is in the source and never on the page.
-            command ? insertCommand(command) : hiddenBreak()
-          ),
-        },
-        [
-          el("b", {}, [`${BREAK_GLYPH[id]} ${t(id)}`]),
-          keyCode(id, kb),
-          el("span", { class: "menu-desc" }, [t(id + "Lede")]),
-          ...(legality.ok ? [] : [el("span", { class: "menu-why" }, [t(legality.reason!)])]),
-        ],
-      );
-    }),
-    el("div", { class: "menu-sep" }),
-    // The three constructs, together and in the order that makes the difference
-    // between them readable: two that the page never sees, then one it sees all
-    // of. Every one of them already existed; the line comment had no door of any
-    // kind, and the fold's door was a button labelled "Region".
-    ...[
-      { name: "hideLine", glyph: "⌫", run: hideLineHere },
-      { name: "hideBlock", glyph: "▨", run: hideBlockHere },
-      { name: "fold", glyph: "▤", run: insertFold },
-    ].map((c) =>
-      el("button", { class: "menu-item", onClick: () => (closeMenus(), c.run()) }, [
-        el("b", {}, [`${c.glyph} ${t(c.name)}`]),
-        keyCode(c.name, kb),
-        el("span", { class: "menu-desc" }, [t(c.name + "Lede")]),
-      ]),
-    ),
-    el("div", { class: "menu-sep" }),
-  ];
-  items.push(...commandRows(menus.categoriesIn("insert", registryCategories())));
-  return items;
-}
-
-/**
- * The registry's own commands, as menu rows, for one menu's categories.
- *
- * Written once and called three times. It was the tail of the Insert menu and
- * nowhere else, which is how Insert came to hold every category the engine
- * publishes — including the eighteen that change text already written. Which
- * categories a menu shows is `menus.ts`'s answer; what a row looks like is this.
- */
-function commandRows(cats: readonly string[]): (Node | string)[] {
-  const lang = getLang();
-  // The interface's language names the *description*; the document's names the
-  // command, because the command is what lands in the source. See `buildToolbar`.
-  const writing = docLang();
-  const kb = keybindings();
-  const doc = docTextNow();
-  const pos = runtime.view?.state.selection.main.from ?? 0;
-  const items: (Node | string)[] = [];
-  for (const cat of cats) {
-    const inCat = runtime.commandsReg.filter((x) => x.category === cat && !x.deprecated);
-    if (!inCat.length) continue;
-    items.push(el("div", { class: "menu-cat" }, [t("cat." + cat)]));
-    for (const c of inCat) {
-      // Greyed rather than hidden, with the reason on the tooltip. "This exists,
-      // and not here" is information; a command that silently vanishes from the
-      // menu when the caret moves is a product that looks broken.
-      const legality = legalAt(doc, pos, c.he);
-      // The live binding, when an action is the door to this command. Read
-      // through `keybindings()` and never `DEFAULT_KEYS`, so a writer who
-      // rebound `Ctrl+B` is shown the key they chose. See `actions.ts`.
-      const action = actionForCommand(c.he);
-      items.push(
-        el(
-          "button",
-          {
-            class: "menu-item menu-cmd" + (legality.ok ? "" : " disabled"),
-            disabled: legality.ok ? null : "true",
-            title: legality.ok ? "" : t(legality.reason!),
-            onClick: () => insertSnippet(c.insert),
-          },
-          [
-            el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),
-            // The name the writer will find in their own source, which is the
-            // document's language and not the menu's. See `buildToolbar`.
-            el("code", {}, ["#" + (writing === "he" ? c.he : c.en)]),
-            ...(action && hintFor(action, kb) ? [keyCode(action, kb, "menu-key")] : []),
-            // The reason, where it can be read. `insertions.json` has carried a
-            // `reason` per command for as long as the grid has existed and it
-            // reached a tooltip; the item dropped to 38% opacity and said
-            // nothing. The comment beside that rule in `styles.css` argues that
-            // an item which cannot act "still says so, rather than vanishing" —
-            // an argument won and then not implemented.
-            ...(legality.ok ? [] : [el("span", { class: "menu-why" }, [t(legality.reason!)])]),
-          ],
-        ),
-      );
-    }
-  }
-  return items;
-}
-
-function menu(name: string, label: string, items: (Node | string)[]): HTMLElement {
-  return lazyMenu(name, label, () => items);
-}
-
-/**
- * A menu whose contents are rebuilt every time it opens.
- *
- * The header is rendered once, so a menu built there freezes whatever the data
- * looked like at boot — the document library would still say "Untitled" long
- * after the document had been titled. Building on open keeps it honest.
- */
-/**
- * A menubar menu.
- *
- * `name` is required for the same reason `iconBtn` requires an accessible name:
- * every label here is an emoji plus a translated word, so the menubar had no
- * identity that survived switching the interface to English. `data-menu` is that
- * identity, and it is the only way anything outside this file — the acceptance
- * run in `.github/scripts/acceptance.mjs`, today — can say *which* menu it means.
- *
- * The items are built on open, so the menu has to be opened before its contents
- * exist in the document at all. That is deliberate and worth knowing about: a
- * selector for a menu item that never clicks the button first finds nothing, and
- * will report it as a missing feature.
- */
-function lazyMenu(name: string, label: string, build: () => (Node | string)[]): HTMLElement {
-  const list = el("div", { class: "menu-list", role: "menu", "aria-label": label });
-  const btn = el("button", {
-    class: "menu-btn",
-    type: "button",
-    "aria-haspopup": "true",
-    "aria-expanded": "false",
-    onClick: (e: Event) => {
-      e.stopPropagation();
-      const opened = toggleMenu(list, btn, () => {
-        list.replaceChildren();
-        list.append(...build().map((n) => (typeof n === "string" ? document.createTextNode(n) : n)));
-      });
-      // **Back to the top.** Replacing the children does not reset the scroll
-      // position, so Insert — the tallest menu in the product by a long way —
-      // reopened halfway down wherever it was left, which reads as a menu that
-      // has lost its first twenty items. Wanted at the top, and configurable,
-      // because somebody working through one long stretch of it wants the
-      // opposite and is entitled to say so.
-      //
-      // **After `toggleMenu`, not inside its `fill`.** The fill runs before the
-      // `open` class goes on, and a hidden element has no scroll to set: written
-      // there it was a line that read correctly, ran on every open, and did
-      // nothing at all. Found by driving it.
-      if (opened && !settings.keepMenuPosition) list.scrollTop = 0;
-    },
-  }, [label]);
-  return el("div", { class: "menu", "data-menu": name }, [btn, list]);
 }
 
 /**
@@ -5887,37 +4712,7 @@ function openNoteMenu(e: MouseEvent, at: number) {
   mountPanel("note-menu", menu, document.body);
 }
 
-/**
- * Apply a rewritten document as the smallest change that produces it.
- *
- * Every producer here returns whole text, which is the right shape for a pure
- * function and the wrong thing to dispatch. `{from: 0, to: doc.length}` tells
- * CodeMirror that every character was replaced, so it discards the syntax tree,
- * the decorations, the lint marks and **every open fold** — including the
- * `//{ … //}` regions this app invites the writer to make. On a 500 KB sefer
- * that happened on every `†`: the document came out identical and the screen
- * did not, because everything the writer had collapsed was open again.
- *
- * `minimalChange` finds the span that actually differs, so the state either side
- * of it stays addressed by positions that did not move. See `diff.ts`.
- *
- * Not for *loading* a document — `openDoc`, `loadBody` and an arriving source
- * really do replace everything, and resetting the folds is correct there. This
- * is for the operations that edit the document the writer is already in.
- */
-function editDoc(next: string, caret?: number, extra: { scrollIntoView?: boolean } = {}) {
-  const change = minimalChange(docTextOf(runtime.view.state.doc), next);
-  const unchanged = change.from === change.to && change.insert === "";
-  runtime.view.dispatch({
-    // An operation can apply and still produce the same source — swapping two
-    // identical rows is a real edit with no visible result. Dispatching the
-    // document over itself would push an empty step onto the undo stack and
-    // recompile for nothing, so only the caret moves.
-    changes: unchanged ? undefined : change,
-    ...(caret == null ? {} : { selection: { anchor: Math.min(caret, next.length) } }),
-    ...extra,
-  });
-}
+
 
 /** Swap the whole document and put the caret somewhere sensible. */
 function replaceAll(text: string, caret: number) {
@@ -7496,241 +6291,6 @@ function newDoc() {
   voidAction("save_file", () => newBlankDoc());
 }
 
-// ---------------------------------------------------------------- table editing
-//
-// Inserting #טבלה used to be the end of the help you got: adding a row or a
-// column meant rewriting the call by hand and counting cells to keep them
-// aligned with the declared column count. Getting that count wrong silently
-// reflows the whole table.
-//
-// So: when the cursor is inside a table, a small bar appears with the structural
-// operations. It is driven off the cursor rather than a click on the rendered
-// preview, because the preview is an SVG picture of a page and has no idea which
-// cell you pointed at.
-
-function contextBar(): HTMLElement {
-  return el("div", { id: "context-bar", class: "context-bar", role: "toolbar" });
-}
-
-/**
- * Rebuild the contextual ribbon for wherever the caret is.
- *
- * Every control is generated from `STRUCTURE_ACTIONS`, so an operation added to
- * that registry appears here, in the palette, and in the shortcut list without
- * anything being wired up twice — and so a person can reorder or rebind it. The
- * previous version hard-coded four table buttons and their glyphs inline, which
- * is why lists had none: there was no list of operations to render, only a
- * paragraph of DOM.
- */
-function updateContextBar() {
-  const bar = document.getElementById("context-bar");
-  if (!bar || !runtime.view) return;
-  const doc = docTextOf(runtime.view.state.doc);
-  const pos = runtime.view.state.selection.main.head;
-  // A hydra owns the keyboard, so it must not outlive the thing it operates on.
-  // Clicking into ordinary prose and then typing would otherwise have every
-  // letter swallowed by a panel the writer had stopped thinking about — the
-  // keyboard equivalent of a drawer with no close button.
-  if (openHydraState && structure.structureNear(doc, pos)?.structure !== openHydraState.structure) {
-    closeHydra();
-  }
-
-  // The paragraph-style readout follows the caret whether or not the ribbon has
-  // anything to show, so it is updated before the early return below.
-  //
-  // `headingAt(doc, pos)` with two arguments fires its default third — the whole
-  // heading list — to set the value of a `<select>`, on every arrow key. It is
-  // memoised per scan now (`headings.ts`), so this is a lookup rather than a
-  // filter-and-map over every node in the document, and it is the same array the
-  // `StructureContext` below shares.
-  const levelSel = document.getElementById("heading-level") as HTMLSelectElement | null;
-  if (levelSel) {
-    // The document's own styles are options in this list, so the list itself can
-    // go stale — a style defined a keystroke ago has to be offerable now. Rebuilt
-    // only when the set of names has actually changed, for the same reason the
-    // value below is only assigned when it differs.
-    const names = styles.findCustomStyles(doc).map((s) => s.name).join("\u0000");
-    if (levelSel.dataset.styles !== names) {
-      levelSel.dataset.styles = names;
-      fillParagraphStyles(levelSel);
-      // A style is an action, so the set of actions has changed. Without this a
-      // style defined a keystroke ago is in the dropdown, in the palette and in
-      // the keys drawer, and its chord does nothing — which is the worst of the
-      // three states a shortcut can be in.
-      reconfigureShortcuts();
-      if (isPanelOpen("styles-panel")) renderStylesPanel();
-    }
-    const want = paragraphStyleAt(doc, pos);
-    // Assigning `value` on a `<select>` is not free and fires no change event,
-    // but it does invalidate style and can close a native dropdown the writer
-    // has open. Most caret moves do not change the answer.
-    if (levelSel.value !== want) levelSel.value = want;
-    const num = document.getElementById("heading-level-number") as HTMLInputElement | null;
-    // Blank for anything that is not a heading — body text and a custom style
-    // alike. A number box showing 0, or showing the level of the last heading
-    // you were in, would be saying something untrue about where the caret is.
-    if (num) {
-      const level = /^\d+$/.test(want) && want !== "0" ? want : "";
-      if (num.value !== level) num.value = level;
-    }
-  }
-
-  // Sticky by one character: see `structureNear`. Finishing a list left the
-  // caret after the closing `)`, where the ribbon correctly emptied — and a
-  // ribbon that disappears on the character after the one you just typed reads
-  // as the feature breaking, not as the model being precise.
-  const near = structure.structureNear(doc, pos)?.pos ?? pos;
-  const here = structure.availableAt(doc, near);
-  if (here.length === 0) {
-    // In prose, and that is worth saying rather than showing nothing.
-    //
-    // This is the other half of a margin note: *"header was greyed out and no
-    // reason was given"*. It was greyed correctly — the caret was in prose, so
-    // every list and table operation had nothing to act on — and the strip then
-    // vanished entirely, which is a product that looks broken rather than one
-    // that is being precise. What a writer standing in prose can actually do to
-    // a list is *make* one, so that is what the strip offers.
-    //
-    // **And behind a preference that is off**, because the same strip read from
-    // the writing side is *"an annoying popup… I don't know why it popped up or
-    // what it is"*. Both readings are correct and they are about two different
-    // moments — one writer went looking for why a control was grey, the other
-    // was typing a paragraph — so the strip is kept and the default is quiet.
-    // See `Settings.proseStrip`.
-    const sel = runtime.view.state.selection.main;
-    if (settings.proseStrip && lists.canMakeList(doc, sel.from, sel.to)) {
-      const signature = `prose|${getLang()}`;
-      if (bar.dataset.signature !== signature || !bar.childElementCount) {
-        bar.dataset.signature = signature;
-        bar.replaceChildren(
-          el("span", { class: "context-bar-label" }, [t("inProse")]),
-          el(
-            "button",
-            {
-              class: "tb-btn",
-              title: `${t("makeList")} — ${t("makeListLede")}`,
-              "aria-label": t("makeList"),
-              onClick: () => makeListHere(),
-            },
-            ["≔ ", el("span", { class: "tb-name" }, [t("makeList")])],
-          ),
-        );
-      }
-      openPanel("context-bar");
-      return;
-    }
-    closePanel("context-bar");
-    bar.replaceChildren();
-    delete bar.dataset.signature;
-    return;
-  }
-  const at = structure.whereAmI(doc, near)!;
-
-  // Rebuild only when the ribbon would come out different.
-  //
-  // `replaceChildren` destroys and rebuilds the whole strip — up to eighteen
-  // buttons and their listeners — and this function runs on **every arrow key**.
-  // Moving the caret within one table cell produced identical markup and threw
-  // the previous copy away anyway, so a writer holding the down arrow generated
-  // a few hundred buttons a second for the collector, and any native tooltip or
-  // focus on a ribbon button died under them.
-  //
-  // The signature is everything the render reads: which structure, the position
-  // readout, and each action's id and enabled state in order. Not a hash — a
-  // string, compared once, of a few hundred characters. Language and keybindings
-  // are in it because the strip is rebuilt from scratch when either changes and
-  // this must not out-vote that.
-  const signature = [
-    getLang(),
-    at.structure,
-    at.row,
-    at.col,
-    at.rows,
-    at.cols,
-    here.map(({ action, enabled }) => `${action.id}${enabled ? "+" : "-"}`).join(","),
-  ].join("|");
-  if (bar.dataset.signature === signature && bar.childElementCount) {
-    openPanel("context-bar");
-    return;
-  }
-  bar.dataset.signature = signature;
-
-  // Hoisted. It was read inside the loop below — seventeen times in a table,
-  // and `keybindings()` rebuilds the whole map from settings on each call, so a
-  // caret move in a table cost ~850 property copies for a value that cannot
-  // change mid-loop. `structureMenuItems` in this same file already hoists it.
-  const keys = keybindings();
-
-  const children: Node[] = [
-    el("span", { class: "context-bar-label" }, [
-      at.structure === "table"
-        ? tf("tableAt", String(at.row), String(at.col), String(at.rows), String(at.cols))
-        : at.structure === "heading"
-          ? tf("headingAt", String(at.row), String(at.rows), String(at.col))
-          : tf("listAt", String(at.row), String(at.rows), String(at.col)),
-    ]),
-  ];
-
-  let group = "";
-  for (const { action, enabled } of here) {
-    // A separator between groups, so rows, columns and whole-table operations
-    // read as three things rather than one wall of glyphs.
-    if (group && action.group !== group) children.push(el("span", { class: "tb-sep" }));
-    group = action.group;
-    const hint = hintFor(action.id, keys);
-    const name = t(action.label);
-    // Why this one is greyed, when it is. On the ribbon the caret is always
-    // inside the structure already, so this is never "you are not in a table" —
-    // it is the useful half: *this is the top row*.
-    const why = enabled ? null : structure.whyNot(action, doc, near);
-    children.push(
-      el(
-        "button",
-        {
-          class: "tb-btn" + (enabled ? "" : " disabled"),
-          // The key is in the tooltip because a shortcut nobody can find is the
-          // same as no shortcut — the same rule the nikud bar follows. When the
-          // button cannot act, the reason takes the tooltip's place: the key is
-          // no use to somebody who has just been refused.
-          title: why ? `${name} — ${t(why)}` : hint ? `${name} · ${hint}` : name,
-          "aria-label": name,
-          // The whole ribbon, and the only place these three shapes are built.
-          //
-          // Tagged so a switch rebuilds them: measured 2026-09-27 in a real
-          // browser, this one line left every ribbon button in Hebrew after a
-          // switch to English. The accessible name stays the bare label — a
-          // screen reader has no use for "· Alt+a" — so `title` and `aria-label`
-          // take different argument lists, and a leading `:` in one of them means
-          // "this is a key". The chord is a literal: `Alt+a` is `Alt+a` in Hebrew.
-          "data-i18n-label": action.label,
-          "data-i18n-title-args": JSON.stringify([`:${action.label}`, why ?? hint ?? ""]),
-          "data-i18n-title": why ? "msg.reason" : hint ? "msg.shortcut" : action.label,
-          // `aria-disabled`, not `disabled`. A `disabled` button cannot be
-          // clicked, cannot be focused and — with `pointer-events: none` on top
-          // of it — cannot even be hovered on a touchscreen, so the one control
-          // that knows why it is refusing is the one control that cannot say
-          // so. Eighteen greyed arrows and no way to ask any of them a question.
-          // Pressed, it now answers.
-          "aria-disabled": enabled ? null : "true",
-          onClick: () => {
-            if (why) {
-              setStatus(t(why), "warn");
-              return;
-            }
-            runStructureAction(action, true);
-          },
-        },
-        // The two or three a writer reaches for carry their name. A Word user
-        // does not discover a feature by hovering eleven arrows, and Word
-        // labels its ribbon; labelling all eighteen table operations would be a
-        // wall of text, so `primary` picks the ones worth the width.
-        action.primary ? [action.glyph + " ", el("span", { class: "tb-name" }, [name])] : [action.glyph],
-      ),
-    );
-  }
-  bar.replaceChildren(...children);
-  openPanel("context-bar");
-}
 
 /**
  * The keys that make a list behave like a list.
@@ -12095,6 +10655,62 @@ function installHooks() {
     },
     openDocHanded: (id) => openDoc(id, { handedOver: true }),
     askText: (message, initial) => askText(message, initial),
+  });
+  // The chrome wiring: the verbs the ribbon and the context strip name that
+  // their own waves have not moved yet, registered once, read through
+  // `chromeWiring()` — the same shape `wirePanes` gives the pane modules.
+  wireChrome({
+    askText,
+    docLang,
+    insertSnippet,
+    insertCommand,
+    tieredNoteHere,
+    linkifySelection,
+    askForMekor,
+    entityAct,
+    insertFold,
+    hideBlockHere,
+    hideLineHere,
+    openPalette,
+    renameDoc,
+    openNotesChooser,
+    openSectionSetup,
+    openFormula,
+    insertImage,
+    foldToLevel,
+    foldListsToDepth,
+    hiddenBreak,
+    runStructureAction,
+    makeListHere,
+    applyCustomStyle,
+    unwrapCustomStyle,
+    openNewStyle,
+    openStyleEditor,
+    openStylesFor: (level) => {
+      headingLevel = level;
+      openStyles();
+    },
+    addContentsHere,
+    closeOpenDoc,
+    duplicateDoc,
+    removeDoc,
+    newNamedDoc,
+    saveFileAs,
+    refreshSources,
+    recording: () => recording,
+    toggleRecording,
+    savedMacros,
+    playMacro,
+    deleteMacro,
+    macroName,
+    refreshContextBar: updateContextBar,
+    reconfigureShortcuts,
+    refreshStylesPanel: () => {
+      if (isPanelOpen("styles-panel")) renderStylesPanel();
+    },
+    dismissForeignHydra: (s) => {
+      if (openHydraState && s !== openHydraState.structure) closeHydra();
+    },
   });
   save.onUpdateTitleBar(updateTitleBar);
   // Spell-check rides the compile timer: one pause in typing, both schedules.

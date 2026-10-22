@@ -90,7 +90,6 @@ const INVENTORY = {
   "src/main.ts:saveFile": "guarded; same notice path as saveNow",
   "src/panescroll.ts:settleNow": "guarded; settling after a save cannot fail the save",
   "src/main.ts:takeSnapshot": "guarded; a snapshot that fails leaves the previous one",
-  "src/main.ts:removeDoc": "guarded; a refused removal is reported in place",
   "src/main.ts:removeAsset": "guarded; a refused removal is reported in place",
   "src/main.ts:copyShareLink": "guarded; a clipboard refusal is reported, not swallowed",
   "src/main.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
@@ -106,6 +105,8 @@ const INVENTORY = {
   // noise pretending to be safety. `startFind` and `renumberAll` were on this
   // list and were briefly wrapped; the typechecker said `number` and `boolean`
   // are not `Promise<unknown>`, which is the honest answer.
+  "src/ribbon.ts:chromeWiring": "menu-item onClicks fire the shell's guarded verbs; the ribbon awaits nothing",
+  "src/ribbon.ts:unfoldAll": "a synchronous fold walk",
   "src/bracket-lint.ts:healAll": "returns the number of fixes applied; no promise",
   "src/apparatus-lint.ts:renderAllNotes": "returns the number of dumps added; no promise",
   "src/numbering-lint.ts:renumberAll": "returns the number of fields renumbered; no promise",

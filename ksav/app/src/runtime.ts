@@ -15,6 +15,7 @@
 // dependency is deliberate, where a circular import would only hide it.
 
 import { docTextOf } from "./spans";
+import { minimalChange } from "./diff";
 import { history } from "@codemirror/commands";
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -40,6 +41,38 @@ export function replaceAll(next: string) {
   const doc = docText();
   if (next === doc) return;
   view.dispatch({ changes: { from: 0, to: doc.length, insert: next } });
+}
+
+/**
+ * Apply a rewritten document as the smallest change that produces it.
+ *
+ * Every producer here returns whole text, which is the right shape for a pure
+ * function and the wrong thing to dispatch. `{from: 0, to: doc.length}` tells
+ * CodeMirror that every character was replaced, so it discards the syntax tree,
+ * the decorations, the lint marks and **every open fold** — including the
+ * `//{ … //}` regions this app invites the writer to make. On a 500 KB sefer
+ * that happened on every `†`: the document came out identical and the screen
+ * did not, because everything the writer had collapsed was open again.
+ *
+ * `minimalChange` finds the span that actually differs, so the state either side
+ * of it stays addressed by positions that did not move. See `diff.ts`.
+ *
+ * Not for *loading* a document — `openDoc`, `loadBody` and an arriving source
+ * really do replace everything, and resetting the folds is correct there. This
+ * is for the operations that edit the document the writer is already in.
+ */
+export function editDoc(next: string, caret?: number, extra: { scrollIntoView?: boolean } = {}) {
+  const change = minimalChange(docTextOf(view.state.doc), next);
+  const unchanged = change.from === change.to && change.insert === "";
+  view.dispatch({
+    // An operation can apply and still produce the same source — swapping two
+    // identical rows is a real edit with no visible result. Dispatching the
+    // document over itself would push an empty step onto the undo stack and
+    // recompile for nothing, so only the caret moves.
+    changes: unchanged ? undefined : change,
+    ...(caret == null ? {} : { selection: { anchor: Math.min(caret, next.length) } }),
+    ...extra,
+  });
 }
 
 // ---------------------------------------------------------------- the undo history

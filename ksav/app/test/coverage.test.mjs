@@ -88,6 +88,8 @@ const NOT_OFFERED = {
 export async function run() {
 
 const MAIN = read("main.ts");
+const RIBBON = read("ribbon.ts");
+const CONTEXTBAR = read("contextbar.ts");
 const commands = registry();
 ok("the registry was parsed at all", commands.length > 90);
 
@@ -100,14 +102,14 @@ ok("the registry was parsed at all", commands.length > 90);
 // about the registry and agreed with itself, which is the exact failure it was
 // written to catch, one layer up.
 //
-// So the surface is read. `main.ts` builds the Insert menu by walking the
+// So the surface is read. `ribbon.ts` builds the Insert menu by walking the
 // registry and dropping exactly one thing, and that is what makes `!deprecated`
 // a true statement about reachability rather than a definition of it. If the
 // generator ever grows a second filter, this goes red and the ~100 per-command
 // claims below stop being true all at once — which is why they can now be one
 // `filter` instead of a hundred `ok`s.
 {
-  const build = MAIN.slice(MAIN.indexOf("const cats: string[] = []"));
+  const build = RIBBON.slice(RIBBON.indexOf("const cats: string[] = []"));
   const loop = build.slice(0, build.indexOf("\n  }\n"));
   ok("the Insert menu is built from the registry, not a list", /for \(const c of runtime\.commandsReg/.test(loop));
   ok("its categories come from the registry too", /for \(const c of runtime\.commandsReg\) if \(!cats\.includes/.test(build));
@@ -181,7 +183,7 @@ for (const [what, needle] of [
   ["the footnote", 'noteBtn("footnote"'],
   ["the endnote", 'noteBtn("endnote"'],
 ]) {
-  ok(`${what} has a toolbar button`, MAIN.includes(needle));
+  ok(`${what} has a toolbar button`, RIBBON.includes(needle));
 }
 // The tiered note is the deliberate exception, and the assertion is inverted
 // rather than dropped so that putting it back is a decision somebody has to make
@@ -195,7 +197,7 @@ ok(
 for (const action of ["footnote", "endnote", "tieredNote"]) {
   ok(
     `${action} is in the Insert menu`,
-    new RegExp(`noteItem\\(\\s*"${action}"`).test(MAIN),
+    new RegExp(`noteItem\\(\\s*"${action}"`).test(RIBBON),
   );
 }
 // …and the note on a note is not a *top-level* offer, which is what the margin
@@ -203,13 +205,13 @@ for (const action of ["footnote", "endnote", "tieredNote"]) {
 // two things a person opens Insert to do; it is a second note hung off one that
 // already exists, so in ordinary prose there is nothing for it to hang off.
 {
-  const chooser = MAIN.indexOf("onClick: openNotesChooser");
-  const tiered = MAIN.search(/noteItem\(\s*"tieredNote"/);
+  const chooser = RIBBON.indexOf("onClick: openNotesChooser");
+  const tiered = RIBBON.search(/noteItem\(\s*"tieredNote"/);
   ok("the note on a note is offered below the chooser, not above it", chooser < tiered);
   // Greyed with its reason where it cannot act, which is this menu's own rule
   // for every other command: an item that silently vanishes when the caret moves
   // is a product that looks broken.
-  const item = MAIN.slice(tiered, tiered + 500);
+  const item = RIBBON.slice(tiered, tiered + 500);
   ok("…and it says why when the caret is not in a note", item.includes("whyNoteOnNoteNeedsANote"));
   ok("…on the evidence of the caret, not of a setting", item.includes("noteDepthAt("));
 }
@@ -326,7 +328,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   ok("the bullet button makes one of a selection", read("insert.ts").includes('kind: "rewrite"'));
   ok("…and the shell performs it", MAIN.includes('plan.kind === "rewrite"'));
   ok("it is an action of its own", MAIN.includes('id: "makeList"'));
-  ok("…named in the Format menu", MAIN.includes('t("makeList")'));
+  ok("…named in the Format menu", RIBBON.includes('t("makeList")'));
   for (const lang of ["he", "en"]) {
     ok(`…and described in ${lang}`, !!DICTS[lang].makeListLede);
   }
@@ -341,8 +343,8 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // was deleted would pass "it is off" just as well as one that is behind a
   // preference, and deleting it would throw away the answer the first note
   // asked for.
-  ok("prose says what it is", MAIN.includes('t("inProse")'));
-  ok("…only when asked to", MAIN.includes("settings.proseStrip &&"));
+  ok("prose says what it is", CONTEXTBAR.includes('t("inProse")'));
+  ok("…only when asked to", CONTEXTBAR.includes("settings.proseStrip &&"));
   check("…and it is not asked to by default", settings.DEFAULTS.proseStrip, false);
   for (const lang of ["he", "en"]) {
     ok(`…with the switch named in ${lang}`, !!DICTS[lang].proseStripLabel);
@@ -377,12 +379,12 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
     ok(`${id} is an action`, MAIN.includes(`id: "${id}"`));
     // A name and a description, in the menu, at the point of use — the lede is
     // where "does this reach the page?" is actually answered.
-    ok(`…${id} names itself in the Insert menu`, MAIN.includes(`name: "${id}"`));
+    ok(`…${id} names itself in the Insert menu`, RIBBON.includes(`name: "${id}"`));
     for (const lang of ["he", "en"]) {
       ok(`…and says what it does in ${lang}`, !!DICTS[lang][id + "Lede"], id);
     }
   }
-  ok("the toolbar button says fold", MAIN.includes('iconBtn("▤", t("fold")'));
+  ok("the toolbar button says fold", RIBBON.includes('iconBtn("▤", t("fold")'));
   ok("…and not region", !MAIN.includes('t("region")'));
   // Fold *to a depth*, which is what somebody with a 300-page sefer wants and
   // which this editor could not do: `foldAll` takes everything down at once.
@@ -390,7 +392,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   for (const level of [1, 2, 3]) {
     ok(`foldLevel${level} is an action`, MAIN.includes("id: `foldLevel${level}`"));
   }
-  ok("…and reaches the Format menu", MAIN.includes('t("foldLevels")'));
+  ok("…and reaches the Format menu", RIBBON.includes('t("foldLevels")'));
 }
 
 // ------------------------------------------------- every action has a key

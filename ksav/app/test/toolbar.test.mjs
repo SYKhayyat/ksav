@@ -3,7 +3,7 @@
 // # The finding
 //
 // A writer said: *"Table is still under lists. That is not at all accurate."*
-// They were looking at `main.ts`, where the ribbon read
+// They were looking at `ribbon.ts`, where the ribbon read
 //
 //     tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1."), b("טבלה", "▦")]),
 //
@@ -30,7 +30,7 @@
 // dropdown, the tools group — is not making a claim about categories and is
 // skipped rather than guessed at.
 //
-// # On reading `main.ts` as text
+// # On reading `ribbon.ts` as text
 //
 // `chrome.test.mjs`'s header is a long argument against exactly this, and it is
 // right about what it describes: that file identified surfaces by the *names of
@@ -46,7 +46,7 @@ import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 import { commands } from "../tools/commands.mjs";
 
-const MAIN = readFileSync(path.join(dirOf(import.meta.url), "..", "src", "main.ts"), "utf8");
+const RIBBON = readFileSync(path.join(dirOf(import.meta.url), "..", "src", "ribbon.ts"), "utf8");
 
 /**
  * Every `tbGroup(t("…"), [ … ])` in the file, as `{ caption, body }`.
@@ -58,14 +58,14 @@ const MAIN = readFileSync(path.join(dirOf(import.meta.url), "..", "src", "main.t
 function groups() {
   const out = [];
   const open = /tbGroup\(t\("([^"]+)"\),\s*\[/g;
-  for (let m; (m = open.exec(MAIN)); ) {
+  for (let m; (m = open.exec(RIBBON)); ) {
     let depth = 1;
     let i = m.index + m[0].length;
-    for (; i < MAIN.length && depth > 0; i++) {
-      if (MAIN[i] === "[") depth++;
-      else if (MAIN[i] === "]") depth--;
+    for (; i < RIBBON.length && depth > 0; i++) {
+      if (RIBBON[i] === "[") depth++;
+      else if (RIBBON[i] === "]") depth--;
     }
-    out.push({ caption: m[1], body: MAIN.slice(m.index + m[0].length, i - 1) });
+    out.push({ caption: m[1], body: RIBBON.slice(m.index + m[0].length, i - 1) });
   }
   return out;
 }
@@ -153,7 +153,7 @@ export async function run() {
   // somewhere its category does not name *on purpose* — the ribbon groups by
   // what a writer reaches for, the registry by what a command is — and the only
   // thing required of one is that it be a real command and carry a stated
-  // reason. The exception lives beside the button in `main.ts`, never in a list
+  // reason. The exception lives beside the button in `ribbon.ts`, never in a list
   // here: a list here would be a second opinion about the taxonomy, kept in the
   // file whose whole job is to hold no opinion of its own.
   {

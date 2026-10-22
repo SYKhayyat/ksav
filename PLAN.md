@@ -834,7 +834,15 @@ still right.
     numbering-lint.ts beside renumberAll (numbering.ts would have cycled the
     pair), 21 moved / 3 documented wiring drift, main.ts 10,738 lines. See
     `decisions/2026-10-21-main-ts-split-wave-4-palette-girsa-and-the-series.md`.
-    Waves 5–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+    **Wave 5 closed 2026-10-21** (`4c1a8f3`) — the one insertion path
+    (`insertSnippet`, the snippet map, `insertCommand`, `tieredNoteHere`,
+    `docLang`/`dirLang`) moved into insert.ts beside its pure `plan`, with an
+    `InsertWiring` for the recorder and the chooser's apply; help's render
+    joined help.ts behind a `HelpWiring`; wave 4's runtime bridge retired;
+    the table bucket was recorded as overtaken (model/registry/strip moved
+    before or in wave 3), main.ts 10,471 lines. See
+    `decisions/2026-10-21-main-ts-split-wave-5-the-insertion-path.md`.
+    Waves 6–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

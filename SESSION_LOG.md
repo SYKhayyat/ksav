@@ -10392,3 +10392,40 @@ series keepers (`scheduleRenumber`, `renumberNow`) joined `renumberAll` in
 
 Waves 5–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---
+
+## 2026-10-21 · main.ts split, wave 5 — the insertion path
+
+**Commit `4c1a8f3` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,884
+assertions / 0 failed; import graph acyclic at 116 modules.
+
+`insertSnippet` — the path this repository has paid the most for — plus
+`snippetMap`, `snippetTab`, `insertCommand`, `tieredNoteHere` and the
+document-language pair moved into `insert.ts` (164 → 414), joining the pure
+`plan` whose file the path was named after testing standards all along. Help's
+render joined `help.ts` (319 → 364). main.ts 10,738 → 10,471 lines. 8
+definitions moved, 2 drifted, both wiring routings.
+
+- **`InsertWiring`, and the bridge it retires.** The macro-recorder gate
+  (`!inAction`) and the chooser's `applyNotePick` stay main-held; they arrive
+  as one boot-registered object (`wireInsert`), the gate living inside the
+  registration rather than crossing the wire. Wave 4's
+  `onInsertSnippet`/`insertSnippet` runtime hook is deleted in the same
+  commit — girsa now calls `insertSnippet` through a direct import, which is
+  the ferry the bridge was built to wait for.
+- **`HelpWiring` for the row runner**: help's clicks speak `RowAction`
+  through the shell's `runRow`, wave 6's to move with the list machinery.
+- **Bucket decisions on record:** the hiding trio and the
+  list/contents/running-head verbs stay main (producers are pure modules
+  already; what is left is the perform half); the plan's table bucket was
+  already overtaken — model in table.ts, registry in structure.ts, the strip
+  moved in wave 3; `docLang`/`dirLang` travelled with the path (all eighteen
+  main call sites are about generated commands).
+- **Fences rekeyed in the same commit (rule 6):** chrome.test's recorder
+  fence reads insert.ts for the wiring call; coverage's make-list-performs
+  check reads `answer.kind`; insert.test's returned-boolean fence retargeted
+  to the export. README's count rekeyed (12,883 → 12,884).
+
+Waves 6–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+---

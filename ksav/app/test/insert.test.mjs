@@ -264,13 +264,28 @@ export async function run() {
 
   {
     const main = await readFile(path.join(SRC, "main.ts"), "utf8");
+    // The snippets' callers live beside their features now; the same read over
+    // the modules that insert on their own behalf (wave 9).
+    const other = (
+      await Promise.all(
+        ["sectionsetup", "assets", "reviewpanel"].map((m) =>
+          readFile(path.join(SRC, `${m}.ts`), "utf8"),
+        ),
+      )
+    ).join("\n");
+    const callers = main + other;
     const unguarded = [...main.matchAll(/^([ \t]*)insertSnippet\([^\n]*\n[ \t]*scheduleCompile\(\)/gmu)].map(
       (m) => main.slice(m.index, m.index + 60).split("\n")[0].trim(),
     );
-    check("no caller compiles after an insertion it did not check", unguarded, []);
+    const unguardedAll = [
+      ...unguarded,
+      ...other.matchAll(/^([ \t]*)insertSnippet\([^\n]*\n[ \t]*scheduleCompile\(\)/gmu)].map(
+      (m) => other.slice(m.index, m.index + 60).split("\n")[0].trim(),
+    );
+    check("no caller compiles after an insertion it did not check", unguardedAll, []);
     ok(
       "…and the guarded form is what they use instead",
-      /if \(insertSnippet\([^\n]*\)\) scheduleCompile\(\);/u.test(main),
+      /if \(insertSnippet\([^\n]*\)\) scheduleCompile\(\);/u.test(callers),
     );
     const insertSrc = await readFile(path.join(SRC, "insert.ts"), "utf8");
     ok(

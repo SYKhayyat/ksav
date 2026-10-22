@@ -89,6 +89,8 @@ export async function run() {
 
 const MAIN = read("main.ts");
 const STYLES_PANEL = read("stylespanel.ts");
+const DESTINATIONS = read("destinations.ts");
+const REVIEW_PANEL = read("reviewpanel.ts");
 const RIBBON = read("ribbon.ts");
 const CONTEXTBAR = read("contextbar.ts");
 const commands = registry();
@@ -156,7 +158,8 @@ for (const c of commands) {
         MAIN.includes(`setStyleArgs("${exempt.kindKey}"`) ||
           STYLES_PANEL.includes(`setStyleArgs("${exempt.kindKey}"`) ||
           STYLES_PANEL.includes(`setStyleArgs(doc, "${exempt.kindKey}"`) ||
-          MAIN.includes(`setStyleArgs(doc, "${exempt.kindKey}"`),
+          MAIN.includes(`setStyleArgs(doc, "${exempt.kindKey}"`) ||
+          REVIEW_PANEL.includes(`setStyleArgs(doc, "${exempt.kindKey}"`),
       );
       break;
     case "argument":
@@ -260,8 +263,8 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
     "the Styles panel has a destinations section",
     STYLE_SECTIONS.some((s) => s.kind === "destinations"),
   );
-  ok("…which reads the document's own streams", MAIN.includes("channels.channelsIn("));
-  ok("…and writes a declaration back", MAIN.includes("channels.writeDestination("));
+  ok("…which reads the document's own streams", DESTINATIONS.includes("channels.channelsIn("));
+  ok("…and writes a declaration back", DESTINATIONS.includes("channels.writeDestination("));
   // The payoff, as a control: the knobs that belong to a *place* — its
   // numbering, its size, its columns, its heading — read off the one table that
   // pairs each with the prelude's own argument name, so a knob in the model with
@@ -270,7 +273,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // draws a row per entry, so a knob in the model with no control is not
   // expressible — which is stronger than what stood here, a check that `main.ts`
   // *mentioned* the table by name and passed on any mention of it at all.
-  ok("…offering every knob a destination has", MAIN.includes("for (const knob of channels.DESTINATION_KNOBS)"));
+  ok("…offering every knob a destination has", DESTINATIONS.includes("for (const knob of channels.DESTINATION_KNOBS)"));
   for (const knob of DESTINATION_KNOBS) {
     ok(`…and ${knob.key} is labelled in Hebrew`, !!DICTS.he[knob.label], knob.label);
     ok(`…and in English`, !!DICTS.en[knob.label], knob.label);
@@ -286,7 +289,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // "collected and then never rendered" failure every one of the eighteen
   // commands could produce. Offered as a button rather than as a lint after the
   // fact.
-  ok("…and a way to print a collected region", MAIN.includes("channels.showRegionLine("));
+  ok("…and a way to print a collected region", DESTINATIONS.includes("channels.showRegionLine("));
   // The other half of the same panel, and the half that was missing: a region is
   // a place on the page and not only a stream, and the seventeen knobs that
   // decide how that place behaves had no control at all.
@@ -294,8 +297,8 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // `panelviews.test.mjs` presses each one and reads back the Typst it writes.
   // What is left for this file is the half only the shell can do: that the panel
   // is reached at all, and reached on the destination that is a place.
-  ok("…offering a region its own controls", MAIN.includes("panelviews.regionPanel("));
-  ok("…on the destination that is a place", MAIN.includes("rows.push(...regionRows(doc, stylePick.region))"));
+  ok("…offering a region its own controls", DESTINATIONS.includes("panelviews.regionPanel("));
+  ok("…on the destination that is a place", DESTINATIONS.includes("rows.push(...regionRows(doc, stylePick.region))"));
   for (const knob of REGION_KNOBS) {
     ok(`…and the region's ${knob.key} is labelled in Hebrew`, !!DICTS.he[knob.label], knob.label);
     ok(`…and in English`, !!DICTS.en[knob.label], knob.label);

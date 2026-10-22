@@ -14,7 +14,14 @@ import { StorageFullError } from "../.tmp-test/store.mjs";
 import { wireSnapshots, snapWiring } from "../.tmp-test/snapshots.mjs";
 import { wireGit, gitWiring } from "../.tmp-test/gitui.mjs";
 import { wireStyles, stylesWiring } from "../.tmp-test/stylespanel.mjs";
-import { wireCustomStyles, customStylesWiring } from "../.tmp-test/customstyles.mjs";
+import * as customstyles from "../.tmp-test/customstyles.mjs";
+import { wireDestinations, destinationsWiring } from "../.tmp-test/destinations.mjs";
+import * as formmodal from "../.tmp-test/formmodal.mjs";
+import * as reviewpanel from "../.tmp-test/reviewpanel.mjs";
+import * as sectionsetup from "../.tmp-test/sectionsetup.mjs";
+import * as formulas from "../.tmp-test/formulas.mjs";
+import * as noteschooser from "../.tmp-test/noteschooser.mjs";
+import * as assets from "../.tmp-test/assets.mjs";
 
 export async function run() {
   // ------------------------------------------------------------ round trip
@@ -523,11 +530,32 @@ export async function run() {
 }
 
 {
-  // The custom styles' gestures carry no shell of their own beyond the form
-  // modal, which is registered like every other borrowing since wave 4.
+  // The custom styles' gestures now take the form modal by direct import (the
+  // wiring wave 9 retired when the modal became formmodal.ts's).
+  ok("the custom styles' module exists to be imported", customstyles.unwrapCustomStyle !== undefined);
+}
+
+{
+  // The destinations borrow the editor's write-back; the handback is the same
+  // object, as every wiring's is.
   const WIRING = {
-    openModal: () => {},
+    replaceAll: () => {},
   };
-  wireCustomStyles(WIRING);
-  ok("the custom styles' wiring hands back what was registered", customStylesWiring() === WIRING);
+  wireDestinations(WIRING);
+  ok("the destinations' wiring hands back what was registered", destinationsWiring() === WIRING);
+}
+
+{
+  // Wave 9's seven files, imported so the runner's every-module-imported fence
+  // can hold: the smoke read is that each module's own export surface survives
+  // its move — the guards wave 4 put on the wirings keep the rest honest.
+  ok(
+    "the wave-9 modules carry the exports their wave names",
+    formmodal.askText !== undefined &&
+      reviewpanel.renderReviewPanel !== undefined &&
+      sectionsetup.openSectionSetup !== undefined &&
+      formulas.openFormula !== undefined &&
+      noteschooser.applyNotePick !== undefined &&
+      assets.insertImage !== undefined,
+  );
 }

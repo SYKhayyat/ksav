@@ -20,35 +20,13 @@ import { docLang } from "./insert";
 import { scheduleCompile } from "./compile";
 import * as styles from "./styles";
 import { fieldControl, styleRow } from "./stylespanel";
+import { openModal } from "./formmodal";
 
 /**
  * What the gestures borrow from the shell: the form modal (wave 9 still holds
  * it in main with the other form doors — here it is the only thing the module
  * cannot import).
  */
-export interface CustomStylesWiring {
-  openModal(
-    title: string,
-    lede: string,
-    rows: (Node | string)[],
-    onOk: () => void,
-    okLabel: string,
-  ): void;
-}
-
-let customStylesWiringInstance: CustomStylesWiring | null = null;
-
-/** Boot wires the form modal once. */
-export function wireCustomStyles(wiring: CustomStylesWiring): void {
-  customStylesWiringInstance = wiring;
-}
-
-export function customStylesWiring(): CustomStylesWiring {
-  if (!customStylesWiringInstance) {
-    throw new Error("wireCustomStyles was never called before a style form was opened");
-  }
-  return customStylesWiringInstance;
-}
 
 // ---------------------------------------------------------------- custom styles
 //
@@ -156,7 +134,7 @@ function styleKnobRows(
 export function openNewStyle() {
   const pending: Record<string, string> = {};
   const nameInput = textField();
-  customStylesWiring().openModal(
+  openModal(
     t("newStyleTitle"),
     t("newStyleLede"),
     [
@@ -201,7 +179,7 @@ export function openStyleEditor(name: string) {
     setStatus(t("noStyleToEdit"), "warn");
     return;
   }
-  customStylesWiring().openModal(
+  openModal(
     tf("editStyleTitle", name),
     t("editStyleLede"),
     styleKnobRows(

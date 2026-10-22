@@ -821,7 +821,13 @@ still right.
     (the cycle walk) landed first, 96 moved / 39 documented state-direction
     drift, main.ts 12,721 lines. See
     `decisions/2026-10-21-main-ts-split-wave-2-the-pane-system.md`.
-    Waves 3–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+    **Wave 3 closed 2026-10-21** (`7db65c4`) — the app chrome out into
+    ribbon.ts (toolbar, menus, paragraph-style control, `ChromeWiring`
+    registered from main's boot) and contextbar.ts (the caret strip), 29
+    moved / 17 documented wiring drift, editDoc now a runtime export,
+    main.ts 11,336 lines. See
+    `decisions/2026-10-21-main-ts-split-wave-3-the-app-chrome.md`.
+    Waves 4–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

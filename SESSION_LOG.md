@@ -10301,3 +10301,52 @@ commit. main.ts is 12,721 lines.
   `browserlang.test.mjs` asserts nothing and the runner says so.
 
 `main.ts` is 12,721 lines. Wave 3 (app chrome) is next.
+
+## 2026-10-21 · main.ts split, wave 3 — the app chrome
+
+**Commit `7db65c4` (the move), this one (docs).**
+Gates at the end: tsc clean, vite build, the full gate green — 11 checks
+(`node tools/gate.mjs` under `nix develop .#desktop`, chromium transient via
+`KSAV_CHROMIUM`); 125 files / 12,880 assertions / 0 failed; import graph
+acyclic at 114 modules. That count is where the wave runs face GTK: the
+desktop shell checks need `nix develop .#desktop` (glib/gtk pkg-config), not
+the default shell.
+
+The toolbar, every `build*Menu`, the paragraph-style and highlight controls,
+the key-cap and command-row builders and the lazy-menu mechanism moved to
+`ribbon.ts` (1,288); the caret-following strip (`contextBar`/`updateContextBar`)
+moved to `contextbar.ts` (258); main.ts 12,721 → 11,336 lines. 29 declarations
+moved, 17 drifted — every drift a wiring routing, enumerated in the move
+commit.
+
+- **One `ChromeWiring` object, registered once.** A call-site sweep beat the
+  plan's single named reach by an order of magnitude (~30 main-held verbs the
+  ribbon calls). Registered in main's `installHooks` via `wireChrome`;
+  contextbar reaches the same object through its ribbon import, so the import
+  direction stays `contextbar → ribbon`, never `→ main`. The strip's five
+  shell needs arrive as methods named for the act: `dismissForeignHydra`,
+  `reconfigureShortcuts`, `refreshStylesPanel`, `makeListHere`,
+  `runStructureAction`.
+
+- **Deviation recorded:** `structureMenuItems` stayed in ribbon though the
+  plan slated it for contextbar — its callers are the format/insert menus and
+  its data is ribbon's paragraph-style helpers; moving it would have cycled
+  the two modules.
+
+- **`editDoc` is now a real runtime export** (its deps were already
+  runtime-side); main's `replaceAll` stands on it untouched and 17 call sites
+  keep their names.
+
+- **Fences rekeyed in the same commit (rule 6):** toolbar/coverage/panelede/
+  styleediting/notelangs read `ribbon.ts` and `contextbar.ts` for the moved
+  surfaces; notelangs' sweep anchor went `editDoc` → `replaceAll`; asyncaction's
+  INVENTORY documents ribbon's voids and drops main's stale `removeDoc`;
+  chrome.test gains the wiring guard/registration fence and imports both
+  modules. README's assertion count rekeyed (12,881 → 12,880).
+
+- **What the carve caught in the monolith:** the CHIP_RUN and startFind doc
+  comments riding the toolbar region's tail, reattached in main before
+  `startFind` — the same displaced-docs pattern wave 2 kept verbatim.
+
+Waves 4–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+---

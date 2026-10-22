@@ -10530,3 +10530,45 @@ main.ts 8,948 → 8,319 lines. 47 definitions moved, 26 drifted.
 
 Waves 8–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---
+
+## 2026-10-22 · main.ts split, wave 8 — the styles system
+
+**Commit `2a6a767` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,899
+assertions / 0 failed; import graph acyclic at 123 modules.
+
+The biggest region left the monolith in two files, split where the plan's
+second name said what it took: stylespanel.ts (1,676) — the render and every
+styling section, the layer model (document default / one element / the
+overrule), the per-level heading ramps and the mark register's doors, plus
+the shared row family (styleRow/fieldControl and the controls under it) that
+wave 9's destinations borrow; customstyles.ts (222) — the writer's own
+paragraph styles: apply (whole paragraph like Word), unwrap, the taken-names
+check, the knob form and its two doors. main.ts 8,319 → 6,540 lines. 58 moved
+(51 + 7), 0 drift — the borrowings are wiring, shape as counted.
+
+- **The one shared edge runs one way.** The gestures borrow the dress
+  (customstyles imports styleRow/fieldControl); the reverse — myStyleRows's
+  edit affordance opening openStyleEditor — went through `StylesWiring`, so
+  the two-file pair is acyclic and neither file answers for the other's job.
+- **Four wirings' worth of shell, named at boot:** destinationRows (the
+  document's own declarations, wave 9's region), applySkin/undoSkin (the
+  settings mutations that stayed main in wave 6), reconfigureShortcuts (the
+  shortcut compartments), openStyleEditor; the form modal arrives through
+  wireCustomStyles and still lives in main until its wave.
+- **What stayed and earned a sentence:** entityAct (sat inside the
+  custom-styles banner, answers for every construct), styleActions (the open
+  document's action list feeding actions()), and openStylesFor as a named
+  export — the ribbon's level picker had an inline arrow writing panel
+  state; now the panel owns the door and the state it names.
+- **Fences rekeyed in the same commit (rule 6):** coverage (panel writers,
+  review checked in main where its drawer still is, levelsControl),
+  notestyle (precedence), styleediting (my-styles rows, sizeControl, ramps)
+  read stylespanel.ts; docs.test registers both wirings (handback identity)
+  for the runner's every-module-imported fence; README's count rekeyed
+  (12,896 → 12,899). The plan's acceptance — styles.test's registry
+  invariant, the uilanguage copies — held without edits.
+
+Waves 9–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+---

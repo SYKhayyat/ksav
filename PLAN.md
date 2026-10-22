@@ -864,7 +864,16 @@ still right.
     (registry-owned rows) with its door (openKeys) traveling to the drawers'
     file, 47 moved / 26 wiring drift, main.ts 8,319 lines. See
     `decisions/2026-10-22-main-ts-split-wave-7-git-macros-hydra-drawers.md`.
-    Waves 8–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+    **Wave 8 closed 2026-10-22** (`2a6a767`) — the styles system out into
+    stylespanel.ts (1,676: the render, the layer model, the per-level ramps,
+    notes/bands/streams/marks sections, and the shared row family wave 9's
+    destinations borrow) and customstyles.ts (222: apply/unwrap, taken names,
+    the knob form and its two doors); the borrowings named in two wirings
+    (wireStyles, wireCustomStyles — the form modal still main until wave 9),
+    entityAct and styleActions stayed main, 58 moved / 0 drift, main.ts
+    6,540 lines. See
+    `decisions/2026-10-22-main-ts-split-wave-8-the-styles-system.md`.
+    Waves 9–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

@@ -10428,4 +10428,57 @@ definitions moved, 2 drifted, both wiring routings.
   to the export. README's count rekeyed (12,883 → 12,884).
 
 Waves 6–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+
+---
+
+## 2026-10-22 · main.ts split, wave 6 — the settings drawer, the panels, the snapshots
+
+**Commit `7f9e25b` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,891
+assertions / 0 failed; import graph acyclic at 119 modules.
+
+The bin of what main was left holding: the settings drawer — 950-odd lines
+under what had been the version-control region's banner — into
+`settingsdrawer.ts` (1,048); the row machinery four panels and the palette
+borrow into `rowlists.ts` (593); version history into `snapshots.ts` (144).
+main.ts 10,471 → 8,948 lines. 49 definitions moved, 26 drifted.
+
+- **The plan's panelviews.ts split was not built, recorded.** Every piece
+  the plan would have made a "pure view" (drawList's toggle rerenders, the
+  row dispatch's reads of live settings) reads chrome state; the split would
+  have carried a second wiring at the moment of drafting. Dress, draw,
+  dispatch and the LOOKS table stayed one file.
+- **Three wirings, the waves-4/5 shape:** `wireRows` (runAction, restore,
+  swapDoc, revealCaret — restore a guarded verb, so asyncaction's inventory
+  unchanged except to lose a stale main.ts row), `wireSettings` (runList,
+  openKeys, eventToKey, whose, reconfigure, swapRunningHead, confirm,
+  noteHome, attachFont, dropAsset, live, pageSet, write, adoptDefault — the
+  writes (`setSetting`, `setPageSetup`, `adoptPageSetupAsDefault`) stayed
+  main: compartment/compile machinery), `wireSnapshots` (confirm,
+  refreshBaseline, loadBody — and the reason snapshots.ts can import
+  drawList/LOOKS from rowlists.ts with no reverse edge).
+- **Local renames that carry a split:** the dictionary namespace is
+  `spellN` inside the drawer (the prose about misspellings stays literal);
+  keybindings read through keyhint's export, with `whoHolds` (chord
+  conflicts) from bindings.ts — main no longer needs it.
+- **Fences rekeyed in the same commit (rule 6):** eleven test files follow
+  the code — chrome (drawList → rowlists), deferred (note-body placements →
+  settingsdrawer), find (renderFindPane → rowlists with a widened window,
+  the scope row → settingsdrawer), notelangs (menu sweep → rowlists, end
+  anchor now `drawList(`), opening (open-in trio), retention (cost/why/
+  clear → snapshots; the footer fence slices renderHistory where it lives
+  now), restarts (renumber rows), settings (the drawer-note proximity walk,
+  the reachability source list, goToOffset → rowlists with `revealCaret`),
+  tagselect (extension/keys stay main, the row reads settingsdrawer),
+  whitespace (row and note) — plus panelrows.test (LOOKS now imported) and
+  docs.test (snapshots wiring registered and handed back) feeding the
+  runner's every-module-imported fence. README's count rekeyed (12,884 →
+  12,891).
+- **Environment note as always:** `KSAV_CHROMIUM` supplied transiently; the
+  gate's first run without it red on browserlang asserting nothing (the
+  stouthearted refusal fired correctly — the runner has no browser to
+  measure with, say so and fail).
+
+Waves 7–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---

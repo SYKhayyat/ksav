@@ -842,7 +842,19 @@ still right.
     the table bucket was recorded as overtaken (model/registry/strip moved
     before or in wave 3), main.ts 10,471 lines. See
     `decisions/2026-10-21-main-ts-split-wave-5-the-insertion-path.md`.
-    Waves 6–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+    **Wave 6 closed 2026-10-22** (`7f9e25b`) — the settings drawer out into
+    settingsdrawer.ts (all row builders, the font picker, keys capture,
+    dictionary import/export) behind a `SettingsWiring`; the shared list
+    machinery (LOOKS, drawList, drawRow, runRow, goToOffset, the pane
+    toggles and openNoteMenu) out into rowlists.ts behind a `RowWiring` —
+    the plan's panelviews.ts split recorded as not built (the dispatch
+    reads and rerenders chrome state, so a pure view split would have been
+    a second wiring at birth); version history out into snapshots.ts
+    behind a `SnapshotsWiring`; the settings mutations stayed main-held
+    (compartment/compile machinery), 49 moved / 26 documented wiring
+    drift, main.ts 8,948 lines. See
+    `decisions/2026-10-22-main-ts-split-wave-6-the-settings-drawer-and-the-panels.md`.
+    Waves 7–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

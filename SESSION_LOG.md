@@ -10350,3 +10350,45 @@ commit.
 
 Waves 4–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---
+
+## 2026-10-21 · main.ts split, wave 4 — the palette, girsa, the series machinery
+
+**Commit `57d443b` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,883
+assertions / 0 failed; import graph acyclic at 116 modules.
+
+The command palette moved to `palette.ts` (151); the citation plumbing (`linkifySelection`,
+the refresh rows, the mekoros popup and keyboard, `askForMekor`,
+`attachRefToNote`, `tellGirsaWhereItIs`) moved to `girsa.ts` (491); the
+series keepers (`scheduleRenumber`, `renumberNow`) joined `renumberAll` in
+`numbering-lint.ts`; main.ts 11,336 → 10,738 lines. 21 definitions moved,
+3 drifted — all three the two rule-4 seams, enumerated in the move commit.
+
+- **Numbering-lint, not numbering, for the series.** The plan's `numbering.ts`
+  slating would have cycled the pair: `renumberNow` calls
+  numbering-lint's `renumberAll`, and numbering is the leaf the lint imports
+  from. Deviation on record.
+- **One runtime hook for the insertion path.** `runtime.ts` gains
+  `onInsertSnippet`/`insertSnippet` in the shape of `onRerenderChrome`;
+  girsa writes citations through it until wave 5's insert.ts gives a direct
+  import and the hook retires. Interim by design, recorded as such.
+- **`PaletteWiring` for what the rows can be.** `actions()`, macro names and
+  the shared list renderer arrive as one boot-registered object
+  (`wirePalette`/`paletteWiring()`), guard text mirroring the chrome's.
+  drawList/Look/LOOKS stay in main for wave 6 — its `drawRow` runs
+  main-held verbs.
+- **The reveal cluster stayed in main** against the plan's "placesAnswer/
+  revealClickTimer travel with girsa": `revealPlaces` answers jump's
+  expand-to-source request, a different question from girsa's
+  whose-verse-is-this-phrase; the census says the whole cluster belongs to
+  the jump, not the citation.
+- **Fences rekeyed in the same commit (rule 6):** restarts reads both files
+  (MAIN: the change path + the settings rows; NL: the machinery), named in a
+  comment; chrome.test gains the wave-4 wiring fence and imports the two
+  modules; asyncaction's INVENTORY documents girsa's own askForMekor void
+  and keeps main's registry call sites. README's count rekeyed
+  (12,880 → 12,883).
+
+Waves 5–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+---

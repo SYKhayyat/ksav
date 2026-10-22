@@ -10482,3 +10482,51 @@ main.ts 10,471 → 8,948 lines. 49 definitions moved, 26 drifted.
 
 Waves 7–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---
+
+## 2026-10-22 · main.ts split, wave 7 — version control, the drawers, macros, the hydra
+
+**Commit `0bbabc0` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,896
+assertions / 0 failed; import graph acyclic at 121 modules.
+
+Four regions left main in one wave: the version-control drawer into
+`gitui.ts` (315) behind a `GitWiring` (ask, loadBody — git.ts still owns
+what git means); the commands drawer's search half into
+`commandsdrawer.ts` (85); the shell's action door (runAction, inAction)
+still main behind a `MacrosWiring` (actionById, askText,
+reconfigureShortcuts) as the recorder's replay reaches it; the hydra's
+panel half into `hydra.ts` (374) behind a `HydraWiring` (runStructure —
+`runStructureAction` stays main: it is editDoc plus the note hook).
+main.ts 8,948 → 8,319 lines. 47 definitions moved, 26 drifted.
+
+- **Bucket decisions on record:** the keys drawer's view (`renderKeysPanel`,
+  `keysQuery`) stayed main — its rows are the shortcut registries the shell
+  still owns — but its three-line door (`openKeys`) traveled with the
+  drawers' doors into commandsdrawer.ts, recorded rather than laundered; the
+  macro recorder moved into macros.ts beside its pure engine (the three note
+  ears, recording/replaying, the cache, record/finish/play/delete and
+  macroName — one file, one vocabulary); buildHelpPanel joined help.ts where
+  wave 5 had already put the render half.
+- **Wiring drift, the counted kind:** git's modal question and restore body
+  swap through `wireGit`; hydra's `resetHydra` owning the panel registry's
+  close-hook state, `dismissForeignHydra` carrying the chrome gate with a
+  widened `string | null` param; macros' saved-list reads, macroName,
+  replay's action door and finish's modal/rebind through `wireMacros`,
+  `recording` reads becoming `isRecording()`/`currentRecording()`.
+- **Fences rekeyed in the same commit (rule 6):** hydra.test's capture
+  fences now read hydra.ts (the reset attribute replaced by the reset
+  function's own source, MAIN keeping the registered door); styleediting's
+  keys-drawer-name fence reads macros.ts (`styles.styleOfAction` moved with
+  the recorder); panelrows.test extends the row-dress block to the commands
+  surface (commandsdrawer imported, `LOOKS.commands.row ===
+  LOOKS.palette.row`) and docs.test registers the git wiring — both feed
+  the runner's every-module-imported fence, which was red on
+  commandsdrawer/gitui until they landed. README's count rekeyed
+  (12,891 → 12,896).
+- **Plan acceptance honored:** hydra's pinned kinds contract is now read
+  in hydra.ts itself; macros' registry-driven names sit beside the
+  registries they translate.
+
+Waves 8–10 pending; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
+---

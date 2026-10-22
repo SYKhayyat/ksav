@@ -131,6 +131,7 @@ supersede an earlier one without rewriting it.
 | 2026-10-21 | [main-ts-split-wave-3-the-app-chrome](2026-10-21-main-ts-split-wave-3-the-app-chrome.md) |
 | 2026-10-21 | [main-ts-split-wave-4-palette-girsa-and-the-series](2026-10-21-main-ts-split-wave-4-palette-girsa-and-the-series.md) |
 | 2026-10-21 | [main-ts-split-wave-5-the-insertion-path](2026-10-21-main-ts-split-wave-5-the-insertion-path.md) |
+| 2026-10-22 | [main-ts-split-wave-7-git-macros-hydra-drawers](2026-10-22-main-ts-split-wave-7-git-macros-hydra-drawers.md) |
 | 2026-10-22 | [main-ts-split-wave-6-the-settings-drawer-and-the-panels](2026-10-22-main-ts-split-wave-6-the-settings-drawer-and-the-panels.md) |
 | 2026-10-11 | [the-editor-scan-is-the-seam](2026-10-11-the-editor-scan-is-the-seam.md) |
 | 2026-10-13 | [a-scan-belongs-to-its-text](2026-10-13-a-scan-belongs-to-its-text.md) |

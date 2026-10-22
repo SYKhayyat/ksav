@@ -5,8 +5,8 @@
 // mekoros popup and its keyboard, `askForMekor` and the lint's way in
 // (`attachRefToNote`), the drop-into-Girsa door, and the courtesy call
 // `tellGirsaWhereItIs`.
-// Defers: what a citation *is* to `citation.ts`, and the single insertion path
-// to `runtime.ts`'s hook until its own wave gives this module a direct import;
+// Defers: what a citation *is* to `citation.ts`, and writes through the one
+// insertion path in `insert.ts` (`insertSnippet`), imported directly;
 // a refusal is an answer — the prose is left exactly as written.
 // Refuses: deciding which places a phrase could be — that is Girsa's answer,
 // printed citation and all. This module chooses which one is highlighted and
@@ -21,6 +21,7 @@ import { docTextOf, bodyAt, scanDoc } from "./spans";
 import { citationMarkup } from "./citation";
 import { t, tf } from "./i18n";
 import { el } from "./dom";
+import { insertSnippet } from "./insert";
 import { openPanel, closePanel, mountPanel, isPanelOpen } from "./panels";
 import { scheduleCompile } from "./compile";
 
@@ -400,7 +401,7 @@ function showMekoros(at: number, phrase: string, answer: Mekoros): void {
     // citation panel: the most sefer-specific note in the product was the one
     // that ignored the preference.
     runtime.view.dispatch({ selection: { anchor: at } });
-    runtime.insertSnippet(citationMarkup(place));
+    insertSnippet(citationMarkup(place));
     closeMekoros();
     runtime.view.focus();
     setStatus(place.display, "ok");

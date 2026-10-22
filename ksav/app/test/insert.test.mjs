@@ -258,9 +258,9 @@ export async function run() {
   // closes, the document does not change, and nothing anywhere says why. The
   // refusal had been computed, displayed and erased.
   //
-  // Read off the source because `main.ts` is the one module no test can import —
-  // the same reason this file exists. A source check is weaker than a behavioural
-  // one and it is the strongest thing available at this seam.
+  // Read off the source. The path itself moved into `insert.ts` (wave 5) and
+  // this file is its test, so the perform half is read retargeted; the callers
+  // below stay main-held until their waves.
 
   {
     const main = await readFile(path.join(SRC, "main.ts"), "utf8");
@@ -272,9 +272,10 @@ export async function run() {
       "…and the guarded form is what they use instead",
       /if \(insertSnippet\([^\n]*\)\) scheduleCompile\(\);/u.test(main),
     );
+    const insertSrc = await readFile(path.join(SRC, "insert.ts"), "utf8");
     ok(
       "insertSnippet says whether anything went in",
-      /function insertSnippet\(rawSnippet: string\): boolean/u.test(main),
+      /export function insertSnippet\(rawSnippet: string\): boolean/u.test(insertSrc),
     );
   }
 }

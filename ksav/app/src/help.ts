@@ -20,6 +20,14 @@ import type { Macro } from "./macros";
 import { STRUCTURE_ACTIONS } from "./structure";
 import type { Structure } from "./structure";
 import type { RowAction } from "./panelrows";
+import { el } from "./dom";
+import { t, getLang } from "./i18n";
+import { keybindings } from "./keyhint";
+import * as keymodes from "./keymodes";
+import { settings } from "./settings";
+import * as runtime from "./runtime";
+import { openPanel } from "./panels";
+import { closeMenus } from "./runtime";
 
 export interface HelpEntry {
   /** What it does, already in the reader's language. */
@@ -258,4 +266,99 @@ export function documentedIds(sections: HelpSection[]): Set<string> {
   const out = new Set<string>();
   for (const s of sections) for (const e of s.entries) if (e.id) out.add(e.id);
   return out;
+}
+
+// ---------------------------------------------------------------- help
+//
+// Generated, in full, from the same registries everything else is a view over.
+// Nothing here is written by hand, which is the only way a help page stays true:
+// the alternative is a document that was correct on the day somebody typed it.
+
+
+// # The wiring
+//
+// The help entries run through the same dispatcher the palette, the outline
+// and the notes list already speak (`panelrows.RowAction`), held by the shell
+// until its own wave. It arrives as one registered object, as the other
+// surfaces' wirings do.
+
+export interface HelpWiring {
+  /** Run a help entry's action, through the shell's row runner. */
+  runRow(does: RowAction): void;
+}
+
+let helpWired: HelpWiring | undefined;
+
+/** Register the help wiring. Called once, from main.ts's boot. */
+export function wireHelp(w: HelpWiring): void {
+  helpWired = w;
+}
+
+/** The wiring, registered at boot. */
+export const helpWiring = (): HelpWiring => {
+  if (!helpWired) throw new Error("wireHelp was never called: the help wiring is missing");
+  return helpWired;
+};
+
+// The panel itself: an open door and a generated page. The search box and the
+// panel shell stay with the shell's drawer region; only the render lives here,
+// and it reads the same registries `helpSections` derives from — which is what
+// makes the page stay true.
+
+export function openHelp() {
+  closeMenus();
+  openPanel("help-panel");
+}
+
+export function renderHelp(query: string) {
+  const box = document.getElementById("help-body")!;
+  const sections = search(
+    helpSections({
+      t,
+      keys: keybindings(),
+      mode: keymodes.activeMode(),
+      macros: settings.macros,
+      commands: runtime.commandsReg,
+      lang: getLang(),
+      hydraKeys: settings.hydraKeys,
+    }),
+    query,
+  );
+
+  const body: Node[] = sections.length
+    ? sections.map((s) =>
+        el("section", { class: "help-section" }, [
+          el("h3", {}, [t(s.title)]),
+          ...(s.lede ? [el("p", { class: "help-lede" }, [t(s.lede)])] : []),
+          el("dl", { class: "help-list" }, s.entries.flatMap((e) => [
+            // A button where the entry has something to run, plain text where it
+            // has not — the marks legend, which names a wedge in the gutter and
+            // has nothing to do. See `HelpEntry.does`.
+            el("dt", {}, [
+              e.does
+                ? el(
+                    "button",
+                    {
+                      class: "help-run",
+                      type: "button",
+                      title: t("helpRun"),
+                      ...(e.does.kind === "action" ? { "data-action": e.does.id } : {}),
+                      onClick: () => {
+                        // The panel stays open. Help is where somebody goes to
+                        // try three things in a row, and a drawer that shuts on
+                        // the first one makes them find their place again twice.
+                        helpWiring().runRow(e.does!);
+                      },
+                    },
+                    [e.what],
+                  )
+                : e.what,
+            ]),
+            el("dd", {}, [el("code", {}, [e.how])]),
+          ])),
+        ]),
+      )
+    : [el("p", { class: "help-lede" }, [t("helpNothing")])];
+
+  box.replaceChildren(...body);
 }

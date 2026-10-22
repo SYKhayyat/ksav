@@ -326,7 +326,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   // Through `plan`, so the toolbar, the menu, the palette and the keyboard all
   // do it — one producer, which is the rule this file exists to keep.
   ok("the bullet button makes one of a selection", read("insert.ts").includes('kind: "rewrite"'));
-  ok("…and the shell performs it", MAIN.includes('plan.kind === "rewrite"'));
+  ok("…and the shell performs it", read("insert.ts").includes('answer.kind === "rewrite"'));
   ok("it is an action of its own", MAIN.includes('id: "makeList"'));
   ok("…named in the Format menu", RIBBON.includes('t("makeList")'));
   for (const lang of ["he", "en"]) {

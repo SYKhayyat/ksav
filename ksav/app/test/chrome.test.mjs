@@ -51,6 +51,7 @@ const SRCDIR = path.join(HERE, "..", "src");
 const FILES = readdirSync(SRCDIR).filter((f) => f.endsWith(".ts"));
 const SOURCES = new Map(FILES.map((f) => [f, readFileSync(path.join(SRCDIR, f), "utf8")]));
 const MAIN = SOURCES.get("main.ts");
+const INSERT = SOURCES.get("insert.ts");
 
 /** Every file but `panels.ts`, which is where all of this is allowed to live. */
 function elsewhere(re) {
@@ -275,10 +276,11 @@ check(
   check("…without recording either", structuralNotes, []);
   // The other half: the recorder has to see a command that arrives with no
   // action behind it — the toolbar, the Insert menu and the palette all call
-  // `insertSnippet` with a registry command directly.
+  // `insertSnippet` with a registry command directly. Wave 5 moved the path
+  // itself into `insert.ts`, whose wiring carries the recorder call.
   ok(
     "a command inserted with no action behind it is recorded too",
-    /function insertSnippet[\s\S]{0,400}?noteSnippet\(/.test(MAIN),
+    /insertWiring\(\)\.noteSnippet\(/.test(INSERT),
   );
 }
 

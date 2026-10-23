@@ -290,7 +290,7 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
  * which is what "default" means: fall back to the global answer above.
  */
 function noteBodyRows(): HTMLElement[] {
-  const homes: [string, string][] = BODY_HOMES.map((h) => [h, t("settingsWiring().noteHome." + h)]);
+  const homes: [string, string][] = BODY_HOMES.map((h) => [h, t("bodyHome." + h)]);
   const global = el(
     "select",
     {
@@ -318,7 +318,7 @@ function noteBodyRows(): HTMLElement[] {
   // back to a block at the end of the source.
   for (const d of DESTINATIONS) {
     const live = settings.noteBodyPlacement?.[d.id] ?? "";
-    const options: [string, string][] = [["", t("settingsWiring().noteHome.default")], ...homes];
+    const options: [string, string][] = [["", t("bodyHome.default")], ...homes];
     const sel = el(
       "select",
       {

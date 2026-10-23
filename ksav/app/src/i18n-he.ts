@@ -1450,6 +1450,7 @@ export const HE: Dict = {
   previewOfNothing: "‏⊡ {0} · עדיין לא נדפס",
   previewFollowsLede: "התצוגה עוקבת אחר החלונית שלידה; בטל את הקישור כדי לראות את כל הספר",
   "sc.revealCursor": "היכן זה נדפס?",
+  revealPlaces: "בכל המקומות שבהם שורה זו נדפסה",
   "sc.revealPlaces": "בכל המקומות שבהם שורה זו נדפסה",
   "sc.isolate": "בידוד כיווניות לקטע",
   "sc.spellSuggest": "הצעות איות למילה שבסמן",

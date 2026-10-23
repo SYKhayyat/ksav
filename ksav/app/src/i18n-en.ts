@@ -1393,6 +1393,7 @@ export const EN: Dict = {
   previewFollowsLede: "This preview follows the pane beside it; unlink it to see the whole sefer",
   narrowedNoTitle: "an untitled heading",
   "sc.revealCursor": "Where did this print?",
+  revealPlaces: "Everywhere this line prints",
   "sc.revealPlaces": "Everywhere this line prints",
   "sc.isolate": "Isolate the selection's direction",
   "sc.spellSuggest": "Spelling suggestions for the word at the caret",

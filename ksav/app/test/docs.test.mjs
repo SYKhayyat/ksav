@@ -7,6 +7,12 @@
 
 import { check, ok, notOk, rejects, resetStorage } from "./harness.mjs";
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
+
+const SRC_DIR = path.join(dirOf(import.meta.url), "..", "src");
+/** The module's own source — the fence reads claims, not export surfaces. */
+const srcOf = (f) => readFileSync(path.join(SRC_DIR, f), "utf8");
 import * as docs from "../.tmp-test/docs.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
 import * as store from "../.tmp-test/store.mjs";
@@ -535,8 +541,18 @@ export async function run() {
 
 {
   // The custom styles' gestures now take the form modal by direct import (the
-  // wiring wave 9 retired when the modal became formmodal.ts's).
-  ok("the custom styles' module exists to be imported", customstyles.unwrapCustomStyle !== undefined);
+  // wiring wave 9 retired when the modal became formmodal.ts's) and borrow the
+  // panel's row dress — one direction, the dress owner upstream.
+  const src = srcOf("customstyles.ts");
+  ok(
+    "the custom styles borrow the panel's dress and the form modal, and own the three gestures",
+    src.includes('import { fieldControl, styleRow } from "./stylespanel"') &&
+      src.includes('import { openModal } from "./formmodal"') &&
+      /export async function applyCustomStyle|export function applyCustomStyle/.test(src) &&
+      src.includes("export function unwrapCustomStyle") &&
+      src.includes("export function openNewStyle") &&
+      src.includes("export function openStyleEditor"),
+  );
 }
 
 {
@@ -550,17 +566,50 @@ export async function run() {
 }
 
 {
-  // Wave 9's seven files, imported so the runner's every-module-imported fence
-  // can hold: the smoke read is that each module's own export surface survives
-  // its move — the guards wave 4 put on the wirings keep the rest honest.
+  // Wave 9's files, imported so the runner's every-module-imported fence can
+  // hold — and held to the one structural claim each file exists to make:
+  // the modal owns the three prompts and settles pending state; the review
+  // drawer renders panelviews' rows; section setup writes the one command it
+  // asks about; formulas writes the two; the notes chooser is the only place
+  // that reaches applyPick; assets reclaims what it removes; the file doors
+  // route through save's rule instead of re-deriving it.
   ok(
-    "the wave-9 modules carry the exports their wave names",
-    formmodal.askText !== undefined &&
-      reviewpanel.renderReviewPanel !== undefined &&
-      sectionsetup.openSectionSetup !== undefined &&
-      formulas.openFormula !== undefined &&
-      noteschooser.applyNotePick !== undefined &&
-      assets.insertImage !== undefined,
+    "formmodal owns the three prompts and the settle door",
+    /export function openModal|export async function openModal/.test(srcOf("formmodal.ts")) &&
+      srcOf("formmodal.ts").includes("export function ask(") &&
+      srcOf("formmodal.ts").includes("export function askArrival(") &&
+      srcOf("formmodal.ts").includes("export function askText(") &&
+      srcOf("formmodal.ts").includes("export function settlePendingModals"),
+  );
+  ok(
+    "the review drawer renders panelviews' rows and asks through the modal",
+    srcOf("reviewpanel.ts").includes("panelviews.reviewPanel(") &&
+      srcOf("reviewpanel.ts").includes('from "./formmodal"'),
+  );
+  ok(
+    "section setup writes #\u05de\u05e7\u05d8\u05e2_\u05e2\u05de\u05d5\u05d3 and nothing else claims to",
+    srcOf("sectionsetup.ts").includes("#\u05de\u05e7\u05d8\u05e2_\u05e2\u05de\u05d5\u05d3("),
+  );
+  ok(
+    "formulas write the display and inline forms",
+    srcOf("formulas.ts").includes("#\u05e0\u05d5\u05e1\u05d7\u05d4(") &&
+      srcOf("formulas.ts").includes("#\u05e0\u05d5\u05e1\u05d7\u05d4_\u05d1\u05e9\u05d5\u05e8\u05d4("),
+  );
+  ok(
+    "the notes chooser reaches applyPick, the one producer",
+    /applyPick\(/.test(srcOf("noteschooser.ts")) &&
+      srcOf("noteschooser.ts").includes("panelviews.notesPanel("),
+  );
+  ok(
+    "removing an asset reclaims the bytes, attaching marks the file dirty",
+    srcOf("assets.ts").includes("docs.collectAssets()") &&
+      srcOf("assets.ts").includes("save.markFileDirty()"),
+  );
+  ok(
+    "the file doors route through save's rule, not their own",
+    srcOf("fileui.ts").includes("save.saveRoute(") &&
+      srcOf("fileui.ts").includes("export async function openFile") &&
+      srcOf("fileui.ts").includes("export async function saveFile"),
   );
 }
 
@@ -591,7 +640,8 @@ export async function run() {
   wireTemplates(WIRING);
   ok("the templates' wiring hands back what was registered", templatesWiring() === WIRING);
   ok(
-    "the file doors carry their own exports",
-    fileui.saveFile !== undefined && fileui.openFile !== undefined,
+    "a template's direction goes through the wired setting write — and no direct import could bypass it",
+    srcOf("templates.ts").includes('templatesWiring().setSetting("dir"') &&
+      !/^import .*setSetting.*from/m.test(srcOf("templates.ts")),
   );
 }

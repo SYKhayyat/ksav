@@ -28,7 +28,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const SRC = path.resolve(dirOf(import.meta.url), "..", "src");
-const mainSource = () => readFile(path.join(SRC, "main.ts"), "utf8");
 import { docLang, translated, insertionAt } from "../.tmp-test/mode.mjs";
 import { applyPick, destinationLines, hasLine, noteFor } from "../.tmp-test/notes.mjs";
 import { DESTINATIONS, PRESETS, pickLine, presetLines } from "../.tmp-test/channels.mjs";
@@ -197,7 +196,6 @@ check(
   check("a selected Hebrew word is not translated", r.text, "#bold[מקורות]");
 }
 
-// --------------------------------------- 3. every note layout, in English
 // --------------------------------------- 3. every destination, in English
 
 {
@@ -311,7 +309,7 @@ ok(
   ok("the starter lists exactly these", (await starterSource()).includes('"replace all",'));
   const listed = /const SEARCH_WORDS = \[([\s\S]*?)\] as const;/u.exec(await starterSource())?.[1] ?? "";
   const declared = [...listed.matchAll(/"([^"]+)"/gu)].map((m) => m[1]);
-  check("the list in main.ts and the list here agree", declared, shown);
+  check("the list in starter.ts and the dictionary here agree", declared, shown);
 }
 
 }

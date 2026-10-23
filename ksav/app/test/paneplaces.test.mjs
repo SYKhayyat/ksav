@@ -20,7 +20,6 @@ import { fileURLToPath } from "node:url";
 import * as places from "../.tmp-test/paneplaces.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
 const DOCSWITCH = readFileSync(path.join(HERE, "..", "src", "docswitch.ts"), "utf8");
 
 /**
@@ -163,9 +162,11 @@ export async function run() {
       ok("…across every tab, not just the one on screen", sweep.includes("tabs.all()"));
       ok("…by asking the table what it holds", sweep.includes("panesKnown()"));
     }
+    // The close paths live in `docswitch.ts` since wave 10; `MAIN`'s arm was
+    // dead from the day it was written.
     ok(
       "closing a document forgets where the panes were in it",
-      /paneplaces\.forgetDoc\(/u.test(MAIN) || /paneplaces\.forgetDoc\(/u.test(DOCSWITCH),
+      /paneplaces\.forgetDoc\(/u.test(DOCSWITCH),
     );
   }
 }

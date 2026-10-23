@@ -168,11 +168,10 @@ for (const c of commands) {
         `#${c.he}: and a control writes it`,
         // Either through the panel's own helper or through `styles.setStyleArgs`
         // directly — the review view is set from the review drawer, not from
-        // the Styles panel, and both are controls a person can press.
-        MAIN.includes(`setStyleArgs("${exempt.kindKey}"`) ||
-          STYLES_PANEL.includes(`setStyleArgs("${exempt.kindKey}"`) ||
-          STYLES_PANEL.includes(`setStyleArgs(doc, "${exempt.kindKey}"`) ||
-          MAIN.includes(`setStyleArgs(doc, "${exempt.kindKey}"`) ||
+        // the Styles panel, and both are controls a person can press. Two
+        // files, one call shape each: `setStyleArgs(kind` in the panel,
+        // `setStyleArgs(doc, kind` in the review drawer.
+        STYLES_PANEL.includes(`setStyleArgs("${exempt.kindKey}"`) ||
           REVIEW_PANEL.includes(`setStyleArgs(doc, "${exempt.kindKey}"`),
       );
       break;

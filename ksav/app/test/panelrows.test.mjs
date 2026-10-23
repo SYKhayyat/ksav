@@ -1,4 +1,5 @@
 import { check, ok, notOk } from "./harness.mjs";
+import { readFileSync } from "node:fs";
 import {
   PALETTE_COMMANDS,
   commandGroups,
@@ -513,4 +514,11 @@ export async function run() {
     "the commands drawer reads the shared row dress",
     commandsdrawer !== undefined && LOOKS.commands.row === LOOKS.palette.row,
   );
+  // Read from the source that draws it: the drawer's render goes through the
+  // shared drawRow, so a second drawing path cannot quietly fork the dress.
+  const drawerSource = readFileSync(
+    new URL("../src/commandsdrawer.ts", import.meta.url),
+    "utf8",
+  );
+  ok("…and it draws through drawRow, in its own source", drawerSource.includes("drawRow("));
 }

@@ -520,11 +520,30 @@ const RULES = [
     // is the fallback inside `saveAs`, whose announcement is `save.ts`'s — a
     // save that reports itself twice is worse than one that reports itself once.
     what: "a file handed to the writer is announced beside the handover",
-    where: /^ksav\/app\/src\/(main|exports)\.ts$/u,
+    // All of src/, `dom.ts` and `files.ts` out of scope rather than exempt:
+    // they *define* the mechanism. The split moved callers out of `main.ts` —
+    // the sweep used to read two files and went blind without being touched
+    // (the audit's finding) — so `where` now names the whole tree and the two
+    // mechanism files are the only exclusions.
+    where: /^ksav\/app\/src\/(?!dom\.ts$|files\.ts$).*\.ts$/u,
     probe: (body) => {
       const lines = body.split("\n");
+      // Enclosing top-level function per line, the same attribution
+      // `opening.test.mjs` and `channels.test.mjs` use.
+      const owners = [];
+      let owner = null;
+      for (const line of lines) {
+        const fn = /^(?:export )?(?:async )?function (\w+)\b/u.exec(line);
+        if (fn) owner = fn[1];
+        owners.push(owner);
+      }
       return lines.some((line, i) => {
         if (!/(?<![\w.])(?:files\.)?download\(/u.test(line)) return false;
+        // `exportBackup` is the failure banner's own rescue button: the button
+        // that summons it is labelled `t("downloadBackup")`, and that label is
+        // the announcement — adding a "✓ exported" beside it would be the
+        // double report this rule exists to prevent.
+        if (owners[i] === "exportBackup") return false;
         const near = lines.slice(Math.max(0, i - 3), i + 8).join("\n");
         return !/"exported"|handOver\(/u.test(near);
       });

@@ -1,5 +1,5 @@
 import { ok, check } from "./harness.mjs";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { commands } from "../tools/commands.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
@@ -32,6 +32,20 @@ import { dirOf } from "../tools/paths.mjs";
 const HERE = dirOf(import.meta.url);
 const SRC = path.join(HERE, "..", "src");
 const read = (f) => readFileSync(path.join(SRC, f), "utf8");
+// Every source file, comment-stripped — the corpus for whole-tree prohibitions.
+const SOURCES = readdirSync(SRC)
+  .filter((f) => f.endsWith(".ts") && !f.startsWith("i18n-"))
+  .map((f) => [
+    f,
+    readFileSync(path.join(SRC, f), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+      .split("\n")
+      .map((line) => {
+        const at = line.indexOf("//");
+        return at < 0 ? line : line.slice(0, at);
+      })
+      .join("\n"),
+  ]);
 
 /**
  * The registry, read from the engine's own source — by `tools/commands.mjs`.
@@ -380,7 +394,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
 {
   const HIDING = read("hiding.ts");
   ok("one module owns the marks", HIDING.includes("export const FOLD_OPEN"));
-  ok("…and nothing else spells them", !read("main.ts").includes('"//{'));
+  ok("…and nothing else spells them", !SOURCES.some(([f, s]) => f !== "hiding.ts" && s.includes('"//{')))
   for (const id of ["hideLine", "hideBlock", "fold"]) {
     ok(`${id} is an action`, MAIN.includes(`id: "${id}"`));
     // A name and a description, in the menu, at the point of use — the lede is

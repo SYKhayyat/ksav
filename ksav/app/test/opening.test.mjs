@@ -186,8 +186,17 @@ export async function run() {
     // one — snapshot restore, a git restore and a re-read from disk are all
     // *this* document under another version of itself. What must not go through
     // it is a template, which is a different document.
-    notOk("a stock template no longer overwrites the open document", MAIN.includes("loadBody(tpl.body)"));
-    notOk("nor does a saved one", MAIN.includes("loadBody(ut.body)"));
+    // The template half lives in `templates.ts` since wave 11 — the
+    // prohibition reads both files, or it guards a file that no longer writes
+    // templates.
+    notOk(
+      "a stock template no longer overwrites the open document",
+      MAIN.includes("loadBody(tpl.body)") || TEMPLATES.includes("loadBody(tpl.body)"),
+    );
+    notOk(
+      "nor does a saved one",
+      MAIN.includes("loadBody(ut.body)") || TEMPLATES.includes("loadBody(ut.body)"),
+    );
     ok("both start a document instead", callsTo("startFromTemplate").length >= 3);
     ok(
       "...and an empty document still takes one in place, so a first template costs no tab",

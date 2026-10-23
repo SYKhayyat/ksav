@@ -1,6 +1,6 @@
 import { check, notOk, ok } from "./harness.mjs";
 import { dirOf } from "../tools/paths.mjs";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { DICTS } from "../.tmp-test/i18n.mjs";
 import { VOCABULARY } from "../.tmp-test/engine.gen.mjs";
@@ -46,7 +46,32 @@ import {
 } from "../.tmp-test/notes.mjs";
 
 const HERE = dirOf(import.meta.url);
-const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
+// Every source file, comment-stripped — the sweep's corpus. The importers
+// (`docx.ts`, `org.ts`) are exempt: they build *file content* for a document
+// being read in, which is markup production, not an editor splice.
+const stripped = (text) =>
+  text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+const SOURCES = readdirSync(path.join(HERE, "..", "src"))
+  .filter((f) => f.endsWith(".ts") && !["docx.ts", "org.ts"].includes(f))
+  .map((f) => {
+    const lines = stripped(readFileSync(path.join(HERE, "..", "src", f), "utf8"))
+      .split("\n")
+      .map((line) => {
+        const at = line.indexOf("//");
+        return at < 0 ? line : line.slice(0, at);
+      });
+    // The enclosing top-level function for each line index — the same
+    // attribution `opening.test.mjs` uses, so an allowance can name a function
+    // instead of a line shape.
+    const owners = [];
+    let current = null;
+    for (const line of lines) {
+      const fn = /^(?:export )?(?:async )?function (\w+)\b/.exec(line);
+      if (fn) current = fn[1];
+      owners.push(current);
+    }
+    return [f, lines.join("\n"), owners];
+  });
 
 // The editor's half of the channel model.
 //
@@ -379,10 +404,15 @@ export async function run() {
 
   // ------------------------------------------------- and no second way in
 
-  // `main.ts` may not splice a note marker directly. Every occurrence has to be
+  // No module may splice a note marker directly. Every occurrence has to be
   // an argument to `insertSnippet`, which routes it. A `view.dispatch` that
   // inserts `#הערה[` is the bug this exists to prevent, and it would be invisible
   // to every other test in the suite.
+  //
+  // The sweep is over all of `src/`, comment-stripped — the same discipline
+  // `asyncaction.test.mjs` uses. It used to read `main.ts` only, and the split
+  // blinded it without touching it: the markers are now written from ~15
+  // modules, and a raw splice in any of them passed green.
   //
   // Derived, not listed. It was six Hebrew literals — and the hole was exactly
   // the shape of what was not being fixed the day it was written: **no English
@@ -393,18 +423,28 @@ export async function run() {
   {
     for (const command of NOTE_BODY_COMMANDS) {
       const marker = `#${command}[`;
-      for (let at = MAIN.indexOf(marker); at >= 0; at = MAIN.indexOf(marker, at + 1)) {
-        const line = MAIN.slice(MAIN.lastIndexOf("\n", at) + 1, MAIN.indexOf("\n", at));
-        ok(
-          `notes: main.ts writes ${marker} only through insertSnippet — ${line.trim().slice(0, 70)}`,
-          // `noteBtn` and `noteItem` are the toolbar's and the menu's two-line
-          // wrappers, and both hand the snippet straight to `insertSnippet` —
-          // they exist so the button can also print its shortcut, not to write
-          // markup.
-          /insertSnippet|noteBtn\(|noteItem\(/.test(line) ||
-            line.trim().startsWith("//") ||
-            line.trim().startsWith("*"),
-        );
+      for (const [file, text, owners] of SOURCES) {
+        for (let at = text.indexOf(marker); at >= 0; at = text.indexOf(marker, at + 1)) {
+          const line = text.slice(text.lastIndexOf("\n", at) + 1, text.indexOf("\n", at));
+          const lineNo = text.slice(0, at).split("\n").length - 1;
+          const owner = owners[lineNo] ?? null;
+          ok(
+            `notes: ${file} writes ${marker} only through insertSnippet — ${line.trim().slice(0, 70)}`,
+            // `noteBtn` and `noteItem` are the toolbar's and the menu's two-line
+            // wrappers, and both hand the snippet straight to `insertSnippet` —
+            // they exist so the button can also print its shortcut, not to write
+            // markup.
+            //
+            // `citationMarkup` is a pure *producer*: it builds the string and
+            // its single consumer (girsa.ts) routes it through `insertSnippet`.
+            // Its own test holds the only-producer property; a raw dispatch
+            // added inside it is that test's job, not this fence's.
+            /insertSnippet|noteBtn\(|noteItem\(/.test(line) ||
+              owner === "citationMarkup" ||
+              line.trim().startsWith("//") ||
+              line.trim().startsWith("*"),
+          );
+        }
       }
     }
   }

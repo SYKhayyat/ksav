@@ -20,8 +20,8 @@ import * as styles from "./styles";
 import * as menus from "./menus";
 import * as macros from "./macros";
 import { settings } from "./settings";
-import { getLang, t, tf, type Lang } from "./i18n";
-import { el, iconBtn, tbGroup, glyphBtn } from "./dom";
+import { getLang, t, tf, hasKey, type Lang } from "./i18n";
+import { el, iconBtn, tbGroup, glyphBtn, noticeHost } from "./dom";
 import { closeMenus, toggleMenu } from "./panels";
 import { keybindings, hintFor, hintIsMode } from "./keyhint";
 import { BREAKS, BREAK_COMMAND, BREAK_GLYPH, ACTION_COMMAND, actionForCommand } from "./actions";
@@ -1302,4 +1302,63 @@ export function lazyMenu(name: string, label: string, build: () => (Node | strin
     },
   }, [label]);
   return el("div", { class: "menu", "data-menu": name }, [btn, list]);
+}
+
+// ---------------------------------------------------------------- the chrome banner
+//
+// The one banner across the top, and the buttons on it. It was main's glue
+// until wave 11; the ribbon is the chrome module, and this is chrome.
+
+/** One labelled action on the chrome banner. */
+export interface NoticeAct {
+  /** An i18n **key**, or `label` for text that is not one. */
+  key?: string;
+  label?: string;
+  press: () => void;
+}
+
+/**
+ * The banner across the top, and the buttons on it.
+ *
+ * Every action names itself, and that is the whole change from the version
+ * that took a bare callback. The label used to be `t("retrySave")` for all of
+ * them, so a banner offering a document rescued from a crash, and a banner
+ * announcing a new release, and a banner saying the file had changed on disk,
+ * all carried one button reading "Try again" — which answers none of those
+ * three questions and actively misdescribes two of them. The type is the fix:
+ * an action cannot be attached without a label for it.
+ */
+export function showChromeNotice(message: string, ...acts: NoticeAct[]) {
+  document.getElementById("chrome-error")?.remove();
+  const banner = el("div", { id: "chrome-error", class: "chrome-error", role: "alert" }, [
+    // **A key, not the string it resolves to.** The banner used to be built with
+    // `t("…")` at the moment of failure and then sat in the DOM for as long as
+    // the problem lasted, so a writer who changed language kept reading a
+    // notice in the language it was born in. `browserlang`'s residue fence
+    // caught exactly two of these — `registriesGaveUp` and `retrySave` — and it
+    // was right to: both have English values, so nothing about them is
+    // legitimately Hebrew. The fix is the same one `panels.ts` already uses for
+    // headings, and `hasKey` is the guard that turns "a call site passed the
+    // answer where the question belonged" into a boot-time error.
+    el("span", { class: "save-error-text", ...(hasKey(message) ? { "data-i18n": message } : {}) }, [
+      hasKey(message) ? t(message) : message,
+    ]),
+    ...acts.map((a) =>
+      el(
+        "button",
+        {
+          class: "save-error-act",
+          type: "button",
+          onClick: a.press,
+          ...(a.key ? { "data-i18n": a.key } : {}),
+        },
+        [a.key ? t(a.key) : (a.label ?? "")],
+      ),
+    ),
+  ]);
+  noticeHost().append(banner);
+}
+
+export function clearChromeNotice() {
+  document.getElementById("chrome-error")?.remove();
 }

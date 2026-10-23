@@ -160,7 +160,7 @@ export function run() {
     {
       const { readFile } = await import("node:fs/promises");
       const { join } = await import("node:path");
-      const main = await readFile(join(SRC, "main.ts"), "utf8");
+      const main = await readFile(join(SRC, "fileui.ts"), "utf8");
       const shareFn = main.slice(main.indexOf("async function copyShareLink"));
       const body = shareFn.slice(0, shareFn.indexOf("\n}\n"));
       check(

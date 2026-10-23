@@ -425,3 +425,32 @@ export function updateTitleBar() {
     runtime.currentDoc.title +
     " · Ksav";
 }
+
+export function loadBody(body: string) {
+  runtime.view.dispatch({
+    changes: { from: 0, to: runtime.view.state.doc.length, insert: body },
+    selection: { anchor: 0 },
+  });
+  closeMenus();
+  runtime.view.focus();
+  scheduleCompile();
+}
+
+/**
+ * A blank document, opened the way the writer asked documents to open.
+ *
+ * Separate from `newNamedDoc`, which is the *fallback* after closing or
+ * deleting the last open document — that one has to land in the arrangement
+ * that is already on screen, because an editor with no document is not a state
+ * this application has and a new tab for it is a tab nobody asked for.
+ */
+export async function newBlankDoc() {
+  closeMenus();
+  await flushSaves();
+  const doc = await docs.createDoc(t("untitled"), "");
+  await enterDoc(doc.id);
+}
+
+export function newDoc() {
+  voidAction("save_file", () => newBlankDoc());
+}

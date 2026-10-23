@@ -23,6 +23,8 @@ import * as formulas from "../.tmp-test/formulas.mjs";
 import * as noteschooser from "../.tmp-test/noteschooser.mjs";
 import * as assets from "../.tmp-test/assets.mjs";
 import { wireDocswitch, docswitchWiring } from "../.tmp-test/docswitch.mjs";
+import { wireTemplates, templatesWiring } from "../.tmp-test/templates.mjs";
+import * as fileui from "../.tmp-test/fileui.mjs";
 import { wireStarter, starterWiring } from "../.tmp-test/starter.mjs";
 
 export async function run() {
@@ -578,4 +580,18 @@ export async function run() {
   };
   wireStarter(START);
   ok("the starter's wiring hands back what was registered", starterWiring() === START);
+}
+
+{
+  // A template's direction arrives through the shell's setting write; the
+  // file doors carry their own dialogs and are smoke-imported.
+  const WIRING = {
+    setSetting: () => {},
+  };
+  wireTemplates(WIRING);
+  ok("the templates' wiring hands back what was registered", templatesWiring() === WIRING);
+  ok(
+    "the file doors carry their own exports",
+    fileui.saveFile !== undefined && fileui.openFile !== undefined,
+  );
 }

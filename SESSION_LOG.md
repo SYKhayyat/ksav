@@ -10646,3 +10646,42 @@ moved, 0 drift.
 
 The ten waves are closed; the plan feeds from `~/plans/ksav-main-split-PLAN.md`.
 ---
+
+## 2026-10-22 · main.ts split, wave 11 — the templates and the bound file; the last feature region gone
+
+**Commit `bbc148f` (the move), this one (docs).**
+Gates at the end: the full gate green — 11 checks under `nix develop
+.#desktop`, chromium transient via `KSAV_CHROMIUM`; 125 files / 12,908
+assertions / 0 failed; import graph acyclic at 134 modules.
+
+The extra wave the wave-10 record pointed at, authorised after the fact:
+templates.ts (152 — the engine's registry ordered for the menu, the
+writer's own saved templates, and the two doors; the direction write
+arrives through `TemplatesWiring`) and fileui.ts (649 — open and its
+bound-file identity check, save and its three routes, save-as, reload,
+the crash panel and recovery, the update check, the importers, share,
+the service worker, the autosave tick). loadBody, newBlankDoc and newDoc
+joined docswitch.ts (456) — the body swap is a lifecycle verb; the
+chrome notice banner moved to ribbon.ts, the chrome module's own surface.
+main.ts 5,068 → 4,261 lines. 28 moved, 0 drift.
+
+- **The split is at the slash.** The banner said "templates / exports" and
+  held three lives: a feature, the file's UI half, and lifecycle verbs
+  that sat among them by accident of ordering. Each went to the file named
+  for it; the plan's granularity rule decided rather than a size target.
+- **The wirings that carried loadBody did not change shape** — git's,
+  starter's and snapshots' wirings re-point at the same import from
+  docswitch.ts, because gitui imports docswitch for forgetGit and a direct
+  edge would cycle. The wiring names a seam; this seam remains.
+- **Fences rekeyed in the same commit (rule 6):** opening's line list
+  (fileui + templates; the empty-document guard fence reads templates.ts),
+  services' worker fences and share's __PUBLIC_BASE__ fences (fileui.ts),
+  docs.test (the templates wiring registered, the file doors
+  smoke-imported). README's count rekeyed (12,905 → 12,908).
+
+**The end state:** no feature region is left in main.ts that any wave's
+census can name — boot, the notebook assembly, the wirings, and the header
+map that names them. §4 item 1's number (≤ ~1,500) is out of reach because
+the assembly itself is the bulk of what remains; the contents test now
+holds without an asterisk. 134 modules, acyclic.
+---

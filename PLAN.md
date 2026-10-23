@@ -897,6 +897,15 @@ still right.
     plus one never-slated region (templates/exports, ~950 lines) put main at
     5,068. See
     `decisions/2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md`.
+    **Wave 11 closed 2026-10-22** (`bbc148f`) — the extra wave the end-state
+    record pointed at: templates.ts (152: the registry, the writer's own,
+    the two doors, `TemplatesWiring` for the direction write) and fileui.ts
+    (649: open/save/save-as/reload, the crash panel and recovery, the update
+    check, the importers, share, the service worker, the autosave tick);
+    loadBody/newBlankDoc/newDoc joined docswitch.ts (456); the chrome notice
+    banner moved to ribbon.ts; 28 moved / 0 drift, main.ts 4,261 lines, and
+    no feature region is left in main that any wave's census can name. See
+    `decisions/2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md`.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

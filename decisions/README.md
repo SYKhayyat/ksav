@@ -131,6 +131,7 @@ supersede an earlier one without rewriting it.
 | 2026-10-21 | [main-ts-split-wave-3-the-app-chrome](2026-10-21-main-ts-split-wave-3-the-app-chrome.md) |
 | 2026-10-21 | [main-ts-split-wave-4-palette-girsa-and-the-series](2026-10-21-main-ts-split-wave-4-palette-girsa-and-the-series.md) |
 | 2026-10-21 | [main-ts-split-wave-5-the-insertion-path](2026-10-21-main-ts-split-wave-5-the-insertion-path.md) |
+| 2026-10-22 | [main-ts-split-wave-11-the-templates-and-the-bound-file](2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md) |
 | 2026-10-22 | [main-ts-split-wave-10-the-document-lifecycle-and-the-starter](2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md) |
 | 2026-10-22 | [main-ts-split-wave-9-the-forms-doors-and-the-documents-tenants](2026-10-22-main-ts-split-wave-9-the-forms-doors-and-the-documents-tenants.md) |
 | 2026-10-22 | [main-ts-split-wave-8-the-styles-system](2026-10-22-main-ts-split-wave-8-the-styles-system.md) |

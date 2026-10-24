@@ -2509,13 +2509,17 @@ function actionById(id: string): { id: string; run: (v: EditorView) => boolean }
  * picker with the wrong sign on it.
  */
 function runAction(id: string, v: EditorView = runtime.view): boolean {
-  if (!actionById(id)) return false;
+  // Once: `actionById` re-derives the whole action array (the per-document
+  // style scan included), and this used to pay that twice — the guard and
+  // the argument — on every invocation.
+  const action = actionById(id);
+  if (!action) return false;
   inAction++;
   try {
     return runRegisteredAction(
       id,
       v,
-      actionById,
+      () => action,
       (actionId) => !!structure.actionById(actionId),
       noteAction,
     );

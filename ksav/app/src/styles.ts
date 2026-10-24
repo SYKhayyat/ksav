@@ -523,6 +523,26 @@ export interface Field {
  * sequence's numbering scheme describe the *arrangement*, and one member of it has
  * no answer to give.
  */
+
+// The apparatus' own knobs — the same three the bands, streams and tiers take,
+// because they are the same apparatus with a different scope: `_ap_own_keys` is
+// one list in the prelude and the fence in `enginefacts.test.mjs` holds all
+// three kinds to it. Written once; the three entries below are the scope, not
+// the vocabulary.
+const APPARATUS_KNOBS: Readonly<Record<string, Field>> = {
+  גודל: { kind: "size-em", label: "knobSize" },
+  סגנון: { kind: "slant", label: "knobSlant" },
+  צבע: { kind: "colour", label: "knobColour" },
+  משקל: { kind: "weight", label: "knobWeight" },
+  // Not looks. `ציטוט` is the words this note is **on** — the dibbur hamaschil
+  // an entry head prints — and `צף` is the note saying *"if something has to
+  // move, move me"* when its region has to give something up. They travel in
+  // the same per-note dictionary as the looks because that dictionary is
+  // already carried to the walk that decides, and the panel offers them for
+  // the same reason: they are set on one note and on nothing else.
+  ציטוט: { kind: "text", label: "knobQuote" },
+  צף: { kind: "bool", label: "knobFloat" },
+};
 export const INSTANCE_FIELDS: Record<
   InstanceCommand,
   Readonly<Record<string, Field>>
@@ -572,51 +592,12 @@ export const INSTANCE_FIELDS: Record<
     הזחה: { kind: "length-em", label: "knobIndent" },
     תוויות: { kind: "text", label: "knobLabel" },
   },
-  bands: {
-    גודל: { kind: "size-em", label: "knobSize" },
-    סגנון: { kind: "slant", label: "knobSlant" },
-    צבע: { kind: "colour", label: "knobColour" },
-    משקל: { kind: "weight", label: "knobWeight" },
-    // Not looks. `ציטוט` is the words this note is **on** — the dibbur hamaschil
-    // an entry head prints — and `צף` is the note saying *"if something has to
-    // move, move me"* when its region has to give something up. They travel in
-    // the same per-note dictionary as the looks because that dictionary is
-    // already carried to the walk that decides, and the panel offers them for
-    // the same reason: they are set on one note and on nothing else.
-    ציטוט: { kind: "text", label: "knobQuote" },
-    צף: { kind: "bool", label: "knobFloat" },
-  },
-  streams: {
-    גודל: { kind: "size-em", label: "knobSize" },
-    סגנון: { kind: "slant", label: "knobSlant" },
-    צבע: { kind: "colour", label: "knobColour" },
-    משקל: { kind: "weight", label: "knobWeight" },
-    // Not looks. `ציטוט` is the words this note is **on** — the dibbur hamaschil
-    // an entry head prints — and `צף` is the note saying *"if something has to
-    // move, move me"* when its region has to give something up. They travel in
-    // the same per-note dictionary as the looks because that dictionary is
-    // already carried to the walk that decides, and the panel offers them for
-    // the same reason: they are set on one note and on nothing else.
-    ציטוט: { kind: "text", label: "knobQuote" },
-    צף: { kind: "bool", label: "knobFloat" },
-  },
+  bands: { ...APPARATUS_KNOBS },
+  streams: { ...APPARATUS_KNOBS },
   // The same three the bands take, because they are the same apparatus with a
   // different scope — `_ap_own_keys` is one list in the prelude and the fence in
   // `enginefacts.test.mjs` holds all three kinds to it.
-  tiers: {
-    גודל: { kind: "size-em", label: "knobSize" },
-    סגנון: { kind: "slant", label: "knobSlant" },
-    צבע: { kind: "colour", label: "knobColour" },
-    משקל: { kind: "weight", label: "knobWeight" },
-    // Not looks. `ציטוט` is the words this note is **on** — the dibbur hamaschil
-    // an entry head prints — and `צף` is the note saying *"if something has to
-    // move, move me"* when its region has to give something up. They travel in
-    // the same per-note dictionary as the looks because that dictionary is
-    // already carried to the walk that decides, and the panel offers them for
-    // the same reason: they are set on one note and on nothing else.
-    ציטוט: { kind: "text", label: "knobQuote" },
-    צף: { kind: "bool", label: "knobFloat" },
-  },
+  tiers: { ...APPARATUS_KNOBS },
   sidenotes: {
     גודל: { kind: "size-em", label: "knobSize" },
     סגנון: { kind: "slant", label: "knobSlant" },

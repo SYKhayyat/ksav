@@ -546,10 +546,10 @@ export async function run() {
   // panel's row dress — one direction, the dress owner upstream.
   const src = srcOf("customstyles.ts");
   ok(
-    "the custom styles borrow the panel's dress and the form modal, and own the three gestures",
-    src.includes('import { fieldControl, styleRow } from "./stylespanel"') &&
+    "the custom styles borrow the dress and the modal, and own the three gestures",
+    src.includes('import { fieldControl, styleRow } from "./stylecontrols"') &&
       src.includes('import { openModal } from "./formmodal"') &&
-      /export async function applyCustomStyle|export function applyCustomStyle/.test(src) &&
+      src.includes("export function applyCustomStyle") &&
       src.includes("export function unwrapCustomStyle") &&
       src.includes("export function openNewStyle") &&
       src.includes("export function openStyleEditor"),

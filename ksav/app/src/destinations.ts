@@ -36,7 +36,8 @@ import * as runtime from "./runtime";
 import { docTextOf } from "./spans";
 import { t } from "./i18n";
 import { docLang } from "./insert";
-import { renderStylesPanel, styleRow, selectControl, textControl } from "./stylespanel";
+import { renderStylesPanel } from "./stylespanel";
+import { styleRow, selectControl, textControl } from "./stylecontrols";
 import * as panelviews from "./panelviews";
 
 /**

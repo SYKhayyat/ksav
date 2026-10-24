@@ -376,7 +376,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   ok("…with a key", read("bindings.ts").includes('"list.paraInItem"'));
   // Per level, which Typst has always read and no control could write.
   ok("numbering is per level", read("styles.ts").includes('"numbering-levels"'));
-  ok("…and the panel composes the pattern", STYLES_PANEL.includes("function levelsControl("));
+  ok("…and the panel composes the pattern", read("stylecontrols.ts").includes("function levelsControl("));
   ok("a list can start at a number of its own", read("styles.ts").includes("התחלה: { kind:"));
 }
 

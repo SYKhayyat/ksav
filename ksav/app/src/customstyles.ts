@@ -19,7 +19,7 @@ import { updateContextBar } from "./contextbar";
 import { docLang } from "./insert";
 import { scheduleCompile } from "./compile";
 import * as styles from "./styles";
-import { fieldControl, styleRow } from "./stylespanel";
+import { fieldControl, styleRow } from "./stylecontrols";
 import { openModal } from "./formmodal";
 
 /**

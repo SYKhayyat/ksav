@@ -47,6 +47,8 @@ const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
 const MACROS_SRC = readFileSync(path.join(HERE, "..", "src", "macros.ts"), "utf8");
 const ACTIONS_SRC = readFileSync(path.join(HERE, "..", "src", "actions.ts"), "utf8");
 const STYLES_PANEL = readFileSync(path.join(HERE, "..", "src", "stylespanel.ts"), "utf8");
+import { fieldControl } from "../.tmp-test/stylecontrols.mjs";
+const STYLE_CONTROLS = readFileSync(path.join(HERE, "..", "src", "stylecontrols.ts"), "utf8");
 const RIBBON = readFileSync(path.join(HERE, "..", "src", "ribbon.ts"), "utf8");
 const CONTEXTBAR = readFileSync(path.join(HERE, "..", "src", "contextbar.ts"), "utf8");
 const PRELUDE = readFileSync(
@@ -184,8 +186,8 @@ export async function run() {
 
   {
     check("size is a typed value, not a preset", styles.STYLE_FIELDS["גודל"].kind, "size-em");
-    ok("...drawn as a number and a unit", /function sizeControl\(/.test(STYLES_PANEL));
-    ok("...which the field control reaches for", /case "size-em":\s*\n\s*return sizeControl\(/.test(STYLES_PANEL));
+    ok("...drawn as a number and a unit", /function sizeControl\(/.test(STYLE_CONTROLS));
+    ok("...which the field control reaches for", /case "size-em":\s*\n\s*return sizeControl\(/.test(STYLE_CONTROLS));
     // The regression this replaces. Named here so that putting the list back —
     // which is the cheap way to "fix" any complaint about a control — fails.
     notOk("the seven-preset list is gone", MAIN.includes('["1.15em", "115%"]'));

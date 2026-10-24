@@ -184,8 +184,7 @@ import { t, tf } from "./i18n";
 import { setStatus, rerenderChrome, view } from "./runtime";
 import { insertSnippet } from "./insert";
 import { scheduleCompile } from "./compile";
-import * as structure from "./structure";
-import * as styles from "./styles";
+import { actionName } from "./actions";
 
 export interface MacrosWiring {
   /** Any action by id — built-in, structural, or a previously saved macro. */
@@ -236,16 +235,11 @@ export function savedMacros(): Macro[] {
   return parsed;
 }
 
-export function macroName(id: string): string {
-  const structural = structure.actionById(id);
-  if (structural) return t(structural.label);
-  // A style names itself. `t("sc.style.PIRUSH")` would print the raw key, which
-  // is the "shipped unnamed" row `bindings.test.mjs` exists to refuse.
-  const style = styles.styleOfAction(id);
-  if (style) return tf("styleActionName", style);
-  const mac = savedMacros().find((m) => actionIdOf(m) === id);
-  return mac ? mac.name : t("sc." + id);
+/** The saved macros as an action-id → name map, what `actions.actionName` reads. */
+export function savedNameMap(): Map<string, string> {
+  return new Map(savedMacros().map((m) => [actionIdOf(m), m.name]));
 }
+
 
 /**
  * Set while a macro is replaying, so its steps are not recorded again.
@@ -300,7 +294,7 @@ async function finishRecording() {
     rerenderChrome();
     return;
   }
-  const suggested = describe(macro, macroName).slice(0, 40);
+  const suggested = describe(macro, (id) => actionName(id, savedNameMap())).slice(0, 40);
   const name = await macroWiring().askText(t("macroNamePrompt"), suggested);
   if (name === null) {
     setStatus(t("macroDiscarded"), "");

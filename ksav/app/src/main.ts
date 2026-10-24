@@ -165,6 +165,8 @@ import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 // see `alignRow` — so it comes in under a namespace instead of as four more
 // names in the list above.
 import { action, voidAction } from "./asyncaction";
+import { actionName } from "./actions";
+import { savedNameMap } from "./macros";
 import * as save from "./save";
 import { scheduleSave, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, compileNow, onStale, onAfterCompile, onSchedule, bodyOnScreen } from "./compile";
@@ -293,7 +295,6 @@ import {
   savedMacros,
   playMacro,
   deleteMacro,
-  macroName,
   isRecording,
   currentRecording,
   wireMacros,
@@ -2390,7 +2391,7 @@ function renderKeysPanel(): void {
       {
         rows: actions().map((a) => ({
           id: a.id,
-          name: macroName(a.id),
+          name: actionName(a.id, savedNameMap()),
           key: kb[a.id] ?? "",
           // What this action answers to under a mode. Carried on the row rather
           // than resolved in the view, so the view spells a key exactly one way:
@@ -3564,6 +3565,7 @@ function installHooks() {
   wireChrome({
     askText,
     docLang,
+    macroName: (id) => actionName(id, savedNameMap()),
     insertSnippet,
     insertCommand,
     tieredNoteHere,
@@ -3601,8 +3603,7 @@ function installHooks() {
     savedMacros,
     playMacro,
     deleteMacro,
-    macroName,
-    refreshContextBar: updateContextBar,
+      refreshContextBar: updateContextBar,
     reconfigureShortcuts,
     refreshStylesPanel: () => {
       if (isPanelOpen("styles-panel")) renderStylesPanel();
@@ -3613,9 +3614,9 @@ function installHooks() {
   });
   // The palette's wiring: what the rows beyond the content registry can be.
   wirePalette({
+    macroName: (id) => actionName(id, savedNameMap()),
     shellActions: actions,
-    macroName,
-    render: (list) => drawList(document.getElementById("palette-list")!, list, LOOKS.palette),
+      render: (list) => drawList(document.getElementById("palette-list")!, list, LOOKS.palette),
   });
   // The insertion path's wiring: the macro recorder and the chooser's apply
   // stay main-held until the macros' and the chooser's own waves.

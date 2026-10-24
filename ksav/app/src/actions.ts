@@ -233,3 +233,26 @@ const BY_COMMAND: Record<string, CommandAction> = Object.fromEntries(
 export function actionForCommand(he: string): CommandAction | undefined {
   return BY_COMMAND[he];
 }
+
+/**
+ * The name an action id carries on every surface that names actions.
+ *
+ * Lived in `macros.ts` from wave 7 to this commit — the display-name table for
+ * the whole application inside the recording file. The registries it reads
+ * (structure, styles) are this module's neighbours; the saved macros arrive as
+ * a resolved id→name map, so this file never imports the recorder.
+ */
+import { t, tf } from "./i18n";
+import * as structure from "./structure";
+import * as styles from "./styles";
+
+export function actionName(id: string, savedNames: ReadonlyMap<string, string>): string {
+  const structural = structure.actionById(id);
+  if (structural) return t(structural.label);
+  // A style names itself. `t("sc.style.PIRUSH")` would print the raw key, which
+  // is the "shipped unnamed" row `bindings.test.mjs` exists to refuse.
+  const style = styles.styleOfAction(id);
+  if (style) return tf("styleActionName", style);
+  return savedNames.get(id) ?? t("sc." + id);
+}
+

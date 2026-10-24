@@ -1326,6 +1326,51 @@ abstract class ServiceClient {
     return JSON.parse(await this.call(service, req === undefined ? "" : JSON.stringify(req), opts)) as T;
   }
 
+  // --- the three locate-shaped services, written once (the audit's #149) ---
+  //
+  // These were copy-pasted into all three backends, byte-identical between
+  // HTTP and Tauri. The transport is the only thing that differs, and `ask`
+  // already abstracts it: one body here, `{ timeoutMs }` is honoured by the
+  // worker transport and ignored by the other two, and the failure answers —
+  // null, [], the empty Places — are the same contract everywhere.
+
+  /** Where the caret in the source landed on the page (the preview's click target). */
+  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
+    try {
+      return readSpot(
+        await this.ask("jump", { body, ...cfg, ...assets, ...at }, { timeoutMs: COMPILE_TIMEOUT_MS }),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** Every page position a body spot printed (the preview's highlight). */
+  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
+    try {
+      return readPoints(
+        await this.ask("reveal", { body, ...cfg, ...assets, ...at }, { timeoutMs: COMPILE_TIMEOUT_MS }),
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  /** #82 — every place a line of a part landed, and the first of them.
+   *
+   *  Bounded by the same timeout as `reveal`, because it *is* a compile: it lays
+   *  the document out to know where anything went. A killed worker is "no places"
+   *  rather than a throw, which is `reveal`'s answer and for the same reason. */
+  async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
+    try {
+      return readPlaces(
+        await this.ask("places", { body, ...cfg, ...assets, ...at }, { timeoutMs: COMPILE_TIMEOUT_MS }),
+      );
+    } catch {
+      return { places: [], first: null, file: null, line: at.line };
+    }
+  }
+
   /** No timeout anywhere below: none of these lays a document out. */
   async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
     return this.ask("assemble", assembleRequest(body, cfg, assets));
@@ -1519,34 +1564,7 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
     }, assets);
   }
 
-  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
-    try {
-      return readSpot(await this.ask("jump", { body, ...cfg, ...assets, ...at }));
-    } catch {
-      return null;
-    }
-  }
 
-  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
-    try {
-      return readPoints(await this.ask("reveal", { body, ...cfg, ...assets, ...at }));
-    } catch {
-      return [];
-    }
-  }
-
-  /** #82 — every place a line of a part landed, and the first of them.
-   *
-   *  Identical in all three backends on purpose: it is the same service, and the
-   *  point of a `Backend` is that the transport is the only thing that differs.
-   *  `first` is read off the wire — see `readPlaces`. */
-  async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
-    try {
-      return readPlaces(await this.ask("places", { body, ...cfg, ...assets, ...at }));
-    } catch {
-      return { places: [], first: null, file: null, line: at.line };
-    }
-  }
 }
 
 
@@ -1839,51 +1857,6 @@ export class WasmBackend extends ServiceClient implements Backend {
       );
     }
   }
-  /** No timeout: this one cannot run away. It lays nothing out — it is the
-   *  `format!` a compile does before the layout starts. */
-  /** Bounded by the same timeout a compile gets, because it *is* a compile: a
-   *  runaway document must not pin the one engine worker just because somebody
-   *  clicked on it. A killed worker surfaces here as "no answer". */
-  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
-    try {
-      return readSpot(
-        JSON.parse(
-          await this.call("jump", JSON.stringify({ body, ...cfg, ...assets, ...at }), { timeoutMs: COMPILE_TIMEOUT_MS }),
-        ),
-      );
-    } catch {
-      return null;
-    }
-  }
-
-  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
-    try {
-      return readPoints(
-        JSON.parse(
-          await this.call("reveal", JSON.stringify({ body, ...cfg, ...assets, ...at }), { timeoutMs: COMPILE_TIMEOUT_MS }),
-        ),
-      );
-    } catch {
-      return [];
-    }
-  }
-
-  /** #82 — every place a line of a part landed, and the first of them.
-   *
-   *  Bounded by the same timeout as `reveal`, because it *is* a compile: it lays
-   *  the document out to know where anything went. A killed worker is "no places"
-   *  rather than a throw, which is `reveal`'s answer and for the same reason. */
-  async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
-    try {
-      return readPlaces(
-        JSON.parse(
-          await this.call("places", JSON.stringify({ body, ...cfg, ...assets, ...at }), { timeoutMs: COMPILE_TIMEOUT_MS }),
-        ),
-      );
-    } catch {
-      return { places: [], first: null, file: null, line: at.line };
-    }
-  }
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
@@ -1970,34 +1943,7 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
       clearTimeout(timer!);
     }
   }
-  async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
-    try {
-      return readSpot(await this.ask("jump", { body, ...cfg, ...assets, ...at }));
-    } catch {
-      return null;
-    }
-  }
 
-  async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
-    try {
-      return readPoints(await this.ask("reveal", { body, ...cfg, ...assets, ...at }));
-    } catch {
-      return [];
-    }
-  }
-
-  /** #82 — every place a line of a part landed, and the first of them.
-   *
-   *  `reveal`'s shape and for `reveal`'s reasons: same timeout, same "no places"
-   *  rather than a throw, and `first: null` read off the wire rather than taken
-   *  as `places[0]`. */
-  async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
-    try {
-      return readPlaces(await this.ask("places", { body, ...cfg, ...assets, ...at }));
-    } catch {
-      return { places: [], first: null, file: null, line: at.line };
-    }
-  }
 }
 
 /**

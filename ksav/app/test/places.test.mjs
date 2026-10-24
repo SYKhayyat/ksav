@@ -88,10 +88,13 @@ export function run() {
       /first:[^\n]*\b(list|lines|places)\s*\[/.test(firstLine),
     );
 
-    // And every backend answers it the same way — one service, three transports,
-    // and the transport is the only thing allowed to differ.
-    const impls = api.match(/async places\(/g) ?? [];
-    check("all three backends implement it", impls.length, 3);
+    // And every backend answers it the same way — one service, one body, written
+    // once on `ServiceClient` (the audit's #149: it was copy-pasted into all
+    // three, byte-identical between HTTP and Tauri). The fence holds the
+    // consolidation: the single implementation lives on the shared client, and
+    // no backend re-declares it.
+    ok("the one body lives on ServiceClient", /abstract class ServiceClient[\s\S]*?async places\(/.test(api));
+    check("and no backend re-declares it", (api.match(/async places\(/g) ?? []).length, 1);
     ok(
       "and none of them invents an answer",
       !/async places\([^}]*\{\s*places:\s*\[/.test(api),

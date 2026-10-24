@@ -60,14 +60,6 @@ export function stylesWiring(): StylesWiring {
   return stylesWiringInstance;
 }
 
-// ---------------------------------------------------------------- styles panel
-//
-// One place for formatting, because there were three and they fought:
-// app settings, presets that silently overwrote them, and the in-document
-// #הגדרות_* commands — the most powerful styling in the product, with no UI at
-// all. This panel puts page setup, presets and the document's own heading / list
-// / table design side by side, so "where does my formatting live" has an answer.
-
 export function openStyles() {
   closeMenus();
   openPanel("styles-panel");

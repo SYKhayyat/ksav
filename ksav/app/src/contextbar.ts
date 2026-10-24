@@ -182,7 +182,7 @@ export function updateContextBar() {
   // Hoisted. It was read inside the loop below — seventeen times in a table,
   // and `keybindings()` rebuilds the whole map from settings on each call, so a
   // caret move in a table cost ~850 property copies for a value that cannot
-  // change mid-loop. `structureMenuItems` in this same file already hoists it.
+  // change mid-loop. `structureMenuItems` (ribbon.ts, where the menus moved) hoists it the same way.
   const keys = keybindings();
 
   const children: Node[] = [

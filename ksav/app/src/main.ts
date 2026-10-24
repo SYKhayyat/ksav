@@ -1529,19 +1529,26 @@ function moveOutOfBracket(v: EditorView, toNextLine: boolean): boolean {
 // `)`, so `#צבע(rgb("#b91c1c"))[…]` left a stray paren in the number a writer
 // watches. One question, asked of the scanner that already knows the answer:
 // `spans.ts` tells a string from a bracket, which is what all six askers lacked.
-export function countableText(src: string): string {
-  return plainText(src);
-}
 function countNow() {
   const el = document.getElementById("wordcount");
   if (!el || !runtime.view) return;
-  const text = countableText(docTextOf(runtime.view.state.doc));
+  const text = plainText(docTextOf(runtime.view.state.doc));
   const words = (text.match(/[^\s]+/g) || []).length;
   const chars = text.replace(/\s+/g, " ").trim().length;
   el.textContent = `${words} ${t("words")} · ${chars} ${t("chars")}`;
 }
 let countTimer: number | undefined;
 const COUNT_DEBOUNCE_MS = 200;
+/**
+ * The count, on a short beat rather than on every keystroke.
+ *
+ * `plainText` runs the whole document through five regular expressions, and
+ * this was called synchronously from the update listener: 1.9 ms per keystroke on
+ * a 64 KB document, 6.4 ms on a 192 KB one, inside a frame budget of 16 ms that
+ * prose mode and CodeMirror are also spending from. Nobody reads a word count at
+ * sixty frames a second; a fifth of a second late it is still the same number,
+ * and the keystroke it is late for is the one being typed.
+ */
 function updateCounts() {
   clearTimeout(countTimer);
   countTimer = window.setTimeout(countNow, COUNT_DEBOUNCE_MS);
@@ -2524,9 +2531,8 @@ function runAction(id: string, v: EditorView = runtime.view): boolean {
  */
 let inAction = 0;
 
-/** Perform one structural operation, wherever the caret is. */
 /**
- * Run a structural operation.
+ * Run one structural operation, wherever the caret is.
  *
  * `sticky` is the ribbon's and the menus' reading of the caret: one character
  * further in, so an operation offered while the caret rests just past a list's
@@ -3710,23 +3716,6 @@ function installHooks() {
 const REGISTRY_RETRY_MS = 2000;
 
 /**
- * A banner for something durably wrong with the chrome, as opposed to with the
- * writer's work.
- *
- * The lighter sibling of the save-error banner: that one is red because text is
- * at risk, this one is amber because only the toolbar is. Both live in the same
- * `.notices` stack, so neither can hide the other.
- */
-/**
- * A button on a notice, which must say what it does.
- *
- * `press` rather than `run`: this is a button on a banner and not an `Action`
- * from the command registry, and `chrome.test.mjs` fences `.run` to keep every
- * command going through `runAction` so the macro recorder sees it. One name for
- * two unrelated things is how that fence starts reporting the wrong offence.
- */
-
-/**
  * Load the command and template registries, retrying before giving up.
  *
  * These drive the toolbar, the menus, the palette and the completions, so
@@ -3778,7 +3767,6 @@ async function fetchRegistries(): Promise<boolean> {
     return false;
   }
 }
-
 /**
  * Move the dictionary into a file, where there is a filesystem to put it in (B29).
  *
@@ -4042,8 +4030,9 @@ async function boot() {
   // overlapping itself. See `installBackgroundTimers`.
   installBackgroundTimers();
 }
-
 /** True when this session's polls and autosave should be quiet. */
+
+
 function tabHidden(): boolean {
   return typeof document !== "undefined" && document.visibilityState === "hidden";
 }

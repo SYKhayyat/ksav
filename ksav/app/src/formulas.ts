@@ -11,11 +11,6 @@ import { insertSnippet } from "./insert";
 import { scheduleCompile } from "./compile";
 import { openModal } from "./formmodal";
 import { typstString } from "./typst-escape";
-// ---------------------------------------------------------------- formulas
-//
-// Typst's own maths notation, which is compact and readable but which nobody
-// knows on their first day. The buttons write the constructs; the box is plain
-// text, so anyone who does know the notation can simply type.
 
 const MATH_BITS: [string, string][] = [
   ["a/b", "(a)/(b)"],

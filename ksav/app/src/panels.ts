@@ -820,10 +820,6 @@ export function localise(root: ParentNode = document): void {
   say("data-i18n-title", (e, s) => e.setAttribute("title", s));
   say("data-i18n-label", (e, s) => e.setAttribute("aria-label", s));
   say("data-i18n-placeholder", (e, s) => e.setAttribute("placeholder", s));
-  say("data-i18n-both", (e, s) => {
-    e.setAttribute("title", s);
-    e.setAttribute("aria-label", s);
-  });
 }
 
 /**

@@ -363,16 +363,6 @@ async function renameTab(i: number) {
 }
 
 /**
- * The count, on a short beat rather than on every keystroke.
- *
- * `countableText` runs the whole document through five regular expressions, and
- * this was called synchronously from the update listener: 1.9 ms per keystroke on
- * a 64 KB document, 6.4 ms on a 192 KB one, inside a frame budget of 16 ms that
- * prose mode and CodeMirror are also spending from. Nobody reads a word count at
- * sixty frames a second; a fifth of a second late it is still the same number,
- * and the keystroke it is late for is the one being typed.
- */
-/**
  * The three side panes, on the same beat as the word count.
  *
  * These were called synchronously from the update listener, on **every

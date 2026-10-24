@@ -51,14 +51,6 @@ export function refreshPaneHeads(): void {
 }
 
 /**
- * Build `<main>` from the pane tree.
- *
- * Rebuilt wholesale rather than diffed, and the cost is bounded because it only
- * runs when the *arrangement* changes — not on a keystroke, not on a scroll, and
- * not when a document is switched. Each source pane's state is carried across so
- * an arrangement change does not cost a writer their carets.
- */
-/**
  * The words that were on the screen when the panes were last torn down.
  *
  * Set by `renderPanes` before it destroys the views and read by `renderLeaf`
@@ -71,6 +63,14 @@ export function refreshPaneHeads(): void {
  */
 let liveTextAtRender: string | null = null;
 
+/**
+ * Build `<main>` from the pane tree.
+ *
+ * Rebuilt wholesale rather than diffed, and the cost is bounded because it only
+ * runs when the *arrangement* changes — not on a keystroke, not on a scroll, and
+ * not when a document is switched. Each source pane's state is carried across so
+ * an arrangement change does not cost a writer their carets.
+ */
 export function renderPanes() {
   const main = document.querySelector("main");
   if (!main) return;
@@ -601,15 +601,6 @@ function drawCurrentIntoAll() {
 // What is left here is the other direction, which is not a proportion at all:
 // clicking a rendered page puts the caret on the word that was clicked, by
 // asking the compiler.
-function wirePreviewClicks(host: HTMLElement) {
-  host.addEventListener("click", (e) => {
-    // A drag that ended here is a selection, not a click: the reader is copying
-    // a rendered line, and moving the caret would take the selection with it.
-    if (!isPlainClick(window.getSelection())) return;
-    voidAction("general", () => jumpFromClick(e as MouseEvent));
-  });
-}
-
 /**
  * Put the cursor on whatever was clicked in the preview.
  *
@@ -620,6 +611,15 @@ function wirePreviewClicks(host: HTMLElement) {
  * common rather than exotic — so a miss says nothing rather than putting up a
  * message about every click on white space.
  */
+function wirePreviewClicks(host: HTMLElement) {
+  host.addEventListener("click", (e) => {
+    // A drag that ended here is a selection, not a click: the reader is copying
+    // a rendered line, and moving the caret would take the selection with it.
+    if (!isPlainClick(window.getSelection())) return;
+    voidAction("general", () => jumpFromClick(e as MouseEvent));
+  });
+}
+
 /**
  * Open an included chapter and put the cursor on one of its lines.
  *

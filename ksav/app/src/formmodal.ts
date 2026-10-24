@@ -12,11 +12,6 @@
 import { el } from "./dom";
 import { t, tf } from "./i18n";
 import { openPanel, closePanel, panelHead } from "./panels";
-// ---------------------------------------------------------------- a small form modal
-//
-// Two features below (section page setup, formulas) need the same thing: a few
-// fields, then insert. `prompt()` can ask for one string and nothing more, and a
-// second bespoke overlay for each would be two copies of the same fifty lines.
 
 let modalOk: (() => void) | null = null;
 

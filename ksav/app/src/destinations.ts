@@ -61,23 +61,6 @@ export function destinationsWiring(): DestinationsWiring {
   return destinationsWiringInstance;
 }
 
-// ------------------------------------------------------------- destinations
-//
-// The one section of this panel that edits the *document's own* declarations
-// rather than a `#הגדרות_*` call, because that is what a destination is: a note
-// stream, declared once and read wherever a note is written.
-//
-// It is here rather than in the Notes chooser on purpose, and the split is the
-// whole model. The chooser asks *"where should this note go?"* once, at the
-// moment a note is written. This asks *"what does that place look like"* about
-// a destination that already exists, with the notes already written — so
-// lettering three hundred haaros א,ב,ג is one control and not three hundred
-// edits, which is exactly what the eighteen commands could not offer.
-//
-// **The word "channel" is not on this surface.** A writer picks a place and sets
-// what a place looks like; `channels.ts` is the machinery underneath, and the
-// prelude's `#ערוץ` line is what gets written.
-
 /** The destination this section is editing. */
 let stylePick: NotePick = { dest: "foot", region: null };
 

@@ -33,12 +33,6 @@ import { BODY_HOMES, defersBody, type BodyHome, type Errand } from "./deferred";
 import * as docs from "./docs";
 import { el } from "./dom";
 import { scheduleCompile } from "./compile";
-// ---------------------------------------------------------------- notes chooser
-//
-// One pick: where should the note print. `channels.ts` holds the six
-// destinations and what each writes; `panelviews.notesPanel` asks the question;
-// this connects the two and performs the answer.
-
 export function openNotesChooser() {
   closeMenus();
   openPanel("notes-chooser");

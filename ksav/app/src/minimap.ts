@@ -66,14 +66,6 @@ export interface MinimapOptions {
 const GUTTERS = [{ 1: "#c62828", 2: "#ef6c00" }];
 
 /**
- * The extension. `read` is called per configuration, so toggling the setting
- * reconfigures rather than needing the view rebuilt.
- *
- * `create` returns an empty container — the package fills it — and CodeMirror puts it
- * in the editor's own gutter, which is the whole reason there is no second editor
- * anywhere in this file.
- */
-/**
  * The options, **on the state**.
  *
  * `compute` takes slots — references to state — not closures, so the values have to
@@ -85,6 +77,7 @@ const GUTTERS = [{ 1: "#c62828", 2: "#ef6c00" }];
  */
 const setMinimap = StateEffect.define<MinimapOptions>();
 
+/** A closed minimap is `null` to the facet, which is how it costs nothing. */
 const minimapOptions = StateField.define<MinimapOptions>({
   create: () => ({ on: false, colors: false }),
   update: (v, tr) => {
@@ -93,8 +86,7 @@ const minimapOptions = StateField.define<MinimapOptions>({
   },
 });
 
-/** A closed minimap is `null` to the facet, which is how it costs nothing. */
-export /**
+/**
  * The element the strip draws into, created once and **moved** rather than recreated.
  *
  * `appendChild` moves a node, which is what lets one canvas serve both places this
@@ -102,7 +94,7 @@ export /**
  * a drag moves that same node into the floating panel. One canvas, one minimap, and no
  * state to rebuild when the strip changes address.
  */
-let host: HTMLElement | null = null;
+export let host: HTMLElement | null = null;
 export function minimapHost(): HTMLElement {
   if (!host) {
     host = document.createElement("div");
@@ -124,6 +116,14 @@ export function configFor(opts: MinimapOptions): MinimapConfig | null {
   return config;
 }
 
+/**
+ * The extension. `read` is called per configuration, so toggling the setting
+ * reconfigures rather than needing the view rebuilt.
+ *
+ * `create` returns an empty container — the package fills it — and CodeMirror puts it
+ * in the editor's own gutter, which is the whole reason there is no second editor
+ * anywhere in this file.
+ */
 export function minimapExtension(read: () => MinimapOptions): Extension {
   return [
     minimapOptions,

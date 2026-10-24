@@ -387,7 +387,6 @@ export function followCaretInPreview() {
   }, 100);
 }
 
-/** The viewport fraction the two panes line up on: 0 top, 0.5 middle, 1 bottom. */
 /**
  * Where two linked panes line up, for a movement in this direction.
  *

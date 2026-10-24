@@ -11,11 +11,6 @@ import { insertSnippet } from "./insert";
 import { scheduleCompile } from "./compile";
 import { openModal } from "./formmodal";
 import { typstString } from "./typst-escape";
-// ---------------------------------------------------------------- section page setup
-//
-// Header, footer, columns, margins, orientation, numbering, a border and a
-// watermark — for one section rather than the whole document. Writing
-// `#מקטע_עמוד(…)` by hand means knowing eight argument names; this asks.
 
 export function openSectionSetup() {
   closeMenus();

@@ -595,8 +595,6 @@ export function buildToolbar(): HTMLElement {
   ]);
 }
 
-// A Word-like Insert menu: every command from the registry, grouped by
-// category, so nothing requires knowing the markup.
 /** The Documents menu: every document in the library, newest first. */
 export function buildDocsMenu(): HTMLElement {
   return lazyMenu("documents", "🗂 " + t("documents"), docsMenuItems);
@@ -1254,14 +1252,11 @@ export function menu(name: string, label: string, items: (Node | string)[]): HTM
 }
 
 /**
- * A menu whose contents are rebuilt every time it opens.
+ * A menubar menu.
  *
  * The header is rendered once, so a menu built there freezes whatever the data
  * looked like at boot — the document library would still say "Untitled" long
  * after the document had been titled. Building on open keeps it honest.
- */
-/**
- * A menubar menu.
  *
  * `name` is required for the same reason `iconBtn` requires an accessible name:
  * every label here is an emoji plus a translated word, so the menubar had no
@@ -1309,7 +1304,14 @@ export function lazyMenu(name: string, label: string, build: () => (Node | strin
 // The one banner across the top, and the buttons on it. It was main's glue
 // until wave 11; the ribbon is the chrome module, and this is chrome.
 
-/** One labelled action on the chrome banner. */
+/**
+ * One labelled action on the chrome banner.
+ *
+ * `press` rather than `run`: this is a button on a banner and not an `Action`
+ * from the command registry, and `chrome.test.mjs` fences `.run` to keep every
+ * command going through `runAction` so the macro recorder sees it. One name for
+ * two unrelated things is how that fence starts reporting the wrong offence.
+ */
 export interface NoticeAct {
   /** An i18n **key**, or `label` for text that is not one. */
   key?: string;
@@ -1319,6 +1321,10 @@ export interface NoticeAct {
 
 /**
  * The banner across the top, and the buttons on it.
+ *
+ * The lighter sibling of the save-error banner: that one is red because text is
+ * at risk, this one is amber because only the toolbar is. Both live in the same
+ * `.notices` stack, so neither can hide the other.
  *
  * Every action names itself, and that is the whole change from the version
  * that took a bare callback. The label used to be `t("retrySave")` for all of

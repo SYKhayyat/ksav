@@ -90,12 +90,10 @@ export function nestingAt(state: EditorState, pos: number): TagNesting {
   const lineOf = (at: number) => doc.lineAt(Math.max(0, Math.min(at, doc.length))).number;
   const enclosing = frames.filter((f) => f.open < pos && pos <= f.close);
   const caretFrame = enclosing[enclosing.length - 1];
-  const depths = doc.lines;
   const depthOf = (line: number) => {
     const from = doc.line(line).from;
     return frames.filter((f) => f.open < from && from <= f.close).length;
   };
-  void depths;
   return {
     caret: caretFrame ? { from: lineOf(caretFrame.open), to: lineOf(caretFrame.close) } : null,
     caretDepth: enclosing.length,

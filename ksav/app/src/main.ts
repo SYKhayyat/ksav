@@ -239,10 +239,8 @@ import { openStyles, openStylesFor, renderStylesPanel, wireStyles } from "./styl
 import { destinationRows, wireDestinations } from "./destinations";
 import { settlePendingModals, ask, askArrival, askText } from "./formmodal";
 import { markReview, addComment, isReviewOpen, openReview, renderReviewPanel } from "./reviewpanel";
-import { openSectionSetup } from "./sectionsetup";
-import { openFormula } from "./formulas";
 import { openNotesChooser, applyNotePick, bodyHome, renderNotesChooser } from "./noteschooser";
-import { insertImage, addFont, removeAsset } from "./assets";
+import { addFont, removeAsset } from "./assets";
 import { starterDoc, swapUntouchedStarter, searchPhrases, wireStarter } from "./starter";
 import {
   startFromTemplate,
@@ -274,9 +272,6 @@ import {
   goToLastDoc,
   closeOpenDoc,
   refreshBaseline,
-  newNamedDoc,
-  duplicateDoc,
-  removeDoc,
   renameDoc,
   updateTitleBar,
   loadBody,
@@ -293,12 +288,10 @@ import {
   toggleRecording,
   savedMacros,
   playMacro,
-  deleteMacro,
   isRecording,
-  currentRecording,
   wireMacros,
 } from "./macros";
-import { openHydra, resetHydra, dismissForeignHydra, wireHydra } from "./hydra";
+import { openHydra, resetHydra, wireHydra } from "./hydra";
 import { insertSnippet, insertCommand, tieredNoteHere, snippetTab, docLang, wireInsert } from "./insert";
 import * as hiding from "./hiding";
 import { LIST_DEPTHS } from "./lists";
@@ -3587,25 +3580,19 @@ function installHooks() {
   // The chrome wiring: the verbs the ribbon and the context strip name that
   // their own waves have not moved yet, registered once, read through
   // `chromeWiring()` — the same shape `wirePanes` gives the pane modules.
+  // Thirteen members, the ones that are genuinely main-held: the editor verbs
+  // wave 12 has not claimed (entityAct, the folds, the hidden break,
+  // runStructureAction, makeListHere, addContentsHere), the compartment
+  // machinery (reconfigureShortcuts), and the three refreshers whose subjects
+  // import this file's docTextNow and cannot take a reverse edge
+  // (refreshContextBar via contextbar, refreshStylesPanel via stylespanel,
+  // saveFileAs via fileui's ribbon import). The other twenty-five were direct
+  // imports in their own modules all along — see ribbon.ts.
   wireChrome({
-    askText,
-    docLang,
-    macroName: (id) => actionName(id, savedNameMap()),
-    insertSnippet,
-    insertCommand,
-    tieredNoteHere,
-    linkifySelection,
-    askForMekor,
     entityAct,
     insertFold,
     hideBlockHere,
     hideLineHere,
-    openPalette,
-    renameDoc,
-    openNotesChooser,
-    openSectionSetup,
-    openFormula,
-    insertImage,
     foldToLevel,
     foldListsToDepth,
     hiddenBreak,
@@ -3615,26 +3602,13 @@ function installHooks() {
     unwrapCustomStyle,
     openNewStyle,
     openStyleEditor,
-    openStylesFor: openStylesFor,
+    openStylesFor,
     addContentsHere,
-    closeOpenDoc,
-    duplicateDoc,
-    removeDoc,
-    newNamedDoc,
     saveFileAs,
-    refreshSources,
-    recording: currentRecording,
-    toggleRecording,
-    savedMacros,
-    playMacro,
-    deleteMacro,
-      refreshContextBar: updateContextBar,
+    refreshContextBar: updateContextBar,
     reconfigureShortcuts,
     refreshStylesPanel: () => {
       if (isPanelOpen("styles-panel")) renderStylesPanel();
-    },
-    dismissForeignHydra: (s) => {
-      dismissForeignHydra(s);
     },
   });
   // The palette's wiring: what the rows beyond the content registry can be.

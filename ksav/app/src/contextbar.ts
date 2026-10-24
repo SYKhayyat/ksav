@@ -9,6 +9,7 @@
 // the whole of the performance story, and it is asserted in the fence.
 
 import * as runtime from "./runtime";
+import { dismissForeignHydra } from "./hydra";
 import * as chrome from "./ribbon";
 import * as structure from "./structure";
 import * as styles from "./styles";
@@ -57,7 +58,7 @@ export function updateContextBar() {
   // Clicking into ordinary prose and then typing would otherwise have every
   // letter swallowed by a panel the writer had stopped thinking about — the
   // keyboard equivalent of a drawer with no close button.
-  chromeWiring().dismissForeignHydra(structure.structureNear(doc, pos)?.structure ?? null);
+  dismissForeignHydra(structure.structureNear(doc, pos)?.structure ?? null);
 
   // The paragraph-style readout follows the caret whether or not the ribbon has
   // anything to show, so it is updated before the early return below.

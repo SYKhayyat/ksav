@@ -24,7 +24,18 @@ import { getLang, t, tf, hasKey, type Lang } from "./i18n";
 import { el, iconBtn, tbGroup, glyphBtn, noticeHost } from "./dom";
 import { closeMenus, toggleMenu } from "./panels";
 import { keybindings, hintFor, hintIsMode } from "./keyhint";
-import { BREAKS, BREAK_COMMAND, BREAK_GLYPH, ACTION_COMMAND, actionForCommand } from "./actions";
+import { BREAKS, BREAK_COMMAND, BREAK_GLYPH, ACTION_COMMAND, actionForCommand, actionName } from "./actions";
+import { askText } from "./formmodal";
+import { docLang, insertSnippet, insertCommand, tieredNoteHere } from "./insert";
+import { linkifySelection, askForMekor, refreshSources } from "./girsa";
+import { openPalette } from "./palette";
+import { renameDoc, closeOpenDoc, duplicateDoc, removeDoc, newNamedDoc } from "./docswitch";
+import { openNotesChooser } from "./noteschooser";
+import { openFormula } from "./formulas";
+import { openSectionSetup } from "./sectionsetup";
+import { insertImage } from "./assets";
+import { toggleRecording, savedMacros, playMacro, deleteMacro, currentRecording, savedNameMap } from "./macros";
+
 import { legalAt } from "./mode";
 import { docTextOf } from "./spans";
 import { typstString } from "./typst-escape";
@@ -43,70 +54,32 @@ import { voidAction } from "./asyncaction";
 // exactly as `wirePanes` is for the pane modules.
 
 export interface ChromeWiring {
-  /** The form-modal prompt (main.ts's `askText`). */
-  askText(message: string, initial?: string): Promise<string | null>;
-  /** What the document's language says the next command is written in. */
-  docLang(): "he" | "en";
-  /** The insertion path: every toolbar button and menu entry ends at it. */
-  insertSnippet(raw: string): boolean;
-  /** A command by name, with its delimiters applied (`insertionAt`). */
-  insertCommand(he: string): boolean;
-  /** The selection-side verbs: notes, links, mekoros, entity surgery. */
-  tieredNoteHere(doc: string, pos: number): string;
-  linkifySelection(): Promise<void>;
-  askForMekor(): Promise<void>;
+  /** The editor verbs wave 12 has not claimed — main's own, by the plan's holding. */
   entityAct(what: "select" | "unwrap" | "remove"): boolean;
-  /** Folding and the hidden break, assembled in main.ts for now. */
   foldToLevel(view: EditorView, level: number): void;
   foldListsToDepth(view: EditorView, depth: number): void;
   hiddenBreak(): void;
-  /** Hide, or reveal, the block or line the caret is in. */
   hideBlockHere(): void;
   hideLineHere(): void;
-  /** The hidden fold: `/* … *\/` around the selection. */
   insertFold(): void;
-  /** The command palette (its own wave moves it home to its module). */
-  openPalette(): void;
-  /** Rename the document in hand. */
-  renameDoc(): Promise<void>;
-  /** Choose which kind of note `†` and `⁋` make. */
-  openNotesChooser(): void;
-  /** The further insert-menu doors: section setup, formula, image. */
-  openSectionSetup(): void;
-  openFormula(): void;
-  insertImage(): Promise<void>;
-  /** Structure dispatch — the one verb both the menus and the strip fire. */
   runStructureAction(action: structure.StructureAction, sticky?: boolean): boolean;
   makeListHere(): boolean;
-  /** The styles drawer's verbs; their wave (8) moves these home. */
+  /** The styles drawer's verbs — stylespanel imports this file's `docTextNow`,
+   *  so a direct import would cycle; they stay borrowed. */
   applyCustomStyle(name: string): boolean;
   unwrapCustomStyle(name: string): void;
   openNewStyle(): void;
   openStyleEditor(name: string): void;
-  /** The level the styles drawer opens on: `headingLevel = level; openStyles()`. */
   openStylesFor(level: number): void;
-  /** The document verbs the Documents menu names. */
   addContentsHere(): boolean;
-  closeOpenDoc(id: string): Promise<void>;
-  duplicateDoc(id: string): Promise<void>;
-  removeDoc(id: string): Promise<void>;
-  newNamedDoc(): Promise<void>;
+  /** Save-as lives in fileui, which imports this file's `clearChromeNotice`. */
   saveFileAs(): Promise<void>;
-  refreshSources(): Promise<void>;
-  /** Macros, with the recorder's own state (wave 7 moves these home). */
-  recording(): macros.Step[] | null;
-  toggleRecording(): void;
-  savedMacros(): macros.Macro[];
-  playMacro(macro: macros.Macro, times?: number): void;
-  deleteMacro(id: string): void;
-  macroName(id: string): string;
   /** The context strip: contextbar.ts owns it, the ribbon refreshes it. */
   refreshContextBar(): void;
-  /** The shell behaviours the caret strip asks for as it follows. */
   reconfigureShortcuts(): void;
   refreshStylesPanel(): void;
-  dismissForeignHydra(structure: string | null): void;
 }
+
 
 let chromeWired: ChromeWiring | undefined;
 
@@ -144,7 +117,7 @@ function contentsDepthRow(): HTMLElement {
         const depth = raw === "" ? null : Number(raw);
         const made = has
           ? heads.setContentsDepth(doc, depth)
-          : heads.addContents(doc, chromeWiring().docLang(), depth);
+          : heads.addContents(doc, docLang(), depth);
         closeMenus();
         if (!made) return;
         runtime.editDoc(made.text, made.caret);
@@ -411,7 +384,7 @@ function highlightControl(writing: Lang): HTMLElement {
     // never asked for a particular one.
     // Written in Hebrew and translated by `insert.plan`, like every other
     // snippet: an English document gets `#mark(color: …)`.
-    chromeWiring().insertSnippet(
+    insertSnippet(
       highlightColour.toLowerCase() === styles.DEFAULT_HIGHLIGHT
         ? "#סימון[|]"
         : `#סימון(צבע: rgb(${typstString(highlightColour)}))[|]`,
@@ -449,7 +422,7 @@ function noteBtn(action: string, glyph: string, snippet: string | null): HTMLEle
     title,
     () => {
       const st = runtime.view.state;
-      chromeWiring().insertSnippet(snippet ?? chromeWiring().tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
+      insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
     },
     "",
     { "data-action": action, ...i18n },
@@ -463,7 +436,7 @@ export function buildToolbar(): HTMLElement {
   // name** is the document's, because it is what the button is about to write.
   // An English toolbar reading "Bold text · #הדגשה" over a button that inserts
   // `#bold` is naming something that will not be in the document.
-  const writing = chromeWiring().docLang();
+  const writing = docLang();
   const byName = (he: string) => runtime.commandsReg.find((c) => c.he === he);
   /**
    * A button in a group its category does not name, with the reason why.
@@ -483,7 +456,7 @@ export function buildToolbar(): HTMLElement {
     const c = byName(he);
     if (!c) return el("span");
     const title = lang === "he" ? c.desc_he : c.desc_en;
-    return iconBtn(label, `${title} · #${writing === "he" ? c.he : c.en}`, () => chromeWiring().insertSnippet(c.insert), "", {
+    return iconBtn(label, `${title} · #${writing === "he" ? c.he : c.en}`, () => insertSnippet(c.insert), "", {
       "data-command": c.he,
     });
   };
@@ -590,7 +563,7 @@ export function buildToolbar(): HTMLElement {
       // for a fixed area on the page, so the old label named the wrong one of
       // the two things it could have meant.
       iconBtn("▤", t("fold"), () => chromeWiring().insertFold()),
-      iconBtn("⋯", t("palette"), () => chromeWiring().openPalette()),
+      iconBtn("⋯", t("palette"), () => openPalette()),
     ]),
   ]);
 }
@@ -622,7 +595,7 @@ function docsMenuItems(): (Node | string)[] {
       // Named for the same reason the rows below carry `data-doc`: the label is
       // translated, and the acceptance run has to be able to say *this* item.
       "data-doc-action": "new",
-      onClick: () => voidAction("save_file", () => chromeWiring().newNamedDoc()),
+      onClick: () => voidAction("save_file", () => newNamedDoc()),
     }, [t("newDoc")]),
     // **Here**, and not in the arrangement panel, because this is where a writer
     // asks for a new anything. The arrangement panel is where somebody who
@@ -634,7 +607,7 @@ function docsMenuItems(): (Node | string)[] {
       "data-doc-action": "new-tab",
       onClick: () => voidAction("save_file", () => tabstrip.newDocTab()),
     }, [`${t("newDocTab")} · ${hintFor("newDocTab")}`]),
-    el("button", { class: "menu-item", onClick: () => chromeWiring().renameDoc() }, [t("rename")]),
+    el("button", { class: "menu-item", onClick: () => renameDoc() }, [t("rename")]),
     // "Save as" already existed, in the File menu. The margin comment asking
     // *"do we have a save as something else.ksav option?"* was written by
     // somebody looking at the document's name and its filename side by side and
@@ -642,7 +615,7 @@ function docsMenuItems(): (Node | string)[] {
     // command is the same one; this is a second door onto it, at the place the
     // question gets asked.
     el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => chromeWiring().saveFileAs()) }, [t("saveAs")]),
-    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => chromeWiring().duplicateDoc(runtime.currentDoc.id)) }, [
+    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => duplicateDoc(runtime.currentDoc.id)) }, [
       t("duplicate"),
     ]),
   ];
@@ -698,7 +671,7 @@ function docsMenuItems(): (Node | string)[] {
             t("closeDoc"),
             (e: Event) => {
               e.stopPropagation();
-              voidAction("save_file", () => chromeWiring().closeOpenDoc(entry.id));
+              voidAction("save_file", () => closeOpenDoc(entry.id));
             },
             "menu-close",
           ),
@@ -749,7 +722,7 @@ function docsMenuItems(): (Node | string)[] {
           "aria-label": t("delete"),
           onClick: (e: Event) => {
             e.stopPropagation();
-            void chromeWiring().removeDoc(entry.id);
+            void removeDoc(entry.id);
           },
         }, ["×"]),
       ]),
@@ -834,14 +807,14 @@ export function buildMacroMenu(): HTMLElement {
   return lazyMenu("macros", "⏺ " + t("macros"), () => {
     const kb = keybindings();
     const items: (Node | string)[] = [
-      el("button", { class: "menu-item", onClick: () => (closeMenus(), chromeWiring().toggleRecording()) }, [
-        el("b", {}, [chromeWiring().recording() ? "⏹  " + t("macroStop") : "⏺  " + t("macroRecord")]),
+      el("button", { class: "menu-item", onClick: () => (closeMenus(), toggleRecording()) }, [
+        el("b", {}, [currentRecording() ? "⏹  " + t("macroStop") : "⏺  " + t("macroRecord")]),
         el("span", { class: "menu-desc" }, [t("macroRecordLede")]),
       ]),
       el("div", { class: "menu-sep" }),
       el("div", { class: "menu-cat" }, [t("macroSaved2")]),
     ];
-    const all = chromeWiring().savedMacros();
+    const all = savedMacros();
     if (!all.length) {
       items.push(el("div", { class: "menu-desc", style: "padding: 6px 9px" }, [t("macroNone")]));
       return items;
@@ -852,11 +825,11 @@ export function buildMacroMenu(): HTMLElement {
         el("div", { class: "menu-item-row" }, [
           el("button", {
             class: "menu-item menu-item-main",
-            onClick: () => (closeMenus(), chromeWiring().playMacro(m)),
+            onClick: () => (closeMenus(), playMacro(m)),
           }, [
             el("b", {}, [m.name]),
             el("span", { class: "menu-desc" }, [
-              macros.describe(m, chromeWiring().macroName) + (hint ? "  ·  " + hint : ""),
+              macros.describe(m, (id) => actionName(id, savedNameMap())) + (hint ? "  ·  " + hint : ""),
             ]),
           ]),
           // Repeat, which is the reason a macro exists: the writer did the thing
@@ -866,10 +839,10 @@ export function buildMacroMenu(): HTMLElement {
             title: t("macroRepeat"),
             onClick: async (e: Event) => {
               e.stopPropagation();
-              const n = parseInt((await chromeWiring().askText(t("macroRepeatPrompt"), "10")) ?? "", 10);
+              const n = parseInt((await askText(t("macroRepeatPrompt"), "10")) ?? "", 10);
               if (Number.isFinite(n) && n > 0) {
                 closeMenus();
-                chromeWiring().playMacro(m, Math.min(n, 500));
+                playMacro(m, Math.min(n, 500));
               }
             },
           }, ["×n"]),
@@ -879,7 +852,7 @@ export function buildMacroMenu(): HTMLElement {
             "aria-label": t("delete"),
             onClick: (e: Event) => {
               e.stopPropagation();
-              chromeWiring().deleteMacro(m.id);
+              deleteMacro(m.id);
             },
           }, ["×"]),
         ]),
@@ -990,10 +963,10 @@ export function buildSourcesMenu(): HTMLElement {
         el("span", { class: "menu-desc" }, [t(id + "Lede")]),
       ]);
     return [
-      item("citePhrase", "⌕", () => void chromeWiring().askForMekor()),
-      item("linkifyCitations", "⚯", () => void chromeWiring().linkifySelection()),
+      item("citePhrase", "⌕", () => void askForMekor()),
+      item("linkifyCitations", "⚯", () => void linkifySelection()),
       el("div", { class: "menu-sep" }),
-      item("refreshSources", "↻", () => void chromeWiring().refreshSources()),
+      item("refreshSources", "↻", () => void refreshSources()),
     ];
   });
 }
@@ -1009,7 +982,7 @@ export function buildTableMenu(): HTMLElement {
         // Typst size each column to its contents, so an empty new table renders
         // as a thumbnail shoved against the margin — a fix that landed in the
         // registry and would have had to be remembered here twice more.
-        chromeWiring().insertCommand(ACTION_COMMAND.table);
+        insertCommand(ACTION_COMMAND.table);
       },
     }, [el("b", {}, ["▦  " + t("insertTable")])]),
     el("div", { class: "menu-sep" }),
@@ -1054,7 +1027,7 @@ function insertMenuItems(): (Node | string)[] {
         onClick: () => {
           closeMenus();
           const st = runtime.view.state;
-          chromeWiring().insertSnippet(snippet ?? chromeWiring().tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
+          insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
         },
       },
       [
@@ -1071,7 +1044,7 @@ function insertMenuItems(): (Node | string)[] {
     // none anywhere in the product.
     noteItem("footnote", "†", "#הערה[|]"),
     noteItem("endnote", "⁋", "#הערתסיום[|]"),
-    el("button", { class: "menu-item", onClick: () => chromeWiring().openNotesChooser() }, [
+    el("button", { class: "menu-item", onClick: () => openNotesChooser() }, [
       el("b", {}, ["✻ " + t("notesChooser")]),
       el("span", { class: "menu-desc" }, [t("notesChooserLede")]),
     ]),
@@ -1093,13 +1066,13 @@ function insertMenuItems(): (Node | string)[] {
         ? undefined
         : "whyNoteOnNoteNeedsANote",
     ),
-    el("button", { class: "menu-item", onClick: () => chromeWiring().insertImage() }, [
+    el("button", { class: "menu-item", onClick: () => insertImage() }, [
       el("b", {}, ["🖼 " + t("insertImage")]),
     ]),
-    el("button", { class: "menu-item", onClick: () => chromeWiring().openFormula() }, [
+    el("button", { class: "menu-item", onClick: () => openFormula() }, [
       el("b", {}, ["∑ " + t("insertFormula")]),
     ]),
-    el("button", { class: "menu-item", onClick: () => chromeWiring().openSectionSetup() }, [
+    el("button", { class: "menu-item", onClick: () => openSectionSetup() }, [
       el("b", {}, ["▭ " + t("sectionSetup")]),
       el("span", { class: "menu-desc" }, [t("sectionSetupLede")]),
     ]),
@@ -1154,7 +1127,7 @@ function insertMenuItems(): (Node | string)[] {
             closeMenus(),
             // The one that is not a registry command: a comment pair the editor
             // writes, so the break is in the source and never on the page.
-            command ? chromeWiring().insertCommand(command) : chromeWiring().hiddenBreak()
+            command ? insertCommand(command) : chromeWiring().hiddenBreak()
           ),
         },
         [
@@ -1199,7 +1172,7 @@ function commandRows(cats: readonly string[]): (Node | string)[] {
   const lang = getLang();
   // The interface's language names the *description*; the document's names the
   // command, because the command is what lands in the source. See `buildToolbar`.
-  const writing = chromeWiring().docLang();
+  const writing = docLang();
   const kb = keybindings();
   const doc = docTextNow();
   const pos = runtime.view?.state.selection.main.from ?? 0;
@@ -1224,7 +1197,7 @@ function commandRows(cats: readonly string[]): (Node | string)[] {
             class: "menu-item menu-cmd" + (legality.ok ? "" : " disabled"),
             disabled: legality.ok ? null : "true",
             title: legality.ok ? "" : t(legality.reason!),
-            onClick: () => chromeWiring().insertSnippet(c.insert),
+            onClick: () => insertSnippet(c.insert),
           },
           [
             el("b", {}, [lang === "he" ? c.desc_he : c.desc_en]),

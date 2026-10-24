@@ -105,7 +105,10 @@ const INVENTORY = {
   // noise pretending to be safety. `startFind` and `renumberAll` were on this
   // list and were briefly wrapped; the typechecker said `number` and `boolean`
   // are not `Promise<unknown>`, which is the honest answer.
-  "src/ribbon.ts:chromeWiring": "menu-item onClicks fire the shell's guarded verbs; the ribbon awaits nothing",
+  "src/ribbon.ts:removeDoc": "menu-item onClick fire the shell's guarded verbs; the ribbon awaits nothing",
+  "src/ribbon.ts:askForMekor": "menu-item onClick; girsa is guarded and reports its own failures",
+  "src/ribbon.ts:linkifySelection": "menu-item onClick; girsa is guarded and reports its own failures",
+  "src/ribbon.ts:refreshSources": "menu-item onClick; girsa is guarded and reports through troubleSaid",
   "src/ribbon.ts:unfoldAll": "a synchronous fold walk",
   "src/bracket-lint.ts:healAll": "returns the number of fixes applied; no promise",
   "src/apparatus-lint.ts:renderAllNotes": "returns the number of dumps added; no promise",

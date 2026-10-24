@@ -130,14 +130,15 @@ export function run() {
     // The one a list UI usually gets wrong: a line that is **not** in a part has
     // nothing to choose, and the honest answer is a sentence. A writer who
     // pressed a key is owed one — an empty panel is a dead gesture.
-    ok("there is a sentence for one place", main.includes("placesOnlyHere"));
+    const reveal = src("reveal.ts");
+    ok("there is a sentence for one place", reveal.includes("placesOnlyHere"));
     // Held as **structure**: the empty branch and the sentence inside it. A
     // character-count window was tried and is wrong — the explanatory comment
     // between them is longer than the window, so the assertion was measuring the
     // length of a comment rather than the shape of the code.
-    const emptyBranch = main.slice(
-      main.indexOf("if (lines.length === 0)"),
-      main.indexOf("if (one)"),
+    const emptyBranch = reveal.slice(
+      reveal.indexOf("if (lines.length === 0)"),
+      reveal.indexOf("if (one)"),
     );
     ok(
       "and it is used when the list is empty",
@@ -146,11 +147,11 @@ export function run() {
     // `placesRows` separated from the DOM so the decision is data.
     ok(
       "the decision is one function, not a walk over buttons",
-      /function placesRows\(/.test(main),
+      /function placesRows\(/.test(reveal),
     );
     ok(
       "and it says a single place is not a choice",
-      /one:\s*lines\.length <= 1/.test(main),
+      /one:\s*lines\.length <= 1/.test(reveal),
     );
   }
 }

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import * as reveal from "../.tmp-test/reveal.mjs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 import { check, ok, notOk } from "./harness.mjs";
@@ -712,9 +713,9 @@ const filed = (text) => scan(text).defs.map((d) => d.name);
   // reveal was correct about every position it was given — it was *which
   // position it was given*, so the test that matters is that `revealCursor`
   // still asks.
-  const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+  const main = readFileSync(path.join(SRC, "reveal.ts"), "utf8");
   const at = main.indexOf("async function revealCursor(");
-  ok("revealCursor is still a function in main.ts", at >= 0);
+  ok("revealCursor is a function in reveal.ts", at >= 0 && typeof reveal.revealCursor === "function");
   const body = main.slice(at, main.indexOf("\n}", at));
   ok("revealCursor remaps a deferred caret before asking", body.includes("printingAnchor("));
   ok("…and falls back to the caret itself", /printingAnchor\([\s\S]*?\?\?/.test(body));

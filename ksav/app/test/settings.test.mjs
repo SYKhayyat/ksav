@@ -419,7 +419,7 @@ function everyPreferenceHasAControl() {
 function eachSyncSwitchGatesItsOwnBehaviour() {
   // Wave-2 carve: the scroll link and the caret follow live in `panescroll.ts`,
   // the preview click in `panehost.ts`. The fence follows the code.
-  const srcs = ["main.ts", "panescroll.ts", "panehost.ts"].map((f) =>
+  const srcs = ["main.ts", "reveal.ts", "panescroll.ts", "panehost.ts"].map((f) =>
     readFileSync(path.join(SRC, f), "utf8"),
   );
   const bodyOf = (fn) => {

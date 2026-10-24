@@ -109,4 +109,18 @@ if (cycles.length) {
   );
   process.exit(1);
 }
+// The size ledger, not a gate: the split's goal was a main.ts that only
+// assembles, and a file crossing ~2,000 lines is a passenger worth naming —
+// but the honest number belongs to whoever is changing the file, so this
+// warns and does not fail (the audit's #156).
+const SIZE_WARN = 2_000;
+const oversize = [];
+for (const m of modules) {
+  const n = readFileSync(path.join(SRC, m), "utf8").split("\n").length;
+  if (n > SIZE_WARN) oversize.push(`  ${m}: ${n} lines`);
+}
 console.log(`acyclic: ${modules.length} modules, no forbidden names.`);
+if (oversize.length) {
+  console.log(`size ledger (over ${SIZE_WARN} lines, a warning and not a gate):`);
+  for (const l of oversize) console.log(l);
+}

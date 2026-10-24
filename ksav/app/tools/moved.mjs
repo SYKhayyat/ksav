@@ -346,7 +346,38 @@ if (moved.length === 0) {
   );
   process.exit(1);
 }
+// The caller check (the audit's #156): after a move, no other module may reach
+// the name *through the old file* — that is a stale re-export route, the thing
+// a reader follows to the wrong home. The old file citing the name itself is
+// fine (it imports the moved code, exactly as a rewired caller should); what
+// this looks for is `import { name } from "./oldfile"` somewhere else.
+// The caller check (the audit's #156): after a move, no other module may reach
+// the name *through the old file* — `import { name } from "./oldfile"` — which
+// is either a re-export route a reader follows to the wrong home, or the old
+// file still declaring the name. Sound per-wave (names are assumed unique in
+// one commit's diff); against a many-wave base, same-name declarations in other
+// files make it noisy, so this is information, not a gate.
+const stale = [];
+for (const m of moved) {
+  const base = m.from.replace(/\.ts$/, "");
+  const route = new RegExp(
+    `import\\s*\\{[^}]*\\b${m.name}\\b[^}]*\\}\\s*from\\s*"\\./${base}"`,
+  );
+  for (const f of srcFiles()) {
+    if (f === m.from || f === m.to) continue;
+    const src = readFileSync(path.join(SRC_DIR, f), "utf8");
+    if (route.test(src)) {
+      stale.push(`  ${f}: imports ${m.name} from ${m.from} — the name moved to ${m.to}`);
+    }
+  }
+}
+
 for (const m of moved) console.log(`moved  ${m.name}  ${m.from} → ${m.to}`);
+for (const a of ambiguous) console.log(`skip   ${a}`);
+if (stale.length) {
+  console.log(`rewire check — old modules still citing moved names (re-export or prune?):`);
+  for (const s of stale) console.log(s);
+}
 for (const a of ambiguous) console.log(`skip   ${a}`);
 if (drift.length) {
   console.error(`\n${moved.length} moved, ${drift.length} DRIFTED:`);

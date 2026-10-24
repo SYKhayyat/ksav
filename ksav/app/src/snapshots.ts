@@ -10,6 +10,7 @@
 // list the rows draw from, so the page cannot disagree with the store.
 
 import { el } from "./dom";
+import { makeWiring } from "./wiring";
 import { t, tf } from "./i18n";
 import * as runtime from "./runtime";
 import * as docs from "./docs";
@@ -38,18 +39,9 @@ export interface SnapshotsWiring {
   loadBody(body: string): void;
 }
 
-let snapped: SnapshotsWiring | undefined;
-
-/** Register the snapshots wiring. Called once, from main.ts's boot. */
-export function wireSnapshots(w: SnapshotsWiring): void {
-  snapped = w;
-}
-
-/** The wiring, registered at boot. */
-export const snapWiring = (): SnapshotsWiring => {
-  if (!snapped) throw new Error("wireSnapshots was never called: the snapshots wiring is missing");
-  return snapped;
-};
+const W = makeWiring<SnapshotsWiring>("wireSnapshots");
+export const wireSnapshots = W.wire;
+export const snapWiring = W.get;
 
 // ---- version history (local snapshots) ----
 //

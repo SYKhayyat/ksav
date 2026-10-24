@@ -219,7 +219,7 @@ import { insertionAt } from "./mode";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as macros from "./macros";
-import { openHelp, renderHelp, wireHelp, buildHelpPanel } from "./help";
+import { openHelp, renderHelp, buildHelpPanel } from "./help";
 import {
   toggleOutline,
   toggleNotesPane,
@@ -230,7 +230,6 @@ import {
   renderFindPane,
   openNoteMenu,
   drawList,
-  runRow,
   LOOKS,
   wireRows,
 } from "./rowlists";
@@ -3652,8 +3651,6 @@ function installHooks() {
     },
     applyNotePick,
   });
-  // Help runs its entries through the shell's row runner.
-  wireHelp({ runRow: (does) => runRow(does) });
   // The macros' modal, rebind and action door; the recorder is macros.ts's.
   wireMacros({
     actionById: (id) => actionById(id) as { id: string; run: (v: unknown) => boolean } | undefined,
@@ -3663,7 +3660,7 @@ function installHooks() {
   // The hydra: a structural operation performed where the caret is.
   wireHydra({ runStructure: (action, sticky) => runStructureAction(action, sticky) });
   // The git drawer's modal and the body swap of a commit restore.
-  wireGit({ ask, loadBody });
+  wireGit({ loadBody });
   wireStyles({
     destinationRows: () => destinationRows(),
     applySkin: (name) => applySkin(name),
@@ -3674,7 +3671,7 @@ function installHooks() {
   // The destinations' editor write-back.
   wireDestinations({ replaceAll: (text, caret) => replaceAll(text, caret) });
   // The starter follows a language switch with a body swap and a setting write.
-  wireStarter({ loadBody: (body) => loadBody(body), setSetting });
+  wireStarter({ setSetting });
   // A template's direction arrives through the shell's setting write.
   wireTemplates({ setSetting });
   // The switch machine borrows the state factory and the compartment sweep.

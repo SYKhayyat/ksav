@@ -13,6 +13,7 @@
 // cannot disagree.
 
 import { el } from "./dom";
+import { makeWiring } from "./wiring";
 import { t, tf } from "./i18n";
 
 import { whoHolds } from "./bindings";
@@ -87,18 +88,9 @@ export interface SettingsWiring {
   write<K extends Field>(key: K, value: ValueOf<K>): void;
 }
 
-let wiredSettings: SettingsWiring | undefined;
-
-/** Register the settings wiring. Called once, from main.ts's boot. */
-export function wireSettings(w: SettingsWiring): void {
-  wiredSettings = w;
-}
-
-/** The wiring, registered at boot. */
-export const settingsWiring = (): SettingsWiring => {
-  if (!wiredSettings) throw new Error("wireSettings was never called: the settings wiring is missing");
-  return wiredSettings;
-};
+const W = makeWiring<SettingsWiring>("wireSettings");
+export const wireSettings = W.wire;
+export const settingsWiring = W.get;
 
 // ---------------------------------------------------------------- settings drawer
 function numberRow(labelKey: string, key: Field, min: number, max: number, step: number) {

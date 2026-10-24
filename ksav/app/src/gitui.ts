@@ -9,7 +9,9 @@
 // git's own sentences — git's words are shown, never rephrased.
 
 import { t, tf, getLang } from "./i18n";
+import { makeWiring } from "./wiring";
 import * as git from "./git";
+import { ask } from "./formmodal";
 import * as api from "./api";
 import * as panelviews from "./panelviews";
 import * as runtime from "./runtime";
@@ -26,24 +28,15 @@ import * as header from "./header";
 // rebuilds: the shell's modal question and the body swap (the editor's own
 // dispatch, closeMenus and focus). Registered from main.ts's boot.
 export interface GitWiring {
-  /** The small modal's promise question. */
-  ask(message: string, opts?: { title?: string; okLabel?: string; danger?: boolean }): Promise<boolean>;
-  /** Swap the editor's whole body (the restore of a commit's text). */
+  /** Swap the editor's whole body (the restore of a commit's text). The modal
+   *  question is a direct import from formmodal — the wiring for it was pure
+   *  indirection, no cycle anywhere. */
   loadBody(body: string): void;
 }
 
-let wired: GitWiring | undefined;
-
-/** Register the version-control wiring. Called once, from main.ts's boot. */
-export function wireGit(w: GitWiring): void {
-  wired = w;
-}
-
-/** The wiring, registered at boot. */
-export const gitWiring = (): GitWiring => {
-  if (!wired) throw new Error("wireGit was never called: the version-control wiring is missing");
-  return wired;
-};
+const W = makeWiring<GitWiring>("wireGit");
+export const wireGit = W.wire;
+export const gitWiring = W.get;
 
 // ---------------------------------------------------------------- version control
 //
@@ -294,7 +287,7 @@ async function compareWithCommit(c: api.GitCommit): Promise<void> {
 
 async function restoreCommit(c: api.GitCommit): Promise<void> {
   const stamp = git.when(c.when, getLang());
-  if (!(await gitWiring().ask(tf("git.confirmRestore", stamp), { danger: true }))) return;
+  if (!(await ask(tf("git.confirmRestore", stamp), { danger: true }))) return;
   // A snapshot first, exactly as restoring a snapshot takes one: whatever is in
   // the editor now must survive being replaced.
   await takeSnapshot(true);
@@ -310,6 +303,6 @@ async function restoreCommit(c: api.GitCommit): Promise<void> {
 }
 
 async function revertCommit(c: api.GitCommit): Promise<void> {
-  if (!(await gitWiring().ask(tf("git.confirmRevert", c.subject || c.short), { danger: true }))) return;
+  if (!(await ask(tf("git.confirmRevert", c.subject || c.short), { danger: true }))) return;
   await runGit("revert", { rev: c.hash });
 }

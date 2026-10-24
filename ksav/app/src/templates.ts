@@ -10,6 +10,7 @@
 // mutations, wired at boot).
 
 import * as runtime from "./runtime";
+import { makeWiring } from "./wiring";
 import { setStatus, closeMenus, rerenderChrome } from "./runtime";
 import { t, getLang } from "./i18n";
 import { docTextOf } from "./spans";
@@ -30,19 +31,9 @@ export interface TemplatesWiring {
   setSetting<K extends Field>(key: K, value: ValueOf<K>): void;
 }
 
-let templatesWiringInstance: TemplatesWiring | null = null;
-
-/** Boot wires the templates' setting write once. */
-export function wireTemplates(wiring: TemplatesWiring): void {
-  templatesWiringInstance = wiring;
-}
-
-export function templatesWiring(): TemplatesWiring {
-  if (!templatesWiringInstance) {
-    throw new Error("wireTemplates was never called before a template set a direction");
-  }
-  return templatesWiringInstance;
-}
+const W = makeWiring<TemplatesWiring>("wireTemplates");
+export const wireTemplates = W.wire;
+export const templatesWiring = W.get;
 /**
  * A template, into a document rather than over one.
  *

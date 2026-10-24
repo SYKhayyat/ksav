@@ -12,6 +12,7 @@
 // performs.
 
 import * as docs from "./docs";
+import { makeWiring } from "./wiring";
 import * as opendocs from "./opendocs";
 import * as runtime from "./runtime";
 import { setStatus, closeMenus, rerenderChrome } from "./runtime";
@@ -46,19 +47,9 @@ export interface DocswitchWiring {
   syncGlobals(): void;
 }
 
-let docswitchWiringInstance: DocswitchWiring | null = null;
-
-/** Boot wires the switch machine's borrowings once. */
-export function wireDocswitch(wiring: DocswitchWiring): void {
-  docswitchWiringInstance = wiring;
-}
-
-export function docswitchWiring(): DocswitchWiring {
-  if (!docswitchWiringInstance) {
-    throw new Error("wireDocswitch was never called before a document was opened");
-  }
-  return docswitchWiringInstance;
-}
+const W = makeWiring<DocswitchWiring>("wireDocswitch");
+export const wireDocswitch = W.wire;
+export const docswitchWiring = W.get;
 
 /**
  * How many document switches have been asked for.

@@ -32,6 +32,7 @@ import { wireDocswitch, docswitchWiring } from "../.tmp-test/docswitch.mjs";
 import { wireTemplates, templatesWiring } from "../.tmp-test/templates.mjs";
 import * as fileui from "../.tmp-test/fileui.mjs";
 import * as applifecycle from "../.tmp-test/applifecycle.mjs";
+import { makeWiring } from "../.tmp-test/wiring.mjs";
 import { wireStarter, starterWiring } from "../.tmp-test/starter.mjs";
 
 export async function run() {
@@ -517,7 +518,6 @@ export async function run() {
   // commit restore arrive registered; the handback is the same object, and the
   // wired halves are guarded with voidAction in the drawer's own calls.
   const WIRING = {
-    ask: async () => false,
     loadBody: () => {},
   };
   wireGit(WIRING);
@@ -612,6 +612,21 @@ export async function run() {
       srcOf("fileui.ts").includes("export async function openFile") &&
       srcOf("fileui.ts").includes("export async function saveFile"),
   );
+  {
+    // The container the handback tests above used to re-derive by hand, eleven
+    // times: one `makeWiring` per module, and the guard names the missing wire.
+    const W = makeWiring("wireDemo");
+    let threw = "";
+    try {
+      W.get();
+    } catch (e) {
+      threw = String(e);
+    }
+    ok("the unwired container refuses, naming the wire", threw.includes("wireDemo was never called"));
+    W.wire({ n: 7 });
+    ok("…and hands back what was registered", W.get().n === 7);
+  }
+
   ok(
     "the app's own life — crash, recovery, updates, the worker — is one file, not fileui's tenants",
     srcOf("applifecycle.ts").includes("export function showCrashPanel") &&
@@ -633,7 +648,6 @@ export async function run() {
   wireDocswitch(SWITCH);
   ok("the switch machine's wiring hands back what was registered", docswitchWiring() === SWITCH);
   const START = {
-    loadBody: () => {},
     setSetting: () => {},
   };
   wireStarter(START);

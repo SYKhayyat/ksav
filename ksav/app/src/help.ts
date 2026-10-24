@@ -15,6 +15,7 @@
 
 import { DEFAULT_KEYS, commandName, keyHint } from "./bindings";
 import { allHydras } from "./hydra";
+import { runRow } from "./rowlists";
 import { actionIdOf, describe as describeMacro, parseAll } from "./macros";
 import type { Macro } from "./macros";
 import { STRUCTURE_ACTIONS } from "./structure";
@@ -282,23 +283,9 @@ export function documentedIds(sections: HelpSection[]): Set<string> {
 // until its own wave. It arrives as one registered object, as the other
 // surfaces' wirings do.
 
-export interface HelpWiring {
-  /** Run a help entry's action, through the shell's row runner. */
-  runRow(does: RowAction): void;
-}
 
-let helpWired: HelpWiring | undefined;
 
-/** Register the help wiring. Called once, from main.ts's boot. */
-export function wireHelp(w: HelpWiring): void {
-  helpWired = w;
-}
 
-/** The wiring, registered at boot. */
-export const helpWiring = (): HelpWiring => {
-  if (!helpWired) throw new Error("wireHelp was never called: the help wiring is missing");
-  return helpWired;
-};
 
 // The panel itself: an open door and a generated page. The search box and the
 // panel shell stay with the shell's drawer region; only the render lives here,
@@ -347,7 +334,7 @@ export function renderHelp(query: string) {
                         // The panel stays open. Help is where somebody goes to
                         // try three things in a row, and a drawer that shuts on
                         // the first one makes them find their place again twice.
-                        helpWiring().runRow(e.does!);
+                        runRow(e.does!);
                       },
                     },
                     [e.what],

@@ -168,6 +168,7 @@ export function parseAll(raw: unknown): Macro[] {
 // engine stays pure; everything here touches settings, the view or the shell,
 // and what it may not touch — the modal, the shortcut re-configuration —
 // arrives as the registered wiring rather than as an import of main.
+import { makeWiring } from "./wiring";
 //
 // Owns: `recording`/`replaying`/`macroCache`, the note hooks (`noteAction`,
 // `noteTyped`, `noteSnippet` — the recorder's three ears), `toggleRecording`,
@@ -195,18 +196,9 @@ export interface MacrosWiring {
   reconfigureShortcuts(): void;
 }
 
-let wired: MacrosWiring | undefined;
-
-/** Register the macros wiring. Called once, from main.ts's boot. */
-export function wireMacros(w: MacrosWiring): void {
-  wired = w;
-}
-
-/** The wiring, registered at boot. */
-export const macroWiring = (): MacrosWiring => {
-  if (!wired) throw new Error("wireMacros was never called: the macros wiring is missing");
-  return wired;
-};
+const W = makeWiring<MacrosWiring>("wireMacros");
+export const wireMacros = W.wire;
+export const macroWiring = W.get;
 
 let recording: Step[] | null = null;
 

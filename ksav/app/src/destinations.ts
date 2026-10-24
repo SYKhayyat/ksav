@@ -20,6 +20,7 @@
 // (`styleRow`/`selectControl`/`textControl` from there).
 
 import * as channels from "./channels";
+import { makeWiring } from "./wiring";
 import * as apparatus from "./apparatus";
 import type { DestinationId, NotePick } from "./channels";
 import {
@@ -47,19 +48,9 @@ export interface DestinationsWiring {
   replaceAll(text: string, caret: number): void;
 }
 
-let destinationsWiringInstance: DestinationsWiring | null = null;
-
-/** Boot wires the editor's write-back once. */
-export function wireDestinations(wiring: DestinationsWiring): void {
-  destinationsWiringInstance = wiring;
-}
-
-export function destinationsWiring(): DestinationsWiring {
-  if (!destinationsWiringInstance) {
-    throw new Error("wireDestinations was never called before a destination was written");
-  }
-  return destinationsWiringInstance;
-}
+const W = makeWiring<DestinationsWiring>("wireDestinations");
+export const wireDestinations = W.wire;
+export const destinationsWiring = W.get;
 
 /** The destination this section is editing. */
 let stylePick: NotePick = { dest: "foot", region: null };

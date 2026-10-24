@@ -12,6 +12,7 @@
 // (`channels.ts`) — the panel renders its rows, borrowed through the wiring.
 
 import { el, glyphBtn, iconBtn } from "./dom";
+import { makeWiring } from "./wiring";
 import { t, tf } from "./i18n";
 import { docTextOf } from "./spans";
 import { editDoc, closeMenus } from "./runtime";
@@ -46,19 +47,9 @@ export interface StylesWiring {
   openStyleEditor(name: string): void;
 }
 
-let stylesWiringInstance: StylesWiring | null = null;
-
-/** Boot wires the panel's borrowings once. */
-export function wireStyles(wiring: StylesWiring): void {
-  stylesWiringInstance = wiring;
-}
-
-export function stylesWiring(): StylesWiring {
-  if (!stylesWiringInstance) {
-    throw new Error("wireStyles was never called before the styles panel reached for the shell");
-  }
-  return stylesWiringInstance;
-}
+const W = makeWiring<StylesWiring>("wireStyles");
+export const wireStyles = W.wire;
+export const stylesWiring = W.get;
 
 export function openStyles() {
   closeMenus();

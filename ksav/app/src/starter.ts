@@ -69,7 +69,7 @@ export function swapUntouchedStarter() {
   if (body === want || (body !== STARTER_HE && body !== STARTER_EN)) return;
   const dir = getLang() === "en" ? "ltr" : "rtl";
   if (docConfig().dir !== dir) starterWiring().setSetting("dir", dir);
-  starterWiring().loadBody(want);
+  loadBody(want);
 }
 /**
  * CodeMirror's own words, in the language the rest of the window is in.
@@ -112,30 +112,21 @@ const SEARCH_WORDS = [
 // it borrows when the language switch brings the welcome text with it.
 
 import { getLang, t } from "./i18n";
+import { makeWiring } from "./wiring";
 import { docTextOf } from "./spans";
 import * as runtime from "./runtime";
 import { docConfig, type Field, type ValueOf } from "./settings";
+import { loadBody } from "./docswitch";
 
 /**
- * What the starter borrows from the shell: the editor's body swap (`loadBody`)
- * and the setting write that follows an interface-language change onto a
- * document that has not been touched yet.
+ * What the starter borrows from the shell: the setting write that follows an
+ * interface-language change onto a document that has not been touched yet.
+ * The body swap is a direct import — docswitch owns it, and nothing cycles.
  */
 export interface StarterWiring {
-  loadBody(body: string): void;
   setSetting<K extends Field>(key: K, value: ValueOf<K>): void;
 }
 
-let starterWiringInstance: StarterWiring | null = null;
-
-/** Boot wires the starter's borrowings once. */
-export function wireStarter(wiring: StarterWiring): void {
-  starterWiringInstance = wiring;
-}
-
-export function starterWiring(): StarterWiring {
-  if (!starterWiringInstance) {
-    throw new Error("wireStarter was never called before the starter followed a language switch");
-  }
-  return starterWiringInstance;
-}
+const W = makeWiring<StarterWiring>("wireStarter");
+export const wireStarter = W.wire;
+export const starterWiring = W.get;

@@ -17,6 +17,7 @@
 // writer's fingers because the list happened to grow.
 
 import { STRUCTURE_ACTIONS, structureAt, isEnabled } from "./structure";
+import { makeWiring } from "./wiring";
 import type { Structure, StructureAction } from "./structure";
 
 export interface HydraEntry {
@@ -196,18 +197,9 @@ export interface HydraWiring {
   runStructure(action: StructureAction, sticky: boolean): boolean;
 }
 
-let wired: HydraWiring | undefined;
-
-/** Register the hydra wiring. Called once, from main.ts's boot. */
-export function wireHydra(w: HydraWiring): void {
-  wired = w;
-}
-
-/** The wiring, registered at boot. */
-export const hydraWiring = () => {
-  if (!wired) throw new Error("wireHydra was never called: the hydra wiring is missing");
-  return wired;
-};
+const Hydra = makeWiring<HydraWiring>("wireHydra");
+export const wireHydra = Hydra.wire;
+const hydraWiring = Hydra.get;
 
 // ---------------------------------------------------------------- hydra
 //

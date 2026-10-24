@@ -14,6 +14,7 @@
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import * as panestate from "./panestate";
+import { PANE_ROLE_NAME } from "./panestate";
 import * as paneview from "./paneview";
 import * as panedrag from "./panedrag";
 import * as panescroll from "./panescroll";
@@ -191,7 +192,7 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
       // a *region* rather than a pane.
       "data-node": pane.id,
       "aria-label": t(pane.role),
-      // The pane's own name, and `NAME` above maps a role onto a key for the
+      // The pane's own name, and `PANE_ROLE_NAME` maps a role onto a key for the
       // same reason: both are the *role*'s name, and both were Hebrew after a
       // switch. `pane.role` is already a key, so nothing has to be derived.
       "data-i18n-label": pane.role,
@@ -311,16 +312,7 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
  * setting nobody can find and nobody can tell which pane it applies to.
  */
 function paneHead(pane: panes.Leaf): HTMLElement {
-  // `source` and `preview` are already keys; the two panel roles have their own
-  // names because "outline" is also the name of a *function* in this file and a
-  // key called `notes` would collide with the notes chooser.
-  const NAME: Record<string, string> = {
-    source: "source",
-    preview: "preview",
-    outline: "outlinePane",
-    notes: "notesPaneRole",
-    marks: "marksPane",
-  };
+
   // The pane's number, and it is on screen rather than implied.
   //
   // *"I don't know if I can switch other than top bottom and left right — what
@@ -341,7 +333,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     }, [
       String(panestate.paneNumberOf(pane.id)),
     ]),
-    el("span", { class: "pane-name", "data-i18n": NAME[pane.role] }, [t(NAME[pane.role])]),
+    el("span", { class: "pane-name", "data-i18n": PANE_ROLE_NAME[pane.role] }, [t(PANE_ROLE_NAME[pane.role])]),
   ];
   // Narrowing, and it is **named rather than iconified**. A glyph can say *this
   // pane is restricted*; only the title can say *to what*, and that is the one

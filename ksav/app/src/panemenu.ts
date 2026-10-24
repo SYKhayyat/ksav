@@ -9,6 +9,7 @@
 // and every row is a callback into the module that owns the verb.
 
 import * as panestate from "./panestate";
+import { PANE_ROLE_NAME } from "./panestate";
 import * as panedrag from "./panedrag";
 import * as tabstrip from "./tabstrip";
 import * as panearrangements from "./panearrangements";
@@ -161,10 +162,4 @@ function closeFloating() {
 }
 
 /** The pane roles, named for a list rather than for a strip. */
-const PANE_ROLE_NAME: Record<string, string> = {
-  source: "source",
-  preview: "preview",
-  outline: "outlinePane",
-  notes: "notesPaneRole",
-  marks: "marksPane",
-};
+

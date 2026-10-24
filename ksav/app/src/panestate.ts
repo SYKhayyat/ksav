@@ -1,14 +1,15 @@
 // The pane state and the commands over it.
 // Owns: the pane tree and its views, the focused/active/zoomed pane, the
-// mirroring and forwarding flags, the places hooks (remember/restore) and the
-// persistence commands (setTree, rememberPanes, forgetClosedPanes).
-// Defers: the DOM — heads, hosts, splitters and menus live in the modules the
-// wiring object names. Nothing here touches the DOM but `paneHostOf`, and that
-// by id convention only.
-// Refuses: knowing who renders. `renderPanes` reaches this module as a wiring
-// callback, not as an import: every pane module reads this one and nothing
-// imports from it but back through the wiring, which is why the graph stays a
-// tree with this at the leaf.
+// mirroring and forwarding flags, the places hooks (remember/restore), the
+// switch-salvage helpers, the shared role-name table, and the persistence
+// commands (setTree, rememberPanes, forgetClosedPanes).
+// Defers: the DOM *drawing* — heads, hosts, splitters and menus live in the
+// modules that render. This module does query the DOM (the stylesheet-driven
+// `paneLayout` measurement, `applyPreviewWindows`' hosts) and does import
+// preview directly for `narrowPreview`/`hasPageLines` — the leaf this header
+// once claimed to be is not what the module grew into. It has ten importers
+// and five jobs; the audit's #153 records that, and the header now says what
+// is true rather than what the wave that wrote it intended.
 
 import * as panes from "./panes";
 import * as paneplaces from "./paneplaces";
@@ -23,6 +24,19 @@ import { docTextOf } from "./spans";
 import type { LineWindow } from "./preview";
 import { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
+
+/** The pane roles, named for a list rather than for a strip — the one table,
+ *  read by the pane head and the pane menu (the two places a role prints).
+ *  `source` and `preview` are already keys; the two panel roles have their own
+ *  names because "outline" is also the name of a *function* where this table
+ *  used to live, and a key called `notes` would collide with the notes chooser. */
+export const PANE_ROLE_NAME: Record<string, string> = {
+  source: "source",
+  preview: "preview",
+  outline: "outlinePane",
+  notes: "notesPaneRole",
+  marks: "marksPane",
+};
 
 // ------------------------------------------------------------------- wiring
 //

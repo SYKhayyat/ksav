@@ -841,7 +841,21 @@ function reconfigureShortcuts() {
   for (const v of sourceViews()) v.dispatch({ effects });
 }
 
-/** Convert a keydown event to a CodeMirror key string ("Mod-Shift-k"). */
+/** Convert a keydown event to a CodeMirror key string ("Mod-Shift-k").
+ *
+ * **From `e.code`, deliberately, and the cost is on record.** `e.code` is the
+ * physical key, so a chord means the same keycap on every layout — a Hebrew
+ * writer pressing the key printed `B` gets the binding printed beside the menu
+ * item. CodeMirror's own keymaps match `e.key`, which *is* layout-dependent:
+ * on the same layout CM reads that press as its Hebrew letter. So the two
+ * resolvers in this application disagree about what a press *is* — this one
+ * names keycaps, CM names characters — and a binding whose `DEFAULT_KEYS`
+ * value is a character with no keycap identity (`"-"`, `"?"`) resolves only
+ * on the layout that produced it. The table in `bindings.ts` is written in
+ * letters and digits, which is what keeps the two honest; a character-key
+ * binding added there will work in the editor and not outside it, and
+ * `runShortcutOutsideEditor`'s comment is where the mode rule lives.
+ */
 function eventToKey(e: KeyboardEvent): string | null {
   const code = e.code;
   if (["ControlLeft", "ControlRight", "MetaLeft", "MetaRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight"].includes(code)) return null;
@@ -3212,7 +3226,19 @@ function typingIntoSomething(target: EventTarget | null): boolean {
  */
 function runShortcutOutsideEditor(e: KeyboardEvent): boolean {
   if (!runtime.view) return false;
+  // The mode's takeover is not editor-scoped. Inside the editor the takeover
+  // works by standing `buildShortcutKeymap` down (main, `buildShortcutKeymap`:
+  // "a mode that is really here takes the whole keyboard"); if this window
+  // listener kept resolving chords while vim held the keyboard, `dd` outside
+  // the editor would still open a document — the rule would hold only where
+  // nobody was typing. A mode here means this resolver stands down too.
+  if (keymodes.activeMode() !== "default") return false;
   if (typingIntoSomething(e.target)) return false;
+  // A handler that already answered owns the keystroke: this sweep runs on the
+  // window *bubble* phase, so anything that preventDefault'ed below us has said
+  // so. Without this, two resolvers (the editor's and this one) can answer the
+  // same chord once each.
+  if (e.defaultPrevented) return false;
   if (!e.ctrlKey && !e.metaKey && !e.altKey) return false;
   const key = eventToKey(e);
   if (!key) return false;

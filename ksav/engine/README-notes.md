@@ -303,7 +303,7 @@ claim, so equivalence is what is tested; the rest of that file is the failure
 modes (a dangling name, a duplicate definition, a body far from its marker).
 
 The editing side lives in the app: `src/deferred.ts` is the pure model (scan,
-jump, exile, recall, retarget, remove, lint), `src/deferred-lint.ts` the
+jump, exile, recall, retarget, remove, lint), `src/deferred-editor.ts` the
 CodeMirror wiring, and `src/notes.ts` the index every surface reads. A pair is
 written in the language of the note it stands for — `#note_named` / `#note_body`
 in an English document — for the same reason the tiered-note button writes

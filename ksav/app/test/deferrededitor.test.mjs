@@ -1,6 +1,6 @@
 // The one key, and what it does to the document.
 //
-// `deferred-lint.ts` is the editor half of `deferred.ts`: the org-mode `C-c C-c`
+// `deferred-editor.ts` is the editor half of `deferred.ts`: the org-mode `C-c C-c`
 // that walks between a marker and its prose, the two commands that exile a note
 // to the end and bring it back, and the linter over the three ways the pairing
 // can be broken. `deferred.ts` has 228 assertions on the text transformations;
@@ -15,7 +15,7 @@
 // document gets the edit *and* whatever the next binding does.
 
 import { check, ok, notOk, fakeView, installChrome } from "./harness.mjs";
-import { jumpDeferred, deferHere, recallHere, deferAll } from "../.tmp-test/deferred-lint.mjs";
+import { jumpDeferred, deferHere, recallHere, deferAll } from "../.tmp-test/deferred-editor.mjs";
 import { notesIn } from "../.tmp-test/notes.mjs";
 
 /** Where in `doc` the caret should sit — the offset just after `mark`. */

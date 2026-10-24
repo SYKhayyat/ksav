@@ -321,7 +321,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
 // Both directions of "where do the note bodies live", which is only *changeable
 // after the notes exist* if it is changeable both ways.
 {
-  const LINT = read("deferred-lint.ts");
+  const LINT = read("deferred-editor.ts");
   ok("every note can be sent to the end", LINT.includes("export function deferAll("));
   ok("and every note can be brought back", LINT.includes("export function inlineAll("));
   for (const id of ["deferAll", "deferRecallAll", "deferSort"]) {

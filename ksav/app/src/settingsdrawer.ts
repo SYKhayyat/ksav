@@ -22,7 +22,7 @@ import type { Settings } from "./settings";
 import { hasKey } from "./i18n";
 import { defersBody, BODY_HOMES, type BodyHome } from "./deferred";
 import { DESTINATIONS } from "./channels";
-import { deferAll, inlineAll, sortDeferredBodies } from "./deferred-lint";
+import { deferAll, inlineAll, sortDeferredBodies } from "./deferred-editor";
 import { scheduleCompile } from "./compile";
 import * as docs from "./docs";
 import { reportSaveFailure } from "./save";

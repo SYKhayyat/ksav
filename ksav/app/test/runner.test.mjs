@@ -3,7 +3,7 @@
 // `run.mjs` used to hold a hand-written array of module names, and nothing in
 // the repository compared it to `src/`. It listed 43 of 62 modules. The other
 // nineteen — 9,081 lines, including `exports.ts`, `compile.ts`, `save.ts`,
-// `files.ts`, `deferred-lint.ts` and `ksav-lang.ts` — could not be imported by a
+// `files.ts`, `deferred-editor.ts` and `ksav-lang.ts` — could not be imported by a
 // test, and no test imported them, because there was nothing in `.tmp-test/` to
 // import. Nobody had decided that; the array had simply stopped growing.
 //

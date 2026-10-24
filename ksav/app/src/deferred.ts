@@ -22,7 +22,7 @@
 //
 // Pure and dependency-free (text in, findings and edits out), like `brackets.ts`
 // and for the same reason: it can be tested without a browser. The CodeMirror
-// wiring is in `deferred-lint.ts`.
+// wiring is in `deferred-editor.ts`.
 
 import { headingsFromScan, sectionAt, sectionEnd, type HeadingInfo } from "./headings";
 import {

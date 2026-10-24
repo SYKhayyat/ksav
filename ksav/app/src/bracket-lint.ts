@@ -1,3 +1,4 @@
+import { lintGutter, type Diagnostic } from "@codemirror/lint";
 // The editor half of bracket healing: turns the findings from `brackets.ts` into
 // a gutter marker, an underline, and a one-click fix.
 //
@@ -7,16 +8,13 @@
 // closes, names its command, and offers to close it — before any compile runs.
 
 import { docTextOf } from "./spans";
-import { linter, lintGutter } from "@codemirror/lint";
-import type { Diagnostic } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
 import { analyze } from "./brackets";
 import { orphanChildren } from "./mode";
 import { bracketLists } from "./lists";
 import type { Problem } from "./brackets";
 import { t, tf } from "./i18n";
-import { scanForBackend } from "./api";
-import * as runtime from "./runtime";
+import { scanLinter } from "./lintkit";
 
 function message(p: Problem): string {
   if (p.kind === "unclosed") {
@@ -118,12 +116,7 @@ function bracketListDiagnostics(text: string, spans?: import("./spans").Scan): D
   }));
 }
 
-const bracketLinter = linter(
-  async (view) => {
-    const doc = view.state.doc;
-    const text = docTextOf(view.state.doc);
-    const spans = await scanForBackend(runtime.backend, text);
-    if (view.state.doc !== doc) return [];
+const bracketLinter = scanLinter((text, spans) => {
     const orphans = orphanDiagnostics(text, spans).concat(bracketListDiagnostics(text, spans));
     const { problems } = analyze(text, { delims: spans.delims, comments: spans.recoveryComments });
     if (!problems.length) return orphans;

@@ -3,7 +3,7 @@
 // This used to be a hand-written array of names inside `run.mjs`, and nothing
 // compared it to the directory. It listed 43 of the 62 modules in `src/`. The
 // other nineteen — 9,081 lines, including `exports.ts`, `compile.ts`, `save.ts`,
-// `files.ts`, `deferred-lint.ts` and `ksav-lang.ts` — could not be imported by
+// `files.ts`, `deferred-editor.ts` and `ksav-lang.ts` — could not be imported by
 // any test, and no test imported them. Not one. A suite cannot report a hole it
 // has no way to see, so the hole was invisible for as long as it existed, and
 // the workaround was visible instead: `prose.test.mjs` ran a *second, private*

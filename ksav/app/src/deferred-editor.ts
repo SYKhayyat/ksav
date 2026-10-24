@@ -1,3 +1,4 @@
+import { type Diagnostic } from "@codemirror/lint";
 // The editor half of deferred note bodies: the jump, the hover, the lint.
 //
 // `deferred.ts` is the model — pure text in, edits out. This is the part that
@@ -22,8 +23,6 @@ import { settings } from "./settings";
 function grouping(): boolean {
   return settings.deferGrouped === true;
 }
-import { linter } from "@codemirror/lint";
-import type { Diagnostic } from "@codemirror/lint";
 import { EditorView, hoverTooltip } from "@codemirror/view";
 import {
   bodyOf,
@@ -42,8 +41,7 @@ import {
 } from "./deferred";
 import type { Problem } from "./deferred";
 import { setStatus } from "./runtime";
-import * as runtime from "./runtime";
-import { scanForBackend } from "./api";
+import { scanLinter } from "./lintkit";
 import { t, tf } from "./i18n";
 
 /** Replace the whole document and put the caret somewhere. */
@@ -228,13 +226,8 @@ export function noteNamesElsewhere(next: Elsewhere): void {
   elsewhere = next;
 }
 
-const deferredLinter = linter(
-  async (view) => {
-    const doc = view.state.doc;
-    const text = docTextOf(view.state.doc);
-    const spans = await scanForBackend(runtime.backend, text);
-    if (view.state.doc !== doc) return [];
-    return problems(text, elsewhere, spans).map((p): Diagnostic => {
+const deferredLinter = scanLinter((text, spans) =>
+  problems(text, elsewhere, spans).map((p): Diagnostic => {
       const actions =
         p.kind === "dangling"
           ? [
@@ -264,12 +257,10 @@ const deferredLinter = linter(
         message: message(p),
         actions,
       };
-    });
-  },
+    }),
   // The same delay as the bracket lint: long enough not to fire while a name is
   // half-typed, since every name is dangling for the moment before its body.
-  { delay: 600 },
-);
+  { delay: 600 });
 
 // ---------------------------------------------------------------- the hover
 

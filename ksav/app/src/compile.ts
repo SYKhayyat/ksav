@@ -14,7 +14,7 @@ import { drawDiagnostics, preambleLines, shown } from "./diagview";
 import * as docs from "./docs";
 import * as parts from "./parts";
 import { scan } from "./deferred";
-import { noteNamesElsewhere } from "./deferred-lint";
+import { noteNamesElsewhere } from "./deferred-editor";
 import { t, tf } from "./i18n";
 import * as opendocs from "./opendocs";
 import { anyPreviewNarrowed, applyPreview, drawPagesEverywhere, filePages } from "./preview";

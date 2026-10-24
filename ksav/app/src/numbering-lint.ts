@@ -24,14 +24,12 @@
 // as a typo the writer made rather than as a consequence of the edit they made
 // three screens ago.
 
-import { linter } from "@codemirror/lint";
-import type { Diagnostic } from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
 import { t, tf } from "./i18n";
 import { outOfSequence, resequenceAt } from "./numbering";
 import { docTextOf } from "./spans";
 import { settings } from "./settings";
-import { scanForBackend } from "./api";
+import { scanLinter } from "./lintkit";
 import * as runtime from "./runtime";
 import type { Scan } from "./spans";
 
@@ -72,19 +70,15 @@ export function renumberAll(view: EditorView): number {
   return changed;
 }
 
-const numberingLinter = linter(async (view): Promise<Diagnostic[]> => {
-  const doc = view.state.doc;
-  const text = docTextOf(doc);
-  const spans = await scanForBackend(runtime.backend, text);
-  if (view.state.doc !== doc) return [];
-  return numberMarks(text, spans).map((m) => ({
+const numberingLinter = scanLinter((text, spans) =>
+  numberMarks(text, spans).map((m) => ({
     from: m.from,
     to: m.to,
     severity: "warning" as const,
     message: tf("numberOutOfSequence", m.written, m.wanted),
     actions: [{ name: t("renumberSeries"), apply: (v: EditorView) => void renumberAll(v) }],
-  }));
-});
+  })),
+);
 
 export const numberingMarks = [numberingLinter];
 

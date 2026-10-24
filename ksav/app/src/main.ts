@@ -47,7 +47,7 @@ import {
   deferAll,
   inlineAll,
   sortDeferredBodies,
-} from "./deferred-lint";
+} from "./deferred-editor";
 import { printingAnchor } from "./deferred";
 import { createBackend, sourcesOf } from "./api";
 /** How often the editor asks Girsa's desk whether anything arrived. A second

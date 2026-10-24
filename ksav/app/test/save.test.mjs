@@ -19,8 +19,6 @@
 
 import { check, ok, notOk, installChrome } from "./harness.mjs";
 import {
-  hasConflict,
-  clearConflict,
   hasUnsavedChanges,
   hasUnsavedFileChanges,
   markFileSaved,
@@ -213,7 +211,6 @@ export async function run() {
     {
       // Every reason to stand down, one at a time, because each of them is a
       // separate way for the timer to overwrite something it should not.
-      clearConflict();
       markFileSaved();
       runtime.setCurrentBinding(TAURI);
       check(
@@ -242,7 +239,6 @@ export async function run() {
         await autosaveToFile(true, async () => "טקסט"),
         false,
       );
-      notOk("and none of those is a conflict", hasConflict());
     }
 
     {

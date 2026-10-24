@@ -581,7 +581,7 @@ export async function run() {
     ok("the rule reads the generated registry", rule.includes("./sw-services.gen.js"));
     // A module worker, or the import above is a syntax error in the browser and
     // the whole worker fails to install.
-    const mainTs = await readFile(path.join(APP, "src", "fileui.ts"), "utf8");
+    const mainTs = await readFile(path.join(APP, "src", "applifecycle.ts"), "utf8");
     ok("it is registered as a module worker", /register\([^)]*\{\s*type:\s*"module"\s*\}/s.test(mainTs));
 
     // The worker's URL is its identity, and its cache name comes from it.

@@ -322,11 +322,16 @@ export async function refreshBaseline() {
   runtime.view.dispatch({ effects: setBaseline.of(baseline) });
 }
 
+/** The blank sefer both new-document doors open; the doors differ only in where
+ *  it lands — a full switch, or the arrangement already on screen. */
+async function createBlankDoc(): Promise<ReturnType<typeof docs.createDoc>> {
+  await flushSaves();
+  return docs.createDoc(t("untitled"), "");
+}
+
 export async function newNamedDoc() {
   closeMenus();
-  await flushSaves();
-  const doc = await docs.createDoc(t("untitled"), "");
-  await openDoc(doc.id);
+  await openDoc((await createBlankDoc()).id);
 }
 
 export async function duplicateDoc(id: string) {
@@ -446,9 +451,7 @@ export function loadBody(body: string) {
  */
 export async function newBlankDoc() {
   closeMenus();
-  await flushSaves();
-  const doc = await docs.createDoc(t("untitled"), "");
-  await enterDoc(doc.id);
+  await enterDoc((await createBlankDoc()).id);
 }
 
 export function newDoc() {

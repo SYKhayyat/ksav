@@ -31,6 +31,7 @@ import * as assets from "../.tmp-test/assets.mjs";
 import { wireDocswitch, docswitchWiring } from "../.tmp-test/docswitch.mjs";
 import { wireTemplates, templatesWiring } from "../.tmp-test/templates.mjs";
 import * as fileui from "../.tmp-test/fileui.mjs";
+import * as applifecycle from "../.tmp-test/applifecycle.mjs";
 import { wireStarter, starterWiring } from "../.tmp-test/starter.mjs";
 
 export async function run() {
@@ -610,6 +611,14 @@ export async function run() {
     srcOf("fileui.ts").includes("save.saveRoute(") &&
       srcOf("fileui.ts").includes("export async function openFile") &&
       srcOf("fileui.ts").includes("export async function saveFile"),
+  );
+  ok(
+    "the app's own life — crash, recovery, updates, the worker — is one file, not fileui's tenants",
+    srcOf("applifecycle.ts").includes("export function showCrashPanel") &&
+      srcOf("applifecycle.ts").includes("export async function offerRecovery") &&
+      srcOf("applifecycle.ts").includes("export function registerServiceWorker") &&
+      !srcOf("fileui.ts").includes('from "./crash"') &&
+      !srcOf("fileui.ts").includes('from "./update"'),
   );
 }
 

@@ -260,14 +260,12 @@ import {
   importWord,
   importOrg,
   copyShareLink,
-  offerRecovery,
-  maybeCheckForUpdate,
-  registerServiceWorker,
+
   openSharedIfLinked,
-  showCrashPanel,
   autosaveToFile,
-  FILE_AUTOSAVE_MS,
 } from "./fileui";
+import { offerRecovery, maybeCheckForUpdate, registerServiceWorker, showCrashPanel } from "./applifecycle";
+import { FILE_AUTOSAVE_MS } from "./save";
 import { showChromeNotice, clearChromeNotice } from "./ribbon";
 import {
   openDoc,

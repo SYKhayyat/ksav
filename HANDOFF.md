@@ -4,7 +4,23 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-10-14
+## Current handoff — 2026-10-22
+
+The latest pushed `main` is the audit-closure run: the main.ts split (11
+waves) is done and the post-split audit's findings are filed as issues
+#140–#157, of which all but #147 are closed. Read
+`decisions/2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md`
+and `decisions/2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md`
+for the split's end state, and issue #140 for the audit's findings index.
+
+What remains open: #147 (wave 12 — the reveal feature landed; the Girsa
+poll, onboarding and the header builder need a session with the browser
+open), and the two behavioural style items recorded on #152. main.ts is
+3,980 lines and its header is the map of the app.
+
+### Earlier handoffs
+
+## Handoff — 2026-10-14
 
 The latest pushed `main` is `e65cc3f`. PRs #95, #97, #98, and #99 are merged;
 #96 was already merged. The issue comments were added and GitHub reported #31,

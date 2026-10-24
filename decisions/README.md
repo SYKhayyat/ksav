@@ -131,8 +131,8 @@ supersede an earlier one without rewriting it.
 | 2026-10-21 | [main-ts-split-wave-3-the-app-chrome](2026-10-21-main-ts-split-wave-3-the-app-chrome.md) |
 | 2026-10-21 | [main-ts-split-wave-4-palette-girsa-and-the-series](2026-10-21-main-ts-split-wave-4-palette-girsa-and-the-series.md) |
 | 2026-10-21 | [main-ts-split-wave-5-the-insertion-path](2026-10-21-main-ts-split-wave-5-the-insertion-path.md) |
-| 2026-10-22 | [main-ts-split-wave-11-the-templates-and-the-bound-file](2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md) |
 | 2026-10-22 | [main-ts-split-wave-10-the-document-lifecycle-and-the-starter](2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md) |
+| 2026-10-22 | [main-ts-split-wave-11-the-templates-and-the-bound-file](2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md) |
 | 2026-10-22 | [main-ts-split-wave-9-the-forms-doors-and-the-documents-tenants](2026-10-22-main-ts-split-wave-9-the-forms-doors-and-the-documents-tenants.md) |
 | 2026-10-22 | [main-ts-split-wave-8-the-styles-system](2026-10-22-main-ts-split-wave-8-the-styles-system.md) |
 | 2026-10-22 | [main-ts-split-wave-7-git-macros-hydra-drawers](2026-10-22-main-ts-split-wave-7-git-macros-hydra-drawers.md) |
@@ -146,6 +146,13 @@ The two whole-repository reports that had been retained as tool output are
 retired; their durable process rules are in `CONTRIBUTING.md` §4. The
 cross-repository 9 August record remains because later records link to it and it
 contains the dated evidence for that boundary.
+
+## The accepted-debt ledger
+
+The split's "recorded, not laundered" items — misfiles, stays, and deferred
+merges with their conditions — are collected in
+[2026-10-22-accepted-debts.md](2026-10-22-accepted-debts.md) instead of scattered across the wave
+records. A decision that left an open item points there.
 
 ## What is not a decision
 

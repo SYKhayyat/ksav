@@ -99,15 +99,24 @@ import { narrowing } from "./narrowing";
 //     panels and drawers (wave 6/7): rows, version control, help.
 //   macros/hydra — the recorder and the structure keyboard (wave 5/7), the
 //     engine vocabulary each in one file.
-//   stylespanel/customstyles — the formatting panel and the writer's own
-//     styles (wave 8), the row family the borrowings share.
+//   stylespanel/customstyles/stylecontrols — the formatting panel, the
+//     writer's own styles (wave 8), and the knob family the borrowings share
+//     (the audit's #152).
 //   formmodal/destinations/reviewpanel/sectionsetup/formulas/noteschooser/
 //     assets — the form's doors and the document's tenants (wave 9).
+//   templates/fileui — the template doors and the bound file's UI half
+//     (wave 11); applifecycle — the app's own life: crash, recovery, updates,
+//     the service worker (the audit's #154).
 //   starter/docswitch — the first screen and the switch machine (wave 10),
 //     borrowing makeState and syncGlobals through their wirings.
+//   reveal — the source-says-here direction (wave 12 part 1, the audit's #147).
+//   wiring/lintkit — the registration container every borrowing shares
+//     (#145) and the lint glue three lints re-derived (#150).
 //   What stayed: makeState and its extension composition, the compartments,
 //   buildShortcutKeymap + reconfigureShortcuts, syncGlobals/setEditingMode,
-//   the Girsa poll, boot() — the recipe for how the whole app is assembled.
+//   boot(), and the header bar (its three main-locals are the settings
+//     machinery wave 6 held — see #147's record) — the recipe for how the
+//     whole app is assembled.
 import {
   el,
   glyphBtn,

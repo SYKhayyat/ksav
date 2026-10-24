@@ -45,7 +45,10 @@ acyclic (`7f9e25b`). 49 definitions moved, 26 drifted.
    the compile schedule — editor machinery the plan's own region map holds.
    They arrive as wiring methods; their bodies are wave 7+ material, and a
    wave that deep would rename itself.
-4. **The keys drawer's door stayed in main.** `openKeys` is three lines
+4. **The keys drawer's door stayed in main.** *(Amended 2026-10-22: wave 7
+   moved `openKeys` to `commandsdrawer.ts` with the drawers' doors — the
+   reading below was the honest one for wave 6 and did not survive its
+   neighbour's carve.)* `openKeys` is three lines
    (closeMenus + openPanel("keys-drawer")) whose only drawer call sites are
    the settings drawer and main's own registry; `eventToKey` and `whose`
    (drawer 231: `hasKey(key)` truthy naming) join them. What moved is what

@@ -6,52 +6,46 @@ something went wrong without it.
 
 ## Current handoff — 2026-10-22 (audit closure)
 
-The latest pushed `main` is `f44fae5`. The main.ts split (11 waves) is done;
-the post-split audit's findings were filed as issues #140–#157 and **16 of
-17 are closed**, each with its own commit, full gate verification and a
-closing comment. The one open issue is **#147** (wave 12 part 2). HEAD is
-`f44fae5`, the working tree is clean, and the full 11-check gate is green
-at this commit.
+The main.ts split (11 waves) and the post-split audit are both done: all
+17 findings (#140–#157) are closed, each with its own commit, full gate
+verification and a closing comment — #147 last, the wave-12 moves verified
+in a browser against the live engine (see below).
 
 ### The state in one paragraph
 
-main.ts is 3,989 lines and its header (main.ts:94) is the map of the whole
+main.ts is 3,751 lines and its header (main.ts:94) is the map of the whole
 app — read it first. 139 modules, acyclic (`node tools/imports.mjs`). The
 suite's counts live in `ksav/README.md`, where the fence holds them; do not
-restate them here. The accepted debts — eleven
-items, each with origin, cost and pay condition — are in
-`decisions/2026-10-22-accepted-debts.md`, which is the single ledger the
-wave records point at. New fences added this sitting: `i18nkeys.test.mjs`
+restate them here. The accepted debts are in
+`decisions/2026-10-22-accepted-debts.md`, the single ledger the wave
+records point at — eleven items, entry 4 (the Girsa poll and onboarding)
+since paid. New fences added this sitting: `i18nkeys.test.mjs`
 (every `t()` literal must be a dictionary key — it caught two live bugs)
 and `lintkit.test.mjs` (the stale-document guard is written once).
 
-### The one open issue: #147 (wave 12, part 2)
+### The last one closed: #147 (wave 12, part 2)
 
-What remains out of main.ts, with the session notes that matter:
+The two moves the ledger held open are done, and this time verified in a
+running app, which is what the ledger said the debt was waiting for:
 
-1. **The Girsa handoff poll** (~160 lines: `installBackgroundTimers`' poll
-   block, `takeArrivals`, `arrivalsTaken`, the two GIRSA_POLL consts). The
-   extraction was done once and reverted — it works, but the poll's
-   visibility behaviour (back-off on tab hide, catch-up on focus) is only
-   verifiable in a running browser. The poll block lives in main.ts inside
-   `installBackgroundTimers`; move it with the `hidden()` check inlined
-   (main's `tabHidden` must not be imported — that would cycle).
-2. **Onboarding** (`maybeOnboard`/`dismissOnboard`, ~90 lines) →
-   `starter.ts`. **Twice this extraction tangled**: the span from
-   maybeOnboard's doc comment to dismissOnboard's closing brace swallowed
-   `wireKeys` and `runShortcutOutsideEditor`, which sit between them in
-   main.ts. Extract by *function-anchored brace-matching* (the
-   `span()` helper in this sitting's history), not by walking doc comments;
-   verify with `grep -c "function wireKeys" src/main.ts` immediately after
-   any cut. The overlay itself needs a browser check.
-3. **The header bar** (`headerState`/`buildHeader`, ~210 lines) **stays in
-   main** — recorded on #147: its three main-locals (`setSetting`,
-   `proseHere`, `setProseHere`) are the settings machinery wave 6 held, and
-   wiring them would re-fatten ChromeWiring. Do not re-litigate without
-   moving `setSetting` first (that is its own wave).
-
-After the moves: update main.ts's header map, re-run the full gate, and
-close #147 with the same rigour as its fifteen siblings.
+- **The Girsa handoff poll** lives beside the Girsa panel feature it serves
+  (`src/girsa.ts`): `installGirsaPoll`, `takeArrivals`, the two cadence
+  consts, with the hidden-check inlined (`hidden()`), exactly as #147's
+  record prescribed — main's `tabHidden` stayed with the autosave it still
+  gates. Verified in Chromium against the live engine: clean boot with no
+  Girsa half, then a 60-event visibility/focus flurry (the exact trigger of
+  the old duplicate-chain bug) with zero page errors and an editor still
+  live afterwards.
+- **Onboarding** lives in `src/starter.ts` beside the first screen it
+  belongs to: `maybeOnboard`/`dismissOnboard`, cut by function-anchored
+  spans, `wireKeys` and `runShortcutOutsideEditor` intact in main this time.
+  Verified in Chromium: overlay shows on first visit with all templates
+  offered (none cut to six), template click loads and dismisses, start-blank
+  dismisses and empties the starter, Escape dismisses through
+  `closePanel`, the flag is set by every exit, and the second boot is clean.
+- **The header bar stays in main**, as #147 recorded — its three
+  main-locals are the settings machinery wave 6 held, and wiring them would
+  re-fatten ChromeWiring.
 
 ### The working rules (every commit, no exceptions)
 

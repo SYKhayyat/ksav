@@ -39,6 +39,9 @@ and does not belong here.
    assembly name. Pay when: a session can run the app in a browser — the
    onboarding overlay and the poll's visibility behaviour are not
    verifiable from text fences alone.
+   **Paid 2026-10-25** (#147): both moved and driven in Chromium against
+   the live engine — the overlay's whole lifecycle and a
+   visibility/focus flurry over the poll, zero page errors.
 
 5. **The noteStyleRows/tierStyleRows merge and the default-rows migration to
    `fieldControl`** — the two have drifted beyond a safe parameterisation

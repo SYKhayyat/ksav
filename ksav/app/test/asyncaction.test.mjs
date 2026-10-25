@@ -118,7 +118,7 @@ const INVENTORY = {
   "src/main.ts:unfoldAll": "a synchronous fold walk",
   "src/main.ts:undo": "returns a promise the editor already handles",
   "src/main.ts:redo": "returns a promise the editor already handles",
-  "src/main.ts:runPoll": "a timer tick, not a promise",
+  "src/girsa.ts:runPoll": "a timer tick, not a promise",
   "src/watch.ts:tick": "try/catch/finally with the reason in a comment — the model for this file",
 };
 

@@ -49,11 +49,6 @@ import {
   sortDeferredBodies,
 } from "./deferred-editor";
 import { createBackend, sourcesOf } from "./api";
-/** How often the editor asks Girsa's desk whether anything arrived. A second
- *  is under the threshold at which a hand-off feels like a hand-off, and it is
- *  one lock and an empty vector when there is nothing waiting. */
-const GIRSA_POLL_MS = 1000;
-const GIRSA_POLL_MAX_MS = 30_000;
 import * as panelviews from "./panelviews";
 import { getLang, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
@@ -107,8 +102,11 @@ import { narrowing } from "./narrowing";
 //   templates/fileui — the template doors and the bound file's UI half
 //     (wave 11); applifecycle — the app's own life: crash, recovery, updates,
 //     the service worker (the audit's #154).
-//   starter/docswitch — the first screen and the switch machine (wave 10),
+//   starter/docswitch — the first screen, the welcome overlay and the switch
+//     machine (wave 10, and the audit's #147 for the overlay's move),
 //     borrowing makeState and syncGlobals through their wirings.
+//   girsa — the panel feature (linkify, sources, mekoros) and now the handoff
+//     poll beside it (spec.md §10.6; the audit's #147 for the move).
 //   reveal — the source-says-here direction (wave 12 part 1, the audit's #147).
 //   wiring/lintkit — the registration container every borrowing shares
 //     (#145) and the lint glue three lints re-derived (#150).
@@ -143,7 +141,6 @@ import {
   closePanel,
   togglePanel,
   isPanelOpen,
-  mountPanel,
   wirePanel,
   closeOnEscape,
   handleEscape,
@@ -242,11 +239,11 @@ import { buildSettingsDrawer, toggleSettings, captureShortcut, resetShortcuts, w
 import { applyCustomStyle, unwrapCustomStyle, openNewStyle, openStyleEditor } from "./customstyles";
 import { openStyles, openStylesFor, renderStylesPanel, wireStyles } from "./stylespanel";
 import { destinationRows, wireDestinations } from "./destinations";
-import { settlePendingModals, ask, askArrival, askText } from "./formmodal";
+import { settlePendingModals, ask, askText } from "./formmodal";
 import { markReview, addComment, isReviewOpen, openReview, renderReviewPanel } from "./reviewpanel";
 import { openNotesChooser, applyNotePick, bodyHome, renderNotesChooser } from "./noteschooser";
 import { addFont, removeAsset } from "./assets";
-import { starterDoc, swapUntouchedStarter, searchPhrases, wireStarter } from "./starter";
+import { starterDoc, swapUntouchedStarter, searchPhrases, wireStarter, maybeOnboard } from "./starter";
 import {
   startFromTemplate,
   loadTemplate,
@@ -308,6 +305,7 @@ import {
   askForMekor,
   tellGirsaWhereItIs,
   attachRefToNote,
+  installGirsaPoll,
 } from "./girsa";
 import { openPalette, paletteKey, renderPaletteList, wirePalette } from "./palette";
 import * as header from "./header";
@@ -3021,96 +3019,6 @@ function wireKeys() {
   });
 }
 
-// First-run welcome: shown once, offers a template or a blank start.
-//
-// Two things were wrong here and both were on the reader's very first screen.
-//
-// The template list was `.slice(0, 6)`. `templatesForMenu` sorts the interface's
-// own language first, so in a Hebrew interface those six were all Hebrew and the
-// four cut were `letter-en`, `article-en`, `kesubah` and `get` — an English
-// writer's first screen, in a program whose README opens *"it works equally for
-// left-to-right English documents"*, offered six Hebrew templates and no way to
-// see there were others. All ten now show, in two labelled groups with the
-// interface's language first, so the other language is visibly present rather
-// than cut off the end of a list nobody knew was a list.
-//
-// And the button labelled *"start blank"* only closed the overlay. It set the
-// onboarded flag and removed the dialog and never touched the document, so the
-// reader's first act in the program was a button that lied: 323 characters of
-// welcome document before the click and 323 after. The template buttons two lines
-// up had always done `loadTemplate(tpl); dismissOnboard()`; this one was missing
-// its half of that pair.
-function maybeOnboard() {
-  if (localStorage.getItem("ksav.onboarded")) return;
-  const lang = getLang();
-  const all = templatesForMenu();
-  const groups = [lang, lang === "he" ? "en" : "he"]
-    .map((l) => ({ lang: l, items: all.filter((tpl) => tpl.lang === l) }))
-    .filter((g) => g.items.length);
-  // A template whose `lang` is neither is still a template; it goes in a last
-  // group rather than off the screen.
-  const rest = all.filter((tpl) => tpl.lang !== "he" && tpl.lang !== "en");
-  if (rest.length) groups.push({ lang: "", items: rest });
-
-  // Built through the same two constructors as every other modal, which is what
-  // gives it the × and the dismissing backdrop it shipped without. It is
-  // `mounted` rather than class-toggled — there is no welcome element in the
-  // document until there is a reader to welcome — and `mountPanel` is what puts
-  // the `open` class on it.
-  const overlay = overlayPanel("welcome", "palette-box welcome-box", [
-      panelHead("welcome", "welcomeTitle"),
-      panelLede("welcomeBody"),
-      ...groups.flatMap((g) => [
-        el("div", { class: "welcome-group" }, [g.lang ? t("lang." + g.lang) : t("templates")]),
-        el(
-          "div",
-          { class: "welcome-templates" },
-          g.items.map((tpl) =>
-            el(
-              "button",
-              {
-                class: "welcome-tpl",
-                lang: tpl.lang,
-                // The label is the template's name in whichever language the
-                // interface is in; the id is what it *is*. The acceptance run
-                // starts from `sefer` and has to find it in either.
-                "data-template": tpl.id,
-                onClick: () => {
-                  dismissOnboard();
-                  voidAction("save_file", () => loadTemplate(tpl));
-                },
-              },
-              [lang === "he" ? tpl.he : tpl.en],
-            ),
-          ),
-        ),
-      ]),
-      el(
-        "button",
-        {
-          class: "welcome-start",
-          onClick: () => {
-            dismissOnboard();
-            newDoc();
-          },
-        },
-        [t("welcomeStart")],
-      ),
-  ]);
-  mountPanel("welcome", overlay, document.getElementById("app")!);
-}
-
-/**
- * Close the welcome overlay, however the writer chose to leave it.
- *
- * The "was it actually on screen" check that used to guard this by hand is now
- * `closePanel`'s, for every surface: Escape reaches all of them and Escape is
- * pressed constantly, so marking someone onboarded because they dismissed a
- * completion popup would be a lie told by a keystroke.
- */
-function dismissOnboard() {
-  closePanel("welcome");
-}
 
 /**
  * Hand the shell's own operations to the modules that need them.
@@ -3763,13 +3671,15 @@ async function boot() {
   // periodic write-back to the bound file, when there is one to write to. Kept
   // even with no store: a file binding made this session writes to disk, not to
   // the store, so it is exactly the escape hatch a private window still has.
-  // The file write-back and the Girsa inbox poll, both of which used to be bare
-  // `setInterval`s that ran forever — on a backgrounded tab, a laptop on
-  // battery, a build with no Girsa half — with no guard against a slow call
-  // overlapping itself. See `installBackgroundTimers`.
+  // This used to be a bare `setInterval` that ran forever — on a backgrounded
+  // tab, a laptop on battery — with no guard against a slow call overlapping
+  // itself. See `installBackgroundTimers`.
   installBackgroundTimers();
+  // The Girsa handoff poll is girsa.ts's now (spec.md §10.6); same install
+  // moment, its own file.
+  installGirsaPoll();
 }
-/** True when this session's polls and autosave should be quiet. */
+/** True when this session's autosave should be quiet. */
 
 
 function tabHidden(): boolean {
@@ -3777,13 +3687,12 @@ function tabHidden(): boolean {
 }
 
 /**
- * The two recurring background jobs, gated and guarded.
+ * The recurring write-back job, gated and guarded.
  *
- * Both suspend while the tab is hidden (the writer is not looking, and `save.ts`
- * already flushes on the way out), each holds a `busy` flag so a slow call
- * cannot pile up behind itself — the shape `watch.ts` uses — and the inbox poll
- * backs off (1 s → 5 s → 30 s) through a run of empty polls, resetting to 1 s on
- * any arrival and on focus. A hidden tab that comes back runs one catch-up tick.
+ * It suspends while the tab is hidden (the writer is not looking, and `save.ts`
+ * already flushes on the way out), and holds a `busy` flag so a slow call
+ * cannot pile up behind itself — the shape `watch.ts` uses. The other
+ * background job, the Girsa inbox poll, lives beside this one in `girsa.ts`.
  */
 function installBackgroundTimers(): void {
   let autosaveBusy = false;
@@ -3794,155 +3703,7 @@ function installBackgroundTimers(): void {
       autosaveBusy = false;
     });
   }, FILE_AUTOSAVE_MS);
-
-  // Sources handed over by Girsa while this window is open (spec.md §10.6).
-  let pollDelay = GIRSA_POLL_MS;
-  let pollTimer = 0;
-  let pollBusy = false;
-  // Which chain is the live one.
-  //
-  // There is one `pollTimer` and `arm` overwrites it, so `wake()` can only
-  // cancel the *most recent* timer — and a `runPoll` that has already fired is
-  // not cancellable at all, and ends by arming itself again. So a `wake()`
-  // landing while a poll was awaiting the inbox produced a second chain, and the
-  // two were thereafter independent and unaware of each other. Six tab-returns
-  // each landing mid-poll: seven live chains where the design has one, and
-  // nothing in the loop could observe or collapse a duplicate.
-  //
-  // Not reproducible over loopback, where a poll finishes in about a
-  // millisecond and `wake` essentially never lands inside one. The trigger is a
-  // slow inbox — the desktop build, where the service goes through
-  // `spawn_blocking` behind a compile, or Girsa itself being slow.
-  //
-  // So the epoch guards the *chain* rather than the timer: a superseded chain
-  // retires at its next re-arm instead of running forever beside the new one.
-  let pollEpoch = 0;
-  const arm = (ms: number, epoch: number) => {
-    if (epoch !== pollEpoch) return;
-    pollTimer = window.setTimeout(() => void runPoll(epoch), ms);
-  };
-  const runPoll = async (epoch: number) => {
-    if (epoch !== pollEpoch) return;
-    if (tabHidden()) {
-      arm(GIRSA_POLL_MAX_MS, epoch); // idle heartbeat, so a return to view is noticed soon
-      return;
-    }
-    // A focus `wake()` can fire while a poll is already awaiting the inbox; do
-    // not let a second run insert on top of the first.
-    if (pollBusy) {
-      arm(pollDelay, epoch);
-      return;
-    }
-    pollBusy = true;
-    let arrived = false;
-    try {
-      arrived = await takeArrivals();
-    } catch {
-      // A poll that throws is the same as an empty one; do not stop the loop.
-    } finally {
-      pollBusy = false;
-    }
-    // Back off while nothing is arriving; snap back to the floor the moment
-    // something does, so a handover is still felt within a second.
-    pollDelay = arrived ? GIRSA_POLL_MS : pollDelay <= GIRSA_POLL_MS ? 5_000 : GIRSA_POLL_MAX_MS;
-    arm(pollDelay, epoch);
-  };
-  const wake = () => {
-    pollDelay = GIRSA_POLL_MS;
-    clearTimeout(pollTimer);
-    pollEpoch++;
-    arm(0, pollEpoch);
-  };
-  window.addEventListener("focus", wake);
-  window.addEventListener("visibilitychange", () => {
-    if (!tabHidden()) wake();
-  });
-  arm(pollDelay, pollEpoch);
 }
-
-/**
- * A source Girsa handed over, inserted where the cursor is.
- *
- * Polled rather than pushed, because the same code has to serve `ksav serve`
- * in a browser tab and the desktop shell — and because the cursor is the only
- * place a quote can go without landing somewhere nobody asked for.
- *
- * What arrives is already real Ksav markup: the packet is rendered in Rust by
- * `ksav_engine::source` the moment it lands, so there is no second renderer
- * here to drift from it (spec.md §10.3 — *lightweight means the UI, not the
- * format*).
- */
-async function takeArrivals(): Promise<boolean> {
-  // Silent when this build has no Girsa half: the inbox is polled, and a poll
-  // that says "you cannot" once a second is a nuisance, not information.
-  // The ids this window put in the document since it last asked. The engine
-  // holds each arrival until it hears one of these back, so a poll whose answer
-  // never reached the tab costs a repeat rather than the source — which is what
-  // `{"taken":true}` promised Girsa. See `post.rs::drain`.
-  const waiting = await sourcesOf(runtime.backend)
-    ?.inbox(arrivalsTaken)
-    .catch(() => []);
-  // Only once the engine has answered a poll carrying them: an answer means it
-  // has let go of them, and clearing them before that is the same bug one level
-  // up.
-  arrivalsTaken = [];
-  if (!waiting || waiting.length === 0) return false;
-  const took: string[] = [];
-  for (const arrival of waiting) {
-    if (arrival.whole) {
-      // A whole document, handed over from Girsa's buffer. Never replaces
-      // what is open without being asked — and a snapshot is taken first, so
-      // "yes" is recoverable even when it was the wrong answer.
-      // Three outcomes, and the modal used to have two buttons: replace what is
-      // open, or — on **No** — splice the whole handed-over document into the
-      // middle of the sefer at the caret. The comment above read *"Never
-      // replaces what is open without being asked"*, which is true and is not
-      // the whole of what a reader hears when they press No.
-      //
-      // So the third option is offered as one rather than hidden behind the
-      // refusal. Insert-here is genuinely useful — it is how a chapter arrives
-      // into a sefer — which is why this is a choice and not simply a No that
-      // does nothing.
-      const hasText = runtime.view.state.doc.length > 0;
-      if (hasText) {
-        const what = await askArrival(arrival.display);
-        if (what === "discard") {
-          took.push(arrival.id);
-          continue;
-        }
-        if (what === "insert") {
-          insertSnippet(arrival.markup);
-          took.push(arrival.id);
-          continue;
-        }
-      }
-      if (hasText) await takeSnapshot();
-      runtime.view.dispatch({
-        changes: { from: 0, to: runtime.view.state.doc.length, insert: arrival.markup },
-        selection: { anchor: 0 },
-      });
-      took.push(arrival.id);
-      continue;
-    }
-    insertSnippet(arrival.markup);
-    took.push(arrival.id);
-  }
-  arrivalsTaken = took;
-  if (!took.length) return waiting.length > 0;
-  const last = waiting[waiting.length - 1];
-  setStatus(tf(last.whole ? "documentOpened" : "sourceArrived", last.display), "ok");
-  scheduleCompile();
-  return true;
-}
-
-/**
- * Ids handed to this window and not yet acknowledged to the engine.
- *
- * Carried to the next poll rather than sent immediately, because the poll is the
- * only errand there is and a second round trip to say "thank you" would be a
- * service that exists for one sentence.
- */
-let arrivalsTaken: string[] = [];
 
 /**
  * #89 — open the strip if it was left open.

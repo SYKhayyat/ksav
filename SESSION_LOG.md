@@ -10685,3 +10685,20 @@ map that names them. §4 item 1's number (≤ ~1,500) is out of reach because
 the assembly itself is the bulk of what remains; the contents test now
 holds without an asterisk. 134 modules, acyclic.
 ---
+
+## 2026-10-25
+
+The audit's last issue closed, and with it the campaign. #144's record rot
+was fixed first (the ledger became a dated record, and the documentation
+fence immediately red'd my own handoff for restating a count nothing
+checks — the fence class this whole audit was about, catching its author).
+Then #147, the wave the plan never authorised: the Girsa handoff poll into
+`girsa.ts` beside the panel feature it serves, onboarding into
+`starter.ts` beside the first screen. Both extractions had tangled in the
+22 October sitting; both cut clean this time by function-anchored spans.
+The difference was the verification: the ledger's pay condition — a
+browser against the live engine — was met, and the overlay's lifecycle and
+the poll's flurry behaviour were driven in Chromium, twenty checks, zero
+errors. main.ts ends the campaign at 3,751 lines; 139 modules, acyclic;
+the suite 127 files, 12,939 assertions, 0 failed. The header bar stays in
+main by recorded decision. Seventeen of seventeen.

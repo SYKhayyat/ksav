@@ -116,7 +116,11 @@ import { makeWiring } from "./wiring";
 import { docTextOf } from "./spans";
 import * as runtime from "./runtime";
 import { docConfig, type Field, type ValueOf } from "./settings";
-import { loadBody } from "./docswitch";
+import { loadBody, newDoc } from "./docswitch";
+import { el } from "./dom";
+import { voidAction } from "./asyncaction";
+import { templatesForMenu, loadTemplate } from "./templates";
+import { overlayPanel, panelHead, panelLede, mountPanel, closePanel } from "./panels";
 
 /**
  * What the starter borrows from the shell: the setting write that follows an
@@ -130,3 +134,94 @@ export interface StarterWiring {
 const W = makeWiring<StarterWiring>("wireStarter");
 export const wireStarter = W.wire;
 export const starterWiring = W.get;
+
+// First-run welcome: shown once, offers a template or a blank start.
+//
+// Two things were wrong here and both were on the reader's very first screen.
+//
+// The template list was `.slice(0, 6)`. `templatesForMenu` sorts the interface's
+// own language first, so in a Hebrew interface those six were all Hebrew and the
+// four cut were `letter-en`, `article-en`, `kesubah` and `get` — an English
+// writer's first screen, in a program whose README opens *"it works equally for
+// left-to-right English documents"*, offered six Hebrew templates and no way to
+// see there were others. All ten now show, in two labelled groups with the
+// interface's language first, so the other language is visibly present rather
+// than cut off the end of a list nobody knew was a list.
+//
+// And the button labelled *"start blank"* only closed the overlay. It set the
+// onboarded flag and removed the dialog and never touched the document, so the
+// reader's first act in the program was a button that lied: 323 characters of
+// welcome document before the click and 323 after. The template buttons two lines
+// up had always done `loadTemplate(tpl); dismissOnboard()`; this one was missing
+// its half of that pair.
+export function maybeOnboard() {
+  if (localStorage.getItem("ksav.onboarded")) return;
+  const lang = getLang();
+  const all = templatesForMenu();
+  const groups = [lang, lang === "he" ? "en" : "he"]
+    .map((l) => ({ lang: l, items: all.filter((tpl) => tpl.lang === l) }))
+    .filter((g) => g.items.length);
+  // A template whose `lang` is neither is still a template; it goes in a last
+  // group rather than off the screen.
+  const rest = all.filter((tpl) => tpl.lang !== "he" && tpl.lang !== "en");
+  if (rest.length) groups.push({ lang: "", items: rest });
+
+  // Built through the same two constructors as every other modal, which is what
+  // gives it the × and the dismissing backdrop it shipped without. It is
+  // `mounted` rather than class-toggled — there is no welcome element in the
+  // document until there is a reader to welcome — and `mountPanel` is what puts
+  // the `open` class on it.
+  const overlay = overlayPanel("welcome", "palette-box welcome-box", [
+      panelHead("welcome", "welcomeTitle"),
+      panelLede("welcomeBody"),
+      ...groups.flatMap((g) => [
+        el("div", { class: "welcome-group" }, [g.lang ? t("lang." + g.lang) : t("templates")]),
+        el(
+          "div",
+          { class: "welcome-templates" },
+          g.items.map((tpl) =>
+            el(
+              "button",
+              {
+                class: "welcome-tpl",
+                lang: tpl.lang,
+                // The label is the template's name in whichever language the
+                // interface is in; the id is what it *is*. The acceptance run
+                // starts from `sefer` and has to find it in either.
+                "data-template": tpl.id,
+                onClick: () => {
+                  dismissOnboard();
+                  voidAction("save_file", () => loadTemplate(tpl));
+                },
+              },
+              [lang === "he" ? tpl.he : tpl.en],
+            ),
+          ),
+        ),
+      ]),
+      el(
+        "button",
+        {
+          class: "welcome-start",
+          onClick: () => {
+            dismissOnboard();
+            newDoc();
+          },
+        },
+        [t("welcomeStart")],
+      ),
+  ]);
+  mountPanel("welcome", overlay, document.getElementById("app")!);
+}
+
+/**
+ * Close the welcome overlay, however the writer chose to leave it.
+ *
+ * The "was it actually on screen" check that used to guard this by hand is now
+ * `closePanel`'s, for every surface: Escape reaches all of them and Escape is
+ * pressed constantly, so marking someone onboarded because they dismissed a
+ * completion popup would be a lie told by a keystroke.
+ */
+function dismissOnboard() {
+  closePanel("welcome");
+}

@@ -24,6 +24,8 @@ import { el } from "./dom";
 import { insertSnippet } from "./insert";
 import { openPanel, closePanel, mountPanel, isPanelOpen } from "./panels";
 import { scheduleCompile } from "./compile";
+import { askArrival } from "./formmodal";
+import { takeSnapshot } from "./snapshots";
 
 // ------------------------------------------------------------------- cite on selection
 //
@@ -490,3 +492,169 @@ async function dropIntoGirsa(phrase: string): Promise<void> {
   setStatus(t("openedInGirsa"), "");
 }
 
+/** How often the editor asks Girsa's desk whether anything arrived. A second
+ *  is under the threshold at which a hand-off feels like a hand-off, and it is
+ *  one lock and an empty vector when there is nothing waiting. */
+const GIRSA_POLL_MS = 1000;
+const GIRSA_POLL_MAX_MS = 30_000;
+
+/** True when the poll should be quiet. Inlined here rather than imported: the
+ *  shell's copy answers for its autosave too, and a one-line check is not worth
+ *  a shared home that two files must agree on. */
+function hidden(): boolean {
+  return typeof document !== "undefined" && document.visibilityState === "hidden";
+}
+
+/**
+ * The inbox poll, gated and guarded.
+ *
+ * Suspends while the tab is hidden (the writer is not looking), holds a `busy`
+ * flag so a slow call cannot pile up behind itself — the shape `watch.ts` uses
+ * — and backs off (1 s → 5 s → 30 s) through a run of empty polls, resetting to
+ * 1 s on any arrival and on focus. A hidden tab that comes back runs one
+ * catch-up tick.
+ */
+export function installGirsaPoll(): void {
+  let pollDelay = GIRSA_POLL_MS;
+  let pollTimer = 0;
+  let pollBusy = false;
+  // Which chain is the live one.
+  //
+  // There is one `pollTimer` and `arm` overwrites it, so `wake()` can only
+  // cancel the *most recent* timer — and a `runPoll` that has already fired is
+  // not cancellable at all, and ends by arming itself again. So a `wake()`
+  // landing while a poll was awaiting the inbox produced a second chain, and the
+  // two were thereafter independent and unaware of each other. Six tab-returns
+  // each landing mid-poll: seven live chains where the design has one, and
+  // nothing in the loop could observe or collapse a duplicate.
+  //
+  // Not reproducible over loopback, where a poll finishes in about a
+  // millisecond and `wake` essentially never lands inside one. The trigger is a
+  // slow inbox — the desktop build, where the service goes through
+  // `spawn_blocking` behind a compile, or Girsa itself being slow.
+  //
+  // So the epoch guards the *chain* rather than the timer: a superseded chain
+  // retires at its next re-arm instead of running forever beside the new one.
+  let pollEpoch = 0;
+  const arm = (ms: number, epoch: number) => {
+    if (epoch !== pollEpoch) return;
+    pollTimer = window.setTimeout(() => void runPoll(epoch), ms);
+  };
+  const runPoll = async (epoch: number) => {
+    if (epoch !== pollEpoch) return;
+    if (hidden()) {
+      arm(GIRSA_POLL_MAX_MS, epoch); // idle heartbeat, so a return to view is noticed soon
+      return;
+    }
+    // A focus `wake()` can fire while a poll is already awaiting the inbox; do
+    // not let a second run insert on top of the first.
+    if (pollBusy) {
+      arm(pollDelay, epoch);
+      return;
+    }
+    pollBusy = true;
+    let arrived = false;
+    try {
+      arrived = await takeArrivals();
+    } catch {
+      // A poll that throws is the same as an empty one; do not stop the loop.
+    } finally {
+      pollBusy = false;
+    }
+    // Back off while nothing is arriving; snap back to the floor the moment
+    // something does, so a handover is still felt within a second.
+    pollDelay = arrived ? GIRSA_POLL_MS : pollDelay <= GIRSA_POLL_MS ? 5_000 : GIRSA_POLL_MAX_MS;
+    arm(pollDelay, epoch);
+  };
+  const wake = () => {
+    pollDelay = GIRSA_POLL_MS;
+    clearTimeout(pollTimer);
+    pollEpoch++;
+    arm(0, pollEpoch);
+  };
+  window.addEventListener("focus", wake);
+  window.addEventListener("visibilitychange", () => {
+    if (!hidden()) wake();
+  });
+  arm(pollDelay, pollEpoch);
+}
+
+/**
+ * A source Girsa handed over, inserted where the cursor is.
+ *
+ * What arrives is already real Ksav markup: the packet is rendered in Rust by
+ * `ksav_engine::source` the moment it lands, so there is no second renderer
+ * here to drift from it (spec.md §10.3 — *lightweight means the UI, not the
+ * format*).
+ */
+async function takeArrivals(): Promise<boolean> {
+  // Silent when this build has no Girsa half: the inbox is polled, and a poll
+  // that says "you cannot" once a second is a nuisance, not information.
+  // The ids this window put in the document since it last asked. The engine
+  // holds each arrival until it hears one of these back, so a poll whose answer
+  // never reached the tab costs a repeat rather than the source — which is what
+  // `{"taken":true}` promised Girsa. See `post.rs::drain`.
+  const waiting = await sourcesOf(runtime.backend)
+    ?.inbox(arrivalsTaken)
+    .catch(() => []);
+  // Only once the engine has answered a poll carrying them: an answer means it
+  // has let go of them, and clearing them before that is the same bug one level
+  // up.
+  arrivalsTaken = [];
+  if (!waiting || waiting.length === 0) return false;
+  const took: string[] = [];
+  for (const arrival of waiting) {
+    if (arrival.whole) {
+      // A whole document, handed over from Girsa's buffer. Never replaces
+      // what is open without being asked — and a snapshot is taken first, so
+      // "yes" is recoverable even when it was the wrong answer.
+      // Three outcomes, and the modal used to have two buttons: replace what is
+      // open, or — on **No** — splice the whole handed-over document into the
+      // middle of the sefer at the caret. The comment above read *"Never
+      // replaces what is open without being asked"*, which is true and is not
+      // the whole of what a reader hears when they press No.
+      //
+      // So the third option is offered as one rather than hidden behind the
+      // refusal. Insert-here is genuinely useful — it is how a chapter arrives
+      // into a sefer — which is why this is a choice and not simply a No that
+      // does nothing.
+      const hasText = runtime.view.state.doc.length > 0;
+      if (hasText) {
+        const what = await askArrival(arrival.display);
+        if (what === "discard") {
+          took.push(arrival.id);
+          continue;
+        }
+        if (what === "insert") {
+          insertSnippet(arrival.markup);
+          took.push(arrival.id);
+          continue;
+        }
+      }
+      if (hasText) await takeSnapshot();
+      runtime.view.dispatch({
+        changes: { from: 0, to: runtime.view.state.doc.length, insert: arrival.markup },
+        selection: { anchor: 0 },
+      });
+      took.push(arrival.id);
+      continue;
+    }
+    insertSnippet(arrival.markup);
+    took.push(arrival.id);
+  }
+  arrivalsTaken = took;
+  if (!took.length) return waiting.length > 0;
+  const last = waiting[waiting.length - 1];
+  setStatus(tf(last.whole ? "documentOpened" : "sourceArrived", last.display), "ok");
+  scheduleCompile();
+  return true;
+}
+
+/**
+ * Ids handed to this window and not yet acknowledged to the engine.
+ *
+ * Carried to the next poll rather than sent immediately, because the poll is the
+ * only errand there is and a second round trip to say "thank you" would be a
+ * service that exists for one sentence.
+ */
+let arrivalsTaken: string[] = [];

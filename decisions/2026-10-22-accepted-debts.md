@@ -17,6 +17,7 @@ and does not belong here.
    for the keys drawer's open door finds a commands file. Pay when: the keys
    drawer gets its own module (it is currently three: panelviews' view,
    settingsdrawer's capture, commandsdrawer's door).
+   **filed as #160** (2026-10-25).
 
 2. **`syncGlobals`/`setEditingMode` stayed in main.ts against the plan's wave-10
    move list** — they are compartment composition, and moving them would wire
@@ -24,6 +25,7 @@ and does not belong here.
    From: wave 10. Cost: main.ts holds two functions the plan named for
    docswitch. Pay when: the compartment machinery itself moves (the plan's
    wave-10 stay-list would have to be amended first).
+   **filed as #161** (2026-10-25).
 
 3. **§4 item 1's line number (main.ts ≤ ~1,500) is not met** — 3,980 lines
    after wave 12 part 1 (as measured on this date). The contents test is met (boot + assembly + wirings +
@@ -31,6 +33,7 @@ and does not belong here.
    the plan's wave 10 explicitly retains.
    From: wave 10, re-counted in wave 11. Pay when: the plan is amended to
    move the assembly itself — a decision, not a cleanup.
+   **filed as #162** (2026-10-25).
 
 4. **The Girsa handoff poll and onboarding are still main.ts's** — wave 12
    part 1 moved the reveal feature; these two tangled their extractions and
@@ -50,36 +53,42 @@ and does not belong here.
    From: #152. Cost: ~130 duplicated lines in stylespanel.ts and two
    vocabularies for one knob at the default scope. Pay when: a UI-verification
    session (the styles panel open in a browser).
+   **filed as #158** (2026-10-25); in work.
 
 6. **The 2-preview desync** — `followCaretInPreview`, `settleExactly` and
    `previewWindowOf` are single-preview; a 2-source/2-preview arrangement
    builds and silently stops syncing.
    From: #153. Cost: a latent behaviour gap behind a feature nobody has built.
    Pay when: someone builds a multi-preview arrangement.
+   **filed as #163** (2026-10-25).
 
 7. **The `e.code`/`e.key` split between the window resolver and CodeMirror** —
    decided by record (#148), with its boundary stated at the derivation site:
    character-key bindings resolve in the editor and not outside it.
    From: #148. Pay when: a binding table entry actually needs a character key
    outside the editor.
+   **filed as #164** (2026-10-25).
 
 8. **The download-tier binding persisted in HANDLES** duplicates a fact
    `LibraryEntry.fileName` holds — the right artifact is `kind` on the library
    entry.
    From: #154. Cost: one redundant store row per download-bound document.
    Pay when: the binding store is next touched.
+   **filed as #165** (2026-10-25).
 
 9. **api.ts is four things in one file** — the jump/reveal/places triplication
    is fixed (#149); the wire-vocabulary / cache / transports / scan-memo file
    split is not.
    From: #149. Cost: adding an engine service touches one file that could be
    four. Pay when: the next engine service lands.
+   **filed as #166** (2026-10-25).
 
 10. **The perf items below the measured line** — spans' linear positional
     queries, rowlists' JSON.stringify row equality, the notes index's rescan
     cascade, the scan-cache full-string probes.
     From: #157. Cost: unmeasured at 1,000-page scale. Pay when: the profiling
     fixture (a 1,000-page sefer through `tools/bench-structure.mjs`) exists.
+   **filed as #159** (2026-10-25).
 
 11. **Two garbled commit messages** (`0bbabc0` "Buffy", `2a6a767` a stray
     Cyrillic word) — left in pushed history deliberately; rewriting pushed

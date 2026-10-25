@@ -4,19 +4,88 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-10-22
+## Current handoff — 2026-10-22 (audit closure)
 
-The latest pushed `main` is the audit-closure run: the main.ts split (11
-waves) is done and the post-split audit's findings are filed as issues
-#140–#157, of which all but #147 are closed. Read
-`decisions/2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md`
-and `decisions/2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md`
-for the split's end state, and issue #140 for the audit's findings index.
+The latest pushed `main` is `f44fae5`. The main.ts split (11 waves) is done;
+the post-split audit's findings were filed as issues #140–#157 and **16 of
+17 are closed**, each with its own commit, full gate verification and a
+closing comment. The one open issue is **#147** (wave 12 part 2). HEAD is
+`f44fae5`, the working tree is clean, and the full 11-check gate is green
+at this commit.
 
-What remains open: #147 (wave 12 — the reveal feature landed; the Girsa
-poll, onboarding and the header builder need a session with the browser
-open), and the two behavioural style items recorded on #152. main.ts is
-3,980 lines and its header is the map of the app.
+### The state in one paragraph
+
+main.ts is 3,989 lines and its header (main.ts:94) is the map of the whole
+app — read it first. 139 modules, acyclic (`node tools/imports.mjs`). The
+suite's counts live in `ksav/README.md`, where the fence holds them; do not
+restate them here. The accepted debts — eleven
+items, each with origin, cost and pay condition — are in
+`decisions/2026-10-22-accepted-debts.md`, which is the single ledger the
+wave records point at. New fences added this sitting: `i18nkeys.test.mjs`
+(every `t()` literal must be a dictionary key — it caught two live bugs)
+and `lintkit.test.mjs` (the stale-document guard is written once).
+
+### The one open issue: #147 (wave 12, part 2)
+
+What remains out of main.ts, with the session notes that matter:
+
+1. **The Girsa handoff poll** (~160 lines: `installBackgroundTimers`' poll
+   block, `takeArrivals`, `arrivalsTaken`, the two GIRSA_POLL consts). The
+   extraction was done once and reverted — it works, but the poll's
+   visibility behaviour (back-off on tab hide, catch-up on focus) is only
+   verifiable in a running browser. The poll block lives in main.ts inside
+   `installBackgroundTimers`; move it with the `hidden()` check inlined
+   (main's `tabHidden` must not be imported — that would cycle).
+2. **Onboarding** (`maybeOnboard`/`dismissOnboard`, ~90 lines) →
+   `starter.ts`. **Twice this extraction tangled**: the span from
+   maybeOnboard's doc comment to dismissOnboard's closing brace swallowed
+   `wireKeys` and `runShortcutOutsideEditor`, which sit between them in
+   main.ts. Extract by *function-anchored brace-matching* (the
+   `span()` helper in this sitting's history), not by walking doc comments;
+   verify with `grep -c "function wireKeys" src/main.ts` immediately after
+   any cut. The overlay itself needs a browser check.
+3. **The header bar** (`headerState`/`buildHeader`, ~210 lines) **stays in
+   main** — recorded on #147: its three main-locals (`setSetting`,
+   `proseHere`, `setProseHere`) are the settings machinery wave 6 held, and
+   wiring them would re-fatten ChromeWiring. Do not re-litigate without
+   moving `setSetting` first (that is its own wave).
+
+After the moves: update main.ts's header map, re-run the full gate, and
+close #147 with the same rigour as its fifteen siblings.
+
+### The working rules (every commit, no exceptions)
+
+1. Environment: `nix develop /home/shaul/ksav [--command ...]` for node/tsc;
+   the full gate needs `nix develop /home/shaul/ksav#desktop` **plus** the
+   transient `KSAV_CHROMIUM=/nix/store/liw3r9d2yk68c081lkpbkj2817ccpp0i-chromium-152.0.7977.82/bin/chromium`.
+   If the path is gone (store GC), re-fetch: `nix-shell -p chromium --run
+   'which chromium'`. Without it browserlang refuses to measure.
+2. Per commit: `npx tsc --noEmit` clean → `npm run build` → full suite with
+   KSAV_CHROMIUM → **rekey README's assertion count and file count** (the
+   documentation fence compares them to the runner's tally; any assertion
+   added or removed changes them) → `node tools/imports.mjs` acyclic →
+   commit → push → close the issue with a real comment.
+3. Fence discipline: when a fence reads a file for a claim and the claim
+   moves, the fence moves in the *same commit* — and prefer whole-tree
+   comment-stripped sweeps (the asyncaction pattern) over single-file reads,
+   because #142 showed single-file prohibitions go blind without being
+   touched.
+4. Extraction discipline (this sitting's lesson): cut code by function-
+   anchored brace-matching, never by walking doc comments; verify the cut
+   with grep immediately; if a tangle compounds, `git checkout` the file and
+   redo the one move — reverting is cheap, shipping a tangle is not.
+5. Python heredoc scripts with regex/backtick escaping corrupted two files
+   this sitting. Prefer small scripts with immediate `node --check`/tsc
+   verification after every write.
+
+### What is deliberately not on the list
+
+- #152's two behavioural style items (tier-builder merge, default-rows
+  migration) — need the styles panel open in a browser.
+- #157's measured-at-scale perf items — need a 1,000-page profiling fixture
+  first.
+- The two garbled commit messages (`0bbabc0`, `2a6a767`) — left in history
+  deliberately, recorded in the accepted-debts ledger.
 
 ### Earlier handoffs
 

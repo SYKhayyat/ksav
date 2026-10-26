@@ -856,11 +856,16 @@ mod tests {
     /// own suite stands alone.
     #[test]
     fn the_desktop_says_what_the_engine_says_and_the_browser_does_not() {
+        // `transports.ts` since the audit's #166 split api.ts — the wire
+        // vocabulary and the contracts stayed, and the backends this test reads
+        // moved beside the other transport-scoped code. The two slices below
+        // still answer "where do the two constants live", so they still fence
+        // the agreement this test exists for.
         let app = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("app")
             .join("src")
-            .join("api.ts");
+            .join("transports.ts");
         let Ok(src) = std::fs::read_to_string(&app) else {
             return; // engine checked out without the editor beside it
         };

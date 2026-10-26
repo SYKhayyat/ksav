@@ -21,7 +21,7 @@
 // operation the memo exists to make free, invisible to a benchmark that never
 // changed the document.
 //
-// So this measures the *keystroke* as well as the caret move, at three sizes,
+// So this measures the *keystroke* as well as the caret move, at four sizes,
 // and reports the shape rather than one number. What to watch for is a column
 // growing faster than the document does.
 
@@ -80,6 +80,11 @@ const SIZES = [
   ["small  (~15pp)", sefer(12)],
   ["medium (~59pp)", sefer(48)],
   ["sefer  (~235pp)", sefer(190)],
+  // The audit's #157 asked for a fixture at the size the finding was made at:
+  // "fine at 10 pages; a 1,000-page sefer pays ~5 full scans per keystroke".
+  // Same shape as the smaller rows — nothing about the generator is tuned to
+  // flatter or to damn the code at this size; it is only bigger.
+  ["sefer  (~993pp)", sefer(810)],
 ];
 
 // -------------------------------------------------------------- measurements
@@ -198,7 +203,7 @@ function foldAtEnd(doc) {
 
 const KB = (s) => (s.length / 1024).toFixed(0).padStart(4) + " KB";
 
-console.log("\nOne keystroke, one memo hit, one caret move — at three sizes.\n");
+console.log("\nOne keystroke, one memo hit, one caret move — at four sizes.\n");
 console.log(
   "document".padEnd(16) +
     "size".padStart(8) +
@@ -212,7 +217,7 @@ console.log(
 
 for (const [name, doc] of SIZES) {
   const nodes = spans.scan(doc).nodes.length;
-  const n = doc.length > 200_000 ? 20 : 60;
+  const n = doc.length > 200_000 ? (doc.length > 1_500_000 ? 4 : 20) : 60;
   const pos = doc.indexOf("סימן 3");
   const key = perKeystroke(doc, n);
   console.log(
@@ -275,6 +280,58 @@ for (const r of runs) {
     `${r.name.padEnd(16)}${KB(r.doc).padStart(8)}  ` +
       `${r.asking.toFixed(3).padStart(8)} ms/caret move   ${offered} controls   ` +
       `×${(r.doing / r.asking).toFixed(0).padStart(3)} cheaper than doing them`,
+  );
+}
+console.log();
+
+// ---------------------------------------------------------------- the notes index
+//
+// The audit's #157 named four unmeasured paths; two of them live here, and the
+// harness above already measures the other two (the caret column is spans'
+// positional query, the memo-hit column is the scan-cache's full-string probe).
+//
+// The cascade: a keystroke in the notes pane pays `noteAt` → `notesIn` (a full
+// scan + tree walk), `noteDepthAt` → a second `notesIn`, `noteDestination` → a
+// third `scanSpans`, and the reconciler re-decides every row per refresh. Each
+// is measured whole, at the largest size, because that is what a writer at that
+// size pays per keystroke — not per operation, per *keystroke*.
+{
+  const doc = SIZES[SIZES.length - 1][1];
+  const pos = doc.indexOf("#הערה[");
+  const { notesIn, noteAt, noteDepthAt, noteDestination } = await loadMany(["notes"]).then((m) => m.notes);
+
+  const oneIndex = ms(() => notesIn(doc), 6);
+  noteAt(doc, pos);
+  noteDepthAt(doc, pos);
+  const at = ms(() => noteAt(doc, pos), 6);
+  const depth = ms(() => noteDepthAt(doc, pos), 6);
+  const index = notesIn(doc);
+  const note = index[Math.floor(index.length / 2)];
+  const dest = ms(() => noteDestination(doc, note), 6);
+  console.log(
+    "\nnotes index at " + KB(doc).trim() + " — " + index.length + " notes.\n" +
+    "  one notesIn (full scan + tree walk): " + oneIndex.toFixed(1) + " ms\n" +
+    "  noteAt (1 index):                    " + at.toFixed(1) + " ms\n" +
+    "  noteDepthAt (1 index):               " + depth.toFixed(1) + " ms\n" +
+    "  noteDestination (1 scan):            " + dest.toFixed(1) + " ms\n" +
+    "  three index users per keystroke:     " + (at + depth + dest).toFixed(1) + " ms",
+  );
+
+  // The reconciler's row equality (rowlists.ts): JSON.stringify both rows and
+  // compare, five times a second while typing, on rows whose `full` carries a
+  // whole note body. The rows measured here are the shape the reconciler
+  // actually sees — the real note texts out of the real index, one row per
+  // note — because the cost lives in those bodies, not in the wrapper.
+  const rows = index.slice(0, 400).map((n, i) => ({
+    kind: "note",
+    id: String(i),
+    label: n.command,
+    depth: n.depth,
+    full: n.text,
+  }));
+  const eq = ms(() => JSON.stringify(rows) === JSON.stringify([...rows]), 30);
+  console.log(
+    "  row equality, " + rows.length + " rows (one notes-pane refresh): " + (eq * 1000).toFixed(1) + " µs",
   );
 }
 console.log();

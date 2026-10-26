@@ -312,98 +312,6 @@ function headingLevelRow(): Node {
 
 
 
-/**
- * Styles › Notes — the tiered apparatus, per tier.
- *
- * `#הגדרות_הערות` has always accepted per-tier size, slant, colour, indent,
- * numbering scheme and label prefix, plus the gap between entries. All of it,
- * and **none of it reachable except by typing the command**. This writes the
- * same line a writer would type by hand, which is the constraint that keeps the
- * panel from drifting away from the engine: there is no second representation
- * of a note style anywhere, only this call in the document.
- *
- * Three tiers, because a fourth is rarer than the width it would cost, and any
- * tier is still reachable by typing — the panel preserves every argument it does
- * not understand, including entries past the third.
- */
-function noteStyleRows(): Node[] {
-  const rows: Node[] = [];
-  // Engine defaults, so filling in a gap in a short tuple restyles nothing.
-  const D = {
-    גודל: ["1em", "0.9em", "0.82em"],
-    סגנון: ['"normal"', '"italic"', '"italic"'],
-    צבע: ["luma(0)", "luma(55)", "luma(85)"],
-    הזחה: ["0em", "1.4em", "2.8em"],
-    מספור: ['"א"', '"1"', '"a"'],
-  };
-  const tierOf = (key: keyof typeof D, tier: number): string | undefined =>
-    styles.readTuple(styleArg("notes", key))?.[tier - 1];
-  const set = (key: keyof typeof D, tier: number, value: string) =>
-    setStyleArgs("notes", { [key]: styles.withTier(styleArg("notes", key), tier, value, D[key]) });
-
-  for (const tier of [1, 2, 3]) {
-    rows.push(el("h4", { class: "style-tier" }, [tf("noteTier", String(tier))]));
-    rows.push(
-      styleRow(
-        t("noteTierNumbering"),
-        selectControl(
-          [
-            ["", t("noteNumberingRunning")],
-            ['"א"', "א ב ג"],
-            ['"1"', "1 2 3"],
-            ['"a"', "a b c"],
-            ['"i"', "i ii iii"],
-            ['"*"', "* † ‡"],
-          ],
-          tierOf("מספור", tier) ?? "",
-          (v) =>
-            v
-              ? set("מספור", tier, v)
-              : setStyleArgs("notes", { מספור: null }),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("noteTierSize"),
-        selectControl(
-          [["1em", "100%"], ["0.9em", "90%"], ["0.82em", "82%"], ["0.75em", "75%"]],
-          tierOf("גודל", tier) ?? D["גודל"][tier - 1],
-          (v) => set("גודל", tier, v),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("noteTierStyle"),
-        selectControl(
-          [['"normal"', t("styleNormal")], ['"italic"', t("styleItalic")]],
-          tierOf("סגנון", tier) ?? D["סגנון"][tier - 1],
-          (v) => set("סגנון", tier, v),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("noteTierIndent"),
-        selectControl(
-          [["0em", "0"], ["0.7em", "0.7em"], ["1.4em", "1.4em"], ["2.1em", "2.1em"]],
-          tierOf("הזחה", tier) ?? D["הזחה"][tier - 1],
-          (v) => set("הזחה", tier, v),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("noteTierColor"),
-        colorControl(styles.readColor(tierOf("צבע", tier)) ?? "#000000", (v) =>
-          set("צבע", tier, styles.typstColor(v)),
-        ),
-      ),
-    );
-  }
-  return rows;
-}
 
 /**
  * Styles › One look for every note — the layer the six apparatuses share.
@@ -422,6 +330,134 @@ function noteStyleRows(): Node[] {
  * changeable" mean something rather than being an order of precedence nobody
  * can see.
  */
+/**
+ * The per-tier ink rows, shared by the notes and the tiers sections — the
+ * merge the audit's #152 asked for.
+ *
+ * `noteStyleRows` and `tierStyleRows` were written twice and drifted: different
+ * knobs (notes offers indent, tiers offers weight), different option lists
+ * (notes' numbering has a running option and tiers' does not), different engine
+ * defaults. What could not be merged mechanically was never structure — it was
+ * judgement — so the judgement now lives in the knob tables below and the one
+ * loop here serves both sections.
+ *
+ * Where the knob family already answers for a kind (size, slant, weight,
+ * indent, colour) the rows go through it, on the family's terms: "not set here"
+ * is the blank, and clearing a tier's slot drops it from the tuple
+ * (`withoutTier`), which the hand-rolled selects could not do at all — a writer
+ * who wanted tier two back to the engine's word had to edit markup. Numbering
+ * keeps its own list, because the family's numbering schemes are whole-pattern
+ * (`"1."`) and these are per-symbol (`"א"`).
+ *
+ * `#הגדרות_הערות` has always accepted per-tier size, slant, colour, indent,
+ * numbering scheme and label prefix, plus the gap between entries. All of it,
+ * and **none of it reachable except by typing the command**. This writes the
+ * same line a writer would type by hand, which is the constraint that keeps the
+ * panel from drifting away from the engine: there is no second representation
+ * of a note style anywhere, only this call in the document.
+ *
+ * Three tiers, because a fourth is rarer than the width it would cost, and any
+ * tier is still reachable by typing — the panel preserves every argument it does
+ * not understand, including entries past the third.
+ */
+interface TierKnob {
+  /** The tuple argument's key, as the engine names it. */
+  key: string;
+  /** The row's label key. */
+  label: string;
+  /** The engine's default per tier — the fill for a short tuple, so writing
+   *  tier 3 of a tuple that mentions two never restyles tier 2. */
+  dft: string[];
+  /** The knob family's answer: one control for the kind, blank = not set here. */
+  field?: styles.Field;
+  /** This knob's own option list, when the family's is not this knob's. */
+  options?: [string, string][];
+  /** What empty means, when it is not "clear this tier's slot". */
+  empty?: () => void;
+}
+
+function tierInkRows(scope: "notes" | "tiers", headingKey: string, knobs: TierKnob[], suffix: Node[] = []): Node[] {
+  const rows: Node[] = [];
+  const tierOf = (knob: TierKnob, tier: number): string | undefined =>
+    styles.readTuple(styleArg(scope, knob.key))?.[tier - 1];
+  // A null write clears this tier's slot; `withoutTier` drops the argument
+  // entirely when nothing is left, because an empty tuple is not "no answer".
+  const setSlot = (knob: TierKnob, tier: number, value: string | null) =>
+    setStyleArgs(scope, {
+      [knob.key]:
+        value === null
+          ? styles.withoutTier(styleArg(scope, knob.key), tier)
+          : styles.withTier(styleArg(scope, knob.key), tier, value, knob.dft),
+    });
+  for (const tier of [1, 2, 3]) {
+    rows.push(el("h4", { class: "style-tier" }, [tf(headingKey, String(tier))]));
+    for (const knob of knobs) {
+      const raw = tierOf(knob, tier);
+      const control = knob.field
+        ? fieldControl(knob.field, raw, (v) => setSlot(knob, tier, v))
+        : selectControl(
+            knob.options!,
+            // A knob with its own empty meaning rests on that option; one
+            // without rests on the engine's default for this tier.
+            raw ?? (knob.empty ? "" : knob.dft[tier - 1]),
+            (v) => (v === "" && knob.empty ? knob.empty() : setSlot(knob, tier, v)),
+          );
+      rows.push(styleRow(t(knob.label), control));
+    }
+  }
+  rows.push(...suffix);
+  return rows;
+}
+
+function noteStyleRows(): Node[] {
+  // Engine defaults, so filling in a gap in a short tuple restyles nothing.
+  return tierInkRows("notes", "noteTier", [
+    {
+      key: "מספור",
+      label: "noteTierNumbering",
+      dft: ['"א"', '"1"', '"a"'],
+      options: [
+        ["", t("noteNumberingRunning")],
+        ['"א"', "א ב ג"],
+        ['"1"', "1 2 3"],
+        ['"a"', "a b c"],
+        ['"i"', "i ii iii"],
+        ['"*"', "* † ‡"],
+      ],
+      // Running numbering is all-or-nothing: the whole scheme goes, not one
+      // tier's slot — a scheme that mixes running with lettered tiers is not
+      // something the engine's numbering reads.
+      empty: () => setStyleArgs("notes", { מספור: null }),
+    },
+    { key: "גודל", label: "noteTierSize", dft: ["1em", "0.9em", "0.82em"], field: { kind: "size-em", label: "knobSize" } },
+    { key: "סגנון", label: "noteTierStyle", dft: ['"normal"', '"italic"', '"italic"'], field: { kind: "slant", label: "knobSlant" } },
+    { key: "הזחה", label: "noteTierIndent", dft: ["0em", "1.4em", "2.8em"], field: { kind: "length-em", label: "knobIndent" } },
+    { key: "צבע", label: "noteTierColor", dft: ["luma(0)", "luma(55)", "luma(85)"], field: { kind: "colour", label: "knobColour" } },
+  ]);
+}
+
+function tierStyleRows(): Node[] {
+  // Engine defaults, so filling in a gap in a short tuple restyles nothing.
+  return tierInkRows("tiers", "tierTier", [
+    {
+      key: "מספור",
+      label: "noteTierNumbering",
+      dft: ['"א"', '"1"', '"a"'],
+      options: [
+        ['"א"', "א ב ג"],
+        ['"1"', "1 2 3"],
+        ['"a"', "a b c"],
+        ['"i"', "i ii iii"],
+        ['"*"', "* † ‡"],
+      ],
+    },
+    { key: "גודל", label: "noteTierSize", dft: ["1em", "0.9em", "0.82em"], field: { kind: "size-em", label: "knobSize" } },
+    { key: "סגנון", label: "noteTierStyle", dft: ['"normal"', '"italic"', '"italic"'], field: { kind: "slant", label: "knobSlant" } },
+    { key: "משקל", label: "knobWeight", dft: ['"regular"', '"regular"', '"regular"'], field: { kind: "weight", label: "knobWeight" } },
+    { key: "צבע", label: "noteTierColor", dft: ["luma(0)", "luma(55)", "luma(85)"], field: { kind: "colour", label: "knobColour" } },
+  ], markerRows("tiers"));
+}
+
 /**
  * Styles › Endnotes — the back matter's numbering, and its ink.
  *
@@ -939,81 +975,6 @@ function markerRows(kind: styles.SectionCommand): Node[] {
       ),
     ),
   ];
-}
-function tierStyleRows(): Node[] {
-  const rows: Node[] = [];
-  // Engine defaults, so filling in a gap in a short tuple restyles nothing.
-  const D = {
-    גודל: ["1em", "0.9em", "0.82em"],
-    סגנון: ['"normal"', '"italic"', '"italic"'],
-    משקל: ['"regular"', '"regular"', '"regular"'],
-    צבע: ["luma(0)", "luma(55)", "luma(85)"],
-    מספור: ['"א"', '"1"', '"a"'],
-  };
-  const tierOf = (key: keyof typeof D, tier: number): string | undefined =>
-    styles.readTuple(styleArg("tiers", key))?.[tier - 1];
-  const set = (key: keyof typeof D, tier: number, value: string) =>
-    setStyleArgs("tiers", { [key]: styles.withTier(styleArg("tiers", key), tier, value, D[key]) });
-
-  for (const tier of [1, 2, 3]) {
-    rows.push(el("h4", { class: "style-tier" }, [tf("tierTier", String(tier))]));
-    rows.push(
-      styleRow(
-        t("noteTierNumbering"),
-        selectControl(
-          [
-            ['"א"', "א ב ג"],
-            ['"1"', "1 2 3"],
-            ['"a"', "a b c"],
-            ['"i"', "i ii iii"],
-            ['"*"', "* † ‡"],
-          ],
-          tierOf("מספור", tier) ?? D["מספור"][tier - 1],
-          (v) => set("מספור", tier, v),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("noteTierSize"),
-        selectControl(
-          [["1em", "100%"], ["0.9em", "90%"], ["0.82em", "82%"], ["0.75em", "75%"]],
-          tierOf("גודל", tier) ?? D["גודל"][tier - 1],
-          (v) => set("גודל", tier, v),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("noteTierStyle"),
-        selectControl(
-          [['"normal"', t("styleNormal")], ['"italic"', t("styleItalic")]],
-          tierOf("סגנון", tier) ?? D["סגנון"][tier - 1],
-          (v) => set("סגנון", tier, v),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("knobWeight"),
-        selectControl(
-          [['"regular"', t("weightRegular")], ['"bold"', t("weightBold")]],
-          tierOf("משקל", tier) ?? D["משקל"][tier - 1],
-          (v) => set("משקל", tier, v),
-        ),
-      ),
-    );
-    rows.push(
-      styleRow(
-        t("noteTierColor"),
-        colorControl(styles.readColor(tierOf("צבע", tier)) ?? "#000000", (v) =>
-          set("צבע", tier, styles.typstColor(v)),
-        ),
-      ),
-    );
-  }
-  rows.push(...markerRows("tiers"));
-  return rows;
 }
 
 /**

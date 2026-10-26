@@ -8,7 +8,7 @@
 // neither and go straight from the source.
 
 import { analyze } from "./brackets";
-import { scanForBackend } from "./api";
+import { scanForBackend } from "./scanmemo";
 import {
   destinationForChannel,
   noteCounts,

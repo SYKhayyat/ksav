@@ -48,7 +48,8 @@ import {
   inlineAll,
   sortDeferredBodies,
 } from "./deferred-editor";
-import { createBackend, sourcesOf } from "./api";
+import { sourcesOf } from "./api";
+import { createBackend } from "./transports";
 import * as panelviews from "./panelviews";
 import { getLang, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";

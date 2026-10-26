@@ -105,7 +105,7 @@ export async function run() {
   // Both halves are checked, because either alone passes while the bug is back:
   // a stub can reappear in `WasmBackend`, or a caller can go back to `backend!`.
   const GIRSA = ["inbox", "mekoros", "searchInGirsa", "linkify"];
-  const api = await readFile(path.join(SRC, "api.ts"), "utf8");
+  const api = await readFile(path.join(SRC, "transports.ts"), "utf8");
   const wasmClass = api.slice(
     api.indexOf("export class WasmBackend"),
     api.indexOf("export class TauriBackend"),
@@ -116,7 +116,7 @@ export async function run() {
 
   const assumed = [];
   for (const f of names) {
-    if (f === "api.ts") continue; // where the interface and its implementations live
+    if (f === "api.ts" || f === "transports.ts") continue; // the interface and its implementations
     const body = await readFile(path.join(SRC, f), "utf8");
     body.split("\n").forEach((line, i) => {
       if (isComment(line)) return;

@@ -20,7 +20,8 @@ import * as opendocs from "./opendocs";
 import { anyPreviewNarrowed, applyPreview, drawPagesEverywhere, filePages } from "./preview";
 import { docConfig, docConfigFor, settings } from "./settings";
 import * as runtime from "./runtime";
-import { scanForBackend, type AssembledSource, type CompileResult, type DocConfig } from "./api";
+import { type AssembledSource, type CompileResult, type DocConfig } from "./api";
+import { scanForBackend } from "./scanmemo";
 import type { Scan as SpanScan } from "./spans";
 
 /** Called after a compile lands, so the shell can refresh what depends on it. */

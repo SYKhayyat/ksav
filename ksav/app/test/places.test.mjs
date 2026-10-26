@@ -33,6 +33,11 @@ const src = (name) => readFileSync(path.join(APP, "src", name), "utf8");
 
 export function run() {
   const api = src("api.ts");
+  // The wire vocabulary is api.ts's; the readers and the transport bodies are
+  // transports.ts's (the audit's #166 split). The fence reads whichever file
+  // the code it watches actually lives in — so it cannot pass on a search that
+  // nothing is there to fail.
+  const transports = src("transports.ts");
   const main = src("main.ts");
   const panels = src("panels.ts");
   const bindings = src("bindings.ts");
@@ -59,10 +64,10 @@ export function run() {
 
   {
     ok("the client has a `Places` shape", api.includes("export interface Places"));
-    ok("and a reader for it", api.includes("function readPlaces"));
+    ok("and a reader for it", transports.includes("function readPlaces"));
     ok(
       "the reader takes `first` from the wire",
-      /first:\s*typeof o\?\.first === "number"/.test(api),
+      /first:\s*typeof o\?\.first === "number"/.test(transports),
     );
     // **The one that matters**, and it has to be stated as a *property* rather
     // than as a guess at syntax. An earlier version of this test looked for the
@@ -75,7 +80,7 @@ export function run() {
     // belongs to the ternary building `list`, which is *before* the `first`
     // clause, so a slice taken to the first brace never reaches the line under
     // test and the assertion passes on an empty string.
-    const reader = api.slice(api.indexOf("function readPlaces"));
+    const reader = transports.slice(transports.indexOf("function readPlaces"));
     const firstLine = reader.split("\n").find((l) => /^\s*first:/.test(l)) ?? "";
     ok("readPlaces assigns `first`", !!firstLine);
     ok("…from the wire field", /first:[^\n]*\.first\b/.test(firstLine));
@@ -93,11 +98,11 @@ export function run() {
     // three, byte-identical between HTTP and Tauri). The fence holds the
     // consolidation: the single implementation lives on the shared client, and
     // no backend re-declares it.
-    ok("the one body lives on ServiceClient", /abstract class ServiceClient[\s\S]*?async places\(/.test(api));
-    check("and no backend re-declares it", (api.match(/async places\(/g) ?? []).length, 1);
+    ok("the one body lives on ServiceClient", /abstract class ServiceClient[\s\S]*?async places\(/.test(transports));
+    check("and no backend re-declares it", (transports.match(/async places\(/g) ?? []).length, 1);
     ok(
       "and none of them invents an answer",
-      !/async places\([^}]*\{\s*places:\s*\[/.test(api),
+      !/async places\([^}]*\{\s*places:\s*\[/.test(transports),
     );
   }
 

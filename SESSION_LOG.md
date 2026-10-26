@@ -10731,3 +10731,12 @@ pane was driven in Chromium through insert and keystrokes to prove the
 rows still follow. The scan itself, 33.6 ms per keystroke at this size,
 is the number the whole file now points at: recorded in #168 as the
 larger project, deliberately out of scope.
+The sweep the user authorised followed, in order: #160's door to
+keysdrawer.ts (a module the keys drawer could finally grow into), #166's
+split of api.ts — the wire vocabulary and the contracts stay, the three
+transports take their shared parse helpers to transports.ts, the two
+caches to compilecache.ts, the shared scan memo to scanmemo.ts, and the
+fences that watched the moved text followed it in the same commit,
+which is the only way a text fence stays honest. The extraction bit once
+(broke the ranges on a first pass; restored and re-cut by verified line
+numbers instead of trusting the script's own arithmetic).

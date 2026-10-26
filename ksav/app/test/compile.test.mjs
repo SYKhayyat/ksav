@@ -25,7 +25,7 @@ import { check, ok, notOk, fakeView, installChrome } from "./harness.mjs";
 import { bodyOnScreen, compileForExport, reflowableHtml, runCompile } from "../.tmp-test/compile.mjs";
 import { analyze } from "../.tmp-test/brackets.mjs";
 import { scanWire, hydrateScan, clearScanCache, lexPassCount } from "../.tmp-test/spans.mjs";
-import { scanForBackend } from "../.tmp-test/api.mjs";
+import { scanForBackend } from "../.tmp-test/scanmemo.mjs";
 import * as docs from "../.tmp-test/docs.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
 import { readFile } from "node:fs/promises";

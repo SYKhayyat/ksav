@@ -88,7 +88,11 @@ and does not belong here.
    split is not.
    From: #149. Cost: adding an engine service touches one file that could be
    four. Pay when: the next engine service lands.
-   **filed as #166** (2026-10-25).
+   **filed as #166** (2026-10-25); **paid 2026-10-26**: api.ts is the
+   wire vocabulary and the two contracts (1,028 lines) with
+   `transports.ts` (822), `compilecache.ts` (179) and `scanmemo.ts` (44)
+   beside it. Call sites and every text fence that watched the moved code
+   were rekeyed in the same commit.
 
 10. **The perf items below the measured line** — spans' linear positional
     queries, rowlists' JSON.stringify row equality, the notes index's rescan

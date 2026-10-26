@@ -11,7 +11,7 @@
 
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { docTextOf } from "./spans";
-import { scanForBackend } from "./api";
+import { scanForBackend } from "./scanmemo";
 import * as runtime from "./runtime";
 
 /**

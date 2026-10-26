@@ -21,7 +21,8 @@
 // service" and "this table has this service" are the same sentence here.
 
 import { check, ok, notOk } from "./harness.mjs";
-import { HttpBackend, TauriBackend, WasmBackend, sourcesOf } from "../.tmp-test/api.mjs";
+import { sourcesOf } from "../.tmp-test/api.mjs";
+import { HttpBackend, TauriBackend, WasmBackend } from "../.tmp-test/transports.mjs";
 import { scanWire } from "../.tmp-test/spans.mjs";
 
 /**
@@ -408,7 +409,7 @@ export async function run() {
   // So the contradiction the issue opened on was real, and it was between the
   // app and the engine it is supposed to be describing.
   {
-    const api = readFileSync(path.join(APP, "src", "api.ts"), "utf8");
+    const api = readFileSync(path.join(APP, "src", "transports.ts"), "utf8");
 
     // Two constants, because two true things. The cross-build agreement with the
     // engine is asserted on the **engine** side — `server.rs`'s own test says a
@@ -477,9 +478,9 @@ export async function run() {
   // enforce "any line of this shape is the bug" perfectly, and these three files
   // are exactly where the copies lived.
   {
-    const api = await readFile(path.join(APP, "src", "api.ts"), "utf8");
+    const api = await readFile(path.join(APP, "src", "transports.ts"), "utf8");
     const literals = [...api.matchAll(/fetch\(\s*(?:this\.base\s*\+\s*)?"\/\w+"/g)];
-    check("api.ts forms no URL of its own", literals.length, 0);
+    check("transports.ts forms no URL of its own", literals.length, 0);
 
     const worker = await readFile(path.join(APP, "src", "wasm-worker.ts"), "utf8");
     ok("the worker dispatches through one export", worker.includes("engine.ksav_call("));

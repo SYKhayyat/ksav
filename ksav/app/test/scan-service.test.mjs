@@ -9,7 +9,7 @@ import {
   scan,
   scanWire,
 } from "../.tmp-test/spans.mjs";
-import { scanForBackend } from "../.tmp-test/api.mjs";
+import { scanForBackend } from "../.tmp-test/scanmemo.mjs";
 
 export async function run() {
   clearScanCache();

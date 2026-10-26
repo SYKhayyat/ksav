@@ -13,7 +13,7 @@
 
 import { check, ok, notOk } from "./harness.mjs";
 import { drawPages, drawCurrentInto, pageAspect, previewStyle, previewGeometry, KEEP_PAGES } from "../.tmp-test/preview.mjs";
-import { CompileCache } from "../.tmp-test/api.mjs";
+import { CompileCache } from "../.tmp-test/compilecache.mjs";
 
 /** A `#preview`-shaped host from the harness's minimal DOM. */
 function host() {

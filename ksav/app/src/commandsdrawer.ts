@@ -2,8 +2,8 @@
 //
 // Owns: the drawer's search half and its render. Defers: what a command is
 // (commands.ts's registry), what a row does (rowlists.ts's drawRow), what the
-// keys drawer is (main keeps it with the shortcut registries it is a pure
-// function of, and the palette's door stays in panels.ts). Refuses: a second
+// keys drawer's door is keysdrawer.ts's (the view stays with the shortcut
+// registries it is a pure function of). Refuses: a second
 // grouping of the registry — the groups are the registry's own categories,
 // read again per keystroke.
 
@@ -27,11 +27,6 @@ import { closeMenus, openPanel, panelHead } from "./panels";
 export function openCommands() {
   closeMenus();
   openPanel("commands-drawer");
-}
-
-export function openKeys() {
-  closeMenus();
-  openPanel("keys-drawer");
 }
 
 export function renderCommands(query: string) {

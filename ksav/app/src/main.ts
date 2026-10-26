@@ -282,7 +282,8 @@ import {
 } from "./docswitch";
 import { takeSnapshot, restoreSnapshot, openHistory, renderHistory, wireSnapshots } from "./snapshots";
 import { refreshGit, openGit, gitForHeader, renderGitPanel, wireGit } from "./gitui";
-import { openCommands, openKeys, buildCommandsDrawer, renderCommands } from "./commandsdrawer";
+import { openCommands, buildCommandsDrawer, renderCommands } from "./commandsdrawer";
+import { openKeys } from "./keysdrawer";
 import {
   noteAction,
   noteTyped,

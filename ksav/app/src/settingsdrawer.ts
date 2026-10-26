@@ -3,7 +3,7 @@
 // Owns: every view row the drawer renders (`numberRow`, `selectRow`, the font
 // picker, the about/notices sections, the keys section that captures
 // chords), plus `now` (the B26 reader), `captureShortcut`, and the keys
-// drawer's door (`openKeys`).
+// drawer's door (`openKeys`, keysdrawer.ts's).
 // Defers: what a row changes — `now`'s document half arrives as the wiring's
 // `live`, and the writes (`setSetting`, `setPageSetup` and kin), the run-list
 // and the modal as wiring methods; the B26 model to `settings.ts` and the

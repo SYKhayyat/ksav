@@ -10716,3 +10716,18 @@ single tier's slot back to the engine's answer. Driven in Chromium
 against the live engine — twelve checks, structure and writes and clears,
 zero errors. main.ts unchanged; the panel file shed 39 lines and its
 second vocabulary.
+The bench came next, and with it the audit's last unmeasured claim: a
+1,000-page sefer through tools/bench-structure.mjs — 634 KB, 15,390
+nodes, 4,860 notes. Two of the four paths were acquitted by their own
+numbers (the scan-cache probe is 0.130 ms, the row equality 0.30 ms; the
+audit's fear was real at small scale and irrelevant at this one), two
+were confirmed (the caret's positional query at 6.3 ms and growing
+superlinearly; the notes cascade's duplicated index builds). The
+measurements are #159's close; the two fixes are #167 and #168. And
+#167 was small enough to pay the same day: notesIn now builds once per
+document version and hands the same frozen array to every reader — the
+second reader costs 0.1 ms where it cost a full rebuild — and the notes
+pane was driven in Chromium through insert and keystrokes to prove the
+rows still follow. The scan itself, 33.6 ms per keystroke at this size,
+is the number the whole file now points at: recorded in #168 as the
+larger project, deliberately out of scope.

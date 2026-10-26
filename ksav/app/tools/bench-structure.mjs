@@ -300,21 +300,26 @@ console.log();
   const pos = doc.indexOf("#הערה[");
   const { notesIn, noteAt, noteDepthAt, noteDestination } = await loadMany(["notes"]).then((m) => m.notes);
 
-  const oneIndex = ms(() => notesIn(doc), 6);
+  // The index is memoised per document version (notes.ts), so a keystroke pays
+  // one build and every reader after it pays a hit. Measured separately: the
+  // build with the memo defeated (a one-character edit each iteration, the same
+  // trick perKeystroke uses), and the readers on a warm version.
+  const at2 = Math.floor(doc.length / 2);
+  const build = ms((i) => notesIn([doc.slice(0, at2), String.fromCharCode(0x5d0 + (i % 22)), doc.slice(at2)].join("")), 4);
+  const index = notesIn(doc);
+  const note = index[Math.floor(index.length / 2)];
   noteAt(doc, pos);
   noteDepthAt(doc, pos);
   const at = ms(() => noteAt(doc, pos), 6);
   const depth = ms(() => noteDepthAt(doc, pos), 6);
-  const index = notesIn(doc);
-  const note = index[Math.floor(index.length / 2)];
   const dest = ms(() => noteDestination(doc, note), 6);
   console.log(
     "\nnotes index at " + KB(doc).trim() + " — " + index.length + " notes.\n" +
-    "  one notesIn (full scan + tree walk): " + oneIndex.toFixed(1) + " ms\n" +
-    "  noteAt (1 index):                    " + at.toFixed(1) + " ms\n" +
-    "  noteDepthAt (1 index):               " + depth.toFixed(1) + " ms\n" +
-    "  noteDestination (1 scan):            " + dest.toFixed(1) + " ms\n" +
-    "  three index users per keystroke:     " + (at + depth + dest).toFixed(1) + " ms",
+    "  one notesIn build (memo defeated):   " + build.toFixed(1) + " ms\n" +
+    "  noteAt (first reader: 1 build):      " + at.toFixed(1) + " ms\n" +
+    "  noteDepthAt (second reader: a hit):  " + depth.toFixed(1) + " ms\n" +
+    "  noteDestination (1 scan, memoised):  " + dest.toFixed(1) + " ms\n" +
+    "  per keystroke, the three users:      " + (build + dest).toFixed(1) + " ms",
   );
 
   // The reconciler's row equality (rowlists.ts): JSON.stringify both rows and

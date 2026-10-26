@@ -262,7 +262,29 @@ export interface NoteSpan {
  * sweep looks fourteen lines past a `depth` counter for a bracket literal, and
  * this walk had fifty-five between them. The window is eighty now.
  */
-export function notesIn(doc: string): NoteSpan[] {
+/**
+ * The index, once per version of the document.
+ *
+ * The audit's #157 measured the cascade: a keystroke in the notes pane paid
+ * `noteAt` → `notesIn`, `noteDepthAt` → a second `notesIn`, and the pane's
+ * re-render → a third — 8.6 ms of duplicated builds at 1,000 pages for the
+ * same answer, on top of the scan every path pays anyway. So the index is
+ * memoised the way `docTextOf` memoises the text it is built from: one slot,
+ * keyed on the string's identity. Every caller gets its text from
+ * `docTextOf(view.state.doc)` or `docTextNow()`, which hand back the *same
+ * string object* for the same document version — so the probe is a pointer
+ * compare, a keystroke's new text is a miss that builds once, and everyone
+ * after that keystroke shares the build.
+ *
+ * The array is frozen: the same instance is handed to every reader on the
+ * document, and one caller pushing to it would poison all of them. (`arrange`
+ * writes `depth` onto the spans themselves — that is the index's own work, and
+ * idempotent, not a caller's.)
+ */
+let NOTE_INDEX: { text: string; index: readonly NoteSpan[] } | null = null;
+
+export function notesIn(doc: string): readonly NoteSpan[] {
+  if (NOTE_INDEX?.text === doc) return NOTE_INDEX.index;
   const s = scanSpans(doc);
   const { refs, defs } = scanDeferred(doc);
 
@@ -347,7 +369,8 @@ export function notesIn(doc: string): NoteSpan[] {
     return null;
   };
 
-  return arrange(spans, parentOf);
+  NOTE_INDEX = { text: doc, index: Object.freeze(arrange(spans, parentOf)) };
+  return NOTE_INDEX.index;
 }
 
 /**

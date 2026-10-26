@@ -81,7 +81,12 @@ and does not belong here.
    entry.
    From: #154. Cost: one redundant store row per download-bound document.
    Pay when: the binding store is next touched.
-   **filed as #165** (2026-10-25).
+   **filed as #165** (2026-10-25); **paid 2026-10-26**: `rememberBinding`
+   writes no download-tier row (and drops a stale one on sight), and
+   `files.bindingFor` reads the tier's name back off the library entry —
+   the artifact the audit named. Verified in Chromium: a
+   download-tier open shows its name in the title bar with the handles
+   store empty.
 
 9. **api.ts is four things in one file** — the jump/reveal/places triplication
    is fixed (#149); the wire-vocabulary / cache / transports / scan-memo file

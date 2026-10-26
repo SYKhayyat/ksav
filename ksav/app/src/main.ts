@@ -3501,7 +3501,7 @@ async function boot() {
   }
   if (durable) {
     // A binding lives in the store, so there is nothing to recall without one.
-    void files.recallBinding(runtime.currentDoc.id).then((b) => {
+    void files.bindingFor(runtime.currentDoc.id).then((b) => {
       runtime.setCurrentBinding(b);
       updateTitleBar();
     });

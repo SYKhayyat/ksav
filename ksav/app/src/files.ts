@@ -16,6 +16,7 @@
 // that will not happen.
 
 import * as store from "./store";
+import * as docs from "./docs";
 
 export interface FileBinding {
   /** How this binding writes: which tier picked it up. */
@@ -265,6 +266,19 @@ export function download(name: string, text: string) {
 
 export async function rememberBinding(docId: string, binding: FileBinding | null): Promise<void> {
   try {
+    if (binding && binding.kind === "download") {
+      // The audit's #154/#165: a download-tier row carried `kind` plus a name —
+      // and the name is the library entry's `fileName`, written one line before
+      // this on every path that opens a downloaded document. One redundant row
+      // per download-bound document, and two places that can disagree about a
+      // file that was never written anywhere.
+      //
+      // The row is not the artifact; the entry's name is. So the row goes: not
+      // kept for new writes, and an old one dropped on sight — a store from an
+      // earlier version converges instead of carrying the duplication forever.
+      await store.del(store.HANDLES, docId);
+      return;
+    }
     if (binding) {
       await store.put(store.HANDLES, docId, {
         kind: binding.kind,
@@ -287,6 +301,27 @@ export async function recallBinding(docId: string): Promise<FileBinding | null> 
   } catch {
     return null;
   }
+}
+
+/**
+ * The binding this document is *still* bound to, download tier included.
+ *
+ * The two callers that restore a document's file state on entry and on boot ask
+ * this rather than `recallBinding`, because the download tier's name no longer
+ * lives in the handle store: it is read back off the library entry where it was
+ * always written (`docs.library()`), so a document opened from a downloaded file
+ * keeps its name in the title bar without a row duplicating it.
+ *
+ * The synthesis is honest rather than a convenience: the download tier is
+ * exactly *"the document remembers a name and nothing else"* — no handle to ask
+ * permission of, no path to stat, and `canWriteBack` is false — which is what
+ * `{ kind: "download", name }` says.
+ */
+export async function bindingFor(docId: string): Promise<FileBinding | null> {
+  const row = await recallBinding(docId);
+  if (row) return row;
+  const name = docs.library().find((e) => e.id === docId)?.fileName;
+  return name ? { kind: "download", name } : null;
 }
 
 /**

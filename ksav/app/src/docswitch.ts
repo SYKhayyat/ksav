@@ -135,7 +135,7 @@ export async function openDoc(id: string, opts: { handedOver?: boolean } = {}) {
   // exactly as `boot()` does. Clear the outgoing binding first so nothing reads
   // the *previous* document's while the recall is in flight.
   runtime.setCurrentBinding(null);
-  void files.recallBinding(next.id).then((b) => {
+  void files.bindingFor(next.id).then((b) => {
     // A newer switch may already have won; only stamp if this is still the doc.
     if (runtime.currentDoc?.id !== next.id) return;
     runtime.setCurrentBinding(b);

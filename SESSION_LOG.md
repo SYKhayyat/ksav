@@ -10740,3 +10740,11 @@ fences that watched the moved text followed it in the same commit,
 which is the only way a text fence stays honest. The extraction bit once
 (broke the ranges on a first pass; restored and re-cut by verified line
 numbers instead of trusting the script's own arithmetic).
+#165 followed: the store's tail was the finding the audit made in bytes
+rather than in files. The download-tier row in IndexedDB was a fact the
+library entry already held — the same name written two lines apart — so
+the row went: rememberBinding writes nothing for that tier and deletes a
+stale one on sight, and a download-bound document's name is read back
+off the entry where it always lived. The user authorised pulling both
+of the ledger's store debts forward, which is how the migration-budget
+condition got paid.

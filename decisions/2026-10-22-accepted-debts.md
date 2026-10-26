@@ -28,7 +28,14 @@ and does not belong here.
    From: wave 10. Cost: main.ts holds two functions the plan named for
    docswitch. Pay when: the compartment machinery itself moves (the plan's
    wave-10 stay-list would have to be amended first).
-   **filed as #161** (2026-10-25).
+   **filed as #161** (2026-10-25); **paid 2026-10-26**: the stay-circuit
+   is answered rather than argued. "Toward docswitch" was the plan's
+   mistake — docswitch is downstream of the machinery — so the machinery
+   moved to compartments.ts (418: the compartments, editorTheme,
+   syncGlobals/setEditingMode, the keymap builders, the completers, the
+   prose view) and main kept the recipe (makeState, runAction, the
+   structure dispatch) behind one wiring. The plan's wave-10 record is
+   amended in place with the reasoning, dated.
 
 3. **§4 item 1's line number (main.ts ≤ ~1,500) is not met** — 3,980 lines
    after wave 12 part 1 (as measured on this date). The contents test is met (boot + assembly + wirings +
@@ -36,6 +43,12 @@ and does not belong here.
    the plan's wave 10 explicitly retains.
    From: wave 10, re-counted in wave 11. Pay when: the plan is amended to
    move the assembly itself — a decision, not a cleanup.
+   **Paid 2026-10-26** (#161's move, amended plan): the assembly's
+   machinery moved out (compartments.ts), the recipe stays, and main.ts is
+   3,439 — the count the entry asked for, no longer against the amendment
+   the pay named. The ≤1,500 aspiration stays unmet on purpose: the
+   remaining 3,439 is boot, the action table and the switch machine's
+   wirings, and the plan says so.
    **filed as #162** (2026-10-25).
 
 4. **The Girsa handoff poll and onboarding are still main.ts's** — wave 12

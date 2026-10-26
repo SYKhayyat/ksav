@@ -144,11 +144,16 @@ export function run() {
     ok("…and the margin is the pane's own height, not the window's",
       /scrollDOM\.clientHeight/u.test(focus));
 
+    // Both files: the compartments the notebook's `syncGlobals` reconfigures live
+    // in `compartments.ts` (the audit's #161 move) and the one `makeState` builds
+    // stays in main. A call site is a call site wherever it lives.
     const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+    const machinery = readFileSync(path.join(SRC, "compartments.ts"), "utf8");
+    const both = main + "\n" + machinery;
     // Every call site, not most of them: an editor built without the anchor is
     // an editor whose typewriter mode silently reverts to the centre.
-    const calls = main.split("focusExtension(").length - 1;
-    const anchored = main.split(/focusExtension\([^)]*typewriterAnchor/su).length - 1;
+    const calls = both.split("focusExtension(").length - 1;
+    const anchored = both.split(/focusExtension\([^)]*typewriterAnchor/su).length - 1;
     check("every editor is built with the anchor", anchored, calls);
     ok("…and there are some to count", calls >= 3);
     ok("and changing it reconfigures the live editor",

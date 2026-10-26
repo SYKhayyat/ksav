@@ -10748,3 +10748,19 @@ stale one on sight, and a download-bound document's name is read back
 off the entry where it always lived. The user authorised pulling both
 of the ledger's store debts forward, which is how the migration-budget
 condition got paid.
+The plan's amendment came, and with it the finding that pays two ledger
+entries at once: syncGlobals/setEditingMode "stayed main against the
+plan's wave-10 move list" — the circuit breaker was the cycle, the plan
+had them moving toward docswitch, and they were holding the whole
+compartment machinery with them for company. So the machinery moved to
+compartments.ts (418) — the compartments, the theme, the two functions,
+the shortcut and reconfigure builders, the completers, the prose view —
+and main kept the recipe behind one wiring, which is the pattern every
+borrowing in this codebase already uses. main.ts 3,752 → 3,439. Verified
+in Chromium where the machinery's behavior lives: ctrl+b through the
+wiring's dispatcher, prose mode reconfigured over the live view, the
+editor still taking text after the switch, bold after the round trip.
+The wave-10 record is amended in place, dated — the same way wave 6 was
+amended when wave 7 overturned it. main.ts holds 3,439 lines of boot,
+action table and wirings; the ≤1,500 aspiration stays unmet, and the
+plan now says so rather than implying neglect.

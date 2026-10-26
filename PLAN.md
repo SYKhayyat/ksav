@@ -897,6 +897,17 @@ still right.
     plus one never-slated region (templates/exports, ~950 lines) put main at
     5,068. See
     `decisions/2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md`.
+
+    **This record amended in place, 2026-10-26.** The stay-list above held
+    syncGlobals/setEditingMode for a real reason — moving them "toward
+    docswitch" would have wired main to docswitch for main's own assembly —
+    but they were also holding the whole compartment machinery with them for
+    company. The circuit breaker is paid: the machinery (the compartments,
+    editorTheme, syncGlobals/setEditingMode, the shortcut and reconfigure
+    builders, the completers, the prose view) lives in compartments.ts (418),
+    with makeState, runAction and the structure dispatch left in main as the
+    recipe and one wiring carrying the dispatcher the keymap calls. See the
+    ledger's entry 2 and #161.
     **Wave 11 closed 2026-10-22** (`bbc148f`) — the extra wave the end-state
     record pointed at: templates.ts (152: the registry, the writer's own,
     the two doors, `TemplatesWiring` for the direction write) and fileui.ts
@@ -906,6 +917,17 @@ still right.
     banner moved to ribbon.ts; 28 moved / 0 drift, main.ts 4,261 lines, and
     no feature region is left in main that any wave's census can name. See
     `decisions/2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md`.
+    **2026-10-26 — the amendment authorised by the audit's ledger (entries 2
+    and 3): the wave-10 stay decision is paid, not reversed.** The circuit
+    breaker was the cycle (moving the compartment machinery "toward
+    docswitch" wires main to docswitch for main's own assembly), so the
+    machinery went where it belongs instead — compartments.ts (418): the
+    compartments themselves, editorTheme, syncGlobals/setEditingMode, the
+    shortcut and reconfigure builders, the completers, the prose view. Main
+    keeps the recipe (makeState, runAction, the action table, the structure
+    dispatch) with one wiring carrying what the keymap calls. main.ts 3,752 →
+    3,439. The contents test is unaffected: no feature region was in scope,
+    and none was added.
 - [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
 
 ## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified

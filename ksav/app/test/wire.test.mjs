@@ -368,13 +368,17 @@ export async function run() {
   // with nothing connecting them: under vim, focus in a panel, every chord in
   // `DEFAULT_KEYS` still fired at window level. The fence is the connection.
   const MAIN = await readFile(path.join(HERE, "..", "src", "main.ts"), "utf8");
+  // `buildShortcutKeymap` — the editor's half of the rule — moved to
+  // `compartments.ts` with the notebook's machinery (the audit's #161); the
+  // window resolver it must agree with stayed in main. Both halves are read.
+  const KEYMAP = await readFile(path.join(HERE, "..", "src", "compartments.ts"), "utf8");
   const resolver = MAIN.slice(MAIN.indexOf("function runShortcutOutsideEditor"));
   const body = resolver.slice(0, resolver.indexOf("\n}"));
   ok("the window resolver stands down when a mode is really here", /activeMode\(\) !== "default"/.test(body));
   ok("…and does not answer a keystroke a lower handler already took", body.includes("e.defaultPrevented"));
   ok(
     "…and the editor's half states the rule beside its own stand-down",
-    /activeMode\(\) !== "default" \?\s*\[\] :/.test(MAIN) ||
-      MAIN.includes('if (keymodes.activeMode() !== "default") return [];'),
+    /activeMode\(\) !== "default" \?\s*\[\] :/.test(KEYMAP) ||
+      KEYMAP.includes('if (keymodes.activeMode() !== "default") return [];'),
   );
 }

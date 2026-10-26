@@ -17,7 +17,10 @@ and does not belong here.
    for the keys drawer's open door finds a commands file. Pay when: the keys
    drawer gets its own module (it is currently three: panelviews' view,
    settingsdrawer's capture, commandsdrawer's door).
-   **filed as #160** (2026-10-25).
+   **filed as #160** (2026-10-25); **paid 2026-10-26**: the door is
+   keysdrawer.ts's now, with a header mapping all three pieces of the
+   drawer and a test holding the door's two failure modes. The view and
+   the capture stay where they are, as the finding's scope said.
 
 2. **`syncGlobals`/`setEditingMode` stayed in main.ts against the plan's wave-10
    move list** — they are compartment composition, and moving them would wire

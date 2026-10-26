@@ -117,7 +117,16 @@ and does not belong here.
     cascade, the scan-cache full-string probes.
     From: #157. Cost: unmeasured at 1,000-page scale. Pay when: the profiling
     fixture (a 1,000-page sefer through `tools/bench-structure.mjs`) exists.
-   **filed as #159** (2026-10-25).
+   **filed as #159** (2026-10-25); **paid 2026-10-26** (#159's measurements,
+   then the fixes they named): the linear positional queries got a per-depth
+   index over the scan's node list (#168 — a caret move at ~1,000 pages is
+   1.78 ms, where it was 6.27 ms, and grows with the document rather than
+   faster than it); the rescan cascade got the memo (#167). The row equality
+   (0.30 ms) and the scan-cache probe (0.166 ms) were measured and
+   acquitted. What remains is the scan itself — 21 ms per keystroke at this
+   size, profiled as living in the assembly rather than the lex
+   (`scanWire` 3.3 ms against `scan` 21.4 ms) — and it is #169's, with the
+   profile result in the issue so the next session starts from evidence.
 
 11. **Two garbled commit messages** (`0bbabc0` "Buffy", `2a6a767` a stray
     Cyrillic word) — left in pushed history deliberately; rewriting pushed

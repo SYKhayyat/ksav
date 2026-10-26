@@ -10764,3 +10764,17 @@ The wave-10 record is amended in place, dated — the same way wave 6 was
 amended when wave 7 overturned it. main.ts holds 3,439 lines of boot,
 action table and wirings; the ≤1,500 aspiration stays unmet, and the
 plan now says so rather than implying neglect.
+The last of the ledger's work items came and went in one commit: #168,
+the positional index. The bench's fixture was still warm, so the split
+was measured before it was built — the four paths had produced two
+confirmed findings (this one and the cascade, already paid in #167) and
+two acquittals by their own numbers. The index is one bucket per depth
+over the scan's node list, held on the Scan in a WeakMap, built once per
+scan: at most one node at a level contains a position, so containment
+is a binary search and a bounds check, and the innermost-wins walks that
+nodeAt/stackAt/roleAt/bodyAt do are now one search per level rather
+than one walk of the document. 6.27 ms → 1.78 ms per caret move at
+~1,000 pages, and the growth went from superlinear to plain. The scan
+itself — 21 ms per keystroke — is profiled and filed as its own issue
+with the finding that the cost is in the assembly rather than the lex,
+which is where the next session should start.

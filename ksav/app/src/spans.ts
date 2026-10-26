@@ -1641,28 +1641,97 @@ export function delimitersOf(doc: { toString(): string }): Delimiters {
   return fresh;
 }
 
+/**
+ * The per-depth index over one scan's nodes.
+ *
+ * Containment is the query, and it used to be answered by walking the whole
+ * node list per call — 6.3 ms per caret move at 1,000 pages, growing faster
+ * than the document (the audit's #157, measured through #159's fixture: ×5.8
+ * cost for a ×4.3 document). Two facts make a cheap index:
+ *
+ *   - the scan's node list is in document order — `from` ascending, and among
+ *     equal `from` the parent before the child, so **each depth level is
+ *     sorted by `from` on its own**;
+ *   - nodes at the same depth are disjoint and in order, so **at most one of
+ *     them contains any position**.
+ *
+ * So the index is one bucket per depth, each sorted as the scan's own list
+ * already is, built once per scan (a WeakMap keyed on the Scan — never on the
+ * text, which is the expensive identity) and shared by every query. One
+ * containment answer is a binary search plus one bounds check, and "the stack"
+ * is the handful of levels that have an answer, collected from the deepest
+ * outward.
+ */
+interface NodeIndex {
+  /** Nodes at each depth. Level `d` is sorted by `from`; levels are disjoint. */
+  levels: Node[][];
+  maxDepth: number;
+}
+
+const NODE_INDEX = new WeakMap<Scan, NodeIndex>();
+
+function nodeIndex(s: Scan): NodeIndex {
+  let idx = NODE_INDEX.get(s);
+  if (idx) return idx;
+  const levels: Node[][] = [];
+  for (const n of s.nodes) {
+    // Growing by length leaves holes at depths a document never reaches, and
+    // pushing into one is the same crash with a shorter trace.
+    while (levels.length <= n.depth) levels.push([]);
+    levels[n.depth].push(n);
+  }
+  const maxDepth = levels.length - 1;
+  idx = { levels, maxDepth };
+  NODE_INDEX.set(s, idx);
+  return idx;
+}
+
+/** The node at this level containing `pos`, or none — one binary search. */
+function atLevel(nodes: Node[], pos: number): Node | null {
+  let lo = 0;
+  let hi = nodes.length - 1;
+  let ans: Node | null = null;
+  // Rightmost `from <= pos`. Equal-from nodes are parent-first, so the last
+  // match at this level is the one to bounds-check.
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (nodes[mid].from <= pos) {
+      ans = nodes[mid];
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  return ans && pos <= ans.to ? ans : null;
+}
+
 /** Every call containing `pos`, outermost first. */
 export function stackAt(scan: Scan, pos: number): Node[] {
-  return scan.nodes.filter((n) => pos >= n.from && pos <= n.to);
+  const { levels } = nodeIndex(scan);
+  const out: Node[] = [];
+  for (let d = 0; d < levels.length; d++) {
+    const n = atLevel(levels[d] ?? [], pos);
+    if (n) out.push(n);
+  }
+  return out;
 }
 
 /** The innermost call containing `pos`. */
 export function nodeAt(scan: Scan, pos: number): Node | null {
-  let best: Node | null = null;
-  for (const n of scan.nodes) {
-    if (pos >= n.from && pos <= n.to && (!best || n.depth > best.depth)) best = n;
+  const { levels } = nodeIndex(scan);
+  for (let d = levels.length - 1; d >= 0; d--) {
+    const n = atLevel(levels[d] ?? [], pos);
+    if (n) return n;
   }
-  return best;
+  return null;
 }
 
 /** The innermost call with this role containing `pos`. */
 export function roleAt(scan: Scan, pos: number, role: Role): Node | null {
-  let best: Node | null = null;
-  for (const n of scan.nodes) {
-    if (n.role !== role) continue;
-    if (pos >= n.from && pos <= n.to && (!best || n.depth > best.depth)) best = n;
+  const { levels } = nodeIndex(scan);
+  for (let d = levels.length - 1; d >= 0; d--) {
+    const n = atLevel(levels[d] ?? [], pos);
+    if (n && n.role === role) return n;
   }
-  return best;
+  return null;
 }
 
 /** Is `pos` inside a comment? */
@@ -1680,13 +1749,15 @@ export function childrenOfRole(node: Node, role: Role): Node[] {
 
 /** The whole `[…]` body a position sits in, if any. */
 export function bodyAt(scan: Scan, pos: number): Group | null {
-  let best: Group | null = null;
-  for (const n of scan.nodes) {
-    for (const b of n.bodies) {
-      if (pos >= b.from && pos <= b.to && (!best || b.from > best.from)) best = b;
-    }
+  const { levels } = nodeIndex(scan);
+  // Innermost wins, so walk from the deepest level out; a level holds at most
+  // one containing node, and its bodies are in order (only one can hold `pos`).
+  for (let d = levels.length - 1; d >= 0; d--) {
+    const n = atLevel(levels[d] ?? [], pos);
+    if (!n) continue;
+    for (const b of n.bodies) if (pos >= b.from && pos <= b.to) return b;
   }
-  return best;
+  return null;
 }
 
 // ------------------------------------------------------------------ prose

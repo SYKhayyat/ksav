@@ -53,7 +53,11 @@ and does not belong here.
    From: #152. Cost: ~130 duplicated lines in stylespanel.ts and two
    vocabularies for one knob at the default scope. Pay when: a UI-verification
    session (the styles panel open in a browser).
-   **filed as #158** (2026-10-25); in work.
+   **filed as #158** (2026-10-25); **paid 2026-10-25**: one `tierInkRows`
+   builder serves both sections, the knob tables carry what differed, and
+   the ink knobs went through the shared family — driven in Chromium
+   against the live engine (structure, writes, and the single-tier clear
+   the old selects could not do).
 
 6. **The 2-preview desync** — `followCaretInPreview`, `settleExactly` and
    `previewWindowOf` are single-preview; a 2-source/2-preview arrangement

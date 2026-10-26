@@ -10702,3 +10702,17 @@ the poll's flurry behaviour were driven in Chromium, twenty checks, zero
 errors. main.ts ends the campaign at 3,751 lines; 139 modules, acyclic;
 the suite 127 files, 12,939 assertions, 0 failed. The header bar stays in
 main by recorded decision. Seventeen of seventeen.
+The debts became issues the same day: nine of the ten open ledger entries
+filed as #158–#166, each carrying its pay condition, the ledger pointing
+back by number — a closed issue does not resurface in triage, and the
+user wanted them workable from either place. Then #158 itself, the one
+debt whose gate was open: the styles panel's two per-tier row builders
+were one function written twice, and what differed was never structure
+but judgement — which knobs, which options, what empty means — so the
+judgement moved into knob tables and one loop serves both sections. The
+ink knobs went through the shared family on the family's terms, which
+bought the one thing the hand-rolled selects could not do: clearing a
+single tier's slot back to the engine's answer. Driven in Chromium
+against the live engine — twelve checks, structure and writes and clears,
+zero errors. main.ts unchanged; the panel file shed 39 lines and its
+second vocabulary.

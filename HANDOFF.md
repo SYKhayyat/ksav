@@ -18,8 +18,9 @@ app — read it first. 139 modules, acyclic (`node tools/imports.mjs`). The
 suite's counts live in `ksav/README.md`, where the fence holds them; do not
 restate them here. The accepted debts are in
 `decisions/2026-10-22-accepted-debts.md`, the single ledger the wave
-records point at — eleven items, entry 4 (the Girsa poll and onboarding)
-since paid. New fences added this sitting: `i18nkeys.test.mjs`
+records point at — eleven items, entries 4 (the Girsa poll and
+onboarding) and 5 (the styles-panel per-tier merge) since paid; the rest
+are filed as #158–#166. New fences added this sitting: `i18nkeys.test.mjs`
 (every `t()` literal must be a dictionary key — it caught two live bugs)
 and `lintkit.test.mjs` (the stale-document guard is written once).
 

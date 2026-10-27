@@ -279,3 +279,54 @@ export function anchorFor(match: SyncMatch | undefined, dir: -1 | 0 | 1): number
 export function worthFollowing(moved: number, dead: number | undefined): boolean {
   return Math.abs(moved) >= Math.max(0, dead ?? 0);
 }
+
+// ---------------------------------------------------------------- visual position
+//
+// The interpolator every source-side follow shares — caret follow and linked
+// scroll alike. It was born from a report that the caret-follow advanced the
+// preview by *character offset within the line* (`(head - block.from) /
+// SOMETHING`), which is a horizontal quantity: on a line a writer is typing
+// along, the preview crept toward the next printed line as characters arrived,
+// and a caret at the end of the document — the maximum character offset — drove
+// the preview to the bottom of a short page. The fix that survived is the one
+// `syncLinkedScroll` had all along: the **visual** y, a coordinate from which
+// nothing depends on what the characters are.
+//
+// They share the helper rather than each writing their own because the two
+// bugs of this family were never in `fractionAtLine` or `clampScroll`; they were
+// in the `within`, and a family of two answerers has already shown it will
+// diverge again.
+//
+// #119.
+
+/**
+ * How far down a line block a visual y sits.
+ *
+ * The block is the rendered line — all of its wrapped rows in the source view —
+ * and the answer is `0` at its top edge and `1` at its bottom edge, clamped for
+ * a y that sits outside it by a rounding or a stale coordinate. A block of no
+ * height answers `0`, a real state under measure.
+ */
+export function withinBlock(y: number, block: { top: number; height: number }): number {
+  if (!(block.height > 0)) return 0;
+  return Math.max(0, Math.min(1, (y - block.top) / block.height));
+}
+
+/**
+ * The printed fraction between a line and its successor, `within` of the way
+ * through.
+ *
+ * Both ends come off the map, so the pair shares the map's currency (printing
+ * characters, deferred bodies carried to their markers) and the caller must not
+ * second-guess it: mixing a pixel answer into `lineNo`-selection is the family's
+ * next bug. `fractionAtLine` clamps, so a final line's `within` near 1 lands on
+ * the total — a caret genuinely past the last line's top is what arriving at the
+ * end of the document looks like — and `within` `0` stays at the line's own
+ * prefix, which is the fraction of one short document's only line: the top, not
+ * the bottom.
+ */
+export function interpolateAcrossLine(map: number[], lineNo: number, within: number): number {
+  const a = fractionAtLine(map, lineNo);
+  const b = fractionAtLine(map, lineNo + 1);
+  return a + (b - a) * within;
+}

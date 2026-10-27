@@ -16,7 +16,7 @@ import { settings, docConfig } from "./settings";
 import { currentPages, pageBox } from "./preview";
 import { pixelInPage } from "./jump";
 import { bodyOnScreen } from "./compile";
-import { printedPrefix, fractionAtLine, lineAtFraction, anchorFor, worthFollowing } from "./scrollmap";
+import { printedPrefix, fractionAtLine, lineAtFraction, anchorFor, worthFollowing, withinBlock, interpolateAcrossLine } from "./scrollmap";
 import { docTextOf } from "./spans";
 
 /**
@@ -303,9 +303,9 @@ export function syncLinkedScroll(
     // follow continuous.
     const block = view.lineBlockAtHeight(anchorY);
     const lineNo = view.state.doc.lineAt(block.from).number - 1;
-    const within = block.height > 0 ? clamp01((anchorY - block.top) / block.height) : 0;
+    const within = withinBlock(anchorY, block);
     const map = printedMap();
-    const frac = lerp(fractionAtLine(map, lineNo), fractionAtLine(map, lineNo + 1), within);
+    const frac = interpolateAcrossLine(map, lineNo, within);
     target.scrollTop = clampScroll(frac * target.scrollHeight - mp * target.clientHeight, target);
   } else {
     const host = panestate.paneHostOf(from.id)!;
@@ -327,8 +327,6 @@ export function syncLinkedScroll(
 }
 
 export const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
-
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export const clampScroll = (y: number, el: HTMLElement) =>
   Math.max(0, Math.min(y, el.scrollHeight - el.clientHeight));
@@ -365,15 +363,24 @@ export function followCaretInPreview() {
     const head = view.state.selection.main.head;
     const lineNo = view.state.doc.lineAt(head).number - 1;
     const map = printedMap();
-    // Interpolate between this line and the next, like syncLinkedScroll does,
-    // so the preview moves smoothly rather than snapping per-line. Also avoids
-    // jumping to the bottom when the caret is at the end of a short document:
-    // fractionAtLine for the last line returns 1, and with middle anchor (0.5)
-    // the calculation overshoots to the bottom. Interpolation keeps it at the
-    // last printable position.
+    // Interpolate between this line and the next by how far down the line
+    // block the caret *visually* sits — the same currency `syncLinkedScroll`
+    // interpolates in. The first cut of this used the caret's character offset
+    // within the line (`(head - block.from) / block.length`), which is a
+    // horizontal quantity: typing along a line walked the preview toward the
+    // next printed line, and a caret at the end of the document — the maximum
+    // offset — pinned every short document to its bottom. The visual y of the
+    // caret is what a fraction of a line has anything to do with, and the
+    // helper is one function both callers share so this cannot drift apart
+    // again. #119.
+    //
+    // Also avoids jumping to the bottom when the caret is at the end of a
+    // short document: a visual y near the top of the last line keeps the
+    // fraction at that line's own prefix, and `clampScroll` bounds the rest.
     const block = view.lineBlockAt(head);
-    const within = block.height > 0 ? clamp01((head - block.from) / block.length) : 0;
-    const frac = lerp(fractionAtLine(map, lineNo), fractionAtLine(map, lineNo + 1), within);
+    const coords = view.coordsAtPos(head);
+    const within = coords ? withinBlock(coords.top, block) : 0;
+    const frac = interpolateAcrossLine(map, lineNo, within);
     const mp = matchFraction();
     const at = clampScroll(frac * host.scrollHeight - mp * host.clientHeight, host);
     // Claim the floor and record the write so the preview's own scroll event —

@@ -16,7 +16,7 @@
 // was being counted was not.
 
 import { check, ok } from "./harness.mjs";
-import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction, anchorFor, worthFollowing } from "../.tmp-test/scrollmap.mjs";
+import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction, anchorFor, worthFollowing, withinBlock, interpolateAcrossLine } from "../.tmp-test/scrollmap.mjs";
 
 export async function run() {
   // ------------------------------------------------------- comments weigh nothing
@@ -352,4 +352,69 @@ async function deferredBodyChecks() {
   ok("...and an unset dead zone does not crash", worthFollowing(1, undefined));
   // A pane that has not moved is not a gesture.
   ok("no movement is not followed", !worthFollowing(0, 1));
+}
+
+// ------------------------------------------------------- the visual interpolation
+//
+// #119. Both source-side follows — linked scroll and caret-follow — put a
+// preview position on `within * block.height` measured from the block's **top
+// edge**, in *pixels*. The caret-follow's first cut used the caret's character
+// offset inside the line instead, which is a horizontal quantity: it walked the
+// preview toward the next printed line while a writer typed along one line, and
+// planted every short document at its bottom the moment the caret moved to the
+// end of the file — the offset's maximum. Since the bug's shape was "the wrong
+// currency", these assertions follow the same plan as the ones above: each case
+// states which currency the answer must be counted in, and how far.
+
+{
+  // A three-line document line model and a caret sitting half a line down.
+  // The block is `top` pixels down the pane, `height` pixels tall — here three
+  // rows, as a long source line wraps to.
+  const map = [0, 10, 20, 30]; // printed prefix: characters above each line start, total 30.
+  const block = { top: 100, height: 60 };
+
+  check("a caret at the block's top is its line's own fraction",
+    interpolateAcrossLine(map, 1, withinBlock(100, block)), 10 / 30);
+  check("one row down (of three) is a third of the way between",
+    Math.round(interpolateAcrossLine(map, 1, withinBlock(120, block)) * 900) / 900, 4 / 9);
+  // ^ 10/30 + (20/30 - 10/30) * (20/60) = 4/9, rounded against float noise.
+
+  // *Moving within a single visual row must not move the preview at all.* The
+  // first cut's failure took a horizontal quantity — every character typed
+  // along a line advanced the fraction. The pixel y is structurally incapable
+  // of that: columns are not a parameter, only rows are.
+  const yBetweenRows = (row) => 100 + row * 20 + 10; // middle of a 20px row
+  const fracRow0 = interpolateAcrossLine(map, 1, withinBlock(yBetweenRows(0), block));
+  check("a caret anywhere within the top row holds one fraction",
+    interpolateAcrossLine(map, 1, withinBlock(110, block)), fracRow0);
+
+  // First, middle and final line — the acceptance's three line cases. The
+  // final line of three (prefix 20) may reach the total only at the block's
+  // bottom edge; fractionAtLine(…, 3) clamps into the total, which is what a
+  // caret *past* the last line looks like, and is why the caller uses the
+  // block's own line number and never a hand-walked one.
+  check("first line's fraction is printed characters above it", interpolateAcrossLine(map, 0, 0), 0);
+  check("middle line's mid-row sits between its neighbours",
+    Math.round(interpolateAcrossLine(map, 1, withinBlock(130, block)) * 90) / 90, 0.5);
+  ok("a boxed final line stops short of the total above its bottom edge",
+    interpolateAcrossLine(map, 2, withinBlock(159, block)) < 1);
+  check("...and reaches it exactly at the bottom edge",
+    interpolateAcrossLine(map, 2, withinBlock(160, block)), 1);
+
+  // The short-document case the report is: a one-line document, caret at the
+  // end of it (visually the only row's top — a y of exactly `block.top` while
+  // the *character offset* would have been its maximum, `block.length`). The
+  // first cut sent every such file to the preview's bottom.
+  const oneLine = [0, 25];
+  check("a one-line document's only line is the top, fraction 0",
+    interpolateAcrossLine(oneLine, 0, withinBlock(0, { top: 0, height: 18 })), 0);
+  // And it may reach the bottom only when the wrapped block's bottom edge is
+  // reached — a long wrapped line's last row legitimately is the document end.
+  ok("...while down its wrapped rows it travels", interpolateAcrossLine(oneLine, 0, 1), 1);
+
+  // Degenerate blocks: measured-before-layout height answers 0, top safe.
+  check("no-height block answers 0", withinBlock(50, { top: 0, height: 0 }), 0);
+  check("...and a negative one does too", withinBlock(50, { top: 10, height: -4 }), 0);
+  check("a y above the block clamps to 0", withinBlock(90, block), 0);
+  check("a y past it clamps to 1", withinBlock(170, block), 1);
 }

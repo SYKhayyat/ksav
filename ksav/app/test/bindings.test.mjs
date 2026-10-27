@@ -72,6 +72,14 @@ export function run() {
       // The case the whole argument turns on: a list inside a cell. Innermost
       // wins, so `Tab` is the list's there and the table's everywhere else in it.
       "#טבלה(עמודות: 1,\n  תא[#רשימה(פריט[פנימי],)],\n)\n",
+      // Notes: `note.paraInNote` and `list.paraInItem` share Mod-Enter and can
+      // never both be live — including where a note's body rides inside a list
+      // item, which is the one place both structures claim the caret. Without a
+      // note in this corpus the sharer pair was proved over documents that held
+      // neither, which is how #123 got committed unwitnessed.
+      "גוף הפסק.\n#הערה[גוף ההערה כאן,\nשורה שניה] המשך.\n",
+      'גוף.\n#הערה_בשם("א")\n\nעוד גוף.\n#גוף_הערה("א")[גוף נדחה,\nשורה שניה]\n',
+      "#רשימה(\n  פריט[חיצוני #הערה[בפנים],],\n  פריט[אחרון],\n)\n",
       "סתם טקסט בלי מבנה.\n",
     ];
     const both = [];

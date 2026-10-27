@@ -1,6 +1,7 @@
 import { check, ok, notOk } from "./harness.mjs";
 import * as tables from "../.tmp-test/table.mjs";
 import * as lists from "../.tmp-test/lists.mjs";
+import * as actions from "../.tmp-test/notes.mjs";
 import { dirOf } from "../tools/paths.mjs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -48,6 +49,19 @@ const CORPUS = [
   ["with contents", `#תוכן()\n\n#כותרת1[ראשי]\n\nגוף.\n`],
   ["list in a cell", `#טבלה(עמודות: 1,\n  תא[#רשימה(פריט[פנימי],)],\n)\n`],
   ["table in a section", `#כותרת1[פרק]\n\n#טבלה(עמודות: 2,\n  תא[א], תא[ב],\n)\n`],
+  // Notes, so note.paraInNote and every sibling are swept over note carets.
+  // The inline body is multiline because a body that has grown onto a second
+  // line is where a writer asks for a paragraph break; the deferred corpus
+  // carries both halves (the marker in the prose and the `#גוף_הערה` at the
+  // end), and the marker-only entry has no body anywhere, so every note action
+  // must decline there rather than half-apply.
+  ["inline note", `גוף הפסק.\n#הערה[גוף ההערה כאן,\nשורה שניה] המשך.\n`],
+  ["deferred note", `גוף.\n#הערה_בשם("א")\n\nעוד גוף.\n#גוף_הערה("א")[גוף נדחה,\nשורה שניה]\n`],
+  ["marker-only note", `גוף.\n#הערה_בשם("א")\nעוד גוף.\n`],
+  // A note whose marker sits inside a list item: both structures can act here,
+  // so the innermost-wins rule is on trial — and the list half must decline a
+  // break inside the note's bracket body, or Ctrl+Enter would fight itself.
+  ["note in a list item", `#רשימה(\n  פריט[חיצוני #הערה[בפנים],],\n  פריט[אחרון],\n)\n`],
 ];
 
 const HERE = dirOf(import.meta.url);
@@ -200,6 +214,72 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
   ok("and the whole table can go", byId["table.delete"]);
 }
 
+// ---------------------------------------------------------------- the note paragraph
+//
+// `note.paraInNote` is the UAT #123 verb: Mod-Enter inside a note body breaks a
+// paragraph there, as `list.paraInItem` does inside a list item — the two share
+// the key because they can never both apply. The sweeps above hold `enabled` to
+// `run`; these pin what the edit *is*, because one that inserted into the wrong
+// place would pass every sweep here and still wreck the note. Each edit is also
+// re-scanned, so the note must survive as one note — a break that split the
+// note into two, or reported a body that no longer scans, would fly otherwise.
+
+{
+  const inline = `גוף הפסק.\n#הערה[גוף ההערה כאן,\nשורה שניה] המשך.\n`;
+  const mid = inline.indexOf("שניה");
+  const note = (text) => actions.notesIn(text)[0];
+
+  const breaks = actionById("note.paraInNote").run(inline, mid);
+  ok("a break works in an inline note body", breaks !== null);
+  check(
+    "the break lands at the caret, the caret after it",
+    [breaks.text, breaks.caret],
+    [inline.slice(0, mid) + "\n\n" + inline.slice(mid), mid + 2],
+  );
+  check("exactly one note remains", actions.notesIn(breaks.text).length, 1);
+  const was = note(inline);
+  const now = note(breaks.text);
+  check("the same body, grown by the break", [now.bodyFrom, now.bodyTo], [was.bodyFrom, was.bodyTo + 2]);
+
+  // The deferred half: the body lives in the `#גוף_הערה` at the foot of the
+  // file, and the break there must keep marker and body one note.
+  const deferred = `גוף.\n#הערה_בשם("א")\n\nעוד גוף.\n#גוף_הערה("א")[גוף נדחה,\nשורה שניה]\n`;
+  const defAt = deferred.indexOf("נדחה");
+  const defBreak = actionById("note.paraInNote").run(deferred, defAt);
+  ok("a break works in a deferred note body", defBreak !== null);
+  check("…and the deferred body grows around its caret", defBreak,
+    { text: deferred.slice(0, defAt) + "\n\n" + deferred.slice(defAt), caret: defAt + 2 });
+
+  // The edges: a caret at the body's first glyph breaks above everything, and
+  // one at the last breaks below — the uniform rule, deliberately (see #123).
+  const atFirst = inline.indexOf("#הערה[") + "#הערה[".length;
+  const atLast = inline.indexOf("שניה") + "שניה".length;
+  check("carets at either end of the body still break",
+    [actionById("note.paraInNote").run(inline, atFirst) !== null,
+     actionById("note.paraInNote").run(inline, atLast) !== null],
+    [true, true]);
+
+  // Outside a body it declines: in the prose, past the body, and in a document
+  // whose note has no body anywhere.
+  const declines = [];
+  const noBody = `גוף.\n#הערה_בשם("א")\nעוד גוף.\n`;
+  for (const [doc, pos] of [[inline, inline.indexOf("הפסק")],
+    [inline, inline.indexOf("המשך")],
+    [deferred, deferred.indexOf("עוד גוף")],
+    [noBody, noBody.length - 1]]) {
+    if (actionById("note.paraInNote").run(doc, pos) !== null) declines.push(pos);
+  }
+  check("outside every note body the break declines", declines, []);
+
+  // Mod-Enter is shared with `list.paraInItem`; inside the note body of a list
+  // item only the note half may be live, or the shared key would act twice.
+  const inList = `#רשימה(\n  פריט[חיצוני #הערה[בפנים],],\n  פריט[אחרון],\n)\n`;
+  const shared = ["note.paraInNote", "list.paraInItem"].filter(
+    (id) => isEnabled(actionById(id), inList, inList.indexOf("בפנים")),
+  );
+  check("in a note body inside a list, Mod-Enter belongs to one action", shared, ["note.paraInNote"]);
+}
+
 // ---------------------------------------------------------------- asking is not doing
 //
 // `enabled` used to be answered by *running* the operation and looking at what
@@ -321,6 +401,27 @@ check("prose offers none", availableAt("טקסט", 2).length, 0);
       // scanner already knows; matching it here rather than importing the whole
       // heading model keeps this predicate one thing a reader can check.
       const bodies = [...text.matchAll(/#(?:כותרת\d|כותרת|סימן|h\d|hlevel|siman)\s*(?:\([^)]*\))?\[/gu)].map((m) => {
+        let depth = 1;
+        let i = m.index + m[0].length;
+        const from = i;
+        while (i < text.length && depth > 0) {
+          if (text[i] === "[") depth++;
+          else if (text[i] === "]") depth--;
+          i++;
+        }
+        return [from, i - 1];
+      });
+      if (bodies.length === 0) return null;
+      return bodies.some(([from, to]) => at >= from && at <= to);
+    }
+    if (kind === "note") {
+      // The same local reading, for notes: every command that opens a note body
+      // in the corpus — `#הערה[...]`, `#הערה_בשם(...)[...]` (inline), and the
+      // deferred `#גוף_הערה(...)[...]` at the foot of the file. Longest names
+      // first in the alternation, or `הערה` would claim `הערה_בשם`'s prefix —
+      // which would still bracket-match correctly here, but would double-count
+      // the moment a body holds a `#הערה_בשם` of its own.
+      const bodies = [...text.matchAll(/#(?:הערה_בשם|הערה|גוף_הערה)\s*(?:\([^)]*\))?\[/gu)].map((m) => {
         let depth = 1;
         let i = m.index + m[0].length;
         const from = i;

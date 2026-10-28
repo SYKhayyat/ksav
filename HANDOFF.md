@@ -4,7 +4,69 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-10-22 (audit closure)
+## Current handoff — 2026-10-28 (UAT sweep, #119–#120 closed)
+
+The UAT.org sweep is under way: the user reported issues #119–#139 from
+`ksav/UAT.org`, worked one at a time (root cause → plan with the designer
+asked in full context → acceptance criteria → tests → fix → full gate →
+commit → push → close with a real comment). Closed so far, this sitting:
+
+- **#123** (note.paraInNote crash) commit `5fc4079` — the refactor had
+  already healed it; the work was the eviction fence: note fixtures in
+  `structure.test.mjs`'s CORPUS plus a focused paraInNote section, and a
+  settled decision on the `list.paraInItem`/`list.paraInNote` claim.
+- **#119** (caret-follow char-scale interpolation) commit `f6bc55a` —
+  `withinBlock` + `interpolateAcrossLine` in `scrollmap.ts`, used by both
+  `syncLinkedScroll` and `followCaretInPreview`; local `lerp` removed.
+- **#120** (touchpad scroll, no app-level policy) commit `a29c5be` — the
+  designed cap was **built and torn out** by decision: the shipped answer is
+  the industry's, two halves. (1) `scrollpolicy.ts`: native deltas with one
+  honest conversion (line deltas × the *surface's* own line-height, page
+  deltas × the surface's own height), times the writer's typed
+  `scrollSpeed` setting — default `1` (native), range `0.25–4`, step
+  `0.05`, `numberRow` in the drawer + note, i18n keys both languages, read
+  per event, guarded (`NaN`/`0`/negative → native, never scroll-up).
+  (2) `overscroll-behavior-y: contain` on the six floating surfaces —
+  `styles.css`. The editor/preview panes are named by NO surface (their
+  wheel is CodeMirror's and `panescroll`'s) and also NOT contained, asserted
+  both ways in `scrollpolicy.test.mjs` (31 assertions incl. both wiring
+  fences). Two mutants killed (multiplier dropped: 3 red; guard dropped:
+  4 red). Counts moved: **13,012 assertions across 130 files**, **145
+  modules**, README rekeyed.
+
+- **#170 filed** — the typewriter clause of UAT item 6 ("looks like
+  typewriter mode is on even when unchecked") that no issue tracked. Static
+  inspection found no bug; it needs the running app (toggle on → write →
+  uncheck → does the look linger; and does a reload read the flag right).
+  The user has offered to run ksav for this.
+
+### The remaining order (from UAT.org mapping)
+
+#121, #122, #124, #125, #127–#132 (exports/menus), #126, #133,
+#135–#139, then **#134 last** (the 8-item verification pass).
+
+### Working rules (unchanged, see the 10-22 handoff below)
+
+- Environment: `nix develop /home/shaul/ksav [--command ...]`; full gate
+  needs `#desktop` + `KSAV_CHROMIUM` — current path:
+  `/nix/store/7y0iz98mpfkb18ww37gzy2sjvlha3cdg-chromium-156.0.8078.47/bin/chromium`
+  (the 152 path in older notes is gone; re-fetch with
+  `nix-shell -p chromium --run 'which chromium'` when GC eats it).
+- Gate: tsc → build → full suite → README rekey → `node tools/imports.mjs`.
+- Commit style: `module: summary — #NNN`. Design questions go to the user
+  with full context before building; the user answers them.
+- Mutant checks are expected in the closing comment for behavioural fixes.
+- `.tmp-test/` regenerates from src at every run start — patch the *source*
+  for mutant checks, never the generated chunk (silent no-op otherwise).
+
+### Open questions
+
+- The touchpad acceptance in #120's comment (item 3) wants a human on the
+  machine that reported it; re-open if it disagrees.
+- Two untracked UAT items may need new issues when reached: cursor side in
+  RTL source, endnote spacing.
+
+## Handoff — 2026-10-22 (audit closure)
 
 The main.ts split (11 waves) and the post-split audit are both done: all
 17 findings (#140–#157) are closed, each with its own commit, full gate

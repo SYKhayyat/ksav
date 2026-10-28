@@ -968,6 +968,9 @@ export const EN: Dict = {
   "typewriterAnchor.upper": "A third down",
   "typewriterAnchor.center": "Halfway down",
   "typewriterAnchor.lower": "Two thirds down",
+  scrollSpeedLabel: "Speed of the floating panes' scrolling",
+  scrollSpeedNote:
+    "1 keeps what the touchpad delivered. Lower slows panels that run fast; higher speeds up dragging. Type a number — 0.75, 1.3, whatever your hands say.",
   crashTitle: "Something broke",
   crashLede: "Your text has been saved. Download it now, then reload.",
   crashDownload: "Download my text",

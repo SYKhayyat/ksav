@@ -19,6 +19,7 @@ import { t, tf } from "./i18n";
 import { whoHolds } from "./bindings";
 import { keybindings } from "./keyhint";
 import { settings, saveSettings, docConfig, type Field, type PageSetup } from "./settings";
+import { SPEED_MIN, SPEED_MAX, SPEED_STEP } from "./scrollpolicy";
 import type { Settings } from "./settings";
 import { hasKey } from "./i18n";
 import { defersBody, BODY_HOMES, type BodyHome } from "./deferred";
@@ -738,6 +739,11 @@ export function buildSettingsDrawer(): HTMLElement {
       ["center", t("typewriterAnchor.center")],
       ["lower", t("typewriterAnchor.lower")],
     ]),
+    // #120: the wheels of the floating surfaces, in the writer's own number.
+    // Typed rather than slid, because the answer this thing exists for is
+    // granular — a touchpad that runs a third fast wants 0.75, not a preset.
+    numberRow("scrollSpeedLabel", "scrollSpeed", SPEED_MIN, SPEED_MAX, SPEED_STEP),
+    el("div", { class: "set-note" }, [t("scrollSpeedNote")]),
     checkRow("autocompleteLabel", "autocomplete"),
     checkRow("autoPairBracketsLabel", "autoPairBrackets"),
     checkRow("autoPairQuotesLabel", "autoPairQuotes"),

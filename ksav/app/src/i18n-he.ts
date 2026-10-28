@@ -1014,6 +1014,9 @@ export const HE: Dict = {
   "typewriterAnchor.upper": "שליש מלמעלה",
   "typewriterAnchor.center": "באמצע",
   "typewriterAnchor.lower": "שני שלישים מלמעלה",
+  scrollSpeedLabel: "מהירות גלילת החלוניות הצפות",
+  scrollSpeedNote:
+    "1 משאירה כמו שהרשתנית מעבירה. מספר קטן ממנה מאט למשטחים שמהירים מדי, מספר גדול מקדים לגרירה איטית. הקלידו מספר — 0.75, 1.3, מה שמגידים הידיים.",
   crashTitle: "משהו נשבר",
   crashLede: "הטקסט שלכם נשמר. הורידו אותו עכשיו, ואז טענו מחדש.",
   crashDownload: "הורדת הטקסט",

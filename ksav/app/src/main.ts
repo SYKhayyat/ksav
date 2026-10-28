@@ -186,6 +186,7 @@ import { renderPanes, refreshPaneHeads, cyclePaneZoom, gotoPart } from "./paneho
 import { narrowHere, widenHere } from "./paneview";
 import { swapPaneToward } from "./panedrag";
 import { invalidateScrollMap, followCaretInPreview } from "./panescroll";
+import { installScrollPolicy } from "./scrollpolicy";
 import {
   refreshPanes,
   selectTab,
@@ -3363,6 +3364,10 @@ async function boot() {
   // The Girsa handoff poll is girsa.ts's now (spec.md §10.6); same install
   // moment, its own file.
   installGirsaPoll();
+  // The floating surfaces' scroll policy — native deltas, one honest
+  // conversion, and the writer's own multiplier (#120), wired once at boot
+  // because the document-level listener needs no rebuild after it.
+  installScrollPolicy();
 }
 /** True when this session's autosave should be quiet. */
 

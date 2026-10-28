@@ -245,7 +245,7 @@ header {
   position: absolute; top: 36px; inset-inline-start: 0; z-index: var(--z-menu);
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 12px 30px rgba(0,0,0,.18); min-width: 240px; padding: 6px;
-  display: none; max-height: 70vh; overflow: auto;
+  display: none; max-height: 70vh; overflow: auto; overscroll-behavior-y: contain;
 }
 .menu-list.open { display: block; }
 .menu-item {
@@ -425,6 +425,7 @@ main { flex: 1; display: flex; min-height: 0; direction: ltr; }
 .preview-modal-box {
   width: min(900px, 94vw); max-height: 88vh; overflow: auto; background: var(--bg);
   border-radius: 12px; padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.4);
+  overscroll-behavior-y: contain;
 }
 .pane-head {
   font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
@@ -619,6 +620,11 @@ body.dragging-pane * { cursor: grabbing !important; }
      the head parked 16px down and the text scrolled through the gap. */
   padding: 0 18px 16px;
   transition: transform .2s; overflow: auto;
+  /* One gesture stops at this surface instead of scrolling the document it
+     floats over — the platform's own boundary for exactly the shape #120
+     described: a drawer full-height and open over a page, where a touch at the
+     edge used to keep going into the sefer behind it. */
+  overscroll-behavior-y: contain;
   /* hidden off-screen toward the anchored (inline-end) edge */
   transform: translateX(100%);
 }
@@ -724,7 +730,7 @@ body.dragging-pane * { cursor: grabbing !important; }
   background: var(--panel); color: var(--ink); font-family: var(--hebrew);
   border-bottom: 1px solid var(--line);
 }
-#palette-list, #history-list { max-height: 52vh; overflow: auto; padding: 6px; }
+#palette-list, #history-list { max-height: 52vh; overflow: auto; padding: 6px; overscroll-behavior-y: contain; }
 .history-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 12px 14px; border-bottom: 1px solid var(--line);
@@ -1780,6 +1786,7 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
   position: fixed; inset: 0; z-index: var(--z-crash); overflow: auto;
   background: var(--panel); color: var(--ink);
   padding: 28px 26px; font-family: var(--hebrew);
+  overscroll-behavior-y: contain;
 }
 #crash-panel h3 { margin: 0 0 6px; font-size: 20px; }
 #crash-panel p { margin: 0 0 16px; color: var(--muted); }

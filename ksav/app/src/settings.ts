@@ -575,6 +575,11 @@ export interface Settings {
    *                the pane until the compile lands.
    */
   tabCompile?: "keep" | "idle" | "onSwitch";
+  // How fast the floating surfaces (drawers, menus, lists) follow a wheel, as a
+  // multiple of what the platform delivered. 1 is native — what every desktop
+  // app does — and anything else is the writer's answer to the touchpad this
+  // machine really has. See `scrollpolicy.ts`.
+  scrollSpeed?: number;
   // Dim everything but the paragraph being written, and keep the caret line
   // vertically centred.
   focusMode?: boolean;
@@ -627,6 +632,7 @@ export const DEFAULTS: Settings = {
   focusMode: false,
   typewriter: false,
   typewriterAnchor: "center",
+  scrollSpeed: 1,
   checkUpdates: true,
   autocomplete: true,
   autoPairBrackets: true,

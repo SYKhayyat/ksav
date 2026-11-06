@@ -269,6 +269,8 @@ export const LOGS = {
     "The session log: one append-only file holding a dated entry per working session, each true on its date and never edited afterwards. Its counts are measurements of that day and are stale by definition.",
   "issue-notes.md":
     "The same lifecycle as the session log, and it was found by the same kind of red suite: a dated note saying *\"Current local fix restored `all 100 bindings`\"* is a **measurement of 27 August**, and the fence read it as a claim about today — which is #81's failure again, in the one file that was not in this list. Editing the number to 102 would make the fence green and the record a lie, and the note's own text says *\"Leave issue/PR state unchanged per request.\"* So the file is exempted for the reason the entry above gives: its dates are in its body rather than in its name.",
+  "HANDOFF.md":
+    "The working brief, and it is the session log's twin: a `## Current handoff — <date>` per sitting, appended and never edited, each recording what was done and the counts at the time. *\"Counts moved: 13,012 assertions across 130 files\"* under the 2026-10-28 entry is a **measurement of that day**, and the fence read it as a claim about today — #81's failure again. Rewriting the number to today's would make the fence green and the record a lie about a past sitting. Dated in its body rather than in its name, exactly like the two entries above.",
 };
 
 /** Does this exemption cover that page? A trailing `/` means the directory. */

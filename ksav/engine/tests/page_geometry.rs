@@ -61,6 +61,11 @@ fn a_named_paper_is_the_size_it_names() {
         about(w, 14.8) && about(h, 21.0),
         "A5 came out {w:.2}×{h:.2}"
     );
+
+    // The rest of the table — and that every name in it lays out — is
+    // `tests/paper_table.rs` (#106), which renders each paper off `PAPERS`
+    // instead of naming two here. This test stays as the plain statement that a
+    // named paper is its own size; that one is the fence over the whole table.
 }
 
 #[test]

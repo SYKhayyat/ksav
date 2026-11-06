@@ -276,6 +276,7 @@ export const PARAM_EN: Readonly<Record<string, string>> = {
   "יישור": "align",
   "רוחב_עמוד": "page_width",
   "גובה_עמוד": "page_height",
+  "נייר_רוחב": "paper_width",
   "משקל": "weight",
   "נייר": "paper",
   "שוליים": "margin",
@@ -595,6 +596,68 @@ export const HEBREW = {
  * Sefaria titles. Same feature, two doors, two documents.
  */
 export const MARKUP_ESCAPES = "#[]\\$*_<>@";
+
+/**
+ * Every paper the product offers, as `engine/src/lib.rs` measures it.
+ *
+ * **The fourth copy of the paper-size table (#106), and the one the audit
+ * missed.** `exports.ts` carried `PAPER_CSS`: four papers, no B5, no Legal,
+ * no A6, and an A4 fallback for anything else — so a sefer set on B5 exported
+ * to Word with `@page { size: 21cm 29.7cm }` and printed on A4. Two languages,
+ * one table, and the Word envelope named a sheet the engine would never lay out.
+ *
+ * `css` is the value the `@page` rule wants; `w_cm`/`h_cm` are the
+ * numbers the laid-out page is fenced against, so `exports.test.mjs` can
+ * compare this table to the engine's rather than trusting it.
+ */
+/**
+ * One paper the product offers, as `engine/src/lib.rs` measures it.
+ *
+ * `name` is the canonical spelling the engine, the drawer and `#מסמך(נייר:)`
+ * all use. `label` is what a chooser shows. `css` is the `size` value for
+ * a `@page` rule, in centimetres — the Word and HTML envelopes read it.
+ */
+export interface Paper {
+  readonly name: string;
+  readonly label: string;
+  readonly css: string;
+  readonly w_cm: number;
+  readonly h_cm: number;
+}
+
+export const PAPERS: readonly Paper[] = [
+  { name: "a4", label: "A4", css: "21cm 29.7cm", w_cm: 21, h_cm: 29.7 },
+  { name: "us-letter", label: "Letter", css: "21.59cm 27.94cm", w_cm: 21.59, h_cm: 27.94 },
+  { name: "us-legal", label: "Legal", css: "21.59cm 35.56cm", w_cm: 21.59, h_cm: 35.56 },
+  { name: "a3", label: "A3", css: "29.7cm 42cm", w_cm: 29.7, h_cm: 42 },
+  { name: "a5", label: "A5", css: "14.8cm 21cm", w_cm: 14.8, h_cm: 21 },
+  { name: "a6", label: "A6", css: "10.5cm 14.8cm", w_cm: 10.5, h_cm: 14.8 },
+  { name: "a2", label: "A2", css: "42cm 59.4cm", w_cm: 42, h_cm: 59.4 },
+  { name: "iso-b4", label: "B4", css: "25cm 35.3cm", w_cm: 25, h_cm: 35.3 },
+  { name: "iso-b5", label: "B5", css: "17.6cm 25cm", w_cm: 17.6, h_cm: 25 },
+  { name: "iso-b6", label: "B6", css: "12.5cm 17.6cm", w_cm: 12.5, h_cm: 17.6 },
+];
+
+/**
+ * The old spellings of a paper, and the canonical name each means.
+ *
+ * Typst's `paper:` is a closed enum that rejects `b5` and `letter`, so the
+ * engine canonicalises them (#106) — but a `.ksav` file or share link written
+ * before that still says `b5`, and the chooser must mark B5 selected rather
+ * than showing A4. `paperName` is the one reading of this map.
+ */
+export const PAPER_ALIASES: Readonly<Record<string, string>> = {
+  "b4": "iso-b4",
+  "b5": "iso-b5",
+  "b6": "iso-b6",
+  "letter": "us-letter",
+};
+
+/** The canonical name of a paper, resolving the spellings the engine accepts. */
+export function paperName(name: string): string {
+  const clean = name.toLowerCase().replace(/[^a-z0-9-]/g, "");
+  return PAPER_ALIASES[clean] ?? clean;
+}
 
 /**
  * One template, as the engine's `templates::Template` is shaped.

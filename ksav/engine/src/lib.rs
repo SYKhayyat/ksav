@@ -570,6 +570,15 @@ const MIN_TEXT_CM: f64 = 1.0;
 ///
 /// An explicit pair, else the named paper, else A4 — the same precedence the
 /// prelude uses, so a margin is bounded by the page that will actually obey it.
+///
+/// The `unwrap_or` is **not** a silent A4 (#106). Every name that reaches
+/// `assemble_source` has already been through [`typst_paper`], which is the
+/// reader's one chance to reject an unknown name; by the time a margin is being
+/// bounded the name is known, and the fallback only covers a direct caller of
+/// this helper in a test. The agreement between this and its sibling is what
+/// used to be absent — this read `&cfg.paper` raw while `sheet_height_cm` read
+/// the sanitised one, so the two could bound the same margin against two pages.
+/// They both read `&cfg.paper` now, and `paper_cm_of` sanitises for itself.
 fn sheet_cm_of(cfg: &DocConfig) -> (f64, f64) {
     match (cfg.page_width_cm, cfg.page_height_cm) {
         (Some(w), Some(h)) => (w, h),
@@ -577,26 +586,93 @@ fn sheet_cm_of(cfg: &DocConfig) -> (f64, f64) {
     }
 }
 
+/// The width of a named paper as a Typst length literal, for the prelude.
+///
+/// The continuous (`רציף`) path needs a width to set `height: auto` against, and
+/// it used to look it up in a second table in `ksav.typ` — `_pg_paper_width` —
+/// that knew three papers and answered 210 mm for the other seven. So a
+/// continuous A2 sefer was laid out on a 210 mm column, and a continuous B5 on
+/// 210 mm as well, both silently. The engine now answers the width from the one
+/// table and hands it over as `נייר_רוחב`; the prelude has no table of its own
+/// to disagree with.
+///
+/// Public because the fence in `tests/paper_table.rs` measures the continuous
+/// page against this width.
+pub fn paper_width_cm_typst(paper: &str) -> String {
+    let w = paper_cm_of(paper).map(|(w, _)| w).unwrap_or(21.0);
+    format!("{w}cm")
+}
+
+/// The named paper's dimensions as a CSS `size` value, for the Word export.
+///
+/// The fourth copy of the table that #106 did not know about: `exports.ts`
+/// carried `PAPER_CSS` with four papers for the `@page` rule, so a B5 sefer
+/// exported to Word printed on A4. The front end has no way to import this
+/// module's table, so the value is written into `engine.gen.ts` by
+/// `app/tools/emit-engine.mjs` from `src/facts.rs`, which reads this function.
+/// One definition, one generator, no second copy.
+pub fn paper_css(paper: &str) -> String {
+    match paper_cm_of(paper) {
+        Some((w, h)) => format!("{w}cm {h}cm"),
+        None => "21cm 29.7cm".to_string(),
+    }
+}
+
+/// Every paper the product offers, canonical spelling, in the order a chooser
+/// should list them. The one list the drawer, the generator and the fences share.
+pub const PAPERS: &[&str] = &[
+    "a4",
+    "us-letter",
+    "us-legal",
+    "a3",
+    "a5",
+    "a6",
+    "a2",
+    "iso-b4",
+    "iso-b5",
+    "iso-b6",
+];
+
 fn paper_height_cm(paper: &str) -> Option<f64> {
     paper_cm_of(paper).map(|(_, h)| h)
 }
 
+/// Both dimensions of a named paper, in centimetres — the public reading of the
+/// one table, for a fence that compares the laid-out page against it.
+///
+/// The test needs the table *and* the rendering, and the only honest assertion is
+/// that they agree; a test that re-states the numbers checks its own copy.
+pub fn paper_size_cm(paper: &str) -> Option<(f64, f64)> {
+    paper_cm_of(paper)
+}
+
 /// Both dimensions of a named paper, in centimetres.
 ///
-/// The same list `paper_height_cm` always had, now with the width beside it —
-/// which is what a *margin* needs, since a top margin is bounded by the height and
-/// an inner one by the width. Two tables would have been two lists to keep in
-/// step, and this one already had to exist.
+/// **This is the one paper-size table in the product (#106).** It used to be the
+/// second of three: `_pg_paper_width` in the prelude carried its own copy for the
+/// continuous path and agreed with this one on three of ten papers, and
+/// `PAPER_CSS` in `exports.ts` carried a third for Word export. Every one of them
+/// is now derived from here: the prelude is *sent* the width by
+/// [`paper_width_cm_typst`], and the export reads [`paper_css`].
+///
+/// The sizes are Typst's, deliberately — `tests/paper_table.rs` renders each name
+/// through Typst's own `paper:` and fails if any entry here disagrees, so this
+/// table cannot drift from the compiler that lays the page out.
+///
+/// The keys are the **canonical** spellings, post-[`sanitize_paper`]: `iso-b5`,
+/// not `b5`. That split is the whole of the fix — `b5` used to be here under a
+/// name Typst refuses, so the two tables could never be compared and the page
+/// came out A4 (or, in continuous mode, A4-wide) with nothing reporting it.
 fn paper_cm_of(paper: &str) -> Option<(f64, f64)> {
-    Some(match paper {
-        "a2" => (42.0, 42.0),
+    Some(match sanitize_paper(paper).as_str() {
+        "a2" => (42.0, 59.4),
         "a3" => (29.7, 42.0),
         "a4" => (21.0, 29.7),
         "a5" => (14.8, 21.0),
         "a6" => (10.5, 14.8),
-        "b4" => (25.0, 35.3),
-        "b5" => (17.6, 25.0),
-        "b6" => (12.5, 17.6),
+        "iso-b4" => (25.0, 35.3),
+        "iso-b5" => (17.6, 25.0),
+        "iso-b6" => (12.5, 17.6),
         "us-letter" => (21.59, 27.94),
         "us-legal" => (21.59, 35.56),
         _ => return None,
@@ -612,7 +688,7 @@ fn paper_cm_of(paper: &str) -> Option<(f64, f64)> {
 fn sheet_height_cm(cfg: &DocConfig) -> Option<f64> {
     match (cfg.page_width_cm, cfg.page_height_cm) {
         (Some(_), Some(h)) => Some(h),
-        _ => paper_height_cm(&sanitize_paper(&cfg.paper)),
+        _ => paper_height_cm(&cfg.paper),
     }
 }
 
@@ -1196,6 +1272,22 @@ fn spec_refusals_of(cfg: &DocConfig) -> Vec<SpecRefusal> {
             out.push(page_spec_refusal(cfg, token));
         }
     }
+    // A paper name the engine does not have. This used to be invisible: the name
+    // was passed to Typst's closed `paper:` enum, which rejects `b5` (the name
+    // the product itself published) with a syntax error about `#מסמך` that never
+    // mentioned the paper — and the margin bound read a *different* lookup that
+    // silently answered A4. Now the name is resolved here, one way, and one it
+    // cannot resolve is named as the setting that is wrong (#106).
+    if paper_cm_of(&cfg.paper).is_none() && !cfg.paper.trim().is_empty() {
+        out.push(SpecRefusal {
+            key: "paper".into(),
+            asked: cfg.paper.clone(),
+            used: format!(
+                "the page is A4; the names it knows are {}",
+                PAPERS.join(", ")
+            ),
+        });
+    }
     out
 }
 
@@ -1236,13 +1328,6 @@ fn spec_refusal_diagnostic(r: &SpecRefusal) -> Diagnostic {
     )
 }
 
-/// A paper name safe to place inside a Typst string literal.
-///
-/// Typst paper names are lowercase ASCII with hyphens and digits — `a4`,
-/// `us-letter`, `presentation-16-9`. Anything else is dropped rather than
-/// escaped: this value is interpolated into the prelude, and `paper: "a4\"`
-/// used to close the literal early and fail the whole document with "unclosed
-/// delimiter" pointing at the prelude instead of at the setting.
 /// A language tag reduced to what Typst will actually accept: an ISO 639
 /// two- or three-letter code, e.g. `en`, `he`, `yid`.
 ///
@@ -1253,6 +1338,9 @@ fn spec_refusal_diagnostic(r: &SpecRefusal) -> Diagnostic {
 /// never wrote, over a setting they may not know exists. Same rule as the
 /// numeric fields: refuse the impossible value here, where it can still be
 /// ignored, rather than pass it on and blank someone's document.
+///
+/// (A paper note used to sit above this function, having drifted off
+/// [`sanitize_paper`] — which is where the Typst-literal safety argument lives.)
 fn sanitize_lang(l: &str) -> String {
     // A region subtag is a legitimate thing to send (`pt-BR`); Typst carries it
     // separately, so keep the language and drop the rest rather than refusing.
@@ -1285,11 +1373,80 @@ pub fn effective_lang(cfg: &DocConfig) -> &str {
     }
 }
 
+/// The one spelling of a paper name the rest of the engine uses.
+///
+/// Strips anything that is not a letter, a digit or a dash, lowercases, and then
+/// The spellings that mean a sheet this product already has, under another name.
+///
+/// `(alias, canonical)`. Every pair here exists because some real surface says
+/// the left and the engine says the right: `.ksav` files and share links written
+/// before #106 say `b5` and `letter`, and Typst's `paper:` — a closed enum that
+/// rejects `b5` outright — says `iso-b5` and `us-letter`. One table, so the
+/// client's chooser and the engine's sanitiser resolve an old name the same way.
+pub const PAPER_ALIASES: &[(&str, &str)] = &[
+    // ISO B-series: the product has always called these `b4`/`b5`/`b6`, and
+    // Typst spells the identical sheet `iso-b4`/`iso-b5`/`iso-b6`.
+    ("b4", "iso-b4"),
+    ("b5", "iso-b5"),
+    ("b6", "iso-b6"),
+    // `letter` is US Letter; there is no other letter in this table, and Typst's
+    // own name for it is `us-letter`.
+    ("letter", "us-letter"),
+];
+
+/// The paper name, canonical, and guaranteed to be one Typst accepts.
+///
+/// `typst`'s `paper:` is a **closed enum**: a name that is not in it does not
+/// fall back to A4, it fails the whole compile with a syntax error about
+/// `#מסמך` that never mentions the paper. So an unrecognised name is replaced
+/// here by A4 — which is what [`spec_refusals_of`] already says the page is —
+/// and the writer is told which setting is wrong by the warning beside it. The
+/// alternative is a document that refuses to compile over a misspelling, with a
+/// message pointing at the prelude.
+fn typst_paper(name: &str) -> String {
+    let clean = sanitize_paper(name);
+    if paper_cm_of(&clean).is_some() {
+        clean
+    } else {
+        "a4".to_string()
+    }
+}
+
+/// The one spelling of a paper name the rest of the engine uses.
+///
+/// Strips anything that is not a letter, a digit, a dash, a space or an
+/// underscore, lowercases, joins words with a dash, and then resolves the
+/// spellings that mean the same sheet under a different name. This is the alias
+/// layer, and it exists because Typst's `paper:` parameter is a **closed enum**
+/// — it accepts `iso-b5` and rejects `b5` with a syntax error — while the
+/// product's own table, the settings drawer and every `.ksav` file written
+/// before this fix say `b5`. A name that means a real sheet but is spelled the
+/// old way is translated here, once, rather than at each of the four call sites
+/// that used to disagree about whether to sanitise at all (#106).
+///
+/// It is also the guard that keeps the name safe to place inside a Typst string
+/// literal: the result is lowercase ASCII letters, digits and hyphens, so a
+/// `paper: "a4\"` cannot close the literal early and fail the whole document
+/// with "unclosed delimiter" pointing at the prelude instead of at the setting.
 fn sanitize_paper(p: &str) -> String {
-    p.chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+    // A space or an underscore between words is a *separator*, not noise: a
+    // hand-edited file writing `US Letter` must be US Letter, and stripping the
+    // space instead produced `usletter` — a name that matches nothing and would
+    // lay the sefer out on A4. Every other strip is the injection guard in the
+    // comment above.
+    let clean: String = p
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == ' ' || *c == '_')
         .collect::<String>()
         .to_ascii_lowercase()
+        .split([' ', '_'])
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    match PAPER_ALIASES.iter().find(|(from, _)| *from == clean) {
+        Some((_, to)) => (*to).to_string(),
+        None => clean,
+    }
 }
 
 impl DocConfig {
@@ -2077,6 +2234,7 @@ fn show_rule_with(body: &str, cfg: &DocConfig, band_of: Option<&str>) -> String 
         "#show: מסמך.with(\
          גופן: {font}, גודל: {size}pt, שוליים: {margin}cm, כיוון: {dir}, שפה: {lang}, \
          מספור: {numbering}, מספור_עברי: {hebrew_num}, נייר: {paper}, \
+         נייר_רוחב: {paper_w}, \
          רוחב_עמוד: {page_w}, גובה_עמוד: {page_h}, \
          כותרת_עליונה: {header}, כותרת_תחתונה: {footer}, \
          שוליים_עליון: {m_top}, שוליים_תחתון: {m_bot}, \
@@ -2121,7 +2279,8 @@ fn show_rule_with(body: &str, cfg: &DocConfig, band_of: Option<&str>) -> String 
         } else {
             "false"
         },
-        paper = typst_str(&sanitize_paper(&cfg.paper)),
+        paper = typst_str(&typst_paper(&cfg.paper)),
+        paper_w = paper_width_cm_typst(&cfg.paper),
         header = typst_str_or_none(&cfg.header),
         footer = typst_str_or_none(&cfg.footer),
         // One parameter carrying both readings of one control: `true`/`false`
@@ -5158,8 +5317,20 @@ mod tests {
     fn a_paper_name_is_reduced_to_something_typst_can_read() {
         assert_eq!(sanitize_paper("A4"), "a4");
         assert_eq!(sanitize_paper("us-letter"), "us-letter");
-        assert_eq!(sanitize_paper("a4\\\" ,x: \"y"), "a4xy");
+        // The injection guard: quotes, a backslash and a comma all go, and what
+        // is left cannot close the Typst literal it is interpolated into.
+        assert_eq!(sanitize_paper("a4\\\" ,x: \"y"), "a4-x-y");
         assert_eq!(sanitize_paper("\"\\"), "");
+        // #106: the spellings that mean a sheet this product has.
+        assert_eq!(sanitize_paper("b5"), "iso-b5");
+        assert_eq!(sanitize_paper("B5"), "iso-b5");
+        assert_eq!(sanitize_paper("letter"), "us-letter");
+        // A separator is a separator, not noise — a hand-edited `US Letter`
+        // must not become the unmatchable `usletter` and fall back to A4.
+        assert_eq!(sanitize_paper("US Letter"), "us-letter");
+        assert_eq!(sanitize_paper("us_letter"), "us-letter");
+        // The canonical names are left exactly alone.
+        assert_eq!(sanitize_paper("iso-b5"), "iso-b5");
     }
 
     #[test]

@@ -1825,6 +1825,96 @@
     "lang"
   ],
   "markup_escapes": "#[]\\$*_<>@",
+  "papers": [
+    {
+      "name": "a4",
+      "label": "A4",
+      "css": "21cm 29.7cm",
+      "w_cm": 21.0,
+      "h_cm": 29.7
+    },
+    {
+      "name": "us-letter",
+      "label": "Letter",
+      "css": "21.59cm 27.94cm",
+      "w_cm": 21.59,
+      "h_cm": 27.94
+    },
+    {
+      "name": "us-legal",
+      "label": "Legal",
+      "css": "21.59cm 35.56cm",
+      "w_cm": 21.59,
+      "h_cm": 35.56
+    },
+    {
+      "name": "a3",
+      "label": "A3",
+      "css": "29.7cm 42cm",
+      "w_cm": 29.7,
+      "h_cm": 42.0
+    },
+    {
+      "name": "a5",
+      "label": "A5",
+      "css": "14.8cm 21cm",
+      "w_cm": 14.8,
+      "h_cm": 21.0
+    },
+    {
+      "name": "a6",
+      "label": "A6",
+      "css": "10.5cm 14.8cm",
+      "w_cm": 10.5,
+      "h_cm": 14.8
+    },
+    {
+      "name": "a2",
+      "label": "A2",
+      "css": "42cm 59.4cm",
+      "w_cm": 42.0,
+      "h_cm": 59.4
+    },
+    {
+      "name": "iso-b4",
+      "label": "B4",
+      "css": "25cm 35.3cm",
+      "w_cm": 25.0,
+      "h_cm": 35.3
+    },
+    {
+      "name": "iso-b5",
+      "label": "B5",
+      "css": "17.6cm 25cm",
+      "w_cm": 17.6,
+      "h_cm": 25.0
+    },
+    {
+      "name": "iso-b6",
+      "label": "B6",
+      "css": "12.5cm 17.6cm",
+      "w_cm": 12.5,
+      "h_cm": 17.6
+    }
+  ],
+  "paper_aliases": [
+    [
+      "b4",
+      "iso-b4"
+    ],
+    [
+      "b5",
+      "iso-b5"
+    ],
+    [
+      "b6",
+      "iso-b6"
+    ],
+    [
+      "letter",
+      "us-letter"
+    ]
+  ],
   "param_en": {
     "global": [
       [
@@ -1854,6 +1944,10 @@
       [
         "page_height",
         "גובה_עמוד"
+      ],
+      [
+        "paper_width",
+        "נייר_רוחב"
       ],
       [
         "weight",

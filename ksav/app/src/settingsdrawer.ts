@@ -32,6 +32,7 @@ import * as files from "./files";
 import { snapshotNote, editingModeNote, spellCoverageNote } from "./spellcheck";
 import * as update from "./update";
 import { BUNDLED_NOTICES } from "./engine.gen";
+import { PAPERS, paperName } from "./engine.gen";
 import { hintFor, hintIsMode } from "./keyhint";
 import { setStatus } from "./runtime";
 import * as spellN from "./spell";
@@ -537,13 +538,8 @@ export function buildSettingsDrawer(): HTMLElement {
   const paperSel = el(
     "select",
     { onChange: (e: Event) => settingsWiring().write("paper", (e.target as HTMLSelectElement).value as never) },
-    [
-      ["a4", "A4"],
-      ["us-letter", "Letter"],
-      ["a5", "A5"],
-      ["a3", "A3"],
-    ].map(([v, lbl]) =>
-      el("option", { value: v, ...(docConfig().paper === v ? { selected: "selected" } : {}) }, [lbl]),
+    PAPERS.map(({ name, label }) =>
+      el("option", { value: name, ...(paperName(docConfig().paper) === name ? { selected: "selected" } : {}) }, [label]),
     ),
   );
   // The writer's own words, listed so a mistaken "add to dictionary" can be

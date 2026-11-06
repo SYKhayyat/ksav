@@ -17,6 +17,7 @@ import {
 } from "./channels";
 import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
 import { download, escapeAttr } from "./dom";
+import { PAPERS, paperName } from "./engine.gen";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
 import { toOrg } from "./org";
@@ -261,12 +262,16 @@ export async function exportHtml() {
 // apparatus in Word anyway. `wordFlattenNote` says so rather than letting it be
 // discovered.
 
-const PAPER_CSS: Record<string, string> = {
-  a4: "21cm 29.7cm",
-  "us-letter": "8.5in 11in",
-  a5: "14.8cm 21cm",
-  a3: "29.7cm 42cm",
-};
+// This used to be a `PAPER_CSS` table here — four papers, and A4 for the rest.
+// It was the **fourth** copy of the paper-size table (#106): `lib.rs::paper_cm_of`,
+// the prelude's `_pg_paper_width`, and this one, in three languages, disagreeing.
+// A sefer set on B5 exported to Word with `@page { size: 21cm 29.7cm }` and
+// printed on A4 — the Word envelope naming a sheet the engine would never lay
+// out, and nothing anywhere saying so. `PAPERS` is generated from the engine's
+// one table now, so the envelope cannot name a different sheet from the page.
+function paperCss(name: string): string {
+  return PAPERS.find((p) => p.name === paperName(name))?.css ?? PAPERS[0].css;
+}
 
 /**
  * Wrap reflowable HTML in the envelope Word looks for.
@@ -281,7 +286,7 @@ function wordEnvelope(inner: string, styles: string): string {
   // The document's own page setup (B26): an export is of a sefer, and which
   // paper and direction that sefer is on is a fact about it.
   const page = docConfig();
-  const size = PAPER_CSS[page.paper] ?? PAPER_CSS.a4;
+  const size = paperCss(page.paper);
   const dir = page.dir;
   return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${escapeAttr(runtime.currentDoc?.title ?? "Ksav")}</title>

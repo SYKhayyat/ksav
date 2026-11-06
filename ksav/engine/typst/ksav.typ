@@ -32,6 +32,11 @@
   // page and text
   size: "גודל", font: "גופן", colour: "צבע", color: "צבע", align: "יישור",
   page_width: "רוחב_עמוד", page_height: "גובה_עמוד",
+  // The width of the named paper, sent by the engine from its one table (#106).
+  // Nobody writes this by hand — it exists because the continuous path needs the
+  // width when it sets `height: auto` — but every `מסמך` parameter is reachable
+  // in both languages, and `tests/english_commands.rs` holds that.
+  paper_width: "נייר_רוחב",
   weight: "משקל", paper: "נייר", margin: "שוליים", lang: "שפה", dir: "כיוון",
   thickness: "עובי",
   // Which structural level a count starts again at — one word for the notes
@@ -2416,23 +2421,12 @@
 // point another way: a bare `#מקטע_עמוד`, a `margin: auto`, a single length for
 // all four edges. Typst's own `auto` margin is 2.5/21 of the shorter side, which
 // is where that ratio comes from — it is not a guess.
-/// How wide a named paper is.
-///
-/// Only needed by the continuous mode, which sets `height: auto` — and Typst's
-/// `paper:` and `width:`/`height:` are alternative spellings of one setting, so
-/// asking for one page dimension means giving the other. The four a sefer is
-/// actually set on, and the fallback is A4, which is this product's default and
-/// what a writer naming something exotic already gets when they misspell it.
-#let _pg_paper_width(name) = if name == "a3" {
-  297mm
-} else if name == "a5" {
-  148mm
-} else if name in ("us-letter", "letter") {
-  216mm
-} else {
-  210mm
-}
-
+//
+// There used to be a `_pg_paper_width(name)` here — a second paper-size table,
+// three papers wide, that answered 210 mm for the other seven and so laid a
+// continuous A2, A6, B5 or Legal sefer out on A4's width without saying so.
+// The engine sends the width (`נייר_רוחב`) from its one table now (#106); a
+// table in this file again would be the bug coming back.
 
 /// The last y a note may occupy on this page, or `none` when there is no bottom
 /// — `page(height: auto)`, which is the digital output mode, where the page
@@ -7395,6 +7389,16 @@
   מספור: true,
   מספור_עברי: false,
   נייר: "a4",
+  // The width of that paper, sent by the engine from its one table.
+  //
+  // The continuous path sets `height: auto` and therefore has to name the other
+  // dimension, and it used to read a second table of its own that knew `a3`,
+  // `a5` and `us-letter` and answered **210 mm for everything else** — so a
+  // continuous A2, A6, B5 or Legal sefer was laid out on A4's width, silently.
+  // There is one table now (#106) and it lives in the engine; this parameter is
+  // how it reaches the page, so the two cannot drift because there is nothing
+  // to drift from.
+  נייר_רוחב: 21cm,
   // A page size in centimetres, when a named paper is not what is wanted.
   //
   // **Both or neither.** Typst's `width`/`height` override `paper:` entirely,
@@ -7594,7 +7598,7 @@
     // a stated width, not an infinite plane — so the named paper or the given
     // width sets it and only the height goes to `auto`.
     (
-      width: if רוחב_עמוד != none { רוחב_עמוד } else { _pg_paper_width(נייר) },
+      width: if רוחב_עמוד != none { רוחב_עמוד } else { נייר_רוחב },
       height: auto,
     )
   } else if רוחב_עמוד != none and גובה_עמוד != none {

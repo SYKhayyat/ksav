@@ -176,6 +176,65 @@ fn hebrew_facts() -> HebrewFacts {
     }
 }
 
+/// One paper the product offers, as the engine states it.
+///
+/// The fourth copy of the paper-size table (#106) hid in `exports.ts` as
+/// `PAPER_CSS`, four papers wide, so a B5 sefer exported to Word carried
+/// `@page { size: 21cm 29.7cm }` — A4 — and printed wrong. The front end cannot
+/// import `src/lib.rs`, so the table crosses here, generated like the rest, and
+/// `exports.ts` reads it instead of holding its own.
+#[derive(Serialize)]
+pub struct PaperFact {
+    /// The canonical name — what `_pg_paper_width`, the drawer and this agree on.
+    pub name: &'static str,
+    /// The label a chooser shows.
+    pub label: &'static str,
+    /// The CSS `size` value for an export, in centimetres.
+    pub css: String,
+    /// Width and height in centimetres, for a fence to compare against.
+    pub w_cm: f64,
+    pub h_cm: f64,
+}
+
+/// Every paper the product offers, measured from the one table.
+///
+/// `PAPERS` is the list of names; the dimensions come from `paper_cm_of`, so
+/// adding a name in one place adds it everywhere, and a name with no entry
+/// panics here rather than exporting A4 silently.
+fn paper_facts() -> Vec<PaperFact> {
+    crate::PAPERS
+        .iter()
+        .map(|name| {
+            let (w_cm, h_cm) = crate::paper_cm_of(name)
+                .unwrap_or_else(|| panic!("{name} is in PAPERS and not in paper_cm_of"));
+            PaperFact {
+                name,
+                label: paper_label(name),
+                css: crate::paper_css(name),
+                w_cm,
+                h_cm,
+            }
+        })
+        .collect()
+}
+
+/// The label a paper chooser shows: the name in the spelling a writer reads.
+fn paper_label(name: &str) -> &'static str {
+    match name {
+        "a2" => "A2",
+        "a3" => "A3",
+        "a4" => "A4",
+        "a5" => "A5",
+        "a6" => "A6",
+        "iso-b4" => "B4",
+        "iso-b5" => "B5",
+        "iso-b6" => "B6",
+        "us-letter" => "Letter",
+        "us-legal" => "Legal",
+        _ => "A4",
+    }
+}
+
 /// The field names of one `Template`, as serde writes them.
 ///
 /// A real one and not a synthesised value: `TEMPLATES` is never empty (the
@@ -237,6 +296,20 @@ pub struct Facts {
     /// five it was missing — `* _ < > @` — are strong, emph, a label and a ref,
     /// and Sefaria titles contain them. See `src/escape.rs`.
     pub markup_escapes: String,
+    /// Every paper the product offers, with its label and its CSS `size`.
+    /// The paper-size table written twice, in two languages, disagreeing (#106).
+    /// `exports.ts`'s `PAPER_CSS` was the copy the audit missed: four papers,
+    /// no B5, no Legal, and an A4 fallback. It is generated from
+    /// `lib.rs::paper_cm_of` now, so the Word envelope and the laid-out page
+    /// cannot name two different sheets.
+    pub papers: Vec<PaperFact>,
+    /// The old spellings and the canonical one each means, `(alias, canonical)`.
+    ///
+    /// The client's chooser has to mark the right row selected for a document
+    /// that still says `b5`, and getting that wrong is a chooser that shows A4
+    /// for a B5 sefer — the same silent substitution this issue is about, moved
+    /// into the UI. Generated so both sides share one list.
+    pub paper_aliases: &'static [(&'static str, &'static str)],
     /// The English parameter vocabulary: the flat `_en_params` table and every
     /// `_en` wrapper's `extra:`, as Typst's parse of the prelude states them.
     ///
@@ -296,6 +369,8 @@ pub fn facts() -> Facts {
         hebrew: hebrew_facts(),
         template_fields: template_fields(),
         markup_escapes: crate::escape::MARKUP.iter().collect(),
+        papers: paper_facts(),
+        paper_aliases: crate::PAPER_ALIASES,
         param_en: crate::diagnostics::param_tables(crate::PRELUDE),
         command_en: crate::diagnostics::command_aliases(crate::PRELUDE),
     }

@@ -597,6 +597,19 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: ksav/app/package-lock.json
+      # The frontend's dependencies, because `shell-render` builds the app.
+      #
+      # This job installed Node and no packages, so `npm run build` inside
+      # `app/tools/render-check.mjs` ran `tsc` against an empty `node_modules`
+      # and failed on every `@codemirror/*` import (TS2307, TS7006 for the
+      # implicit `any` that follows). It went unnoticed because an earlier
+      # `tsconfig` error — `baseUrl` removed in the TypeScript that `npm ci`
+      # resolves — failed first and pointed at the config instead of the tree.
+      - name: Install the frontend's dependencies
+        working-directory: ./ksav/app
+        run: npm ci
       # Compiles the Tauri commands, lints them, formats them, and runs the
       # path-allowlist and deep-link tests. The bundlers are release.yml's job;
       # this only has to prove the shell builds. Clippy came with the runner —

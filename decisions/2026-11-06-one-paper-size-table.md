@@ -106,3 +106,19 @@ paper width reintroduced in `ksav.typ` (red), and the `b5` alias dropped (red).
 The `english_commands` fence also caught the new parameter: every `מסמך`
 parameter must have an English spelling, so `paper_width: "נייר_רוחב"` was
 added to `_en_params`.
+
+## Found on the way, and filed rather than folded in
+
+The `desktop shell` CI job was red on `main` before this work and had been for
+days. Two layers of it were fixed here because they blocked the gate and were
+unambiguous — `tsconfig.json` using `baseUrl`, which the TypeScript the job
+actually ran rejects, and the job installing Node but never the frontend's
+dependencies. A third layer surfaced once those were gone: the webview under the
+CI runner never answers within the check's 25-second budget. That is not
+slowness (the same check answers in about 1 s here, on a real display and under
+Xvfb), so raising the timeout was rejected — it would turn a 25-second false
+failure into a 60-second one. Filed as #171 rather than guessed at.
+
+The lesson is the same one this issue is about, one level up: a check whose two
+earlier failures masked it looked green-adjacent for weeks while never running
+the thing it exists to run. See #171.

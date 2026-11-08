@@ -699,6 +699,60 @@ mod render_probe {
     const JS: &str = r#"(function () {
   var header = document.querySelector("header");
   var app = document.getElementById("app");
+
+  // The chrome's own geometry, not only the display's.
+  //
+  // A negative devicePixelRatio collapsed the ribbon (#103), and the way it
+  // collapsed was that the group captions overprinted one another: rects with
+  // no positive area still exist, and a browser lays them on top of each other.
+  // Reporting the overlap as a number is the same argument as reporting the
+  // scale as a number — a screenshot of a window cannot be trusted to be the
+  // window that was asked about, and an empty list can.
+  function rects(selector) {
+    var out = [];
+    var nodes = document.querySelectorAll(selector);
+    for (var i = 0; i < nodes.length; i++) {
+      var r = nodes[i].getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        out.push({
+          label: (nodes[i].className || nodes[i].tagName) + "",
+          left: r.left, top: r.top, right: r.right, bottom: r.bottom
+        });
+      }
+    }
+    return out;
+  }
+  function overlaps(nodes) {
+    var found = [];
+    // A pixel of tolerance: adjacent controls in a flex row can share an edge.
+    var TOL = 1;
+    for (var i = 0; i < nodes.length; i++) {
+      for (var j = i + 1; j < nodes.length; j++) {
+        var a = nodes[i], b = nodes[j];
+        var dx = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        var dy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (dx > TOL && dy > TOL) {
+          found.push(a.label + " × " + b.label + " (" + Math.round(dx) + "×" + Math.round(dy) + ")");
+        }
+      }
+    }
+    return found;
+  }
+  var groups = rects("header .tb-group");
+  var preview = document.querySelector(".preview-host");
+  var headerBox = header ? header.getBoundingClientRect() : null;
+  // Content drawn outside the header's own box: a row that overflows the bar
+  // vertically is the same defect seen from the other side.
+  var outside = [];
+  if (headerBox) {
+    for (var k = 0; k < groups.length; k++) {
+      var g = groups[k];
+      if (g.bottom > headerBox.bottom + 1 || g.top < headerBox.top - 1) {
+        outside.push(g.label);
+      }
+    }
+  }
+
   window.__TAURI_INTERNALS__.invoke("ksav_dpr_probe", { payload: JSON.stringify({
     devicePixelRatio: devicePixelRatio,
     innerWidth: innerWidth,
@@ -708,6 +762,10 @@ mod render_probe {
     headerHeight: header ? Math.round(header.getBoundingClientRect().height) : null,
     appChildren: app ? app.childElementCount : 0,
     bodyChildren: document.body.childElementCount,
+    ribbonGroups: groups.length,
+    ribbonOverlaps: overlaps(groups),
+    ribbonOutsideHeader: outside,
+    preview: preview ? { scrollWidth: preview.scrollWidth, clientWidth: preview.clientWidth } : null,
     href: location.href
   }) });
 })();"#;

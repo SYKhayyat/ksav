@@ -196,6 +196,39 @@ try {
         `    The document has ${m.bodyChildren} elements and is at ${m.href}`,
     );
   }
+  // The chrome's own geometry, which is how #103 presented: a ribbon whose
+  // group captions were drawn on top of one another. A negative scale is the
+  // cause this check was built for; these are the shape of the damage, and a
+  // check that reports only the cause would pass a layout that is broken for a
+  // different reason.
+  if (!(m.ribbonGroups > 0)) {
+    problems.push(
+      `the ribbon has no command groups at all, so the toolbar is empty.\n` +
+        "    A registry that resolved empty renders as a shorter ribbon with no\n" +
+        "    explanation (#105); this is the desktop build, where that is a live\n" +
+        "    possibility rather than a theoretical one.",
+    );
+  }
+  if (m.ribbonOverlaps?.length) {
+    problems.push(
+      `ribbon groups overlap: ${m.ribbonOverlaps.join(", ")}\n` +
+        "    The group captions overprinting one another is what #103 looked like\n" +
+        "    from inside the page.",
+    );
+  }
+  if (m.ribbonOutsideHeader?.length) {
+    problems.push(
+      `ribbon groups are drawn outside the header: ${m.ribbonOutsideHeader.join(", ")}\n` +
+        "    A row taller than the bar it belongs to is the same collapse seen\n" +
+        "    from the other side.",
+    );
+  }
+  if (m.preview && m.preview.scrollWidth > m.preview.clientWidth + 1) {
+    problems.push(
+      `the preview is ${m.preview.scrollWidth}px wide inside a ${m.preview.clientWidth}px pane.\n` +
+        "    The page overflows its pane, which is the clipping #103 reported.",
+    );
+  }
 
   if (problems.length) {
     fail(
@@ -207,7 +240,8 @@ try {
   console.log(
     `\n✓ the page reports dPR ${m.devicePixelRatio}, ` +
       `viewport ${m.innerWidth}×${m.innerHeight}, ` +
-      `header ${m.headerHeight}px, #app with ${m.appChildren} children`,
+      `header ${m.headerHeight}px, #app with ${m.appChildren} children, ` +
+      `ribbon ${m.ribbonGroups} groups with no overlap`,
   );
 } finally {
   rmSync(dir, { recursive: true, force: true });

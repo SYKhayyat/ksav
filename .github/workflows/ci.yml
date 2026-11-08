@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
       - name: Install
@@ -110,7 +110,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: clippy, rustfmt
       # The workspace builds the whole Typst compiler, which is not a quick
@@ -128,7 +128,7 @@ jobs:
           cache-on-failure: true
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       # Lints then tests, and the tests in release: compiling documents through
       # a debug Typst is slow enough to matter here, and nowhere else. That is
@@ -184,12 +184,12 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: rustfmt
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
       # All three Rust trees. `prototypes/flutter-app/rust` is deliberately
       # absent: nothing in this file builds, tests or ships it, and gating an
       # abandoned prototype would be a red nobody can act on.
@@ -221,7 +221,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           # Both, because `engine` names a group *and* a tree and the union
           # runs — so this selects `cargo fmt` along with the tests. Written
@@ -234,7 +234,7 @@ jobs:
           cache-on-failure: true
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
       # The same command and the same reason as the Linux engine job: forty test
       # binaries, each statically linking the whole Typst compiler, and the
       # optimisation pass is the only thing this turns off.
@@ -251,7 +251,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: wasm32-unknown-unknown
       - uses: swatinem/rust-cache@v2
@@ -260,7 +260,7 @@ jobs:
           cache-on-failure: true
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
       # wasm-pack's own installer, rather than `jetli/wasm-pack-action`.
@@ -331,10 +331,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
@@ -372,7 +372,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
@@ -398,7 +398,7 @@ jobs:
       # rustup components are.
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       # The engine, because half of these tests drive a real one: a real Typst
       # compile, a real PDF, the real Hebrew speller. Without it that half skips,
@@ -587,7 +587,7 @@ jobs:
       # Both components named, because this job's checks now need both and the
       # runner image happening to carry them is not a declaration. `clippy` ran
       # here for weeks on nothing but that luck.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: clippy, rustfmt
       - uses: swatinem/rust-cache@v2
@@ -596,7 +596,7 @@ jobs:
           cache-on-failure: true
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: ksav/app/package-lock.json
       # The frontend's dependencies, because `shell-render` builds the app.

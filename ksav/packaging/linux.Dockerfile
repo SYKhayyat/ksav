@@ -54,11 +54,11 @@ RUN apt-get update && apt-get install -y \
       xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
-      | sh -s -- -y --default-toolchain stable --profile minimal
+      | sh -s -- -y --default-toolchain 1.97.1 --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /work

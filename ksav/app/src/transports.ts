@@ -50,6 +50,7 @@ import type {
 import { NO_ASSETS, type RequestAssets } from "./api";
 import { hydrateScan, type ScanWire } from "./spans";
 import { CompileCache } from "./compilecache";
+import { tokenFromPage, tokenHeader } from "./served";
 
 /**
  * A jump answer, from whatever the engine actually said.
@@ -392,10 +393,15 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
   private fetchService(service: ServiceName, input: string, signal?: AbortSignal): Promise<Response> {
     const def = SERVICE[service];
     const url = this.base + def.path;
-    if (def.method === "GET") return fetch(url, { signal });
+    // What the server demanded and the page could not send (#108): `KSAV_TOKEN`
+    // makes `X-Ksav-Token` mandatory on the seven `Native` services, and this
+    // client had no header at all. The token, when the page was served with one,
+    // is in its own `<head>`; `served.ts` is the reader and says why that is safe.
+    const auth = tokenHeader(tokenFromPage(globalThis.document));
+    if (def.method === "GET") return fetch(url, { headers: auth, signal });
     return fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...auth },
       body: input || "{}",
       signal,
     });

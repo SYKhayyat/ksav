@@ -114,6 +114,64 @@ fn asset_path(url: &str) -> &str {
     }
 }
 
+/// The token this run demands of `Native` services, if the operator set one.
+///
+/// `KSAV_TOKEN` makes `X-Ksav-Token` mandatory (see `native_allowed`). A
+/// browser client has no way to send a header it was never told about, and the
+/// embedded bundle cannot be rebuilt per run — so before #108, setting the
+/// token silently disabled seven `nativeOnly` services for **every** browser
+/// client while the desktop build (which never talks to this server) kept
+/// working. The served page is handed the token it needs, in its own
+/// `index.html`, under the same loopback/CORS rules every other answer is
+/// under: a foreign page cannot read the meta, because no
+/// `Access-Control-Allow-Origin` reaches it and a `<script>` or `<img>` cannot
+/// read a body. What the meta does is make `KSAV_TOKEN` work for the editor it
+/// serves instead of quietly breaking it.
+///
+/// The token must *not* be a build-time `VITE_*` value — a secret baked into a
+/// public bundle is not a secret. Reading it from the served page keeps it a
+/// per-run value the page itself is allowed to know.
+#[allow(dead_code)] // reached only under `--features embed-ui`
+fn run_token() -> Option<String> {
+    std::env::var("KSAV_TOKEN").ok().filter(|t| !t.is_empty())
+}
+
+/// Escape one attribute value (a token can be any string the operator chose).
+#[allow(dead_code)] // reached only under `--features embed-ui`
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// The token as a `<meta>` for a served page's head.
+#[allow(dead_code)] // reached only under `--features embed-ui`
+fn token_meta(token: &str) -> String {
+    format!(
+        r#"<meta name="ksav-token" content="{}">"#,
+        html_escape(token)
+    )
+}
+
+/// The page to serve for `/`, with the run's token in it when there is one.
+#[allow(dead_code)] // reached only under `--features embed-ui`
+fn page_with_token(html: &str, token: Option<&str>) -> String {
+    let Some(t) = token else {
+        return html.to_string();
+    };
+    let meta = token_meta(t);
+    if let Some(i) = html.find("</head>") {
+        let mut out = String::with_capacity(html.len() + meta.len() + 1);
+        out.push_str(&html[..i]);
+        out.push_str(&meta);
+        out.push_str(&html[i..]);
+        out
+    } else {
+        format!("{meta}{html}")
+    }
+}
+
 /// Serve a static asset for a GET request. Returns true if it was handled.
 fn serve_static(request: tiny_http::Request, url: &str) {
     let rel = asset_path(url);
@@ -121,7 +179,16 @@ fn serve_static(request: tiny_http::Request, url: &str) {
     #[cfg(feature = "embed-ui")]
     {
         if let Some(file) = UI.get_file(rel) {
-            let resp = with_policy(Response::from_data(file.contents()), content_type_for(rel));
+            let body: Vec<u8> = if rel == "index.html" {
+                page_with_token(
+                    std::str::from_utf8(file.contents()).unwrap_or_default(),
+                    run_token().as_deref(),
+                )
+                .into_bytes()
+            } else {
+                file.contents().to_vec()
+            };
+            let resp = with_policy(Response::from_data(body), content_type_for(rel));
             let _ = request.respond(resp);
             return;
         }
@@ -669,7 +736,7 @@ fn header(key: &str, value: &str) -> Header {
 mod tests {
     use super::{
         addr_is_loopback, allowed_origin, asset_path, compile_deadline, content_type_for, csp,
-        policy_for, run_bounded, NO_UI_HTML,
+        page_with_token, policy_for, run_bounded, NO_UI_HTML,
     };
     use std::time::Duration;
 
@@ -910,6 +977,68 @@ mod tests {
         assert!(
             json.contains("/0 compiles in flight") && json.contains("/0 הידורים באוויר"),
             "the refusal names the slots: {json}"
+        );
+    }
+
+    /// The served page is told the token it is required to send.
+    ///
+    /// Setting `KSAV_TOKEN` used to make `X-Ksav-Token` mandatory on seven
+    /// `Native` services while no client in any build could send it: the
+    /// desktop build talks in-process and never notices, so an operator
+    /// hardening a shared box did the documented thing and broke git, the Girsa
+    /// inbox, mekoros, linkify, refresh, clipboard-source and saved-here for
+    /// every browser user (#108). The page is served by the process that holds
+    /// the token, so it is served *with* it.
+    #[test]
+    fn a_served_page_is_told_the_token_it_must_send() {
+        let html = "<html><head><title>x</title></head><body></body></html>";
+        let got = page_with_token(html, Some("s3cret"));
+        assert!(
+            got.contains(r#"<meta name="ksav-token" content="s3cret">"#),
+            "the page carries the token: {got}"
+        );
+        // In the head, before anything the page's own scripts could run from.
+        assert!(
+            got.find("ksav-token").unwrap() < got.find("</head>").unwrap(),
+            "the meta is inside the head: {got}"
+        );
+    }
+
+    /// No token configured is the ordinary case and must change nothing, and a
+    /// token full of HTML syntax must not become markup.
+    #[test]
+    fn a_page_without_a_token_is_served_byte_for_byte() {
+        let html = "<html><head></head></html>";
+        assert_eq!(page_with_token(html, None), html);
+        let hostile = page_with_token(html, Some("a\"b&c</head>"));
+        assert!(
+            hostile.contains(r#"content="a&quot;b&amp;c&lt;/head&gt;""#),
+            "the token is an attribute value, not markup: {hostile}"
+        );
+        assert_eq!(
+            hostile.matches("</head>").count(),
+            1,
+            "still one head: {hostile}"
+        );
+    }
+
+    /// The two halves of one header name, in two languages, held together.
+    ///
+    /// The server writes `<meta name="ksav-token">` and the browser client looks
+    /// it up by that name. Neither file imports the other, so a rename on one
+    /// side would restore #108 exactly — a token demanded and never sent —
+    /// without either half looking wrong.
+    #[test]
+    fn the_server_and_the_client_agree_on_where_the_token_is() {
+        let client = std::fs::read_to_string("../app/src/served.ts")
+            .expect("the client's meta reader is at app/src/served.ts");
+        assert!(
+            client.contains("ksav-token"),
+            "the browser client looks for the meta the server writes"
+        );
+        assert!(
+            client.contains("X-Ksav-Token"),
+            "and sends it in the header `native_allowed` checks"
         );
     }
 

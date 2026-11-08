@@ -24,6 +24,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 # a Conflicts on each other, so asking for both fails the whole apt transaction.
 # Ayatana is the maintained fork and the one Tauri looks for first.
 #
+# `xdg-utils` is what the AppImage bundler reaches for when it writes the
+# `.desktop` entry's MIME association, and the bundler looks for `xdg-mime` at
+# `/usr/bin/xdg-mime` rather than through `PATH`. Inside this image that path
+# exists, which is why the AppImage is built here: on a NixOS host there is no
+# `/usr/bin` userland, so `npm run tauri build --bundles appimage` fails with
+# "xdg-mime binary not found /usr/bin/xdg-mime" (#104). The `.deb` does not need
+# it. This image is therefore the supported way to produce an AppImage, and the
+# reason it is a container and not a host build.
+#
 # Note there is no `linux.deb.depends` in tauri.conf.json: Tauri derives
 # libwebkit2gtk and libgtk from what the binary actually links against, and
 # listing them again just duplicates the package's Depends line. (Nor can that
@@ -42,6 +51,7 @@ RUN apt-get update && apt-get install -y \
       libgtk-3-dev \
       ca-certificates \
       desktop-file-utils \
+      xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \

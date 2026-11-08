@@ -925,7 +925,14 @@ pub fn run() {
                     .app_data_dir()
                     .map(|d| crate::scheme::marker_path(&d))
                     .unwrap_or_default();
-                let handler = app.deep_link().is_registered("ksav").unwrap_or(false);
+                // Asked of the engine, not written down. `post::scheme()` is
+                // what `girsa-post` parses and what `tauri.conf.json` declares;
+                // a third bare `"ksav"` here means a rename updates the other
+                // two and leaves this one asking about a scheme nobody uses
+                // any more — test-green, because every fence compared the
+                // other two. `engine/tests/deep_link.rs` now holds this one.
+                let scheme = ksav_engine::post::scheme();
+                let handler = app.deep_link().is_registered(scheme).unwrap_or(false);
                 let claim = crate::scheme::decide(
                     handler,
                     crate::scheme::read_marker(&marker).as_deref(),
@@ -939,12 +946,23 @@ pub fn run() {
                     crate::scheme::Claim::Vacant | crate::scheme::Claim::Stale { .. } => {
                     if let crate::scheme::Claim::Stale { was } = &claim {
                         log::warn!(
-                            "ksav:// was registered to {}, which is gone — taking it back",
+                            "{}:// was registered to {}, which is gone — taking it back",
+                            scheme,
                             was.display()
                         );
                     }
+                    // `register_all` shells out to the desktop's MIME database,
+                    // and on a distribution without `xdg-mime` on `PATH` it
+                    // answers "No such file or directory" and nothing else. The
+                    // message names the tool and how to get it, because a
+                    // deep link that never registered is otherwise only visible
+                    // as a citation that opens nothing (#104).
                     if let Err(e) = app.deep_link().register_all() {
-                        log::warn!("could not register ksav:// with the system: {e}");
+                        log::warn!(
+                            "could not register {}:// with the system: {e}. {}",
+                            scheme,
+                            crate::scheme::registration_advice(),
+                        );
                     } else {
                             let _ = crate::scheme::write_marker(&marker, &me);
                         }
@@ -955,7 +973,8 @@ pub fn run() {
                     // "Girsa opens the Ksav that claimed the scheme, which is
                     // this one, and here is its path".
                     crate::scheme::Claim::Theirs { owner } => log::warn!(
-                        "ksav:// belongs to {} — leaving it. Sources sent from Girsa will open that one.",
+                        "{}:// belongs to {} — leaving it. Sources sent from Girsa will open that one.",
+                        scheme,
                         owner.display()
                     ),
                 }

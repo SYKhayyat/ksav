@@ -104,6 +104,48 @@ pub fn decide(
     }
 }
 
+/// Find an executable on `PATH`, the way a shell would.
+///
+/// Not `which` the program: that is a literal `/usr/bin/which` on some systems
+/// and absent on others, and this file exists because a tool at a hardcoded
+/// absolute path is the defect (#104). One search over the directories the
+/// environment actually names, and no assumption about where they are.
+#[must_use]
+pub fn find_on_path(tool: &str, path_var: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
+    let path_var = path_var?;
+    std::env::split_paths(path_var)
+        .map(|dir| dir.join(tool))
+        .find(|candidate| candidate.is_file())
+}
+
+/// What to say when registering the scheme failed.
+///
+/// # Why this exists (#104)
+///
+/// `register_all()` invokes the desktop's MIME machinery. Where `xdg-mime` is
+/// not on `PATH` — NixOS without `xdg-utils`, a trimmed container — the plugin
+/// reports `No such file or directory` and stops. The reader then has a deep
+/// link that never registered and a message that names no tool, which is the
+/// class this repository keeps filing: broken is allowed, silent is not.
+///
+/// So the failure carries the tool, whether it is present, and what to install.
+#[must_use]
+pub fn registration_advice() -> String {
+    if !cfg!(target_os = "linux") {
+        return "The deep link is registered through the desktop's URL handler.".to_string();
+    }
+    match find_on_path("xdg-mime", std::env::var_os("PATH").as_deref()) {
+        Some(found) => format!(
+            "`xdg-mime` is at {}; the failure came from the desktop's MIME database, not from a missing tool.",
+            found.display()
+        ),
+        None => "`xdg-mime` (from xdg-utils) is not on PATH, so ksav:// cannot be registered. \
+                 Install xdg-utils, or run Ksav from a session where the desktop's \
+                 MIME database is reachable."
+            .to_string(),
+    }
+}
+
 /// Where the marker lives, given the application's data directory.
 pub fn marker_path(data_dir: &Path) -> PathBuf {
     data_dir.join("scheme-owner.txt")
@@ -138,6 +180,37 @@ mod tests {
 
     fn p(s: &str) -> PathBuf {
         PathBuf::from(s)
+    }
+
+    #[test]
+    fn a_tool_is_found_on_path_or_not_at_all() {
+        let dir = std::env::temp_dir().join("ksav-scheme-path-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let tool = dir.join("xdg-mime");
+        std::fs::write(&tool, "").unwrap();
+
+        let path = std::env::join_paths([dir.as_path()]).unwrap();
+        assert_eq!(find_on_path("xdg-mime", Some(&path)), Some(tool.clone()));
+
+        // A directory named like the tool is not the tool.
+        let elsewhere = std::env::temp_dir().join("ksav-scheme-path-test-2");
+        let fake = elsewhere.join("xdg-mime");
+        std::fs::create_dir_all(&fake).unwrap();
+        let empty = std::env::join_paths([elsewhere.as_path()]).unwrap();
+        assert_eq!(find_on_path("xdg-mime", Some(&empty)), None);
+
+        let _ = std::fs::remove_file(&tool);
+    }
+
+    #[test]
+    fn the_advice_names_the_tool_registration_needs() {
+        if cfg!(target_os = "linux") {
+            let advice = registration_advice();
+            assert!(
+                advice.contains("xdg-mime"),
+                "the failure must name the tool that is missing, got: {advice}"
+            );
+        }
     }
 
     #[test]

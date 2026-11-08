@@ -370,3 +370,93 @@ fn uninstalling_takes_the_registration_away() {
         );
     }
 }
+
+/// #104. The shell asked the operating system about a scheme it spelled itself.
+///
+/// `app.deep_link().is_registered("ksav")` was a third carrier of the scheme —
+/// `tauri.conf.json` and `girsa-post` held the other two, and both were fenced
+/// against each other. Rename the app, and the config's copy and the parser
+/// move together while this one keeps asking about `ksav`: it receives `false`,
+/// `scheme.rs` calls that "nobody has claimed it", and `register_all()` runs on
+/// every start — the exact behaviour G9 exists to stop, restored by a rename
+/// that every test in this file would have called green.
+#[test]
+fn the_shell_asks_about_the_scheme_the_parser_names() {
+    let root = root();
+    let lib = root
+        .join("ksav")
+        .join("app")
+        .join("src-tauri")
+        .join("src")
+        .join("lib.rs");
+    let text = uncommented(&lib);
+
+    assert!(
+        text.contains("ksav_engine::post::scheme()"),
+        "{}: the shell no longer asks the engine what the scheme is. The value \n\
+         has to come from `post::scheme()`, which is what the deep link parser \n\
+         reads, rather than from a literal beside `is_registered`.",
+        shown(&root, &lib)
+    );
+
+    // The ask itself. A literal here is the finding, even when it currently
+    // happens to be the right literal.
+    for (n, line) in text.lines().enumerate() {
+        if line.contains("is_registered") && !line.trim_start().starts_with("//") {
+            assert!(
+                !line.contains('"'),
+                "{}:{}: `is_registered` is asked about a written-down scheme. A \n\
+                 rename would update the config and the parser and leave this \n\
+                 question about a scheme nobody uses. Ask `post::scheme()`.\n  {line}",
+                shown(&root, &lib),
+                n + 1
+            );
+        }
+    }
+}
+
+/// #104. No tool is assumed to live at an absolute path under `/usr/bin`.
+///
+/// The AppImage bundler and the runtime's MIME registration both failed on
+/// NixOS because a tool was resolved as `/usr/bin/xdg-mime` rather than through
+/// `PATH`. The bundler is not ours to fix; what is ours is that no source file
+/// repeats the assumption, and that the failure names the tool when the
+/// descriptor is missing (`scheme::registration_advice`).
+#[test]
+fn no_source_file_assumes_a_tool_lives_in_usr_bin() {
+    let root = root();
+    let dir = root.join("ksav").join("app").join("src-tauri").join("src");
+    let mut found = Vec::new();
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&dir).expect("the shell's src/ is readable") {
+        let path = entry.expect("a readable entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        checked += 1;
+        let text = std::fs::read_to_string(&path).expect("a readable source file");
+        for (n, line) in text.lines().enumerate() {
+            // A shebang is `#!/usr/bin/env`, which names no tool.
+            let code = line.trim_start();
+            if code.starts_with("//") || code.starts_with("#!") {
+                continue;
+            }
+            if line.contains("/usr/bin/") || line.contains("/usr/local/bin/") {
+                found.push(format!(
+                    "{}:{}: {}",
+                    shown(&root, &path),
+                    n + 1,
+                    line.trim()
+                ));
+            }
+        }
+    }
+    assert!(checked > 0, "{}: swept no files at all", shown(&root, &dir));
+    assert!(
+        found.is_empty(),
+        "a tool is looked for at a hardcoded absolute path, which is false on \n\
+         NixOS and any distribution that does not put userland in /usr/bin \n\
+         (#104). Resolve it through PATH, or say which tool is missing:\n  {}",
+        found.join("\n  ")
+    );
+}

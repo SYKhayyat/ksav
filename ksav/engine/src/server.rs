@@ -644,6 +644,48 @@ pub fn serve(addr: &str) {
     }
 }
 
+/// The Vite dev server's port.
+///
+/// One number, and it is the same one `tauri.conf.json`'s `devUrl` and
+/// `vite.config.ts`'s `server.port` name. `engine/tests/dev_origin.rs` reads
+/// both files and fails if either stops agreeing with this constant, and it also
+/// fails if any origin this server allows names a port that no file in the
+/// repository produces.
+///
+/// That last check is the point: this list used to carry
+/// `http://localhost:1420` and `http://127.0.0.1:1420`, Tauri 1's dev port,
+/// which **nothing in the repository used any more** — and the test that
+/// asserted the list asserted it *contained* those entries. An allowlist held
+/// in place by a test of its own contents is a list that rots with nothing to
+/// notice (#111).
+pub const DEV_PORT: u16 = 5173;
+
+/// The origins the app's own dev server can have.
+pub fn dev_origins() -> [String; 2] {
+    [
+        format!("http://localhost:{DEV_PORT}"),
+        format!("http://127.0.0.1:{DEV_PORT}"),
+    ]
+}
+
+/// Origins a deployment or a developer added by hand.
+///
+/// Comma-separated, appended to the derived list rather than replacing it, so a
+/// moved dev server (or a second machine behind a proxy) is a setting and not a
+/// rebuild — the same shape `KSAV_COMPILE_TIMEOUT_MS` already had (#110), and
+/// the vehicle #111 asked for.
+fn extra_origins() -> Vec<String> {
+    std::env::var("KSAV_ALLOWED_ORIGINS")
+        .ok()
+        .map(|v| {
+            v.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// The origins allowed to call this server.
 ///
 /// The API used to answer every request with `Access-Control-Allow-Origin: *`,
@@ -658,13 +700,9 @@ fn allowed_origin(origin: &str, addr: &str) -> bool {
         format!("http://127.0.0.1:{port}"),
         format!("http://localhost:{port}"),
     ];
-    const DEV_SERVERS: &[&str] = &[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:1420",
-        "http://127.0.0.1:1420",
-    ];
-    mine.iter().any(|m| m == origin) || DEV_SERVERS.contains(&origin)
+    mine.iter().any(|m| m == origin)
+        || dev_origins().iter().any(|d| d == origin)
+        || extra_origins().iter().any(|e| e == origin)
 }
 
 /// The CORS header for this request, or none when the caller is a stranger.
@@ -791,8 +829,8 @@ fn header(key: &str, value: &str) -> Header {
 mod tests {
     use super::{
         addr_is_loopback, allowed_origin, asset_path, budget_meta, compile_deadline, compile_slots,
-        content_type_for, csp, max_body_bytes, page_for_run, policy_for, pool_threads, run_bounded,
-        DEFAULT_COMPILE_TIMEOUT_MS, DEFAULT_MAX_BODY_BYTES, NO_UI_HTML,
+        content_type_for, csp, dev_origins, max_body_bytes, page_for_run, policy_for, pool_threads,
+        run_bounded, DEFAULT_COMPILE_TIMEOUT_MS, DEFAULT_MAX_BODY_BYTES, DEV_PORT, NO_UI_HTML,
     };
     use std::time::Duration;
 
@@ -923,6 +961,39 @@ mod tests {
         // piling another thread onto a server already full of overran work.
         let json = run_bounded("x".into(), Duration::from_secs(5), 0, |_| unreachable!());
         assert!(json.contains("\"ok\":false") && json.contains("busy"));
+    }
+
+    /// A dev server that moved can be allowed without a rebuild.
+    ///
+    /// #111: the allowlist was a closed `const` and the only way to add an
+    /// origin was to edit it. It also carried a dead Tauri 1 port, held in place
+    /// by the test above asserting the list's own contents. The list is now
+    /// derived from one port plus `KSAV_ALLOWED_ORIGINS`, and the dead entries
+    /// are gone.
+    #[test]
+    fn an_added_origin_is_allowed_and_a_stranger_is_not() {
+        let addr = "127.0.0.1:7878";
+        // Appended, not replacing: the derived entries still work.
+        std::env::set_var(
+            "KSAV_ALLOWED_ORIGINS",
+            "http://localhost:5199, https://dev.example",
+        );
+        assert!(allowed_origin("http://localhost:5199", addr));
+        assert!(allowed_origin("https://dev.example", addr), "trimmed");
+        assert!(
+            allowed_origin("http://localhost:5173", addr),
+            "derived still works"
+        );
+        assert!(
+            !allowed_origin("http://localhost:5200", addr),
+            "not on the list"
+        );
+        std::env::remove_var("KSAV_ALLOWED_ORIGINS");
+
+        // And the removed Tauri 1 port stays removed: nothing produces it.
+        assert!(!allowed_origin("http://localhost:1420", addr));
+        assert_eq!(dev_origins().len(), 2);
+        assert!(dev_origins()[0].ends_with(&DEV_PORT.to_string()));
     }
 
     /// The message must not claim the compile stopped, because it did not.
@@ -1300,7 +1371,7 @@ mod tests {
             "http://127.0.0.1:7878",
             "http://localhost:7878",
             "http://localhost:5173", // vite dev server
-            "http://localhost:1420", // tauri dev server
+            "http://127.0.0.1:5173", // and its other spelling
         ] {
             assert!(allowed_origin(ok, addr), "{ok} should be allowed");
         }

@@ -480,6 +480,55 @@ async fn ksav_confirm_write(
     Ok(yes)
 }
 
+/// The window's geometry: every number decided once, and fenced against the
+/// configuration a window manager reads for itself.
+///
+/// # Why this is a module and not four `const`s inside a function
+///
+/// `tauri.conf.json` also declares `width`, `height`, `minWidth` and
+/// `minHeight`. That is the same fact in a second place, and the two places had
+/// already drifted: the config said 1280x820 while this code capped at the same
+/// numbers, and the floor was written down twice with nothing comparing them
+/// (KNOBS.md §B5, filed as the residue of #102).
+///
+/// - `MIN_*` **must** equal the config's `minWidth`/`minHeight`: the window
+///   manager enforces one and this code clamps to the other, so a disagreement
+///   is a window that fights its own floor.
+/// - `DEFAULT_*` **must** equal the config's `width`/`height`: they are what a
+///   session with no monitor to ask gets, and nothing else reads them.
+/// - `MAX_*` is the comfortable size this code asks for when there *is* a
+///   display. It is deliberately larger than a 1366x768 laptop, because it is a
+///   cap applied to `screen - MARGIN`, not a claim about the screen.
+///
+/// `window_geometry_matches_the_configuration` executes all three equalities.
+/// 1366x768 is the smallest display Ksav claims to support, and `fit` is tested
+/// at it and at 1920x1080.
+mod geometry {
+    /// Comfortable for a two-pane writing surface on a desktop display, and the
+    /// reason the 820 was ever written down in the first place.
+    pub const MAX_WIDTH: f64 = 1280.0;
+    pub const MAX_HEIGHT: f64 = 820.0;
+    /// Off the very edge of the screen, where a compositor may put a panel.
+    pub const MARGIN: f64 = 32.0;
+    /// The supported floor. Mirrors `minWidth`/`minHeight` in `tauri.conf.json`.
+    pub const MIN_WIDTH: f64 = 800.0;
+    pub const MIN_HEIGHT: f64 = 560.0;
+    /// What a session that cannot name a monitor opens at. Mirrors the config's
+    /// `width`/`height`, which is the same window manager value.
+    pub const DEFAULT_WIDTH: f64 = 1000.0;
+    pub const DEFAULT_HEIGHT: f64 = 640.0;
+
+    /// The window size for a display of this size, in logical pixels.
+    ///
+    /// Never larger than the display minus [`MARGIN`], never below the floor,
+    /// and never above the comfortable cap.
+    pub fn fit(screen_width: f64, screen_height: f64) -> (f64, f64) {
+        let width = (screen_width - MARGIN).clamp(MIN_WIDTH, MAX_WIDTH);
+        let height = (screen_height - MARGIN).clamp(MIN_HEIGHT, MAX_HEIGHT);
+        (width, height)
+    }
+}
+
 /// Fit the window to the display it opened on.
 ///
 /// The window is created from `tauri.conf.json`'s `width`/`height`, and those
@@ -504,17 +553,6 @@ async fn ksav_confirm_write(
 fn fit_window_to_monitor(app: &tauri::App) {
     use tauri::Manager as _;
 
-    /// Comfortable for a two-pane writing surface on a desktop display, and
-    /// the reason the 820 was ever written down in the first place.
-    const MAX_WIDTH: f64 = 1280.0;
-    const MAX_HEIGHT: f64 = 820.0;
-    /// Off the very edge of the screen.
-    const MARGIN: f64 = 32.0;
-    /// The supported floor. Mirrors `minWidth`/`minHeight` in
-    /// `tauri.conf.json`, which the window manager enforces independently.
-    const MIN_WIDTH: f64 = 800.0;
-    const MIN_HEIGHT: f64 = 560.0;
-
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
@@ -537,15 +575,23 @@ fn fit_window_to_monitor(app: &tauri::App) {
         });
     let Some(monitor) = monitor else {
         // No monitor to ask — a headless session, or a window manager that
-        // does not answer. The configured size stands. This is not a reason to
-        // refuse to open the editor.
+        // does not answer. The configured size stands, and it is set here too
+        // rather than only in `tauri.conf.json`, because a fallback that exists
+        // in one place and is *assumed* in the other is the duplication this
+        // module is here to end. This is not a reason to refuse to open the
+        // editor.
         log::warn!("no monitor found; leaving the window at its configured size");
+        if let Err(e) = window.set_size(tauri::LogicalSize::new(
+            geometry::DEFAULT_WIDTH,
+            geometry::DEFAULT_HEIGHT,
+        )) {
+            log::warn!("could not set the fallback window size: {e}");
+        }
         return;
     };
 
     let screen = monitor.size().to_logical::<f64>(monitor.scale_factor());
-    let width = (screen.width - MARGIN).clamp(MIN_WIDTH, MAX_WIDTH);
-    let height = (screen.height - MARGIN).clamp(MIN_HEIGHT, MAX_HEIGHT);
+    let (width, height) = geometry::fit(screen.width, screen.height);
 
     if let Err(e) = window.set_size(tauri::LogicalSize::new(width, height)) {
         log::warn!("could not fit the window to the display: {e}");
@@ -945,6 +991,116 @@ pub fn run() {
             // setup, so this line survives even here.
             log::error!("Ksav could not open its window: {e}");
             std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod window_geometry {
+    //! The window fits the smallest display Ksav claims to support, and the
+    //! numbers it fits with are the numbers the window manager is given.
+    //!
+    //! # The finding (#102, and its KNOBS.md §B5 residue)
+    //!
+    //! The window opened at 1280x820, which is taller than a 1366x768 laptop;
+    //! the compositor truncated it and the ribbon rows collided. The fix asks
+    //! the monitor and clamps. What it left behind was **two sources of truth**:
+    //! `tauri.conf.json` declares the same geometry, and nothing compared them.
+    //! Raise `minHeight` in the config and the clamp still returns 560, so the
+    //! window manager and the application enforce different floors.
+    //!
+    //! The tests below are the comparison. `SMALLEST` is the display this was
+    //! found on and the smallest the project claims to support.
+
+    use super::geometry::{
+        fit, DEFAULT_HEIGHT, DEFAULT_WIDTH, MAX_HEIGHT, MAX_WIDTH, MIN_HEIGHT, MIN_WIDTH,
+    };
+
+    /// 1366x768, the laptop the truncation was found on.
+    const SMALLEST: (f64, f64) = (1366.0, 768.0);
+    /// The other display the acceptance criteria name.
+    const DESKTOP: (f64, f64) = (1920.0, 1080.0);
+
+    fn window_config() -> serde_json::Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+        let text = std::fs::read_to_string(&path).expect("tauri.conf.json is tracked");
+        serde_json::from_str(&text).expect("tauri.conf.json parses")
+    }
+
+    fn configured(key: &str) -> f64 {
+        window_config()["app"]["windows"][0][key]
+            .as_f64()
+            .unwrap_or_else(|| panic!("tauri.conf.json declares app.windows[0].{key} as a number"))
+    }
+
+    #[test]
+    fn the_window_fits_the_smallest_supported_display() {
+        let (w, h) = fit(SMALLEST.0, SMALLEST.1);
+        assert!(
+            w <= SMALLEST.0,
+            "width {w} exceeds {} on the smallest display",
+            SMALLEST.0
+        );
+        assert!(
+            h <= SMALLEST.1,
+            "height {h} exceeds {} on the smallest display",
+            SMALLEST.1
+        );
+        assert!(w >= MIN_WIDTH && h >= MIN_HEIGHT);
+    }
+
+    #[test]
+    fn the_window_fits_a_desktop_display() {
+        let (w, h) = fit(DESKTOP.0, DESKTOP.1);
+        assert!(w <= DESKTOP.0 && h <= DESKTOP.1);
+        // A large display gets the comfortable cap rather than a stretched
+        // window: the two-pane surface stops growing at MAX.
+        assert_eq!((w, h), (MAX_WIDTH, MAX_HEIGHT));
+    }
+
+    #[test]
+    fn a_screen_at_the_floor_is_not_made_smaller_than_it() {
+        // 800x560 is the supported minimum. The margin must not push the window
+        // below the floor the window manager enforces.
+        let (w, h) = fit(MIN_WIDTH, MIN_HEIGHT);
+        assert_eq!((w, h), (MIN_WIDTH, MIN_HEIGHT));
+    }
+
+    #[test]
+    fn the_configuration_agrees_with_the_code() {
+        assert_eq!(
+            configured("minWidth"),
+            MIN_WIDTH,
+            "tauri.conf.json minWidth"
+        );
+        assert_eq!(
+            configured("minHeight"),
+            MIN_HEIGHT,
+            "tauri.conf.json minHeight"
+        );
+        assert_eq!(configured("width"), DEFAULT_WIDTH, "tauri.conf.json width");
+        assert_eq!(
+            configured("height"),
+            DEFAULT_HEIGHT,
+            "tauri.conf.json height"
+        );
+    }
+
+    #[test]
+    fn no_configured_value_is_larger_than_the_smallest_display() {
+        // The acceptance criterion for #102: a configured size larger than the
+        // smallest supported display is a window that cannot be shown as asked.
+        for key in ["width", "height", "minWidth", "minHeight"] {
+            let value = configured(key);
+            let limit = if key.ends_with("Width") || key == "width" {
+                SMALLEST.0
+            } else {
+                SMALLEST.1
+            };
+            assert!(
+                value <= limit,
+                "tauri.conf.json {key} = {value} exceeds {limit}"
+            );
         }
     }
 }

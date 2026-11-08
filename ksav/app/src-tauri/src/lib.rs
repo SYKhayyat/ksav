@@ -864,6 +864,22 @@ pub fn run() {
             // first thing a writer sees and the first thing they judge.
             fit_window_to_monitor(app);
 
+            // How long this build will wait for a compile, in the page's hands.
+            //
+            // The desktop talks to the engine in-process, so the server's
+            // `KSAV_COMPILE_TIMEOUT_MS` never reaches the client through an
+            // HTTP reply — and the client is the half that decides, because it
+            // does its own waiting. So the shell reads the one budget and hands
+            // it over before the writer can start a compile (#109).
+            if let Some(window) = app.get_webview_window("main") {
+                let ms = ksav_engine::server::compile_deadline().as_millis() as u64;
+                if let Err(e) = window.eval(format!("window.__ksavCompileTimeoutMs = {ms};")) {
+                    // A page that cannot be told keeps the documented default,
+                    // which is what it used before this existed.
+                    log::warn!("could not hand the compile budget to the page: {e}");
+                }
+            }
+
             // Compiled in only for `tools/render-check.mjs`, and inert without
             // `KSAV_DPR_OUT` — see `render_probe` for why this is worth having.
             #[cfg(feature = "dpr-probe")]

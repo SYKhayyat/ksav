@@ -1915,6 +1915,7 @@
       "us-letter"
     ]
   ],
+  "compile_timeout_ms": 20000,
   "param_en": {
     "global": [
       [

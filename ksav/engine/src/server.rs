@@ -145,6 +145,11 @@ fn html_escape(s: &str) -> String {
         .replace('>', "&gt;")
 }
 
+/// The compile budget as a `<meta>` for a served page's head.
+fn budget_meta(ms: u64) -> String {
+    format!(r#"<meta name="ksav-compile-timeout-ms" content="{ms}">"#)
+}
+
 /// The token as a `<meta>` for a served page's head.
 #[allow(dead_code)] // reached only under `--features embed-ui`
 fn token_meta(token: &str) -> String {
@@ -154,13 +159,19 @@ fn token_meta(token: &str) -> String {
     )
 }
 
-/// The page to serve for `/`, with the run's token in it when there is one.
+/// The page to serve for `/`, with what this run decided in its head.
+///
+/// Two facts belong to the running process rather than to the bundle embedded at
+/// build time: the token `KSAV_TOKEN` demands (#108) and the compile budget
+/// `KSAV_COMPILE_TIMEOUT_MS` sets (#109). Both are handed to the page because a
+/// browser client cannot otherwise hear them and a bundle cannot be rebuilt per
+/// run.
 #[allow(dead_code)] // reached only under `--features embed-ui`
-fn page_with_token(html: &str, token: Option<&str>) -> String {
-    let Some(t) = token else {
-        return html.to_string();
-    };
-    let meta = token_meta(t);
+fn page_for_run(html: &str, token: Option<&str>) -> String {
+    let mut meta = budget_meta(compile_deadline().as_millis() as u64);
+    if let Some(t) = token {
+        meta.insert_str(0, &token_meta(t));
+    }
     if let Some(i) = html.find("</head>") {
         let mut out = String::with_capacity(html.len() + meta.len() + 1);
         out.push_str(&html[..i]);
@@ -180,7 +191,7 @@ fn serve_static(request: tiny_http::Request, url: &str) {
     {
         if let Some(file) = UI.get_file(rel) {
             let body: Vec<u8> = if rel == "index.html" {
-                page_with_token(
+                page_for_run(
                     std::str::from_utf8(file.contents()).unwrap_or_default(),
                     run_token().as_deref(),
                 )
@@ -302,14 +313,22 @@ fn json_response(json: String) -> Response<std::io::Cursor<Vec<u8>>> {
 /// stops answering, with no hint why. Overridable for a machine that wants a
 /// different budget; the default is generous enough for a real sefer and short
 /// enough that a runaway is caught while the writer is still looking at it.
-fn compile_deadline() -> Duration {
+pub fn compile_deadline() -> Duration {
     std::env::var("KSAV_COMPILE_TIMEOUT_MS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .filter(|&ms| ms > 0)
         .map(Duration::from_millis)
-        .unwrap_or(Duration::from_millis(20_000))
+        .unwrap_or(Duration::from_millis(DEFAULT_COMPILE_TIMEOUT_MS))
 }
+
+/// The budget when nothing overrides it.
+///
+/// One number, stated once and served to the client (#109): the app used to
+/// carry its own copy of this ceiling under a comment saying it mirrored the
+/// server's, which was true only at the default. `app/src/compiletime.ts` holds
+/// the same constant, and a test on each side reads the other's file.
+pub const DEFAULT_COMPILE_TIMEOUT_MS: u64 = 20_000;
 
 /// Compiles in flight right now, including ones that overran their deadline and
 /// are still finishing on a detached thread.
@@ -735,8 +754,9 @@ fn header(key: &str, value: &str) -> Header {
 #[cfg(test)]
 mod tests {
     use super::{
-        addr_is_loopback, allowed_origin, asset_path, compile_deadline, content_type_for, csp,
-        page_with_token, policy_for, run_bounded, NO_UI_HTML,
+        addr_is_loopback, allowed_origin, asset_path, budget_meta, compile_deadline,
+        content_type_for, csp, page_for_run, policy_for, run_bounded, DEFAULT_COMPILE_TIMEOUT_MS,
+        NO_UI_HTML,
     };
     use std::time::Duration;
 
@@ -992,7 +1012,7 @@ mod tests {
     #[test]
     fn a_served_page_is_told_the_token_it_must_send() {
         let html = "<html><head><title>x</title></head><body></body></html>";
-        let got = page_with_token(html, Some("s3cret"));
+        let got = page_for_run(html, Some("s3cret"));
         assert!(
             got.contains(r#"<meta name="ksav-token" content="s3cret">"#),
             "the page carries the token: {got}"
@@ -1004,13 +1024,27 @@ mod tests {
         );
     }
 
-    /// No token configured is the ordinary case and must change nothing, and a
-    /// token full of HTML syntax must not become markup.
+    /// No token configured adds no token meta, and a token full of HTML syntax
+    /// must not become markup.
+    ///
+    /// The page is no longer served byte for byte when nothing is set: it always
+    /// carries the compile budget the process is actually using (#109). So this
+    /// asserts the two things that matter — no token appears, and removing the
+    /// budget meta gives the original page back.
     #[test]
-    fn a_page_without_a_token_is_served_byte_for_byte() {
+    fn a_page_without_a_token_carries_no_token() {
         let html = "<html><head></head></html>";
-        assert_eq!(page_with_token(html, None), html);
-        let hostile = page_with_token(html, Some("a\"b&c</head>"));
+        let plain = page_for_run(html, None);
+        assert!(
+            !plain.contains("ksav-token"),
+            "no token is invented: {plain}"
+        );
+        assert_eq!(
+            plain.replace(&budget_meta(DEFAULT_COMPILE_TIMEOUT_MS), ""),
+            html,
+            "the only thing added is the budget: {plain}"
+        );
+        let hostile = page_for_run(html, Some("a\"b&c</head>"));
         assert!(
             hostile.contains(r#"content="a&quot;b&amp;c&lt;/head&gt;""#),
             "the token is an attribute value, not markup: {hostile}"
@@ -1019,6 +1053,29 @@ mod tests {
             hostile.matches("</head>").count(),
             1,
             "still one head: {hostile}"
+        );
+    }
+
+    /// The compile budget the client waits for is the one the server keeps.
+    ///
+    /// #109: the app held its own `COMPILE_TIMEOUT_MS = 20_000` under a comment
+    /// saying it mirrored the server's, and `KSAV_COMPILE_TIMEOUT_MS` moved only
+    /// the server — so a raised budget produced a client that abandoned at 20 s
+    /// while the server was still working. The value is now served, and the
+    /// served number is the same one `run_bounded` is given.
+    #[test]
+    fn the_page_carries_the_budget_the_server_will_use() {
+        let html = "<html><head></head></html>";
+        let got = page_for_run(html, None);
+        let want = format!(
+            r#"<meta name="ksav-compile-timeout-ms" content="{}">"#,
+            compile_deadline().as_millis()
+        );
+        assert!(got.contains(&want), "the page carries the budget: {got}");
+        assert_eq!(
+            DEFAULT_COMPILE_TIMEOUT_MS,
+            compile_deadline().as_millis() as u64,
+            "with no environment override, the served budget is the default"
         );
     }
 

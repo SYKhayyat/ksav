@@ -51,6 +51,7 @@ import { NO_ASSETS, type RequestAssets } from "./api";
 import { hydrateScan, type ScanWire } from "./spans";
 import { CompileCache } from "./compilecache";
 import { tokenFromPage, tokenHeader } from "./served";
+import { compileDeadlineMs } from "./compiletime";
 
 /**
  * A jump answer, from whatever the engine actually said.
@@ -193,7 +194,7 @@ abstract class ServiceClient {
   async jump(body: string, cfg: DocConfig, at: PagePoint, assets = NO_ASSETS): Promise<Located | null> {
     try {
       return readSpot(
-        await this.ask("jump", { body, ...cfg, ...assets, ...at }, { timeoutMs: COMPILE_TIMEOUT_MS }),
+        await this.ask("jump", { body, ...cfg, ...assets, ...at }, { timeoutMs: compileDeadlineMs() }),
       );
     } catch {
       return null;
@@ -204,7 +205,7 @@ abstract class ServiceClient {
   async reveal(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<PagePoint[]> {
     try {
       return readPoints(
-        await this.ask("reveal", { body, ...cfg, ...assets, ...at }, { timeoutMs: COMPILE_TIMEOUT_MS }),
+        await this.ask("reveal", { body, ...cfg, ...assets, ...at }, { timeoutMs: compileDeadlineMs() }),
       );
     } catch {
       return [];
@@ -219,7 +220,7 @@ abstract class ServiceClient {
   async places(body: string, cfg: DocConfig, at: BodySpot, assets = NO_ASSETS): Promise<Places> {
     try {
       return readPlaces(
-        await this.ask("places", { body, ...cfg, ...assets, ...at }, { timeoutMs: COMPILE_TIMEOUT_MS }),
+        await this.ask("places", { body, ...cfg, ...assets, ...at }, { timeoutMs: compileDeadlineMs() }),
       );
     } catch {
       return { places: [], first: null, file: null, line: at.line };
@@ -438,9 +439,6 @@ export class HttpBackend extends ServiceClient implements Backend, Sources {
  * typing and no caret. wasm-bindgen cannot yield mid-compile; the work has to
  * happen on another thread.
  */
-/** Wall-clock ceiling for a client-side compile, mirroring the server's. */
-const COMPILE_TIMEOUT_MS = 20_000;
-
 /** What a compile timeout says, in the build that actually killed it.
  *
  *  The server's sentence for the same event is *"ran longer than Ns and was
@@ -692,7 +690,7 @@ export class WasmBackend extends ServiceClient implements Backend {
         async (extra) =>
           JSON.parse(
             await this.call("compile", JSON.stringify({ body, ...cfg, ...extra }), {
-              timeoutMs: COMPILE_TIMEOUT_MS,
+              timeoutMs: compileDeadlineMs(),
               background: opts.background,
             }),
           ) as CompileResult,
@@ -795,7 +793,7 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
     void run.catch(() => {});
     let timer: ReturnType<typeof setTimeout>;
     const deadline = new Promise<CompileResult>((resolve) => {
-      timer = setTimeout(() => resolve(errorResult(COMPILE_ABANDONED_MESSAGE)), COMPILE_TIMEOUT_MS);
+      timer = setTimeout(() => resolve(errorResult(COMPILE_ABANDONED_MESSAGE)), compileDeadlineMs());
     });
     try {
       return await Promise.race([run, deadline]);

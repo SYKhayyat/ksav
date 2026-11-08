@@ -320,6 +320,14 @@ pub struct Facts {
     /// the normal edit there and it passed the floor checks while shipping a
     /// wrong English snippet. Declaration order is preserved because the first
     /// English spelling of a Hebrew word wins when the client builds `PARAM_EN`.
+    /// The compile budget when `KSAV_COMPILE_TIMEOUT_MS` is unset, in ms.
+    ///
+    /// It crosses as a value because the client needs it as one: `transports.ts`
+    /// carried its own `20_000` under a comment claiming it mirrored the
+    /// server's, and only the server could be moved (#109). A test compares this
+    /// fact with `app/src/compiletime.ts`'s default, so the two cannot drift
+    /// without one of them saying so.
+    pub compile_timeout_ms: u64,
     pub param_en: crate::diagnostics::ParamTables,
     /// The Hebrew→English command pairing, as the prelude declares it.
     ///
@@ -371,6 +379,7 @@ pub fn facts() -> Facts {
         markup_escapes: crate::escape::MARKUP.iter().collect(),
         papers: paper_facts(),
         paper_aliases: crate::PAPER_ALIASES,
+        compile_timeout_ms: crate::server::DEFAULT_COMPILE_TIMEOUT_MS,
         param_en: crate::diagnostics::param_tables(crate::PRELUDE),
         command_en: crate::diagnostics::command_aliases(crate::PRELUDE),
     }

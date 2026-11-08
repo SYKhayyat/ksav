@@ -460,3 +460,46 @@ fn no_source_file_assumes_a_tool_lives_in_usr_bin() {
         found.join("\n  ")
     );
 }
+
+/// The desktop shell hands the page the compile budget it is actually using.
+///
+/// #109: the client held its own `COMPILE_TIMEOUT_MS = 20_000` and a comment
+/// saying it mirrored the server's — true only at the default, because
+/// `KSAV_COMPILE_TIMEOUT_MS` moved one half and not the other. The desktop
+/// build talks in-process, so no HTTP reply can carry the value to it; the
+/// shell sets `window.__ksavCompileTimeoutMs` from `compile_deadline()` before
+/// the writer can start a compile, and the page reads it
+/// (`app/src/compiletime.ts`).
+///
+/// Asserted here rather than in the TypeScript suite because it is Rust and the
+/// JavaScript tests do not parse Rust. A shell that stopped calling
+/// `compile_deadline()` — or that grew a second literal — would silently
+/// restore the issue on the desktop build alone, which is the build the issue
+/// was reported against.
+#[test]
+fn the_desktop_shell_tells_the_page_the_budget_it_uses() {
+    let root = root();
+    let shell = std::fs::read_to_string(
+        root.join("ksav")
+            .join("app")
+            .join("src-tauri")
+            .join("src")
+            .join("lib.rs"),
+    )
+    .expect("the shell's lib.rs is readable");
+    assert!(
+        shell.contains("__ksavCompileTimeoutMs"),
+        "the shell still hands the compile budget to the page (#109): \n\
+         app/src/compiletime.ts reads window.__ksavCompileTimeoutMs, and a \n\
+         shell that stopped setting it would leave the desktop on its own \n\
+         hardcoded default"
+    );
+    assert!(
+        shell.contains("compile_deadline()"),
+        "and it reads the engine's own deadline rather than restating a number"
+    );
+    assert!(
+        !shell.contains("20_000"),
+        "no second copy of the default: the budget comes from compile_deadline()"
+    );
+}

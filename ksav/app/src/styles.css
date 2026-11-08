@@ -186,6 +186,17 @@ header {
   padding: 0 5px; border-inline-end: 1px solid var(--line);
 }
 .tb-group:last-child { border-inline-end: 0; }
+/* A command that did not arrive (#105).
+   The button used to be an empty span, so a registry that resolved empty
+   deleted the control and said nothing. It now keeps its glyph and its place,
+   struck through, with a title saying what happened — visible damage beats a
+   shorter ribbon that looks deliberate. */
+.tb-btn-missing {
+  text-decoration: line-through; opacity: .55; cursor: help;
+  border-style: dashed; border-color: var(--line);
+}
+.toolbar-empty { padding: 8px 12px; }
+.toolbar-failed { color: var(--danger); font-size: 13px; }
 .tb-group-row { display: flex; align-items: center; gap: 3px; }
 .tb-group-label {
   font-size: 9.5px; letter-spacing: .3px; color: var(--muted);

@@ -3087,6 +3087,12 @@ async function fetchRegistries(): Promise<boolean> {
       runtime.backend!.commands(),
       runtime.backend!.templates(),
     ]);
+    // An empty command list is a **failure**, not a state this product can be
+    // in: every surface that offers a command is built from it, so the editor
+    // would take text and have no visible way to format any of it — with the
+    // fetch itself reporting success (#105). Treated as a failed attempt, which
+    // is what reaches `registriesFailed` rather than a silently shorter ribbon.
+    if (!runtime.registriesArrived(commands)) return false;
     runtime.setRegistries(commands, templates);
     // Not awaited and not in the `Promise.all`: the chrome does not need the
     // sefer catalogue to be built, and a catalogue that never arrives must not

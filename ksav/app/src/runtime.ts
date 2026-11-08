@@ -130,6 +130,24 @@ export function setRegistries(commands: CommandDef[], templates: TemplateDef[]) 
   commandsReg = commands;
   templatesReg = templates;
 }
+
+/**
+ * Whether a fetched command list is one the chrome can be built from.
+ *
+ * An empty list is a **failure**, not a state this product can be in: the
+ * toolbar, every menu, the palette and the completions are built from it, so a
+ * successful fetch that returns nothing leaves an editor that takes text and
+ * has no visible way to format any of it — and the fetch itself reported
+ * success, so nothing shows a message. That is #105's live case on the desktop,
+ * where the registry arrives in-process rather than over a fetch that can fail
+ * loudly.
+ *
+ * Here rather than inside `main.ts` so the decision can be asserted; `main.ts`
+ * cannot be imported by a test.
+ */
+export function registriesArrived(commands: readonly unknown[] | null | undefined): boolean {
+  return Array.isArray(commands) && commands.length > 0;
+}
 export function setLastResult(r: CompileResult | null) {
   lastResult = r;
 }

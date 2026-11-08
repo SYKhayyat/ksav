@@ -354,6 +354,32 @@ function editParagraphStyle(value: string) {
 let highlightColour = styles.DEFAULT_HIGHLIGHT;
 
 /**
+ * A control whose command did not arrive, drawn as a control that says so.
+ *
+ * # The finding (#105)
+ *
+ * `b()` returned `el("span")` for a command the registry did not contain — an
+ * element with no glyph, no name and no tooltip. So a registry that resolved
+ * empty deleted the ribbon **silently**: the writer saw a shorter toolbar and
+ * nothing anywhere said why, which is indistinguishable from a product that
+ * simply has fewer buttons.
+ *
+ * A missing command now renders with its glyph, a visible strike through it, and
+ * a title that says what happened and what to do. The writer can see that
+ * something belongs there, and pressing it re-runs the registry load rather than
+ * doing nothing.
+ */
+function missingControl(glyph: string, command: string): HTMLElement {
+  return iconBtn(
+    glyph,
+    t("registryMissing"),
+    () => showChromeNotice("registriesFailed"),
+    "tb-btn tb-btn-missing",
+    { "data-missing": command },
+  );
+}
+
+/**
  * The highlighter, and the colour it will use.
  *
  * *"Highlight should offer a colour"* — and the engine had offered one all
@@ -366,7 +392,7 @@ let highlightColour = styles.DEFAULT_HIGHLIGHT;
  */
 function highlightControl(writing: Lang): HTMLElement {
   const cmd = runtime.commandsReg.find((c) => c.he === "סימון");
-  if (!cmd) return el("span");
+  if (!cmd) return missingControl("▨", "סימון");
   const name = writing === "he" ? cmd.he : cmd.en;
   const desc = getLang() === "he" ? cmd.desc_he : cmd.desc_en;
   const swatch = el("input", {
@@ -431,6 +457,14 @@ function noteBtn(action: string, glyph: string, snippet: string | null): HTMLEle
 
 export function buildToolbar(): HTMLElement {
   const lang = getLang();
+  // No commands at all is not a state this product can be in, and drawing an
+  // empty toolbar would present it as one. Said in words, in the surface the
+  // writer is looking at, with the retry the notice already carries.
+  if (runtime.commandsReg.length === 0) {
+    return el("div", { class: "toolbar toolbar-empty", role: "toolbar", "aria-label": t("toolbar") }, [
+      el("span", { class: "toolbar-failed", role: "status" }, [t("registriesFailed")]),
+    ]);
+  }
   // Two languages in one tooltip, and they are not the same question. The
   // *description* is the interface's, because it is being read; the **command
   // name** is the document's, because it is what the button is about to write.
@@ -454,7 +488,7 @@ export function buildToolbar(): HTMLElement {
   const guest = (he: string, label: string, _why: string) => b(he, label);
   const b = (he: string, label: string) => {
     const c = byName(he);
-    if (!c) return el("span");
+    if (!c) return missingControl(label, he);
     const title = lang === "he" ? c.desc_he : c.desc_en;
     return iconBtn(label, `${title} · #${writing === "he" ? c.he : c.en}`, () => insertSnippet(c.insert), "", {
       "data-command": c.he,

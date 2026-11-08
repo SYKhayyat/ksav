@@ -290,6 +290,10 @@ export function installChrome(extra = {}) {
       setAttribute(k, v) { this[k] = k === "checked" ? v !== null && v !== "false" : v; },
       addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
       append(...c) { this.children.push(...c); },
+      // `<select>` is filled by replacing its options wholesale. Without this the
+      // first test that builds a control containing a select threw a TypeError
+      // rather than reporting a failure — `ribbonmissing.test.mjs`.
+      replaceChildren(...c) { this.children = [...c]; },
       click() { for (const fn of this.listeners.click ?? []) fn({ target: this }); },
     }),
     body: { append() {} },

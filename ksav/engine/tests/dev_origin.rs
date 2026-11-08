@@ -57,14 +57,36 @@ fn dev_url_port() -> u16 {
 fn vite_port() -> u16 {
     let conf =
         fs::read_to_string(app().join("vite.config.ts")).expect("vite.config.ts is readable");
-    let at = conf
-        .find("port:")
-        .expect("vite.config.ts sets a server port");
-    let rest = conf[at + "port:".len()..].trim_start();
-    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    digits
-        .parse::<u16>()
-        .unwrap_or_else(|_| panic!("the vite port is a number, not {digits:?}"))
+    assert!(
+        conf.contains("src-tauri/tauri.conf.json"),
+        "vite.config.ts no longer derives its port from tauri.conf.json's \
+         devUrl (#112): two literals that are only equal by coincidence are \
+         what this test exists to prevent"
+    );
+    assert!(
+        !conf.contains("port: 5173") && !conf.contains("port:5173"),
+        "vite.config.ts still holds a literal dev port next to the derived one"
+    );
+    dev_url_port()
+}
+
+/// Vite refuses to slide to another port.
+///
+/// Without `strictPort`, a taken port makes Vite serve 5174 while the shell
+/// keeps loading 5173: a blank window, no error, no console line, and a
+/// debugging path that leads to the build rather than to the port (#112).
+#[test]
+fn vite_refuses_to_slide_to_another_port() {
+    let conf =
+        fs::read_to_string(app().join("vite.config.ts")).expect("vite.config.ts is readable");
+    assert!(
+        conf.contains("strictPort: true"),
+        "vite must refuse to start on a different port than the shell loads; \
+         sliding produces a blank window with nothing said"
+    );
+    // The port it refuses to move *from* is the shell's, so the two are one
+    // decision rather than two that happen to agree.
+    assert_eq!(vite_port(), dev_url_port());
 }
 
 /// The three statements of the dev origin agree.

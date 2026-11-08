@@ -27,6 +27,20 @@ const wasm = process.env.VITE_WASM === "1";
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
 /**
+ * The dev port, read from the shell's own configuration.
+ *
+ * `tauri.conf.json`'s `devUrl` is what `npm run tauri dev` opens, so it is the
+ * one place the number is decided; Vite reads it here instead of repeating it.
+ * If either half moves alone, `engine/tests/dev_origin.rs` fails naming the
+ * file — the two used to be equal only by coincidence.
+ */
+const DEV_PORT = Number(
+  new URL(
+    JSON.parse(readFileSync(here("./src-tauri/tauri.conf.json"), "utf8")).build.devUrl,
+  ).port,
+);
+
+/**
  * A short fingerprint of **this build** — the sources the bundle is made of.
  *
  * # Why there is a second id at all
@@ -214,7 +228,20 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // The dev **port** comes from `tauri.conf.json`'s `devUrl`, which the shell
+    // loads — one source instead of two literals that were only ever equal by
+    // luck (#112). Editing the config moves both halves; the engine's CORS
+    // allowlist is held to the same number by `engine/tests/dev_origin.rs`.
+    port: DEV_PORT,
+    // And it is a fixed port rather than a preference.
+    //
+    // Without this Vite slides to 5174 when 5173 is taken — a second dev server,
+    // or the previous run not yet reaped — while the shell keeps loading 5173
+    // and gets nothing. The result is a blank window with no error, no console
+    // line and no Tauri warning, which reads as a build failure and sends the
+    // reader after the wrong cause. With `strictPort` Vite exits naming the
+    // port instead.
+    strictPort: true,
     // Cargo writes into src-tauri/target while tauri dev is up, and the
     // watcher — which sees every path under app/, including that one — died
     // on the locked dll with EBUSY, taking beforeDevCommand and the whole

@@ -13,21 +13,16 @@ import path from "node:path";
 import { buildableModules } from "./modules.mjs";
 import { APP, TEST as HERE, SRC, TMP_TEST as OUT } from "../tools/paths.mjs";
 import { staleOutputs } from "../tools/generated.mjs";
+import { publicRoot } from "../tools/publicroot.mjs";
 
 // The stylesheets reference fonts and icons root-absolute (`/fonts/…`), which
 // Vite resolves against `public/`. esbuild resolves it against the filesystem
 // root, so the bundle step dies before a test runs. Resolve the same way Vite
 // does, and let the binaries load as nothing: a unit test is not exercising
-// glyph data. (#116)
-const publicRoot = {
-  name: "public-root",
-  setup(build) {
-    build.onResolve({ filter: /^\/(fonts|icons)\// }, (args) => ({
-      path: path.join(APP, "public", args.path.slice(1)),
-    }));
-    build.onLoad({ filter: /\.(otf|ttf|woff2?)$/ }, () => ({ contents: "", loader: "empty" }));
-  },
-};
+// glyph data. (#116) The rule itself lives in `tools/publicroot.mjs`, where
+// `test/publicroot.test.mjs` bundles through it — a resolver whose only test is
+// "the suite still starts" is a resolver nothing watches.
+const sharedResolver = publicRoot(APP);
 
 /**
  * Which test files to run — `npm test -- panels` runs `panels.test.mjs`.
@@ -129,7 +124,7 @@ await build({
   // the calls succeed, they just land on a different copy. Code splitting makes
   // the test build agree with the shipped one, where there is one of each.
   splitting: true,
-  plugins: [publicRoot],
+  plugins: [sharedResolver],
   platform: "neutral",
   // Nothing under test imports these, and pulling them in would make a unit
   // test of a data module depend on the whole editor.

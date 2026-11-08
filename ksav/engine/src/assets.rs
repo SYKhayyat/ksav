@@ -58,7 +58,19 @@ pub struct Asset {
 /// long-running `ksav serve` compiles, so it is bounded rather than allowed to
 /// grow for the life of the process; generous enough that a session's own images
 /// stay resident.
-const CACHE_CAP_BYTES: usize = 256 * 1024 * 1024;
+///
+/// Overridable with `KSAV_ASSET_CACHE_BYTES`, because the sentence above is a
+/// statement about a **deployment's** memory rather than about the product
+/// (#110): a container with 512 MiB and one with 32 GiB do not want the same
+/// number.
+const DEFAULT_CACHE_CAP_BYTES: usize = 256 * 1024 * 1024;
+
+/// The cap in force, read at the moment of eviction.
+pub(crate) fn cache_cap_bytes() -> usize {
+    crate::knobs::number("KSAV_ASSET_CACHE_BYTES")
+        .map(|n| n.min(usize::MAX as u64) as usize)
+        .unwrap_or(DEFAULT_CACHE_CAP_BYTES)
+}
 
 struct ContentCache {
     map: HashMap<String, Arc<Vec<u8>>>,
@@ -90,7 +102,7 @@ impl ContentCache {
         self.bytes += bytes.len();
         self.order.push_back(hash.clone());
         self.map.insert(hash, bytes);
-        while self.bytes > CACHE_CAP_BYTES {
+        while self.bytes > cache_cap_bytes() {
             let Some(old) = self.order.pop_front() else {
                 break;
             };

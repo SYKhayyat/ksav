@@ -265,9 +265,18 @@ message about a missing directory rather than about the step that was skipped.</
 /// a single client could make the server allocate until it died. A compile
 /// request carries the document plus every image and font attached to it, so the
 /// limit has to be generous — but it does have to exist.
-const MAX_BODY_BYTES: u64 = 64 * 1024 * 1024;
+const DEFAULT_MAX_BODY_BYTES: u64 = 64 * 1024 * 1024;
 
-/// How many requests are served at once.
+/// The ceiling in force, read per request.
+///
+/// The comment above sizes the ceiling to *"a document plus every image and font
+/// attached to it"*, which is client upload behaviour and therefore differs per
+/// deployment (#110). `KSAV_MAX_BODY_BYTES` moves it.
+fn max_body_bytes() -> u64 {
+    crate::knobs::number("KSAV_MAX_BODY_BYTES").unwrap_or(DEFAULT_MAX_BODY_BYTES)
+}
+
+/// How many threads the request pool has.
 ///
 /// The server was strictly serial: one loop, one compile at a time, so four
 /// concurrent compiles returned in 469/868/1255/1667 ms — a perfect staircase —
@@ -276,26 +285,51 @@ const MAX_BODY_BYTES: u64 = 64 * 1024 * 1024;
 /// unbounded: more threads than cores would only trade throughput for context
 /// switches, and an unbounded pool would let a stuck client spawn threads until
 /// the process fell over.
-fn worker_count() -> usize {
-    std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4)
-        .clamp(2, 16)
+///
+/// **This is the pool, not the fairness cap.** The two shared one expression
+/// until #110, which meant a machine's core count silently decided how many
+/// compiles one caller could have in flight. They are different questions —
+/// `services.rs`'s `Cost` exists precisely because some work must bypass the
+/// pool — so they are now derived separately and can differ.
+fn pool_threads() -> usize {
+    crate::knobs::number("KSAV_POOL_THREADS")
+        .map(|n| n.min(256) as usize)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(4)
+                .clamp(2, 16)
+        })
+}
+
+/// How many compiles may be in flight at once before the writer is refused.
+///
+/// Defaults to the pool size, which is the right number on a workstation: a
+/// compile occupies a worker for its whole life, so N workers is N concurrent
+/// compiles. It is a **separate** number because a shared box may want the pool
+/// wide and the per-box compile cap narrow, and because the refusal at
+/// `run_bounded` prints `{taken}/{max}` at the writer — that number is a
+/// deployment decision, not a deduction from a CPU count (#110).
+fn compile_slots() -> usize {
+    crate::knobs::number("KSAV_COMPILE_SLOTS")
+        .map(|n| n.min(64) as usize)
+        .unwrap_or_else(pool_threads)
 }
 
 /// Read a request body, refusing anything over the ceiling.
 fn read_body(request: &mut tiny_http::Request) -> Result<String, String> {
+    let max = max_body_bytes();
     let declared = request.body_length().unwrap_or(0) as u64;
-    if declared > MAX_BODY_BYTES {
-        return Err(format!("request body over {MAX_BODY_BYTES} bytes"));
+    if declared > max {
+        return Err(format!("request body over {max} bytes"));
     }
     let mut body = String::new();
     // Still capped while reading: `Content-Length` is the client's claim, not a
     // fact, and a chunked body declares no length at all.
-    let mut limited = std::io::Read::take(request.as_reader(), MAX_BODY_BYTES + 1);
+    let mut limited = std::io::Read::take(request.as_reader(), max + 1);
     std::io::Read::read_to_string(&mut limited, &mut body).map_err(|e| e.to_string())?;
-    if body.len() as u64 > MAX_BODY_BYTES {
-        return Err(format!("request body over {MAX_BODY_BYTES} bytes"));
+    if body.len() as u64 > max {
+        return Err(format!("request body over {max} bytes"));
     }
     Ok(body)
 }
@@ -372,7 +406,9 @@ static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
 /// bounded route would have needed a fourth — written by whoever remembered.
 fn run_service(svc: &'static Service, body: String) -> String {
     match svc.cost {
-        Cost::Layout => run_bounded(body, compile_deadline(), worker_count(), |b| (svc.call)(&b)),
+        Cost::Layout => run_bounded(body, compile_deadline(), compile_slots(), |b| {
+            (svc.call)(&b)
+        }),
         // Everything else answers from a registry, a queue or the loopback, and
         // the pool's own worker is the right place for it: capping a spell check
         // behind a stuck compile is the failure the pool exists to prevent.
@@ -538,7 +574,7 @@ pub fn serve(addr: &str) {
             std::process::exit(1);
         }
     };
-    let workers = worker_count();
+    let workers = pool_threads();
     println!("Ksav editor serving on http://{addr} ({workers} workers)");
     // A bind address that is not loopback is a decision, and the writer who
     // typed it deserves to be told what it did rather than to find out. The
@@ -754,9 +790,9 @@ fn header(key: &str, value: &str) -> Header {
 #[cfg(test)]
 mod tests {
     use super::{
-        addr_is_loopback, allowed_origin, asset_path, budget_meta, compile_deadline,
-        content_type_for, csp, page_for_run, policy_for, run_bounded, DEFAULT_COMPILE_TIMEOUT_MS,
-        NO_UI_HTML,
+        addr_is_loopback, allowed_origin, asset_path, budget_meta, compile_deadline, compile_slots,
+        content_type_for, csp, max_body_bytes, page_for_run, policy_for, pool_threads, run_bounded,
+        DEFAULT_COMPILE_TIMEOUT_MS, DEFAULT_MAX_BODY_BYTES, NO_UI_HTML,
     };
     use std::time::Duration;
 
@@ -894,7 +930,7 @@ mod tests {
     /// `compile_with_deadline`'s own doc comment says *"the overran computation is
     /// not reclaimed"* and the sentence the writer read said *"was stopped"*. The
     /// abandoned work goes on running on a detached thread, holding one of
-    /// `worker_count()` slots and burning a core — and the next compile after
+    /// one of the compile slots and burning a core — and the next compile after
     /// enough of these gets *"the server is busy"* for a reason these messages had
     /// denied. Two lines of one function disagreeing about what happened is worse
     /// than a bug, because it teaches the writer to stop reading.
@@ -1097,6 +1133,78 @@ mod tests {
             client.contains("X-Ksav-Token"),
             "and sends it in the header `native_allowed` checks"
         );
+    }
+
+    /// Every limit a deployment can bump is a limit a deployment can move.
+    ///
+    /// #110: the engine read two environment variables and hardcoded four more
+    /// whose own comments justify them by deployment — the git deadline by link
+    /// speed, the body ceiling by upload size, the asset cache by *"a
+    /// long-running `ksav serve`"*, and the compile cap by a CPU count that a
+    /// shared box makes tiny.
+    ///
+    /// The four are asserted here, through the accessor each code path uses, so
+    /// an accessor that stopped reading its variable fails here rather than in
+    /// production. The variables are process-wide and the suite runs in
+    /// parallel, so each is set, read and removed inside this one test; no other
+    /// test calls these accessors.
+    #[test]
+    fn every_deployable_limit_is_a_knob() {
+        // Defaults, first: what a deployment that sets nothing gets.
+        assert_eq!(
+            crate::git::deadline(),
+            Duration::from_secs(120),
+            "the git deadline defaults to 120 s"
+        );
+        assert_eq!(max_body_bytes(), DEFAULT_MAX_BODY_BYTES);
+        assert_eq!(max_body_bytes(), 64 * 1024 * 1024);
+        assert_eq!(crate::assets::cache_cap_bytes(), 256 * 1024 * 1024);
+
+        let set = |k: &str, v: &str| {
+            // SAFETY-adjacent: `std::env::set_var` is process-wide. Kept to one
+            // test, one variable at a time, and removed in the same scope.
+            std::env::set_var(k, v);
+        };
+        set("KSAV_GIT_TIMEOUT_MS", "300000");
+        assert_eq!(
+            crate::git::deadline(),
+            Duration::from_secs(300),
+            "a slow link can raise the only network timeout"
+        );
+        std::env::remove_var("KSAV_GIT_TIMEOUT_MS");
+
+        set("KSAV_MAX_BODY_BYTES", "1048576");
+        assert_eq!(
+            max_body_bytes(),
+            1024 * 1024,
+            "a small box can lower the ceiling"
+        );
+        std::env::remove_var("KSAV_MAX_BODY_BYTES");
+
+        set("KSAV_ASSET_CACHE_BYTES", "8388608");
+        assert_eq!(
+            crate::assets::cache_cap_bytes(),
+            8 * 1024 * 1024,
+            "a container with little memory can shrink the cache"
+        );
+        std::env::remove_var("KSAV_ASSET_CACHE_BYTES");
+
+        set("KSAV_COMPILE_SLOTS", "1");
+        assert_eq!(compile_slots(), 1, "a shared box can cap compiles at one");
+        // And the pool is a **different** decision: the two shared one
+        // expression until #110.
+        assert_ne!(
+            compile_slots(),
+            pool_threads(),
+            "the fairness cap is not the thread count"
+        );
+        std::env::remove_var("KSAV_COMPILE_SLOTS");
+
+        // Zero is not a limit anyone meant: it falls back rather than refusing
+        // every request.
+        set("KSAV_COMPILE_SLOTS", "0");
+        assert_eq!(compile_slots(), pool_threads(), "zero falls back");
+        std::env::remove_var("KSAV_COMPILE_SLOTS");
     }
 
     /// A state-changing service must not be reachable by a plain browser load.

@@ -59,7 +59,18 @@ use std::time::{Duration, Instant};
 /// thing a writer waits for, and mean enough that a wedged process cannot own
 /// the drawer. The network operations are the only ones that come close; a
 /// `status` on a sefer is single-digit milliseconds.
-const DEADLINE: Duration = Duration::from_secs(120);
+const DEFAULT_DEADLINE: Duration = Duration::from_secs(120);
+
+/// The deadline actually in force.
+///
+/// This is the product's only network timeout, and its own justification above
+/// is a statement about link speed — which is environment, not product — so it
+/// is a knob like the compile deadline (#110). Read where it is used rather
+/// than cached, so a `ksav serve` picks up its own environment exactly once and
+/// no static outlives the environment it was read from.
+pub(crate) fn deadline() -> Duration {
+    crate::knobs::millis("KSAV_GIT_TIMEOUT_MS", DEFAULT_DEADLINE)
+}
 
 /// What a run of `git` produced.
 struct Run {
@@ -198,7 +209,7 @@ fn git_run(dir: &Path, args: &[&str]) -> Result<Run, String> {
         buf
     });
 
-    let until = Instant::now() + DEADLINE;
+    let until = Instant::now() + deadline();
     let status = loop {
         match child.try_wait() {
             Ok(Some(s)) => break Some(s),

@@ -49,6 +49,9 @@ pub mod git;
 pub mod include;
 /// Both directions between a place in the source and a place on the page.
 pub mod jump;
+/// The deployment limits a server operator can move without a rebuild: the git
+/// deadline, the compile slots, the body ceiling and the asset cache cap (#110).
+pub mod knobs;
 /// What the engine embeds and the notice each embedding owes — one table, tied
 /// to the `include_bytes!` lines below and to `THIRD-PARTY-NOTICES.md`.
 pub mod notemarks;

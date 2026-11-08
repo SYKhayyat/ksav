@@ -596,6 +596,24 @@ mod render_probe {
         std::env::var_os("KSAV_DPR_OUT").map(std::path::PathBuf::from)
     }
 
+    /// Where the record that this code ran goes.
+    ///
+    /// The check distinguishes two failures it could not tell apart before: a
+    /// webview that never started, and a page that started and never answered.
+    /// Reaching this function means the window exists (`setup` has run), which
+    /// is the boundary between them, so the fact is written down rather than
+    /// inferred from the absence of an answer (#171).
+    fn boot_path() -> Option<std::path::PathBuf> {
+        std::env::var_os("KSAV_DPR_BOOT").map(std::path::PathBuf::from)
+    }
+
+    fn report_boot() {
+        let Some(path) = boot_path() else { return };
+        if let Ok(mut file) = std::fs::File::create(&path) {
+            let _ = file.write_all(b"{\"setup\":true}");
+        }
+    }
+
     /// Called from the page. Writes the measurement, so that the check can read a
     /// number rather than judge a picture.
     #[tauri::command]
@@ -619,6 +637,7 @@ mod render_probe {
         if output_path().is_none() {
             return;
         }
+        report_boot();
         std::thread::spawn(move || {
             for _ in 0..40 {
                 if let Some(window) = handle.get_webview_window("main") {

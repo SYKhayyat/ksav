@@ -47,9 +47,19 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderEnv, renderNodes } from "./renderenv.mjs";
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SHELL = path.join(APP, "src-tauri");
+
+/** The last few lines of a captured stream, so a failure can quote the app. */
+function tail(text, lines = 20) {
+  const kept = String(text || "")
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .slice(-lines);
+  return kept.length ? kept.map((line) => `      ${line}`).join("\n") : "      (nothing)";
+}
 
 /** How long the page gets to answer, in milliseconds. */
 const ANSWER_BY_MS = 25_000;
@@ -89,8 +99,42 @@ if (!existsSync(path.join(APP, "dist", "index.html"))) {
   run(["npm", "run", "build"], APP);
 }
 
+// A record that the shell reached `setup`, which runs only once a window and its
+// webview exist. Without it, "the page never answered" cannot tell a webview
+// that failed to start from a page that started and never ran the probe — and
+// those are different bugs with different fixes (#171).
 const dir = mkdtempSync(path.join(tmpdir(), "ksav-render-"));
 const answer = path.join(dir, "measurement.json");
+const boot = path.join(dir, "boot.json");
+
+// What this machine can render with, decided before the window is asked.
+const nodes = renderNodes();
+const { env, cleared, notes } = renderEnv({
+  display: process.env.DISPLAY,
+  waylandDisplay: process.env.WAYLAND_DISPLAY,
+  renderNodes: nodes,
+});
+for (const note of notes) console.log(`→ ${note}`);
+const childEnv = { ...process.env, ...env, KSAV_DPR_OUT: answer, KSAV_DPR_BOOT: boot };
+for (const key of cleared) delete childEnv[key];
+
+/** What a timeout means here, in the runner's own terms. */
+function whySilent(child) {
+  const facts = [
+    `  display:   DISPLAY=${process.env.DISPLAY ?? "(unset)"}, ` +
+      `WAYLAND_DISPLAY=${cleared.includes("WAYLAND_DISPLAY") ? "(pinned to X11)" : (process.env.WAYLAND_DISPLAY ?? "(unset)")}`,
+    `  rendering: ${nodes.length ? nodes.join(", ") : "no DRM render node — software path"}` +
+      (Object.keys(env).length ? ` (${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(" ")})` : ""),
+    `  window:    ${existsSync(boot) ? "created (the shell reached its setup)" : "never created — the webview did not start"}`,
+    `  exit:      ${child.status === null ? "still running when the deadline passed" : `status ${child.status}`}, ` +
+      `signal ${child.signal ?? "none"}`,
+    "",
+    "  The shell's own output:",
+    tail(child.stdout),
+    tail(child.stderr),
+  ].join("\n");
+  return facts;
+}
 
 try {
   // The crate's own target directory, not a throwaway one. A private
@@ -106,14 +150,14 @@ try {
   if (!existsSync(binary)) fail(`expected a binary at ${binary} and there is none`);
 
   console.log("→ asking the page what it thinks the display is");
-  const child = spawnSync(
-    "bash",
-    [
-      "-c",
-      `KSAV_DPR_OUT=${JSON.stringify(answer)} exec ${JSON.stringify(binary)}`,
-    ],
-    { stdio: "inherit", timeout: ANSWER_BY_MS },
-  );
+  // Output is captured rather than inherited so a failure can quote the app.
+  // On a pass there is nothing here worth showing; on a timeout it is the only
+  // evidence in the run about what the webview did.
+  const child = spawnSync("bash", ["-c", `exec ${JSON.stringify(binary)}`], {
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: ANSWER_BY_MS,
+    env: childEnv,
+  });
   // A timeout is the expected end: the application is an editor, and nothing
   // asks it to quit. `SIGTERM` from `timeout` is a pass, not a crash.
   if (child.error && child.error.code !== "ETIMEDOUT") {
@@ -123,10 +167,10 @@ try {
   if (!existsSync(answer)) {
     fail(
       `the application ran and the page never answered (${ANSWER_BY_MS}ms).\n\n` +
-        "  Nothing was written to the measurement file, so either the webview\n" +
-        "  never loaded a page at all, or it loaded one that could not run this\n" +
-        "  script. The first is a blank window; the second means the app is\n" +
-        "  serving something other than the editor.",
+        "  Nothing was written to the measurement file. What the run looked like:\n\n" +
+        whySilent(child) +
+        "\n\n  With a window that exists, the page loaded and did not run the probe;\n" +
+        "  without one, the webview never got as far as a page.",
     );
   }
 

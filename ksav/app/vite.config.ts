@@ -12,7 +12,7 @@ import { SERVICES } from "./src/services.gen";
 import { MODE_PACKAGES, stripStatementPure } from "./tools/pure-annotations.mjs";
 // @ts-expect-error — plain JS beside `csp.txt`, which is where the rule about
 // how that file may be delivered belongs. No types, and nothing to type.
-import { metaPolicy } from "../policy/meta.mjs";
+import { checkFeedInCsp, metaPolicy } from "../policy/meta.mjs";
 import { assetBaseOf } from "./tools/paths.mjs";
 
 // The Ksav engine (cargo run -- serve) runs on :7878 and exposes the compile +
@@ -115,6 +115,11 @@ const buildId: string = (() => {
 // policy there would block Vite's inline HMR client and its eval, breaking
 // `npm run dev`. In production the bundle is external, same-origin scripts.
 const CSP = readFileSync(here("../policy/csp.txt"), "utf8").trim();
+// The one place the update feed's origin and the policy that must allow it are
+// compared. `policy/feed.json` is imported by `src/update.ts`; if the two drift,
+// this build stops instead of shipping an update check that is silently blocked
+// by its own CSP (#113).
+checkFeedInCsp(CSP);
 
 // What a `<meta>` element is allowed to say — see `ksav/policy/meta.mjs`, which
 // is the one statement of that rule and is what the fence in

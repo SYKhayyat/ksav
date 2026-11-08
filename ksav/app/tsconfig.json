@@ -8,6 +8,9 @@
     "noUnusedParameters": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
+    // `policy/feed.json` is the update feed's one address, imported by
+    // `src/update.ts` and used by the CSP check in `vite.config.ts` (#113).
+    "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "paths": {

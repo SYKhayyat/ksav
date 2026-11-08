@@ -61,6 +61,46 @@ mod tests {
         );
     }
 
+    /// The origin the client calls is the origin the policy allows.
+    ///
+    /// #113: both halves existed and nothing compared them. The three CSP
+    /// fences prove the three **copies** agree with one another — internal
+    /// consistency, not that the client's origin is among the allowed ones. The
+    /// origin lived as a string in `update.ts` and as a token in `csp.txt`,
+    /// owned by different files, so a feed that moved took a source edit to a
+    /// file whose equality is machine-enforced, and moving only the client left
+    /// the check silently blocked in every packaged build.
+    ///
+    /// `policy/feed.json` is now the source, imported by `update.ts` and by
+    /// `policy/meta.mjs` (which refuses to build a policy that does not allow
+    /// it). This asserts the server-side copy is held to the same file.
+    #[test]
+    fn the_feed_the_client_calls_is_the_feed_the_policy_allows() {
+        let feed: serde_json::Value =
+            serde_json::from_str(include_str!("../../policy/feed.json")).expect("feed.json parses");
+        let origin = feed["origin"].as_str().expect("feed.json names an origin");
+        let latest = feed["latest"]
+            .as_str()
+            .expect("feed.json names the endpoint");
+        assert!(
+            latest.starts_with(origin),
+            "the endpoint the client fetches is at the origin the policy allows:              {latest} is not under {origin}"
+        );
+        assert!(
+            csp()
+                .split(';')
+                .find(|d| d.trim_start().starts_with("connect-src"))
+                .is_some_and(|d| d.split_whitespace().any(|t| t == origin)),
+            "connect-src must name {origin} — it is the one origin the product dials"
+        );
+        // And the client reads the same file rather than restating the string.
+        let client = std::fs::read_to_string("../app/src/update.ts").expect("update.ts");
+        assert!(
+            client.contains("policy/feed.json"),
+            "update.ts imports policy/feed.json, so the two halves are one value"
+        );
+    }
+
     /// One line, and no comments, because three programs read it as data and
     /// only one of them is a compiler.
     #[test]

@@ -26,6 +26,41 @@
 // the policy today; they are listed so that adding one is a decision rather than
 // a surprise.
 
+import feed from "./feed.json" with { type: "json" };
+
+/**
+ * The origin the update check calls, as data.
+ *
+ * #113: `app/src/update.ts` and `csp.txt`'s `connect-src` each held this origin,
+ * in different files with different fences — the CSP ones prove the three copies
+ * agree *with each other* and nothing proved the client's origin was among them.
+ * Moving the feed therefore required editing a machine-enforced file, and moving
+ * only the client killed the check silently in every packaged build.
+ */
+export const FEED_ORIGIN = feed.origin;
+
+/**
+ * Refuse a policy that would block the update check.
+ *
+ * Called by `vite.config.ts` while it builds the `<meta>` CSP, so an origin
+ * changed in `feed.json` without `csp.txt` fails the **build** — the earliest
+ * place this can be caught, and the one that cannot be skipped by a release.
+ */
+export function checkFeedInCsp(csp) {
+  const connect = csp
+    .split(";")
+    .map((d) => d.trim())
+    .find((d) => d.startsWith("connect-src"));
+  const tokens = (connect ?? "").split(/\s+/u);
+  if (!tokens.includes(FEED_ORIGIN)) {
+    throw new Error(
+      `policy/csp.txt connect-src does not allow ${FEED_ORIGIN} (policy/feed.json), ` +
+        `so the update check is blocked in every packaged build.`,
+    );
+  }
+  return csp;
+}
+
 /** Directives a `<meta>` CSP cannot deliver, and that browsers discard. */
 export const HEADER_ONLY = ["frame-ancestors", "report-uri", "sandbox"];
 

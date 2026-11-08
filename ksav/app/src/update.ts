@@ -15,7 +15,26 @@
 export const CURRENT_VERSION: string =
   typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "0.0.0";
 
-const RELEASES = "https://api.github.com/repos/SYKhayyat/ksav/releases/latest";
+// The feed's address, from the one file that also decides whether the CSP
+// allows it.
+//
+// #113: this constant and `policy/csp.txt`'s `connect-src` were the same origin
+// written twice, owned by different files and fenced differently — the CSP by
+// three equality checks that prove the three copies agree **with each other**,
+// and this by nothing. Moving the feed was a source edit in a file whose
+// equality is machine-enforced, and moving only one half killed the update check
+// silently, because `check()` below absorbs every failure by design.
+//
+// `policy/feed.json` is now the source: this module imports it, `vite.config.ts`
+// refuses to build if the policy does not allow its origin
+// (`checkFeedInCsp`), and `engine/src/policy.rs` holds the same pair together on
+// the serving side.
+import feed from "../../policy/feed.json";
+
+const RELEASES: string = feed.latest;
+
+/** The page a "newer Ksav exists" banner sends the writer to. */
+export const RELEASES_PAGE: string = feed.releases;
 
 export interface Release {
   version: string;
@@ -70,7 +89,7 @@ export async function latestRelease(fetchImpl: typeof fetch = fetch): Promise<Re
     if (!body?.tag_name) return null;
     return {
       version: body.tag_name.replace(/^v/i, ""),
-      url: body.html_url ?? "https://github.com/SYKhayyat/ksav/releases",
+      url: body.html_url ?? RELEASES_PAGE,
       notes: body.body ?? "",
     };
   } catch {

@@ -585,6 +585,9 @@ pub fn serve(addr: &str) {
         println!("  reachable from the network — the editor and every compile service.");
         println!("  git, the Girsa desk and the other services that touch this");
         println!("  machine answer only on loopback, unless KSAV_TOKEN is set.");
+        for note in network_bind_notes() {
+            println!("{note}");
+        }
     }
 
     // The loopback desk, so Girsa can hand this editor a source while it runs
@@ -727,6 +730,27 @@ fn origin_of(request: &tiny_http::Request) -> Option<String> {
     )
 }
 
+/// What a non-loopback bind implies about the waiting room (#114).
+///
+/// `post::DEFAULT_WAITING_ROOM` is sized by an argument about **one** writer at
+/// one desk, and a network bind is the address that puts more than one on it. A
+/// full queue then refuses the next sender, and the refusal used to say the
+/// editor was shut — while it was open. Both halves are said here: the number
+/// before it is hit, at the moment the decision is made, rather than discovered
+/// from a stranger's error message.
+pub(crate) fn network_bind_notes() -> Vec<String> {
+    vec![
+        format!(
+            "  the Girsa inbox holds {} waiting sources (KSAV_INBOX_WAITING_ROOM raises it);",
+            crate::post::waiting_room()
+        ),
+        format!(
+            "  a box several people send to wants a larger number than {}.",
+            crate::post::DEFAULT_WAITING_ROOM
+        ),
+    ]
+}
+
 /// Does this bind address keep the server on this machine?
 ///
 /// The host part, parsed — not a string test. `"localhost:7878"` and
@@ -829,8 +853,9 @@ fn header(key: &str, value: &str) -> Header {
 mod tests {
     use super::{
         addr_is_loopback, allowed_origin, asset_path, budget_meta, compile_deadline, compile_slots,
-        content_type_for, csp, dev_origins, max_body_bytes, page_for_run, policy_for, pool_threads,
-        run_bounded, DEFAULT_COMPILE_TIMEOUT_MS, DEFAULT_MAX_BODY_BYTES, DEV_PORT, NO_UI_HTML,
+        content_type_for, csp, dev_origins, max_body_bytes, network_bind_notes, page_for_run,
+        policy_for, pool_threads, run_bounded, DEFAULT_COMPILE_TIMEOUT_MS, DEFAULT_MAX_BODY_BYTES,
+        DEV_PORT, NO_UI_HTML,
     };
     use std::time::Duration;
 
@@ -880,6 +905,30 @@ mod tests {
         // An address nobody can parse is treated as reachable, because the
         // cautious reading of one is the reading that warns.
         assert!(!addr_is_loopback("not-an-address"));
+    }
+
+    /// A network bind announces the waiting room it inherited (#114).
+    ///
+    /// The capacity argument was written about one writer and the bind address
+    /// is the one that puts more than one on it. Nothing said so, so the number
+    /// was only discoverable by filling it. The line names the room as this run
+    /// has it, and the setting that changes it.
+    #[test]
+    fn a_network_bind_says_how_many_sources_the_inbox_holds() {
+        let notes = network_bind_notes().join("\n");
+        assert!(
+            notes.contains(&crate::post::DEFAULT_WAITING_ROOM.to_string()),
+            "the line names the room: {notes}"
+        );
+        assert!(notes.contains("KSAV_INBOX_WAITING_ROOM"), "{notes}");
+        // And it is the *current* room, not a constant restated in prose: the
+        // deployment's number is the one printed.
+        // SAFETY-adjacent: no other test reads this variable.
+        unsafe { std::env::set_var("KSAV_INBOX_WAITING_ROOM", "512") };
+        let raised = network_bind_notes().join("\n");
+        unsafe { std::env::remove_var("KSAV_INBOX_WAITING_ROOM") };
+        assert!(raised.contains("512"), "the deployment's room: {raised}");
+        assert!(!raised.contains("holds 64"), "{raised}");
     }
 
     /// Every `Reach::Native` service is gated, and no compile service is.

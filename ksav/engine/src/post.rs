@@ -101,14 +101,37 @@ static INBOX: Mutex<Vec<Arrival>> = Mutex::new(Vec::new());
 /// told had arrived and that nothing on this machine still holds.
 static HANDED: Mutex<Vec<Arrival>> = Mutex::new(Vec::new());
 
-/// How many sources may wait at once.
+/// How many sources may wait at once, for one writer at one desk.
 ///
 /// The inbox was unbounded, so a Ksav whose editor nobody had opened would
 /// accept sources for as long as Girsa cared to send them and hold every one.
 /// Sixty-four is far more than a writer queues by hand between two glances at
-/// the window, which makes the sixty-fifth evidence that the editor is not
-/// running — and it is told so, rather than joining a queue nothing drains.
-const WAITING_ROOM: usize = 64;
+/// the window.
+///
+/// # What this number is *not* (#114)
+///
+/// It was documented as evidence that the editor is not running — a judgement
+/// about **one** writer, enforced on a queue that `ksav serve 0.0.0.0:7878`
+/// shares with everybody on the network (a case `server.rs` documents in four
+/// places). On that box the sixty-fifth sender was told the editor was shut
+/// while it was open and healthy: the queue was full, and the message sent the
+/// operator looking for a process that was alive.
+///
+/// So the number is a default for the single-writer case, not a statement about
+/// the deployment. A server several people send to raises it with
+/// `KSAV_INBOX_WAITING_ROOM`, and `server.rs` says so out loud when it binds
+/// somewhere the network can reach — see [`waiting_room`].
+pub const DEFAULT_WAITING_ROOM: usize = 64;
+
+/// The waiting room this run has, default unless the deployment says otherwise.
+///
+/// Read per refusal rather than cached, so the environment is the answer at the
+/// moment the question is asked — the same rule `compile_deadline()` keeps.
+pub fn waiting_room() -> usize {
+    crate::knobs::number("KSAV_INBOX_WAITING_ROOM")
+        .map(|n| usize::try_from(n).unwrap_or(usize::MAX))
+        .unwrap_or(DEFAULT_WAITING_ROOM)
+}
 
 /// Where sources wait between runs.
 ///
@@ -230,15 +253,26 @@ fn recover() {
 fn wait(arrival: Arrival) -> Reply {
     match INBOX.lock() {
         Ok(mut inbox) => {
-            if inbox.len() >= WAITING_ROOM {
+            let room = waiting_room();
+            if inbox.len() >= room {
                 // Refused, not silently dropped and not queued forever. Girsa
-                // shows this sentence, so the writer learns the editor is shut
+                // shows this sentence, so the writer learns what happened
                 // instead of wondering where the quote went.
+                //
+                // It says the queue is **full**, which is a fact, and does not
+                // say the editor is shut, which was a guess: on a server bound
+                // to the network several writers share this room, the editor
+                // can be open and polling and still be behind. The last
+                // sentence is the fix, and the only one that acts on the truth.
                 return Reply::refused(
                     503,
                     format!(
-                        "{WAITING_ROOM} sources are already waiting and nothing has taken \
-                         them — open the Ksav editor and they will all go in"
+                        "the inbox is full — {room} sources are waiting and none has been \
+                         taken yet. That is capacity, not a closed editor: if several people \
+                         send to this Ksav, raise KSAV_INBOX_WAITING_ROOM. \
+                         התיבה מלאה — {room} מקורות ממתינים ואיש לא לקח אותם. זו קיבולת, \
+                         לא עורך סגור: אם כמה אנשים שולחים לכאן, העלו את \
+                         KSAV_INBOX_WAITING_ROOM."
                     ),
                 );
             }
@@ -852,16 +886,88 @@ mod tests {
     #[test]
     fn an_inbox_nothing_is_draining_refuses_rather_than_growing() {
         let _alone = alone();
-        for _ in 0..WAITING_ROOM {
+        for _ in 0..DEFAULT_WAITING_ROOM {
             arrived(PACKET).expect("a real packet");
         }
         let why = arrived(PACKET).expect_err("the waiting room is full");
-        assert!(why.contains("open the Ksav editor"), "{why}");
+        assert!(why.contains("the inbox is full"), "{why}");
         assert_eq!(
             drain(&[]).len(),
-            WAITING_ROOM,
+            DEFAULT_WAITING_ROOM,
             "refusing the last one must not cost the ones already waiting"
         );
+    }
+
+    /// The refusal names the queue, not a guess about a process (#114).
+    ///
+    /// The message used to say *"open the Ksav editor and they will all go in"*,
+    /// which is what a full queue means for one writer at one desk and a false
+    /// statement on the deployment `ksav serve 0.0.0.0:7878` is documented for:
+    /// there the editor is open, polling, and simply behind. The sender then
+    /// goes looking for a process that is alive — the audit's blast radius.
+    ///
+    /// So it must say **full** (a fact), must not say **closed** (a guess), must
+    /// carry the number, and must name the setting that raises it. In both
+    /// languages, because the string is shown to whoever sent the source.
+    #[test]
+    fn a_full_inbox_says_so_and_does_not_blame_a_closed_editor() {
+        let _alone = alone();
+        for _ in 0..DEFAULT_WAITING_ROOM {
+            arrived(PACKET).expect("a real packet");
+        }
+        let why = arrived(PACKET).expect_err("the waiting room is full");
+        assert!(why.contains("capacity, not a closed editor"), "{why}");
+        assert!(
+            why.contains(&DEFAULT_WAITING_ROOM.to_string()),
+            "the refusal names the room it filled: {why}"
+        );
+        assert!(
+            why.contains("KSAV_INBOX_WAITING_ROOM"),
+            "and the setting that raises it: {why}"
+        );
+        assert!(
+            why.contains("התיבה מלאה"),
+            "the sentence a Hebrew reader gets: {why}"
+        );
+        assert!(
+            !why.contains("open the Ksav editor"),
+            "the refusal no longer sends the operator after a live process: {why}"
+        );
+    }
+
+    /// The room is a deployment's to size (#114).
+    ///
+    /// The number was justified by an argument about **one** writer and enforced
+    /// on a queue a network-bound server shares with everyone. An env var beside
+    /// the constant is the minimum the audit asks for; the message above is the
+    /// other half.
+    #[test]
+    fn the_waiting_room_can_be_made_bigger_by_the_deployment() {
+        let _alone = alone();
+        assert_eq!(
+            waiting_room(),
+            DEFAULT_WAITING_ROOM,
+            "the default is the default"
+        );
+        // SAFETY-adjacent: `alone()` holds the suite's lock, and the variable is
+        // set and removed inside this test so no other test reads it.
+        unsafe { std::env::set_var("KSAV_INBOX_WAITING_ROOM", "3") };
+        assert_eq!(waiting_room(), 3, "the deployment sizes the room");
+        for _ in 0..3 {
+            arrived(PACKET).expect("a real packet");
+        }
+        let why = arrived(PACKET).expect_err("three is the room it was told");
+        assert!(why.contains("3 sources"), "{why}");
+        assert_eq!(drain(&[]).len(), 3);
+        // Zero and nonsense are not capacities: the room must stay a room.
+        unsafe { std::env::set_var("KSAV_INBOX_WAITING_ROOM", "0") };
+        assert_eq!(
+            waiting_room(),
+            DEFAULT_WAITING_ROOM,
+            "0 is absent, not a room"
+        );
+        unsafe { std::env::remove_var("KSAV_INBOX_WAITING_ROOM") };
+        assert_eq!(waiting_room(), DEFAULT_WAITING_ROOM);
     }
 
     #[test]

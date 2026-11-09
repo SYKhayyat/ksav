@@ -7,6 +7,7 @@
 
 import { check, ok, notOk } from "./harness.mjs";
 import { toMarkdown, toPlainText } from "../.tmp-test/markdown.mjs";
+import { toOrg } from "../.tmp-test/org.mjs";
 
 /** Nothing that comes out of an export may still look like a Ksav command. */
 function leaksMarkup(s) {
@@ -38,6 +39,92 @@ export async function run() {
   {
     const out = toMarkdown("#קו_מפריד");
     ok("a horizontal rule becomes one", out.includes("---"));
+  }
+
+  // ------------------------------------------------- the layout atoms, per dialect
+  //
+  // #129. The UAT report: *"exported text has extra line breaks for headers and
+  // source line-break commands; the same problem appears in Markdown and Org"*,
+  // and the plain-text export carried `---` and `______` — Markdown's spellings
+  // of a rule and a fill — in a file whose whole purpose is that it has no
+  // markup.
+  //
+  // The rule the three dialects follow, and the one asserted here: **an atom
+  // becomes syntax only where the target format has that syntax.** A page break
+  // is a rule in Markdown and Org because a sefer divided by page breaks would
+  // otherwise arrive as one wall of text; in plain text it is a paragraph break,
+  // because a text file has no pages and `---` is not a word.
+  {
+    const atoms = {
+      rule: "#קו_מפריד",
+      pagebreak: "#מעבר_עמוד",
+      colbreak: "#מעבר_טור",
+      gap: "#חסר(גובה: 2em)",
+      vspace: "#מרווח(גובה: 1em)",
+      hspace: "#רווח(רוחב: 1em)",
+    };
+
+    // Plain text: no marker of any format survives. This is the assertion that
+    // fails on the old code for both `rule` (`---`) and `gap` (`______`).
+    const stray = [];
+    for (const [name, src] of Object.entries(atoms)) {
+      const out = toPlainText(`א\n\n${src}\n\nב`);
+      for (const mark of ["---", "_____", "\*", "#", "[^", "\\\\", "$"]) {
+        if (out.includes(mark)) stray.push(`${name} → ${JSON.stringify(out)}`);
+      }
+      ok(`plain: ${name} keeps both paragraphs`, out.includes("א") && out.includes("ב"), out);
+      notOk(`plain: ${name} leaves no marker`, out.includes("#"), out);
+    }
+    check("plain: none of the six atoms leaves a mark from another format", stray, []);
+
+    // A rule still *separates* what it stood between, in both markups: dropping
+    // it entirely would join two chapters into one.
+    ok("markdown: a page break is a rule", toMarkdown("א\n\n#מעבר_עמוד\n\nב").includes("---"));
+    check("org: a page break is Org's rule", toOrg("א\n\n#מעבר_עמוד\n\nב").trim(), "א\n\n-----\n\nב");
+    // …and a fill is not a rule, in either: `______` was a second thematic break
+    // that said nothing about a gap.
+    notOk("markdown: a fill is not a rule", toMarkdown(atoms.gap).includes("___"));
+    notOk("org: a fill is not a rule", toOrg(atoms.gap).includes("___"));
+  }
+
+  {
+    // A line break is a line break, not a paragraph. The atom meets the source's
+    // own newline — the writer typed the command at the end of a line — and the
+    // two together used to read as a blank line, which is a paragraph in
+    // Markdown, a paragraph in plain text, and (before `toOrg`'s collapse) a
+    // stray `\\` above a blank line in Org.
+    const src = "שורה ראשונה#מעבר_שורה\nשורה שנייה";
+    check("markdown: a forced break is not a paragraph", toMarkdown(src).trim(), "שורה ראשונה\nשורה שנייה");
+    check("plain: a forced break is a newline", toPlainText(src).trim(), "שורה ראשונה\nשורה שנייה");
+    check("org: a forced break is Org's backslashes", toOrg(src).trim(), "שורה ראשונה\\\\\nשורה שנייה");
+    // And a writer who left a blank line after the marker still gets the break,
+    // not that blank line and a stray marker.
+    check(
+      "org: a marker followed by a blank line still breaks once",
+      toOrg("א#מעבר_שורה\n\nב").trim(),
+      "א\\\\\nב",
+    );
+  }
+
+  {
+    // Headings: "extra line breaks for headers" was the report's first half. A
+    // heading is a block, so it gets exactly one blank line either side — not
+    // two, whichever of the three ways the writer separated it in the source.
+    const want = {
+      markdown: "# פרק\n\nטקסט\n",
+      plain: "פרק\n\nטקסט\n",
+      org: "* פרק\n\nטקסט\n",
+    };
+    const dialects = { markdown: toMarkdown, plain: toPlainText, org: toOrg };
+    for (const [how, src] of [
+      ["nothing between them", "#כותרת1[פרק]\nטקסט"],
+      ["a newline", "#כותרת1[פרק]\n\nטקסט"],
+      ["a blank line and a space", "#כותרת1[פרק]\n \nטקסט"],
+    ]) {
+      for (const [name, fn] of Object.entries(dialects)) {
+        check(`${name}: a heading with ${how} is a block and one paragraph`, fn(src), want[name]);
+      }
+    }
   }
 
   // ------------------------------------------------------------ the apparatus

@@ -25,6 +25,26 @@ const WRAP: Record<EmphasisKind, string> = {
   mark: "==",
 };
 
+// What each layout atom becomes, in each dialect (#129).
+//
+// The rule the three tables follow: **an atom becomes syntax only where the
+// target format has that syntax.** Everything else becomes the paragraph break a
+// reader of that format already understands, because a marker the format does
+// not use is not information — it is the converter leaking its own source.
+//
+// | atom | Markdown | Org | plain text |
+// |---|---|---|---|
+// | rule | `---` (a thematic break) | `-----` (Org's rule) | a paragraph break |
+// | page break | `---` | `-----` | a paragraph break |
+// | line break | two spaces + newline | `\\` + newline | a newline |
+// | column break | a paragraph break | a paragraph break | a paragraph break |
+// | `חסר` (fill) | a paragraph break | a paragraph break | nothing |
+// | `מרווח` (vertical space) | a paragraph break | a paragraph break | a paragraph break |
+// | `רווח` (horizontal space) | one space | one space | one space |
+//
+// Before this, plain text reused Markdown's table wholesale, so a `#קו_מפריד`
+// left a `---` line and a `#חסר` left `______` in a file that is supposed to be
+// the words and nothing else — the UAT report's *"preserves layout markers"*.
 const BREAKS: Record<AtomKind, string> = {
   rule: "\n\n---\n\n",
   // A page break and a rule are the same mark here. Markdown has no pages, and
@@ -32,7 +52,10 @@ const BREAKS: Record<AtomKind, string> = {
   pagebreak: "\n\n---\n\n",
   linebreak: "  \n",
   colbreak: "\n\n",
-  gap: "______",
+  // `______` was a second thematic break spelled with underscores: a gap is
+  // vertical space, Markdown cannot say vertical space, and a rule says something
+  // else entirely.
+  gap: "\n\n",
   vspace: "\n\n",
   hspace: " ",
 };
@@ -79,8 +102,28 @@ export const MARKDOWN: Dialect = {
  * the end — and a reader who meets `[^3]` in an email has been handed a
  * reference to nothing.
  */
+/**
+ * The break table for plain text, which is **not** Markdown's.
+ *
+ * Plain text is the words a reader would meet on the page: it has paragraphs and
+ * lines, and no other structure. So a rule and a page break are a paragraph
+ * break (a divider with no words is a paragraph break), a forced line break is a
+ * newline, and the two spacing atoms that Ksav uses to *position* something —
+ * `חסר`'s fill and a column break — leave nothing at all, because neither has an
+ * effect a reader of the words could name.
+ */
+const PLAIN_BREAKS: Record<AtomKind, string> = {
+  rule: "\n\n",
+  pagebreak: "\n\n",
+  linebreak: "\n",
+  colbreak: "\n\n",
+  gap: "",
+  vspace: "\n\n",
+  hspace: " ",
+};
+
 export const PLAIN: Dialect = {
-  atom: (kind) => BREAKS[kind],
+  atom: (kind) => PLAIN_BREAKS[kind],
   heading: (_level, text) => `\n\n${text}\n\n`,
   emphasis: (_kind, text) => text,
   listItem: (_i, _kind, text) => "• " + text + "\n",

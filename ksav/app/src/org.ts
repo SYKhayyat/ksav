@@ -67,7 +67,9 @@ const BREAKS: Record<AtomKind, string> = {
   // this is not just "\n" — a bare newline in Org continues the paragraph.
   linebreak: "\\\\\n",
   colbreak: "\n\n",
-  gap: "______",
+  // A gap is vertical space, and Org has no syntax for it — `______` was a rule
+  // spelled with underscores, which is not the same statement (#129).
+  gap: "\n\n",
   vspace: "\n\n",
   hspace: " ",
 };

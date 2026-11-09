@@ -595,6 +595,12 @@ the reasoning, not the reference, and this file is long enough.
     either reads it or says why it cannot: Word and web HTML reflow, so the
     reader decides the pages; Markdown, Org, plain text and `.typ` are the
     source, which was never laid out. The PDF and the printer read it.
+  - **What a layout atom becomes** is decided once per format, not at each call
+    site (#129): a rule is `---` in Markdown and `-----` in Org, a forced line
+    break is Markdown's trailing spaces and Org's `\\`, and **plain text gets
+    neither** — a rule, a page break and a fill are all just the paragraph break,
+    because those three spellings are other formats' syntax and a text file is
+    meant to be only the words. The table is at the top of `app/src/markdown.ts`.
   - **Org mode, both directions** (Export ▸ Org mode, File ▸ Import from Org).
     Of the interchange formats this is the one whose structure is closest to a
     sefer's — a tree of headings with footnotes hanging off it — and it has no
@@ -739,7 +745,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 13,226 editor assertions across 139 files,
+      all nine jobs: the typechecker and 13,256 editor assertions across 139 files,
       1171 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS, a build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -818,7 +824,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 13,226 assertions across 139 files |
+| `editor` | both | the typechecker, then 13,256 assertions across 139 files |
 | `engine` | both | formatting, lints, then 1175 tests across 81 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |

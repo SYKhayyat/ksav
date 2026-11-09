@@ -343,7 +343,7 @@ export function render(source: string, d: Dialect): string {
         i++;
         continue;
       }
-      const end = s.to;
+      let end = s.to;
       // A command's content is its `[body]` when it has one — but the container
       // commands put theirs in the argument list instead: `#רשימה(פריט[…], …)`.
       // Descending only into brackets silently dropped every list.
@@ -356,6 +356,20 @@ export function render(source: string, d: Dialect): string {
         // drop the whole call
       } else if (ATOMS[s.name] != null && !hasBody) {
         out += d.atom(ATOMS[s.name]);
+        // **The writer's newline is the same break, written twice** (#129).
+        //
+        // `#מעבר_שורה` is almost always written at the end of a line, so the
+        // break the atom emits meets the source's own newline and the two read as
+        // a paragraph break: Markdown's `  \n` became `  \n\n`, which is a
+        // paragraph in every renderer, and plain text's newline became a blank
+        // line. The export said the writer had started a new paragraph when they
+        // had asked for a line.
+        //
+        // Consuming the one newline that follows restores what they typed. A
+        // blank line after the marker still means what it means — `toOrg` keeps
+        // its `\\\n` collapse for exactly that case, where the writer did leave
+        // one.
+        if (ATOMS[s.name] === "linebreak" && end < to && src[end] === "\n") end++;
       } else if (s.name === "הפניה" || s.name === "xref") {
         out += d.xref();
       } else if (s.name === "נוסחה" || s.name === "formula" || s.name === "נוסחה_בשורה" || s.name === "iformula") {

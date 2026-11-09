@@ -549,6 +549,48 @@ export async function run() {
     const stored = await page.evaluate(() => localStorage.getItem("ksav.settings"));
     ok("and the choice was written down", /"lang":"en"/.test(stored ?? ""));
 
+    // ------------------------------------------------- one page, two directions
+    //
+    // #122. The root element's `dir` used to be the **document's**
+    // (`document.documentElement.dir = docConfig().dir`), added to fix the caret
+    // in a Hebrew document under an English interface. It fixed the caret and
+    // mirrored the product: an English interface with a Hebrew sefer opened right
+    // to left, drawers and menus included, and the pane tree — kept physical on
+    // purpose so "preview on the right" is the right of the screen — laid itself
+    // out backwards.
+    //
+    // Switched here through the settings drawer, the way a writer does it, and
+    // then read off three elements: the page takes the interface's direction and
+    // the text surfaces take the document's. This is the only place in the suite
+    // where a real window can be asked, and it is the difference the fix makes.
+    {
+      await page.getByLabel("Settings").first().click();
+      await page.waitForTimeout(700);
+      const direction = page
+        .locator("select")
+        .filter({ has: page.locator("option[value='rtl']") })
+        .first();
+      await direction.selectOption("rtl");
+      await page.waitForTimeout(900);
+      const both = await page.evaluate(() => ({
+        root: document.documentElement.dir,
+        text: [...document.querySelectorAll(".cm-content")].map((e) => e.getAttribute("dir")),
+        preview: [...document.querySelectorAll(".preview-host")].map((e) => e.style.direction),
+      }));
+      check("an English interface keeps reading left to right", both.root, "ltr");
+      check("…while the Hebrew document's text reads right to left", both.text, ["rtl"]);
+      check("…and every preview pane follows the document", both.preview, ["rtl"]);
+      // …and the page is still left to right after the flip (the drawer is open
+      // here, which is the surface the old coupling moved).
+      check(
+        "the drawer did not turn the page around",
+        await page.getAttribute("html", "dir"),
+        "ltr",
+      );
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(400);
+    }
+
     await page.reload({ waitUntil: "networkidle" });
     await page.waitForTimeout(2000);
     check("a reload keeps the language", await page.getAttribute("html", "lang"), "en");

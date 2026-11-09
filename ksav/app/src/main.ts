@@ -32,6 +32,7 @@ import { minimapExtension, type Placement } from "./minimap";
 import { openMinimap, closeMinimap, minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
 import { bracketLint, healAll } from "./bracket-lint";
 import { moveOutTarget } from "./brackets";
+import { rootDir } from "./direction";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
 import { numberingMarks, renumberAll, scheduleRenumber } from "./numbering-lint";
@@ -47,7 +48,7 @@ import {
 import { sourcesOf } from "./api";
 import { createBackend } from "./transports";
 import * as panelviews from "./panelviews";
-import { getLang, setLang, t, tf } from "./i18n";
+import { getLang, isRtlUi, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
@@ -2336,9 +2337,20 @@ function nameGutterMarks() {
 
 function applyUiDir() {
   document.documentElement.lang = getLang();
-  // Use the document's direction for the HTML element so the editor's cursor
-  // positioning works correctly in RTL documents even when the UI is LTR.
-  document.documentElement.dir = docConfig().dir;
+  // The **interface's** direction, which is the interface language's (#122).
+  //
+  // This used to be `docConfig().dir` — the document's — added to fix the caret
+  // in a Hebrew document under an English interface. It fixed the caret and
+  // mirrored the product: an English UI with a Hebrew sefer opened right to
+  // left, drawers and menus flipped, and the pane tree (which `styles.css` keeps
+  // physical so "preview on the right" is the right of the screen) started
+  // laying itself out backwards.
+  //
+  // The editor was never relying on this. It is told the document's direction on
+  // its own content element (`dirCompartment`) and again by `bidiSupport`, and
+  // the preview sets each pane's direction in `applyPreview`. Text surfaces take
+  // the document; the page takes the interface. See `direction.ts`.
+  document.documentElement.dir = rootDir(isRtlUi());
 }
 
 function rerenderChrome() {

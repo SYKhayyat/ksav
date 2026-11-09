@@ -79,12 +79,20 @@ export async function openFile() {
   // *said* it is laid out the shipped way, and a file has to open the same way
   // on every machine. Leaving it absent would hand it the reader's own
   // new-document default, which is the thing B26 exists to stop.
+  //
+  // Except for the one field the file *can* answer for itself (#135). A `.ksav`
+  // written before B26, or a plain text file, carries no `config` at all — and
+  // layering it over the shipped `rtl` mirrored English prose with nothing on
+  // screen saying a default had been chosen. The direction is read off the text
+  // (`docs.inferredDir`, the same rule both import routes use), which is a
+  // property of the file and so still opens identically everywhere. Every other
+  // field keeps the shipped default.
   const doc = await docs.createDoc(
     parsed.title,
     parsed.body,
     parsed.assets,
     parsed.customCommands,
-    parsed.config ?? {},
+    parsed.config ?? { dir: docs.inferredDir(parsed.body) },
   );
   await docs.setFileName(doc.id, opened.binding.name);
   await files.rememberBinding(doc.id, opened.binding);

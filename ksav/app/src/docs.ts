@@ -26,6 +26,7 @@
 // disagrees, so it can never become the authority on what exists.
 
 import { settings, settingsPageSetup, ownPageSetup, readPageSetup } from "./settings";
+import { mostlyHebrew } from "./interchange";
 import type { PageSetup } from "./settings";
 import * as store from "./store";
 import { ASSETS, DOCS, HISTORY, StorageFullError } from "./store";
@@ -759,6 +760,27 @@ function readAsset(raw: unknown): DocAsset {
     kind: a.kind === "font" ? "font" : "image",
     ...(typeof a.hash === "string" ? { hash: a.hash } : {}),
   };
+}
+
+/**
+ * Which direction a document that *states none* is laid out in (#135).
+ *
+ * A `.ksav` written before B26 carries no `config`, and neither does a plain
+ * text file somebody dragged in. Everything downstream layered those over the
+ * engine's shipped default, which is `rtl` — right for this product and wrong
+ * for the writer who pastes English prose into a file and watches it come back
+ * mirrored, with nothing on screen saying a default was chosen for them.
+ *
+ * Both import routes already answer this question the same way (`docx.ts:376`,
+ * `org.ts:444`): *mostly Hebrew reads right to left*. This is that answer, named
+ * once so the open path cannot invent a third policy.
+ *
+ * It is a property of the text and not of the reader, so the same file opens the
+ * same way on every machine — which is the guarantee `fileui.ts` was protecting
+ * when it replaced an absent config with `{}`.
+ */
+export function inferredDir(body: string): "rtl" | "ltr" {
+  return mostlyHebrew(body) ? "rtl" : "ltr";
 }
 
 export function parseDoc(

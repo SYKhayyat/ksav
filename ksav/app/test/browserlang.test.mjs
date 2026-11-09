@@ -595,6 +595,47 @@ export async function run() {
     await page.waitForTimeout(2000);
     check("a reload keeps the language", await page.getAttribute("html", "lang"), "en");
     check("and the direction", await page.getAttribute("html", "dir"), "ltr");
+    // …and the document keeps the direction it was *given*, which is #135's third
+    // acceptance item: a page setup chosen in the drawer is remembered, not just
+    // live for the session. Read off the text surface rather than the page, since
+    // #122 is what moved the page's direction to the interface's.
+    check(
+      "the document keeps the direction it was set to",
+      await page.evaluate(() => [...document.querySelectorAll(".cm-content")].map((e) => e.getAttribute("dir"))),
+      ["rtl"],
+    );
+
+    // -------------------------------------------------- a first run, in English
+    //
+    // #135, first defect. The English first-run branch called
+    // `setPageSetup({ dir: "ltr" })` *before* the store opened — and
+    // `setPageSetup` returns when there is no current document, so it did
+    // nothing at all. An English writer was handed the engine's shipped RTL page
+    // (which is right for a Hebrew-first product and wrong for the writer who
+    // just said "English"), with nothing on screen saying a default had been
+    // chosen. Read here, in a fresh profile, because the fault is a boot order
+    // and a boot order is not visible from a unit test.
+    {
+      const context = await b.newContext();
+      await context.addInitScript(() => {
+        localStorage.clear();
+        // What the language chip writes when a writer picks English, and no
+        // `ksav.onboarded`: this is the first thirty seconds.
+        localStorage.setItem("ksav.settings", JSON.stringify({ lang: "en" }));
+      });
+      const first = await context.newPage();
+      await first.goto(origin, { waitUntil: "networkidle" });
+      await first.waitForTimeout(3000);
+      const opening = await first.evaluate(() => ({
+        lang: document.documentElement.lang,
+        text: [...document.querySelectorAll(".cm-content")].map((e) => e.getAttribute("dir")),
+        preview: [...document.querySelectorAll(".preview-host")].map((e) => e.style.direction),
+      }));
+      check("an English first run is an English interface", opening.lang, "en");
+      check("and its starter document reads left to right", opening.text, ["ltr"]);
+      check("…as does the preview beside it", opening.preview, ["ltr"]);
+      await context.close();
+    }
   } finally {
     await b.close();
     server.close();

@@ -14,6 +14,7 @@ const SRC_DIR = path.join(dirOf(import.meta.url), "..", "src");
 /** The module's own source — the fence reads claims, not export surfaces. */
 const srcOf = (f) => readFileSync(path.join(SRC_DIR, f), "utf8");
 import * as docs from "../.tmp-test/docs.mjs";
+import { mostlyHebrew } from "../.tmp-test/interchange.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
 import * as store from "../.tmp-test/store.mjs";
 import { StorageFullError } from "../.tmp-test/store.mjs";
@@ -332,6 +333,34 @@ export async function run() {
         "F",
       ).config, undefined);
     }
+
+    // ------------------------------------------------- a file that states no direction
+    //
+    // #135, second defect. A `.ksav` written before B26 carries no `config`, and
+    // neither does a plain text file. Both were layered over the engine's shipped
+    // default, which is `rtl` — right for this product and wrong for the writer
+    // who pastes English prose into a file and watches it come back mirrored,
+    // with nothing on screen saying a default had been chosen for them.
+    //
+    // The two import routes had already answered this (Word and Org both read
+    // the direction off the text), so the open path was the third opinion. It is
+    // now the same one, named once in `docs.inferredDir`.
+    check("English prose in a file that says nothing reads left to right", docs.inferredDir("The house stood empty."), "ltr");
+    check("Hebrew prose reads right to left", docs.inferredDir("הבית עמד ריק."), "rtl");
+    check("a document with no prose keeps the Hebrew-first default", docs.inferredDir(""), "rtl");
+    check(
+      "and markup alone does not make a document English",
+      docs.inferredDir("#let דגש(x) = $x$\n#הדגשה[שלום]"),
+      "rtl",
+    );
+    // The claim that matters is agreement, not the four values: a second policy
+    // invented next to `mostlyHebrew` is exactly how this went wrong.
+    for (const text of ["English only here.", "עברית בלבד כאן.", "", "#let a() = 1", "Mixed English and עברית, mostly English by letters."]) {
+      check(`the open path and the importers agree on ${JSON.stringify(text.slice(0, 18))}`, docs.inferredDir(text), mostlyHebrew(text) ? "rtl" : "ltr");
+    }
+    // …and the open path still asks. `?? {}` reads perfectly reasonably and is the
+    // bug, so the shape is asserted rather than trusted.
+    ok("opening a file with no page setup infers the direction", /parsed\.config\s*\?\?\s*\{\s*dir:\s*docs\.inferredDir\(parsed\.body\)/s.test(srcOf("fileui.ts")));
 
     check("plain text parses as a body", docs.parseDoc("just text", "F").body, "just text");
     check("…taking the fallback title", docs.parseDoc("just text", "F").title, "F");

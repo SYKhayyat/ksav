@@ -3200,12 +3200,17 @@ async function boot() {
   // An English starter is a left-to-right document, and it is the only moment
   // where flipping the direction is unambiguously right: nothing else exists yet
   // to be disturbed by it.
-  if (getLang() === "en" && !localStorage.getItem("ksav.onboarded")) {
-    // `dir` is page setup, so it belongs to the document rather than to the
-    // application — and at this moment there is exactly one, the starter, which
-    // is what makes flipping it unambiguously right here.
-    setPageSetup({ dir: "ltr" });
-  }
+  //
+  // **This used to run here, and it did nothing.** `setPageSetup` returns early
+  // when there is no current document, and at this line there is none — the
+  // store has not opened yet, `runtime.currentDoc` is set forty lines below by
+  // `setCurrentDoc(await docs.init(...))`. So an English first run got the
+  // engine's shipped RTL default, which is #135's first defect: the writer asked
+  // for English and was handed a right-to-left page with no way to see why.
+  //
+  // It is decided here and applied below, after the document exists. Deciding
+  // and applying have to be the same expression or this happens again.
+  const englishStarter = getLang() === "en" && !localStorage.getItem("ksav.onboarded");
   // Whether a durable store is available. When it is not — a private window, or
   // storage blocked — the fix is to lose *persistence* and nothing else. The old
   // fallback returned early here, and in doing so skipped the command/template
@@ -3221,6 +3226,9 @@ async function boot() {
     runtime.setCurrentDoc({ id: docs.newId(), title: t("untitled"), body: starter, assets: [], updated: Date.now() });
     reportSaveFailure(e); // the banner is honest; everything after it now works
   }
+  // …and now there is a document to put it on. `dir` is page setup, so it belongs
+  // to the starter rather than to the application — see the note above.
+  if (englishStarter) setPageSetup({ dir: "ltr" });
   if (durable) {
     // A binding lives in the store, so there is nothing to recall without one.
     void files.bindingFor(runtime.currentDoc.id).then((b) => {

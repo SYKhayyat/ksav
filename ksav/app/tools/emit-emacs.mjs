@@ -26,10 +26,11 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAsScript } from "./generated.mjs";
-import { facts, ARTEFACT } from "./facts.mjs";
+import { facts, ARTEFACT, REGENERATE } from "./facts.mjs";
+import { EMACS } from "./paths.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const OUT = join(here, "..", "..", "editors", "emacs", "ksav-services.el");
+const OUT = join(EMACS, "ksav-services.el");
 
 function read() {
   const services = facts().services.map((s) => ({
@@ -46,7 +47,7 @@ function read() {
   if (services.length < 2 || gitOps.length < 2) {
     console.error(
       `read ${services.length} services and ${gitOps.length} git operations out of ${ARTEFACT}\n` +
-        "Regenerate it with:\n  KSAV_BLESS=1 cargo test --test facts   (in ksav/engine)",
+        `Regenerate it with:\n  ${REGENERATE}`,
     );
     process.exit(1);
   }

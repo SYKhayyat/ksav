@@ -43,6 +43,9 @@ export const TOOLS = path.join(APP, "tools");
 /** `ksav/engine` */
 export const ENGINE = path.resolve(APP, "..", "engine");
 
+/** `ksav/editors/emacs` — the package the two emitters write into. */
+export const EMACS = path.resolve(APP, "..", "editors", "emacs");
+
 /** Where the test build puts the bundled modules. */
 export const TMP_TEST = path.join(APP, ".tmp-test");
 

@@ -25,10 +25,11 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAsScript } from "./generated.mjs";
-import { facts, ARTEFACT } from "./facts.mjs";
+import { facts, ARTEFACT, REGENERATE } from "./facts.mjs";
+import { APP } from "./paths.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const APP = join(here, "..");
+
 const OUT = join(APP, "src", "services.gen.ts");
 const SW_OUT = join(APP, "public", "sw-services.gen.js");
 
@@ -61,7 +62,7 @@ function read() {
   if (services.length < 2) {
     console.error(
       `read ${services.length} services out of ${ARTEFACT}\n` +
-        "Regenerate it with:\n  KSAV_BLESS=1 cargo test --test facts   (in ksav/engine)",
+        `Regenerate it with:\n  ${REGENERATE}`,
     );
     process.exit(1);
   }
@@ -84,7 +85,7 @@ function readGitOps() {
     console.error(
       `read ${ops.length} git operations out of ${ARTEFACT}\n` +
         "Bless it from a native build:\n" +
-        "  KSAV_BLESS=1 cargo test --test facts   (in ksav/engine)",
+        `  ${REGENERATE}`,
     );
     process.exit(1);
   }

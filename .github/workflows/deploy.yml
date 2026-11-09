@@ -103,8 +103,8 @@ jobs:
       # discarded. If this step ever diverges from that one, the site is not the
       # thing that was tested.
       - name: Build the wasm engine
-        working-directory: ./ksav/wasm
-        run: wasm-pack build --target web --release --out-dir pkg
+        working-directory: ./ksav
+        run: node tools/wasmbuild.mjs
 
       - name: Install
         working-directory: ./ksav/app

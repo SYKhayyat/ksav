@@ -271,6 +271,11 @@ export const GATE_VERBS = [
   "npm test",
   "node test/run.mjs",
   "tools/render-check.mjs",
+  // A **build** recipe, and the first one here (#115). The list held only check
+  // commands, so `wasm-pack build --target web --release --out-dir pkg` was free
+  // to be re-spelled in four files — two of them in directories the sweep never
+  // opened. It lives in `ksav/tools/wasmbuild.mjs` now.
+  "wasm-pack build",
 ];
 
 /** One check, run where it belongs. Returns the seconds it took, or null if it failed. */

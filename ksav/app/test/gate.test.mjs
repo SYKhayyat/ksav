@@ -62,11 +62,13 @@ function workflows() {
 }
 
 /** Every line of a file, with its 1-based number, minus YAML comments. */
-function codeLines(text) {
+function codeLines(text, comments = ["#"]) {
   return text
     .split(/\r?\n/)
     .map((line, i) => [i + 1, line])
-    .filter(([, line]) => !line.trim().startsWith("#"));
+    // A comment is not an instruction. The marker set is per language, because
+    // `#` is a comment in YAML and shell and a heading in Markdown.
+    .filter(([, line]) => !comments.some((c) => line.trim().startsWith(c)));
 }
 
 /**
@@ -87,6 +89,61 @@ function fencedLines(text) {
     }
     if (inside) out.push([i + 1, line]);
   });
+  return out;
+}
+
+/**
+ * The trees the sweep reads, by extension.
+ *
+ * `ksav/app/tools/`, `ksav/packaging/` and `.github/scripts/` were outside the
+ * fence entirely (#115). Each carries a comment marker here so a sentence
+ * *about* a command is told from an *instruction* to run one — `emit-engine.mjs`
+ * says "`cargo test` in CI" in prose and does not mean it.
+ */
+const SWEPT_TREES = [
+  { dir: "ksav/app/tools", ext: [".mjs", ".js"], comments: ["//", ";;", "*", "/*"] },
+  { dir: "ksav/packaging", ext: [".sh", ".js", ".mjs", ".Dockerfile"], comments: ["#"] },
+  { dir: ".github/scripts", ext: [".mjs", ".js"], comments: ["//"] },
+];
+
+/** Every swept file, deduplicated. */
+function sweptFiles() {
+  const out = new Set(workflows());
+  for (const page of livingPages()) out.add(page);
+  for (const tree of SWEPT_TREES) {
+    const root = path.join(ROOT, tree.dir);
+    if (!existsSync(root)) continue;
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      if (!tree.ext.some((e) => entry.name.endsWith(e) || entry.name.endsWith(".Dockerfile"))) continue;
+      out.add(`${tree.dir}/${entry.name}`);
+    }
+  }
+  return [...out];
+}
+
+/** The comment markers that apply to a path. */
+function commentsOf(file) {
+  const tree = SWEPT_TREES.find((t) => file.startsWith(`${t.dir}/`));
+  return tree?.comments ?? ["#"];
+}
+
+/**
+ * Every swept line, with the file it came from.
+ *
+ * Markdown contributes only its fenced blocks and YAML only its non-comment
+ * lines — the existing rules — while a code file contributes its whole text,
+ * with each line's own comment marker stripped out of the comparison later.
+ */
+function sweptLines() {
+  const out = [];
+  for (const file of sweptFiles()) {
+    const text = readFileSync(path.join(ROOT, file), "utf8");
+    const lines = file.endsWith(".md")
+      ? fencedLines(text)
+      : codeLines(text, commentsOf(file));
+    for (const [n, line] of lines) out.push([file, [n, line]]);
+  }
   return out;
 }
 
@@ -336,26 +393,43 @@ export async function run() {
 
   // -------------------------------------------- backward: nobody else lists them
 
+  //
+  // # What the sweep looks at (#115)
+  //
+  // It used to look at exactly two classes — the workflows and the living pages
+  // — which left `ksav/app/tools/`, `ksav/packaging/` and `.github/scripts/`
+  // structurally exempt. `ksav/packaging/entrypoint.sh` re-spelled `npm test`,
+  // a verb the list already held, in a directory nothing opened; the container
+  // build ran a second copy of a check and no fence could notice it drift.
+  //
+  // So the classes are named here as *populations with a comment syntax* rather
+  // than as two filenames, and a directory added tomorrow is covered by adding
+  // its extension to the list rather than by remembering this file.
+
   const files = workflows();
   ok("there are workflows to sweep", files.length > 0);
   ok("ci.yml is one of them", files.includes(WORKFLOW));
 
   const strays = [];
-  for (const file of files) {
-    const text = readFileSync(path.join(ROOT, file), "utf8");
-    for (const [n, line] of codeLines(text)) {
-      if (permitted(line)) continue;
-      for (const verb of verbsIn(line)) strays.push([file, n, verb, line.trim()]);
-    }
+  for (const [file, [n, line]] of sweptLines()) {
+    if (permitted(line)) continue;
+    for (const verb of verbsIn(line)) strays.push([file, n, verb, line.trim()]);
   }
 
-  for (const page of livingPages()) {
-    const text = readFileSync(path.join(ROOT, page), "utf8");
-    for (const [n, line] of fencedLines(text)) {
-      if (permitted(line)) continue;
-      for (const verb of verbsIn(line)) strays.push([page, n, verb, line.trim()]);
-    }
+  // The sweep must be able to see the trees it now claims to read. Written
+  // because a sweep that quietly matches nothing is the failure this whole file
+  // is about: `permitted()` once had a regex that matched no line at all and the
+  // check stayed green for thirteen runs.
+  for (const tree of SWEPT_TREES) {
+    ok(
+      `the sweep reads ${tree.dir}`,
+      sweptFiles().some((f) => f.startsWith(`${tree.dir}/`)),
+    );
   }
+  ok(
+    "the sweep reads the build recipe, not only check commands",
+    GATE_VERBS.includes("wasm-pack build"),
+  );
 
   ok(
     "no file outside the runner spells a check command out" +
@@ -417,4 +491,73 @@ export async function run() {
     "the README tells a developer the one command",
     fencedLines(readme).some(([, l]) => l.includes(RUNNER)),
   );
+
+  // ------------------------------------------ an exported constant has readers
+  //
+  // `facts.mjs` exports `REGENERATE` — the one blessed spelling of the
+  // regenerate command — *for the express purpose* of being imported, and
+  // nothing imported it: three files in the same directory re-typed it
+  // byte-identically (#115). An export nobody imports is a single source with no
+  // consumers, which is worse than a duplicate because it looks solved.
+  {
+    const facts = readFileSync(path.join(ROOT, "ksav/app/tools/facts.mjs"), "utf8");
+    ok("facts.mjs still publishes the regenerate command", /export const REGENERATE/.test(facts));
+    const readers = readdirSync(path.join(ROOT, "ksav/app/tools"))
+      .filter((f) => f.endsWith(".mjs") && f !== "facts.mjs")
+      .filter((f) =>
+        /\bREGENERATE\b/.test(readFileSync(path.join(ROOT, "ksav/app/tools", f), "utf8")),
+      );
+    ok(
+      "an imported constant is imported" +
+        (readers.length
+          ? ""
+          : "\n    Nothing outside facts.mjs mentions REGENERATE: the one blessed spelling has no" +
+            " readers, and every generator re-types it instead."),
+      readers.length >= 2,
+    );
+    // And nobody spells it out again.
+    const respelled = sweptLines().filter((entry) => {
+      const [file, [, line]] = entry;
+      // `facts.mjs` is the one file allowed to state it: that is the definition.
+      const source = file === "ksav/app/tools/facts.mjs";
+      return !source && file.startsWith("ksav/app/tools/") && /cargo test --test facts/u.test(line);
+    });
+    ok(
+      "the regenerate command has one spelling" +
+        (respelled.length
+          ? `\n    ${respelled.map(([f, [n, l]]) => `${f}:${n} — ${l.trim()}`).join("\n    ")}`
+          : ""),
+      respelled.length === 0,
+    );
+  }
+
+  // --------------------------------------- a repository path is worked out once
+  //
+  // `tools/paths.mjs` opens with "where things are, worked out once" and is
+  // imported by 8 of 22 tools. Three more recomputed
+  // `join(here, "..", "..", "editors", "emacs")` by hand — correctly, which is
+  // why the existing prohibition test (aimed at the *broken* spelling) passed
+  // them. This is an ownership rule rather than a pattern rule: a tool computes
+  // a repository path through `paths.mjs`, and a tool added tomorrow is covered
+  // by existing.
+  {
+    const strays = [];
+    for (const file of readdirSync(path.join(ROOT, "ksav/app/tools")).filter((f) => f.endsWith(".mjs"))) {
+      if (file === "paths.mjs") continue;
+      const text = readFileSync(path.join(ROOT, "ksav/app/tools", file), "utf8");
+      for (const [n, line] of codeLines(text, ["//", "/*", "*"])) {
+        if (/join\(here,\s*"\.\."|resolve\(here,\s*"\.\."/.test(line)) {
+          strays.push(`tools/${file}:${n} — ${line.trim()}`);
+        }
+      }
+    }
+    ok(
+      "a tool finds a repository path through paths.mjs" +
+        (strays.length
+          ? `\n    ${strays.join("\n    ")}\n    Work it out once, in tools/paths.mjs; a second` +
+            " spelling is a path that will be right until the tree moves."
+          : ""),
+      strays.length === 0,
+    );
+  }
 }

@@ -21,13 +21,15 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// The build's one spelling, imported rather than re-typed (#115).
+const { COMMAND } = await import(path.resolve(here, "../../ksav/tools/wasmbuild.mjs"));
 const pkg = path.resolve(here, "../../ksav/wasm/pkg");
 
 const glue = path.join(pkg, "ksav_wasm.js");
 const binary = path.join(pkg, "ksav_wasm_bg.wasm");
 for (const f of [glue, binary]) {
   if (!fs.existsSync(f)) {
-    console.error(`missing ${f} — run \`wasm-pack build --target web --release --out-dir pkg\` first`);
+    console.error(`missing ${f} — run \`${COMMAND}\` first, in ksav/`);
     process.exit(1);
   }
 }

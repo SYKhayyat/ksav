@@ -724,7 +724,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 13,111 editor assertions across 137 files,
+      all nine jobs: the typechecker and 13,119 editor assertions across 137 files,
       1171 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS, a build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -803,7 +803,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 13,111 assertions across 137 files |
+| `editor` | both | the typechecker, then 13,119 assertions across 137 files |
 | `engine` | both | formatting, lints, then 1171 tests across 81 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
@@ -979,7 +979,8 @@ cargo build --release --features embed-ui --manifest-path engine/Cargo.toml
 ## Ship an offline, no-server web build (WASM)
 
 ```sh
-cd wasm && wasm-pack build --target web --release --out-dir pkg
+cd ../.. && node tools/wasmbuild.mjs        # wasm-pack, in the one place it is spelled
+cd ksav/wasm
 cp pkg/ksav_wasm.js pkg/ksav_wasm.d.ts pkg/ksav_wasm_bg.wasm* ../app/src/wasmpkg/
 cd ../app && npm run build:wasm              # app/dist runs with no server
 # serve app/dist on any static host

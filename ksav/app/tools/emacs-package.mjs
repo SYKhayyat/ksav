@@ -31,9 +31,13 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync, copyFileSync } fro
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isMain } from "./generated.mjs";
+import { EMACS } from "./paths.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const EMACS = join(here, "..", "..", "editors", "emacs");
+// The location comes from `paths.mjs`, which is where a repository path is
+// worked out (#115). Re-exported because this module has always published it
+// under this name and its callers ask for it here.
+export { EMACS };
 
 /**
  * What ships: every elisp file in the package directory, and the README.

@@ -86,7 +86,7 @@ if (!hasDisplay) {
       "  window to render and nothing to measure.\n\n" +
       "  On a desktop session this check runs as-is. Headless, run it under a\n" +
       "  virtual display:\n\n" +
-      "      xvfb-run -a node tools/render-check.mjs\n\n" +
+      "      xvfb-run -a node tools/gate.mjs shell-render   (in ksav/)\n\n" +
       "  Note that Xvfb is X11, which is the backend that already worked — it\n" +
       "  will not exercise the native Wayland path where the defect appears.",
   );

@@ -28,9 +28,10 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAsScript } from "./generated.mjs";
+import { APP } from "./paths.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const APP = join(here, "..");
+
 const FIXTURE = join(APP, "..", "engine", "tests", "fixtures", "svg-vocabulary.json");
 const OUT = join(APP, "src", "svg-vocabulary.gen.ts");
 

@@ -35,9 +35,10 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAsScript, isMain } from "./generated.mjs";
+import { EMACS } from "./paths.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const OUT = join(here, "..", "..", "editors", "emacs", "ksav-release.el");
+const OUT = join(EMACS, "ksav-release.el");
 
 /**
  * Every platform a release carries the engine for.

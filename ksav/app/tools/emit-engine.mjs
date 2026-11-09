@@ -54,10 +54,11 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAsScript } from "./generated.mjs";
 import { commands as sharedCommands } from "./commands.mjs";
-import { facts, insistFactsAreCurrent } from "./facts.mjs";
+import { facts, insistFactsAreCurrent, REGENERATE } from "./facts.mjs";
+import { APP } from "./paths.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const APP = join(here, "..");
+
 const PRELUDE = join(APP, "..", "engine", "typst", "ksav.typ");
 const CONTAINERS = join(APP, "..", "engine", "tests", "fixtures", "containers.json");
 const OUT = join(APP, "src", "engine.gen.ts");
@@ -310,7 +311,7 @@ function crossCheckAliasesAgainstPrelude(aliases) {
     console.error(
       "engine/facts.gen.json's command_en disagrees with engine/typst/ksav.typ:\n" +
         problems.join("\n") +
-        "\n\nIf the prelude changed, regenerate with:\n  KSAV_BLESS=1 cargo test --test facts\n" +
+        "\n\nIf the prelude changed, regenerate with:\n  " + REGENERATE + "\n" +
         "then regenerate this side with:\n  npm run fixtures",
     );
     process.exit(1);
@@ -489,7 +490,7 @@ function crossCheckParamsAgainstPrelude(global, byCommand) {
     console.error(
       "engine/facts.gen.json's param_en disagrees with engine/typst/ksav.typ:\n" +
         problems.join("\n") +
-        "\n\nIf the prelude changed, regenerate with:\n  KSAV_BLESS=1 cargo test --test facts\n" +
+        "\n\nIf the prelude changed, regenerate with:\n  " + REGENERATE + "\n" +
         "then regenerate this side with:\n  npm run fixtures",
     );
     process.exit(1);

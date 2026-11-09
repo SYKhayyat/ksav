@@ -15,7 +15,11 @@ echo "==> Installing front-end dependencies"
 npm ci --no-audit --no-fund
 
 echo "==> Front-end tests"
-npm test
+# The gate's `editor` group, not a second spelling of it (#115). `npm test` here
+# was byte-identical to a check `tools/gate.mjs` already owns, in a directory no
+# sweep looked at — the copy that drifts and is discovered a release later.
+cd /work/ksav && node tools/gate.mjs editor
+cd /work/ksav/app
 
 echo "==> Building .deb and .AppImage"
 npm run tauri build -- --bundles deb,appimage

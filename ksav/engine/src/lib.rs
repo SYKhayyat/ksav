@@ -4173,7 +4173,7 @@ pub fn compile_html(
     let Warned { output, warnings } = engine.compile::<typst_html::HtmlDocument>();
     match output {
         Ok(doc) => match typst_html::html(&doc, &typst_html::HtmlOptions::default()) {
-            Ok(s) => Ok(s),
+            Ok(s) => Ok(with_document_direction(&s, cfg)),
             Err(diags) => Err(located.all(&diags, "error")),
         },
         Err(err) => {
@@ -4186,6 +4186,57 @@ pub fn compile_html(
             Err(d)
         }
     }
+}
+
+/// Put the document's own direction — and its language, when Typst left it
+/// unsaid — on the exported HTML's **root element** (#132).
+///
+/// Typst's HTML export writes `<html lang="he">` and no `dir` at all. An
+/// unmarked `dir` is `ltr`, and that is not a neutral default: a browser reading
+/// a Hebrew sefer laid out as LTR puts the full stop of a Hebrew sentence on the
+/// wrong side of it, orders list markers wrongly, and starts each paragraph at
+/// the left — on the one export whose entire purpose is that somebody else can
+/// read the sefer on their own machine.
+///
+/// This was the third of three HTML producers with three different contracts:
+/// the page-image fallback carried `dir` on `<html>` (`app/src/exports.ts`), the
+/// Word envelope carried it on `<body>`, and this one carried nothing. Now the
+/// engine states it, where the document's configuration is anyway, so every
+/// caller of `format: "html"` gets it — the request route, the export route, and
+/// whatever grows next.
+///
+/// `dir` is set on the *page* and not around every paragraph: the content also
+/// holds inline English, math and citations, and those runs carry their own
+/// direction from the text itself. A per-paragraph override would take that away
+/// from them and is the thing Unicode bidi already does correctly.
+pub fn with_document_direction(html: &str, cfg: &DocConfig) -> String {
+    let dir = if cfg.dir == "ltr" { "ltr" } else { "rtl" };
+    let Some(start) = html.find("<html") else {
+        // Not a document this can speak about — a future Typst emitting a
+        // fragment, say. Returning it unchanged is better than wrapping it in a
+        // guess at an envelope this function has not been taught to build.
+        return html.to_string();
+    };
+    let Some(rel_end) = html[start..].find('>') else {
+        return html.to_string();
+    };
+    let end = start + rel_end;
+    let tag = &html[start..end];
+    let mut insert = String::new();
+    if !tag.contains("dir=") {
+        insert.push_str(&format!(" dir=\"{dir}\""));
+    }
+    if !tag.contains("lang=") {
+        insert.push_str(&format!(" lang=\"{}\"", effective_lang(cfg)));
+    }
+    if insert.is_empty() {
+        return html.to_string();
+    }
+    let mut out = String::with_capacity(html.len() + insert.len());
+    out.push_str(&html[..end]);
+    out.push_str(&insert);
+    out.push_str(&html[end..]);
+    out
 }
 
 #[cfg(test)]

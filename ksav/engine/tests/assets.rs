@@ -619,6 +619,71 @@ fn html_export_is_real_web_content_not_page_pictures() {
     );
 }
 
+/// The opening `<html …>` tag of an exported document, which is where its
+/// direction belongs. A helper because the doctype ahead of it also ends in `>`.
+fn root_element(html: &str) -> &str {
+    let start = html.find("<html").expect("a root element");
+    let end = start + html[start..].find('>').expect("the root element is closed");
+    &html[start..=end]
+}
+
+#[test]
+fn the_html_export_states_the_documents_direction_on_its_root_element() {
+    // #132. Typst's HTML export writes `<html lang="he">` and no `dir`, and an
+    // unmarked `dir` is `ltr`. So a Hebrew sefer exported to HTML and opened in a
+    // browser read left to right — the full stop of a Hebrew sentence on the
+    // wrong side of it, list markers ordered wrongly — on the one export whose
+    // whole purpose is that somebody else can read the sefer.
+    //
+    // Three HTML producers had three contracts: `<html dir>` on the page-image
+    // fallback, `<body dir>` on the Word envelope, and nothing here. This is the
+    // one the engine owns, stated where the document's configuration already is,
+    // so every caller of `format: "html"` gets it.
+    let hebrew = ksav_engine::compile_html(
+        "#כותרת1[פרק]\n\nטקסט עברית.",
+        &DocConfig::default(),
+        &Assets::default(),
+    )
+    .unwrap_or_else(|d| panic!("html export failed: {d:?}"));
+    let root = root_element(&hebrew);
+    assert!(
+        root.contains("dir=\"rtl\""),
+        "a Hebrew document's export should be rtl, and its root is: {root}"
+    );
+
+    // And an English one is `ltr`, which is the half that would be wrong if this
+    // were hardcoded rather than read from the configuration.
+    let english = DocConfig {
+        dir: "ltr".to_string(),
+        ..DocConfig::default()
+    };
+    let html = ksav_engine::compile_html("An English page.\n", &english, &Assets::default())
+        .unwrap_or_else(|d| panic!("html export failed: {d:?}"));
+    let root = root_element(&html);
+    assert!(
+        root.contains("dir=\"ltr\""),
+        "an English document's export should be ltr, and its root is: {root}"
+    );
+}
+
+#[test]
+fn the_direction_helper_leaves_a_document_it_does_not_understand_alone() {
+    // Defensive, and not hypothetical: the day Typst emits a fragment instead of a
+    // document, wrapping it in an envelope this function invented would be a
+    // worse answer than handing it on unchanged.
+    let cfg = DocConfig::default();
+    assert_eq!(
+        ksav_engine::with_document_direction("<p>no root element</p>", &cfg),
+        "<p>no root element</p>"
+    );
+    // A root that already states a direction is not given a second one — a
+    // future Typst that does this correctly must not end up with two.
+    assert_eq!(
+        ksav_engine::with_document_direction("<html dir=\"ltr\" lang=\"en\"></html>", &cfg),
+        "<html dir=\"ltr\" lang=\"en\"></html>"
+    );
+}
+
 #[test]
 fn an_html_request_returns_html_rather_than_pages() {
     let req = serde_json::json!({ "body": "#כותרת2[כותרת]", "format": "html" }).to_string();

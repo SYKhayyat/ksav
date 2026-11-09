@@ -288,7 +288,12 @@ function wordEnvelope(inner: string, styles: string): string {
   const page = docConfig();
   const size = paperCss(page.paper);
   const dir = page.dir;
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+  // `dir` and `lang` on the **root element**, which is where the engine's own
+  // HTML export puts them (and where the page-image fallback has always put
+  // theirs). Word reads `<body dir>` and the `direction` rule below; a reader,
+  // a search engine and a browser that sees the bare file read the root. Three
+  // HTML producers, one place for the answer (#132).
+  return `<html dir="${dir}" lang="${dir === "rtl" ? "he" : "en"}" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${escapeAttr(runtime.currentDoc?.title ?? "Ksav")}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
 <w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->

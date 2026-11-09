@@ -75,7 +75,7 @@ const EXPORTS_TS = readFileSync(
 );
 
 /** What was handed to the browser as a download, and what was printed. */
-const captured = { downloads: [], printed: null, clipboard: null, status: null };
+const captured = { downloads: [], printed: null, clipboard: null, status: null, blobs: [] };
 
 function installDom() {
   const saved = {};
@@ -118,8 +118,10 @@ function installDom() {
   set("URL", {
     createObjectURL: (blob) => {
       // The blob's text is the file's contents; capture it against the `<a>`
-      // that is about to be built for it.
-      void blob;
+      // that is about to be built for it. Kept as the blob rather than as a
+      // string because `Blob.text()` is asynchronous and this fake is not — the
+      // assertions that need the words await it themselves.
+      if (blob) captured.blobs.push(blob);
       return "blob:pending";
     },
     revokeObjectURL: () => {},
@@ -406,6 +408,58 @@ export async function run() {
         statusText().includes(DICTS.he.htmlFellBack),
       );
       check("as a warning rather than an error", statusClass(), "warn");
+    }
+
+    // ------------------------------------- 3b. every HTML export states its direction
+    //
+    // #132. A Hebrew sefer exported to HTML and opened in a browser read left to
+    // right, because the one path that trusted a backend to state the direction
+    // was the one path where nothing stated it. There are three HTML producers —
+    // the engine's reflowable export, the page-image fallback, and the Word
+    // envelope — and they had three different contracts: `<html dir>` on the
+    // fallback, `<body dir>` on the Word file, and nothing at all on the native
+    // export.
+    //
+    // The engine now writes `dir` (and `lang`) on its own root element, where the
+    // document's configuration is; these assertions are the other two agreeing,
+    // read out of the files that actually reach a writer.
+    {
+      const rootDirOf = async () => (await captured.blobs.at(-1).text()).match(/<html[^>]*\bdir="([^"]+)"/)?.[1];
+      const setDirection = (dir) => runtime.setCurrentDoc({ title: "קונטרס", assets: [], config: { dir } });
+
+      for (const dir of ["rtl", "ltr"]) {
+        setDirection(dir);
+
+        // The page-image fallback, which has always carried it.
+        withDoc(BALANCED);
+        backendThat({ ok: false, why: "" });
+        captured.blobs.length = 0;
+        captured.downloads.length = 0;
+        await exports_.exportHtml();
+        check(`the page-image fallback says dir="${dir}"`, await rootDirOf(), dir);
+
+        // The Word envelope, which said it on `<body>` only.
+        withDoc(BALANCED);
+        backendThat({ ok: true });
+        captured.blobs.length = 0;
+        captured.downloads.length = 0;
+        await exports_.exportWord();
+        check(`the Word export says dir="${dir}" on its root`, await rootDirOf(), dir);
+        ok(
+          "…and on the body Word actually reads",
+          (await captured.blobs.at(-1).text()).includes(`<body dir="${dir}"`),
+        );
+
+        // And the reflowable export is passed through as the engine wrote it —
+        // this is the third contract, and the app's half of it is *not touching
+        // it*.
+        withDoc(BALANCED);
+        backendThat({ ok: true, html: `<html dir="${dir}" lang="he"><body><p>שלום</p></body></html>` });
+        captured.blobs.length = 0;
+        captured.downloads.length = 0;
+        await exports_.exportHtml();
+        check(`the reflowable export keeps dir="${dir}"`, await rootDirOf(), dir);
+      }
     }
 
     {

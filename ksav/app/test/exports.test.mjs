@@ -343,6 +343,39 @@ export async function run() {
       await exports_.exportWord();
       check("a .doc is produced when the backend can", captured.downloads.length, 1);
       ok("named after the document", captured.downloads[0].name.endsWith(".doc"));
+      // #131: the extension, the MIME type and the *label* have to be one
+      // contract, because a file called `.doc` that is really HTML is a promise
+      // the writer only finds out about by opening it. Word opens HTML — that is
+      // the whole mechanism — so the honest answer is to say so out loud rather
+      // than to produce a different format.
+      check(
+        "the file Word opens is HTML, declared as Word's own MIME type",
+        captured.blobs.at(-1).type,
+        "application/msword;charset=utf-8",
+      );
+      ok(
+        "and the status says it is HTML and where the conversion happens",
+        statusText().includes("HTML") && statusText().includes(".docx"),
+        statusText(),
+      );
+      ok(
+        "and still names the file it wrote",
+        statusText().includes(captured.downloads[0].name),
+        statusText(),
+      );
+      // The menu label is the third speaker of the same fact. In both languages,
+      // because a writer told `.docx` in one language and `.doc` in the other is
+      // a contract that holds only half the time.
+      for (const [lang, label] of [
+        ["he", DICTS.he.exportWord],
+        ["en", DICTS.en.exportWord],
+      ]) {
+        ok(
+          `${lang}: the Word menu item names the extension it writes`,
+          label.includes("(.doc)") && !label.includes(".docx"),
+          label,
+        );
+      }
       check(
         "a document with nothing to lose is not warned about losing anything",
         statusClass(),

@@ -1018,6 +1018,8 @@ export const EN: Dict = {
   wordNoHtml: "The Word handoff needs reflowable HTML, and this document does not compile to it. No file was produced.",
   wordFlattenNote:
     "Text, headings, emphasis, lists, tables, footnotes and endnotes cross over to Word unchanged. What has no equivalent there:",
+  wordIsHtml:
+    "Wrote {0} — HTML that Word opens and converts. In Word: File → Save As → Word Document (*.docx) for a real .docx.",
   wordKeepsEverything:
     "Saved. Everything in this sefer crosses over unchanged — its footnotes and endnotes become Word's own.",
   wordLosesSide: "Side notes become footnotes — Word has no side column.",

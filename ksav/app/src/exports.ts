@@ -110,9 +110,14 @@ async function warnIfHealed() {
  * A warning after this one wins, deliberately: both sentences are true, and *a
  * file went out but read this first* is the more useful of the two.
  */
-function handOver(name: string, blob: Blob, said = tf("exported", name)) {
+function handOver(
+  name: string,
+  blob: Blob,
+  said = tf("exported", name),
+  kind: "ok" | "warn" = "ok",
+) {
   download(name, blob);
-  runtime.setStatus(`✓ ${said}`, "ok");
+  runtime.setStatus(`✓ ${said}`, kind);
 }
 
 /**
@@ -480,14 +485,22 @@ export function wordDegradations(doc: string): string[] {
   return out;
 }
 
-/** Say what the handoff cost, or that it cost nothing. */
-function sayWhatWordLost(doc: string) {
+/**
+ * What the handoff cost, or that it cost nothing, as a sentence and a severity.
+ *
+ * Split out from the announcement because it is no longer the whole status line
+ * (#131): the file that reaches the writer is an HTML document under a `.doc`
+ * name, and saying what it is has to come first — `Wrote sefer.doc.` on its own
+ * reads as a real Word file, and `Saved. Everything crosses over unchanged.` on
+ * its own reads as one too, which was the actual state of the status bar before
+ * this: the fidelity sentence *replaced* the filename, so the writer was told
+ * neither the name of the file nor what kind of file it was.
+ */
+function wordCost(doc: string): { said: string; kind: "ok" | "warn" } {
   const lost = wordDegradations(doc);
-  if (lost.length === 0) {
-    runtime.setStatus(t("wordKeepsEverything"), "ok");
-  } else {
-    runtime.setStatus(`${t("wordFlattenNote")} ${lost.join(" ")}`, "warn");
-  }
+  return lost.length === 0
+    ? { said: t("wordKeepsEverything"), kind: "ok" }
+    : { said: `${t("wordFlattenNote")} ${lost.join(" ")}`, kind: "warn" };
 }
 
 export async function exportWord() {
@@ -496,12 +509,21 @@ export async function exportWord() {
   if (!html) return wordUnavailable(why);
   const { inner, styles } = splitHtml(html);
   // `.doc` (not `.docx`): Word opens HTML under this extension and converts it,
-  // and the writer can then Save As a genuine .docx from inside Word.
+  // and the writer can then Save As a genuine .docx from inside Word. That is a
+  // **contract**, not an accident, and #131 is what happens when a contract is
+  // only written in a source comment: the writer got a file called `.doc`, and
+  // found out what it really was by opening it. So the label names the
+  // extension (`Word (.doc)`), the file is that extension, the MIME type is
+  // `application/msword`, and the status line says the rest — that this is HTML
+  // Word will convert, and where the conversion happens.
+  const name = runtime.fileStem() + ".doc";
+  const cost = wordCost(runtime.docText());
   handOver(
-    runtime.fileStem() + ".doc",
+    name,
     new Blob([wordEnvelope(inner, styles)], { type: "application/msword;charset=utf-8" }),
+    `${tf("wordIsHtml", name)} ${cost.said}`,
+    cost.kind,
   );
-  sayWhatWordLost(runtime.docText());
 }
 
 /** The same content onto the clipboard, for pasting into an already-open Word. */

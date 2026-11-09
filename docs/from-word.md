@@ -78,6 +78,13 @@ That `.docx` row is worth reading twice. Exporting to Word is a compatibility ex
 not a workflow — the footnotes and the multi-stream apparatus flatten, and the app
 says so when you do it rather than letting you find out from your printer.
 
+What the export actually writes is an **HTML document under a `.doc` name**, with
+Word's own envelope around it: open it in Word and you get a real editable
+document, then `File → Save As → Word Document (*.docx)` to make the `.docx` you
+send on. The menu item says `.doc`, the file it writes says `.doc`, and the
+status line says both that and where the conversion happens, so the extension is
+a promise rather than a surprise.
+
 And the last row is the one that should decide it. Ksav compiles, spell-checks
 Hebrew and English, has 167 bilingual commands and twelve templates that all build.
 Nobody has written a sefer in it. Everything here is a promise that has been tested

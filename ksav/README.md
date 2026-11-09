@@ -557,6 +557,12 @@ the reasoning, not the reference, and this file is long enough.
   Prose, headings, emphasis, lists, tables and plain footnotes carry across; the
   multi-stream apparatus flattens, and the app says so rather than letting you
   find out.
+  This is a **stated contract** rather than a private one (#131): the menu item
+  is `Word (.doc)`, the file is `.doc`, the MIME type is `application/msword`,
+  and the status line says the rest — that the file is HTML Word converts, and
+  that `File → Save As → Word Document (*.docx)` inside Word is where a real
+  `.docx` comes from. Before that sentence existed the fidelity note *replaced*
+  the filename, so a writer learned neither the name of the file nor its kind.
 - **Review panel** — every tracked change and editorial comment in the document,
   accepted or rejected one at a time (which rewrites the source, so the decision
   is in the file), plus a switch between reading the markup, the document as if
@@ -733,7 +739,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 13,221 editor assertions across 139 files,
+      all nine jobs: the typechecker and 13,226 editor assertions across 139 files,
       1171 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS, a build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -812,7 +818,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 13,221 assertions across 139 files |
+| `editor` | both | the typechecker, then 13,226 assertions across 139 files |
 | `engine` | both | formatting, lints, then 1175 tests across 81 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |

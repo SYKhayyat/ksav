@@ -1383,6 +1383,7 @@ export const EN: Dict = {
   "sc.widen": "Show the whole document",
   "sc.moveOutOfBracket": "Move out of bracket",
   "sc.moveOutOfBracketToNextLine": "Move out of bracket to next line",
+  "sc.moveOutOfAllBrackets": "Move out of all brackets",
   narrowLede: "This pane shows the section at the caret and nothing else",
   widenLede: "Give the whole document back to this pane",
   narrowedTo: "This pane is showing “{0}” only",

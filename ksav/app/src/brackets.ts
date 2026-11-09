@@ -99,48 +99,128 @@ export function commentRegions(text: string): { from: number; to: number; unterm
 }
 
 /**
+ * One group the caret is inside: where it opened and what closes it.
+ *
+ * `opener` is the offset of the opening character, `ch` which one it is.
+ */
+export interface Group {
+  opener: number;
+  ch: Opener;
+  closer: Closer;
+}
+
+/**
+ * The groups the caret sits inside, outermost first.
+ *
+ * # Why this replaced a scalar (#121)
+ *
+ * "Move out of bracket" was written as its own scan: a `depth` counter that
+ * incremented on any opener and decremented on any closer whose type happened to
+ * equal the last opener's, plus a `targetCloser` it overwrote as it walked. It
+ * answered correctly for `(…)` and for `[[…]]` and got mixed nesting wrong in the
+ * way that is hardest to notice: in `[a (b|)]` it took the last opener seen
+ * (`(`), then counted only `)` and `(` after the caret, so a `]` between the
+ * caret and the real closer could end the walk early, and in `(a [b|] c)` it
+ * could return the `)` for a caret inside the `[`.
+ *
+ * The scanner in `spans.ts` already produces every delimiter in the document
+ * with its type and whether it is structural. A *stack* of those is the whole
+ * question, and it is the same stack the lint and the healer want — so it is
+ * here, once, rather than a second walker with its own rules.
+ *
+ * Mismatched closers pop to the matching opener when there is one and are
+ * otherwise ignored, which is what makes this usable on half-typed text: a
+ * document with one stray `)` still has an enclosing `[`, and the writer still
+ * wants to get out of it.
+ */
+export function enclosingGroups(text: string, pos: number): Group[] {
+  const { delims } = delimiters(text);
+  const stack: { pos: number; ch: Opener }[] = [];
+  for (const d of delims) {
+    // A delimiter at the caret is not *behind* it: an opener at `pos` has not
+    // been entered, and a closer at `pos` has not been crossed.
+    if (d.pos >= pos) break;
+    if (!d.structural) continue;
+    if (d.opener) {
+      stack.push({ pos: d.pos, ch: d.ch as Opener });
+    } else {
+      const want = OPENER_OF[d.ch as Closer];
+      const at = stack.map((s) => s.ch).lastIndexOf(want);
+      // Everything inside the group closes with it.
+      if (at >= 0) stack.length = at;
+    }
+  }
+  return stack.map((s) => ({ opener: s.pos, ch: s.ch, closer: CLOSER_OF[s.ch] }));
+}
+
+/**
+ * Where the group opened at `openerPos` ends, or null if nothing closes it.
+ *
+ * Counts openers of every type, so `[a (b) c]` closes at the `]` and not at the
+ * `)` — the mistake the old scan made by filtering to one closer.
+ */
+export function closerOfGroup(text: string, openerPos: number): number | null {
+  const { delims } = delimiters(text);
+  // A stack of what is open *inside* the group, not a numeric depth: this is the
+  // same walk `enclosingGroups` makes, so the two cannot disagree about nesting,
+  // and it is why `spans.test.mjs`'s "no module but spans.ts counts bracket
+  // depth" fence still holds without naming this file as an exception.
+  const open: Opener[] = [];
+  let started = false;
+  for (const d of delims) {
+    if (d.pos < openerPos || !d.structural) continue;
+    if (!started) {
+      if (d.pos !== openerPos || !d.opener) return null;
+      started = true;
+      continue;
+    }
+    if (d.opener) open.push(d.ch as Opener);
+    else if (open.length) open.pop();
+    else return d.pos;
+  }
+  return null;
+}
+
+/** Which pair the writer means, when there is more than one around the caret. */
+export type OutMode = "innermost" | "outermost";
+
+/**
+ * The offset just past the closer the writer is moving out of.
+ *
+ * - `innermost` — the smallest pair around the caret.
+ * - `outermost` — every pair around it, in one keystroke.
+ *
+ * A caret already touching a closer has nothing to move out of and answers
+ * itself: `]|` and `|]` both mean "past this `]`", and pressing the key twice
+ * must not step through the document. Both are returned as `pos + 1`, which is
+ * where a writer pressing move-out at a boundary expects to arrive.
+ */
+export function moveOutTarget(text: string, pos: number, mode: OutMode = "innermost"): number | null {
+  if (pos > 0 && pos <= text.length) {
+    const ch = text[pos - 1];
+    if (ch === "]" || ch === ")" || ch === "}") return pos;
+  }
+  const groups = enclosingGroups(text, pos);
+  if (!groups.length) {
+    // Nothing around the caret: a closer immediately after it still counts.
+    const ch = text[pos];
+    if (ch === "]" || ch === ")" || ch === "}") return pos + 1;
+    return null;
+  }
+  const group = mode === "outermost" ? groups[0] : groups[groups.length - 1];
+  const close = closerOfGroup(text, group.opener);
+  return close === null ? null : close + 1;
+}
+
+/**
  * Find the next closing bracket after `pos` that matches an opener before `pos`.
  * Returns the position after the closer, or null if no matching closer is found.
- * This is used for "move out of bracket" functionality.
+ *
+ * Kept as the name the editor calls, now a thin reading of {@link moveOutTarget}
+ * so the two cannot disagree about what "out of the bracket" means.
  */
 export function findNextCloser(text: string, pos: number): number | null {
-  const { delims } = delimiters(text);
-  let depth = 0;
-  let targetCloser: Closer | null = null;
-
-  // First, find all openers before pos and track the deepest one
-  for (const d of delims) {
-    if (d.pos >= pos) break;
-    if (d.opener && d.structural) {
-      depth++;
-      targetCloser = CLOSER_OF[d.ch as Opener];
-    } else if (!d.opener && d.structural) {
-      const opener = OPENER_OF[d.ch as Closer];
-      if (depth > 0 && CLOSER_OF[opener] === d.ch) {
-        depth--;
-        if (depth === 0) targetCloser = null;
-      }
-    }
-  }
-
-  if (!targetCloser) return null;
-
-  // Now find the matching closer after pos
-  depth = 0;
-  for (const d of delims) {
-    if (d.pos <= pos) continue;
-    if (d.opener && d.structural && CLOSER_OF[d.ch as Opener] === targetCloser) {
-      depth++;
-    } else if (!d.opener && d.structural && d.ch === targetCloser) {
-      depth--;
-      if (depth === 0) {
-        // Found the matching closer, return position after it
-        return d.pos + 1;
-      }
-    }
-  }
-
-  return null;
+  return moveOutTarget(text, pos, "innermost");
 }
 
 // The `#command` an opener belongs to — for the lint message, because "#הערה is

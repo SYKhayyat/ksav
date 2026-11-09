@@ -38,6 +38,7 @@ rather than leaving two actions on one key.
 | `Ctrl+Alt+.` | Show the whole document | הצג את כל המסמך |
 | `Ctrl+]` | Move out of bracket | צא מהסוגריים |
 | `Ctrl+Alt+Shift+]` | Move out of bracket to next line | צא מהסוגריים לשורה הבאה |
+| `Ctrl+Alt+0` | Move out of all brackets | צא מכל הסוגריים |
 | `Ctrl+Enter` | New paragraph inside this note | פסקה חדשה בתוך ההערה |
 | `Ctrl+Alt+1` | Fold to level 1 | קפל לרמה 1 |
 | `Ctrl+Alt+2` | Fold to level 2 | קפל לרמה 2 |

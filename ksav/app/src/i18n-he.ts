@@ -1440,6 +1440,7 @@ export const HE: Dict = {
   "sc.widen": "הצג את כל המסמך",
   "sc.moveOutOfBracket": "צא מהסוגריים",
   "sc.moveOutOfBracketToNextLine": "צא מהסוגריים לשורה הבאה",
+  "sc.moveOutOfAllBrackets": "צא מכל הסוגריים",
   narrowLede: "החלונית תראה רק את הסימן שבסמן",
   widenLede: "החזר את כל המסמך לחלונית",
   narrowedTo: "החלונית מציגה רק את «{0}»",

@@ -31,7 +31,7 @@ import { tagDim } from "./tagdim";
 import { minimapExtension, type Placement } from "./minimap";
 import { openMinimap, closeMinimap, minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
 import { bracketLint, healAll } from "./bracket-lint";
-import { findNextCloser } from "./brackets";
+import { moveOutTarget } from "./brackets";
 import { apparatusLint, renderAllNotes } from "./apparatus-lint";
 import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
 import { numberingMarks, renumberAll, scheduleRenumber } from "./numbering-lint";
@@ -452,6 +452,11 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Move the caret past the closing bracket of the current bracket pair.
   { id: "moveOutOfBracket", run: (v) => moveOutOfBracket(v, false) },
   { id: "moveOutOfBracketToNextLine", run: (v) => moveOutOfBracket(v, true) },
+  // All of them at once. The request in #121 was "move out of nested/all
+  // brackets"; the pair below is what that means at a caret sitting three groups
+  // deep, and `Mod-Alt-0` is the same family as `Mod-Alt-1..3` — those fold *to*
+  // a depth, and zero depth is no grouping at all.
+  { id: "moveOutOfAllBrackets", run: (v) => moveOutOfBracket(v, false, true) },
   // Fold *to a depth*: chapters only, or chapters and simanim. `foldAll` takes
   // every collapsible thing in the document down at once, which is a different
   // question and the only one this editor could answer.
@@ -1229,13 +1234,28 @@ function toggleMinimap(): void {
 }
 
 /**
- * Move the caret past the closing bracket of the current bracket pair.
- * If `toNextLine` is true, also move to the start of the next line.
+ * Move the caret past the closing bracket of the pair around it.
+ *
+ * `all` takes every pair at once instead of the innermost one — the difference
+ * between stepping out of `#הערה[…]` and stepping out of the whole
+ * `#גוף[… #הערה[…] …]` — and `toNextLine` lands at the start of the following
+ * line rather than just past the closer.
+ *
+ * The *where* is `brackets.ts`'s, asked of the delimiter stack: one paragraph of
+ * logic rather than a second walker with its own idea of nesting (#121). What is
+ * here is only the caret arithmetic, which needs a document to ask.
+ *
+ * Next-line is deterministic: the line after the closer if there is one, and the
+ * end of this one if there is not. At EOF the caret stays where the closer left
+ * it, because a "next line" that does not exist is not a place to put a caret —
+ * and the text between the closer and the line break is skipped deliberately:
+ * pressing the key says *leave this*, and stopping mid-sentence would be the key
+ * doing something it did not say.
  */
-function moveOutOfBracket(v: EditorView, toNextLine: boolean): boolean {
+function moveOutOfBracket(v: EditorView, toNextLine: boolean, all = false): boolean {
   const doc = docTextOf(v.state.doc);
   const pos = v.state.selection.main.head;
-  const nextPos = findNextCloser(doc, pos);
+  const nextPos = moveOutTarget(doc, pos, all ? "outermost" : "innermost");
   if (nextPos === null) return false;
   let target = nextPos;
   if (toNextLine) {
@@ -1244,7 +1264,7 @@ function moveOutOfBracket(v: EditorView, toNextLine: boolean): boolean {
       target = v.state.doc.line(line.number + 1).from;
     }
   }
-  v.dispatch({ selection: { anchor: target } });
+  if (target !== pos) v.dispatch({ selection: { anchor: target } });
   return true;
 }
 // Hebrew-aware word + character count — of the TEXT, not the markup.

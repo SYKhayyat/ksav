@@ -1,5 +1,5 @@
 import { check, notOk, ok } from "./harness.mjs";
-import { analyze, pairedDelimiters } from "../.tmp-test/brackets.mjs";
+import { analyze, enclosingGroups, findNextCloser, moveOutTarget, pairedDelimiters } from "../.tmp-test/brackets.mjs";
 import { DEFAULTS } from "../.tmp-test/settings.mjs";
 
 // Bracket healing: the speculative repair that keeps the preview alive while
@@ -116,6 +116,75 @@ export async function run() {
   const t = `#כותרת(רמה: 2)[לא נסגר\n\nאחרי.\n`;
   const a = analyze(t);
   check("arg group: cmd name", a.problems[0].cmd, "כותרת");
+}
+
+// 11. Moving out of a bracket — the pair around the caret, and all of them
+//
+// #121: the first implementation was its own scan with a scalar `depth` and a
+// `targetCloser` it overwrote, so mixed nesting could answer with the wrong
+// closer. These are the cases it got wrong, one assertion each, plus the
+// boundaries it had no answer for at all (a caret already touching a closer).
+//
+// Every case is real markup: `(` is structure only after a `#command`, which is
+// the scanner's rule and not this module's, so `(ב)` in running prose is text
+// and has no group to leave.
+{
+  // `#הדגשה[א #הערה(ב) ג]` — a paren group inside a bracket group.
+  const mixed = "#הדגשה[א #הערה(ב) ג]";
+  const inParen = mixed.indexOf("ב") + 1;
+  check(
+    "the innermost pair is the one the caret is in",
+    moveOutTarget(mixed, inParen),
+    mixed.indexOf(")") + 1,
+  );
+  check("all of them leaves the outer bracket too", moveOutTarget(mixed, inParen, "outermost"), mixed.length);
+
+  // The failure that made this an issue: a closer *behind* the caret. The old
+  // scan walked forward from `targetCloser` and could return a `]` two groups
+  // earlier than the caret.
+  const backwards = "#הערה[א] #הדגשה[ב]";
+  const inside = backwards.lastIndexOf("ב") + 1;
+  check(
+    "a closer before the caret is not the one it moves out of",
+    moveOutTarget(backwards, inside),
+    backwards.length,
+  );
+
+  // Typed nesting, three deep, mixed: `#א[#ב[#ג(ד)]]`.
+  const deep = "#א[#ב[#ג(ד)]]";
+  const at = deep.indexOf("ד") + 1;
+  check("innermost of three", moveOutTarget(deep, at), deep.indexOf(")") + 1);
+  check("outermost of three", moveOutTarget(deep, at, "outermost"), deep.length);
+  const stack = enclosingGroups(deep, at);
+  check("the stack is outermost first", stack.map((g) => g.ch).join(""), "[[(");
+  check("…and ends at the group the caret is in", stack[stack.length - 1].closer, ")");
+
+  // A caret already touching a closer: `|]` steps past it, `]|` has nothing to
+  // do and says so by not moving.
+  const before = "#הערה[א]";
+  check("a caret before a closer steps past it", moveOutTarget(before, before.length - 1), before.length);
+  check("a caret after a closer does not move", moveOutTarget(before, before.length), before.length);
+
+  // Malformed text, which is the state this editor is in for most of a
+  // keystroke: a stray closer inside does not end the group early, and an
+  // unclosed group has nowhere to move to.
+  const stray = "#הערה[א ] ב]";
+  check("a stray closer inside does not end the group early", moveOutTarget(stray, stray.indexOf("ב") + 1), stray.length);
+  check("an unclosed opener has nowhere to move to", moveOutTarget("#הערה[אב", 6), null);
+  check("nothing around the caret means nothing to do", moveOutTarget("שלום", 2), null);
+
+  // Inside a comment is not structural, so the caret is not "in" a group there
+  // either — the same rule the lint and the healer keep.
+  const commented = "#הערה[א] // ] סוף";
+  check(
+    "a bracket in a comment is not a group",
+    moveOutTarget(commented, commented.length),
+    null,
+  );
+
+  // `findNextCloser` is the name the editor had before, kept as a reading of
+  // the same answer rather than a second one.
+  check("the old name answers the same", findNextCloser(deep, at), moveOutTarget(deep, at));
 }
 
 // 12. THE INVARIANT: healed text is always balanced, and healing is idempotent

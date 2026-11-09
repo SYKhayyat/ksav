@@ -135,6 +135,11 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // reads whichever registry it met first.
   moveOutOfBracket: "Mod-]",
   moveOutOfBracketToNextLine: "Mod-Alt-Shift-]",
+  // Every pair at once (#121). `Mod-Alt-0` because the folding chords beside it
+  // are depths — `Mod-Alt-1` is chapters, `Mod-Alt-2` adds simanim — and zero is
+  // the depth that has no brackets around it at all. `Mod-Shift-]` was the
+  // obvious neighbour and `selectTagWhole` already holds it.
+  moveOutOfAllBrackets: "Mod-Alt-0",
   // Paragraph break inside a note body (blank line, not a Typst command).
   // Shares Mod-Enter with list.paraInItem — they are mutually exclusive since
   // you cannot be in a list item and a note body at the same time.

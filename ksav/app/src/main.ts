@@ -1731,16 +1731,35 @@ function buildHeader(): HTMLElement {
 
   // Keyed by the union, not by `string`. See `header.ExportId` for what that
   // buys and what it was one keystroke away from costing.
+  // **Every entry here goes through `voidAction`** (#125).
+  //
+  // Four of them were wired as bare function references — `open: openFile`,
+  // `saveAs: saveFileAs` — which reads as tidy and is not: `menuItem` installs
+  // the value as a click handler, `openFile` awaits a native picker, a file read,
+  // an IndexedDB write and a binding comparison, and any of those rejecting is an
+  // unhandled promise rejection, which this app's crash handler treats as a
+  // crash. So File ▸ Open *could* take the writer to the crash panel — the UAT
+  // report's items 13 and 15 — while the two import routes beside it, which had
+  // just been given internal catches, could not.
+  //
+  // `voidAction` is the approved form (`asyncaction.ts`): it starts the promise,
+  // does not wait, and reports a failure as a status line. A cancelled picker
+  // throws `CANCELLED` and says nothing, which is why cancelling is quiet.
+  //
+  // The four that are not wrapped do not return promises: `newDoc`,
+  // `save`→`saveFile`, and `saveAsTemplate` are `async` and therefore *are*
+  // wrapped; what is left is nothing — every entry below is a `voidAction` call,
+  // and `asyncaction.test.mjs` reads this table and fails if one is not.
   const FILE_RUN: Record<header.FileItemId, () => void> = {
     newDoc,
-    open: openFile,
-    save: saveFile,
-    saveAs: saveFileAs,
-    importWord: () => importWord(),
-    importOrg: () => importOrg(),
-    shareRead: () => void copyShareLink(false),
-    shareReview: () => void copyShareLink(true),
-    saveAsTemplate,
+    open: () => voidAction("save_file", () => openFile()),
+    save: () => voidAction("save_file", () => saveFile()),
+    saveAs: () => voidAction("save_file", () => saveFileAs()),
+    importWord: () => voidAction("save_file", () => importWord()),
+    importOrg: () => voidAction("save_file", () => importOrg()),
+    shareRead: () => voidAction("general", () => copyShareLink(false)),
+    shareReview: () => voidAction("general", () => copyShareLink(true)),
+    saveAsTemplate: () => voidAction("save_file", () => saveAsTemplate()),
   };
   const fileMenu = menu(
     "file",
@@ -1756,16 +1775,21 @@ function buildHeader(): HTMLElement {
   // The Skins menu is gone: presets now live inside the Styles panel, next to
   // the settings they overwrite, where the relationship is visible.
 
+  // Every asynchronous route, through `voidAction` for the same reason as the
+  // File menu above (#125): `exportPdf` awaits a compile and a decode, and
+  // `void exports.exportPdf()` on a rejection is a crash panel rather than a
+  // sentence. The three synchronous ones — Markdown, Org and text — return a
+  // string and a file, and have nothing to reject.
   const EXPORT_RUN: Record<header.ExportId, () => void> = {
-    exportPdf: () => void exports.exportPdf(),
-    exportWord: () => void exports.exportWord(),
-    copyForWord: () => void exports.copyForWord(),
-    exportHtml: () => void exports.exportHtml(),
+    exportPdf: () => voidAction("general", () => exports.exportPdf()),
+    exportWord: () => voidAction("general", () => exports.exportWord()),
+    copyForWord: () => voidAction("general", () => exports.copyForWord()),
+    exportHtml: () => voidAction("general", () => exports.exportHtml()),
     exportMarkdown: exports.exportMarkdown,
     exportOrg: exports.exportOrg,
     exportText: exports.exportText,
-    exportTypst: () => void exports.exportTypst(),
-    exportTypstCompact: () => void exports.exportTypstCompact(),
+    exportTypst: () => voidAction("general", () => exports.exportTypst()),
+    exportTypstCompact: () => voidAction("general", () => exports.exportTypstCompact()),
     print: exports.doPrint,
   };
   // Rebuilt on every open, because the page count in the hint is the count of

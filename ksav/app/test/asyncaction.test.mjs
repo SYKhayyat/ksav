@@ -90,7 +90,6 @@ const INVENTORY = {
   "src/main.ts:saveFile": "guarded; same notice path as saveNow",
   "src/panescroll.ts:settleNow": "guarded; settling after a save cannot fail the save",
   "src/main.ts:takeSnapshot": "guarded; a snapshot that fails leaves the previous one",
-  "src/main.ts:copyShareLink": "guarded; a clipboard refusal is reported, not swallowed",
   "src/main.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
   "src/girsa.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
   "src/noteschooser.ts:fillNotePreview": "guarded; a note that will not preview is left alone",
@@ -138,6 +137,87 @@ function inventoryIsComplete() {
   );
 }
 
+/**
+ * Every menu run table in `main.ts`, as `{table, id, expr}`.
+ *
+ * `FILE_RUN`, `EXPORT_RUN`, `CHIP_RUN` — the three places where a literal table
+ * hands a click a function. They are read from the source rather than exercised
+ * because `main.ts` cannot be imported by a test, and the failure this watches
+ * for is a *shape*: a handler that returns a promise and is installed as if it
+ * returned nothing.
+ */
+function runTables() {
+  const main = readFileSync(join(SRC, "main.ts"), "utf8");
+  const out = [];
+  for (const table of main.matchAll(/const ([A-Z][A-Z_]*_RUN)[^{]*\{([\s\S]*?)\n\s*\};/gu)) {
+    for (const line of table[2].split("\n")) {
+      // `open: openFile,` … or the shorthand `newDoc,` — one is a reference and
+      // one is a call target, and both can be a handler that returns a promise.
+      const m = /^\s+(\w+): (.+?),?$/u.exec(line) ?? /^\s+(\w+),$/u.exec(line);
+      if (!m) continue;
+      out.push({ table: table[1], id: m[1], expr: (m[2] ?? m[1]).replace(/,$/u, "").trim() });
+    }
+  }
+  return out;
+}
+
+/** Whether a function of this name is declared `async` somewhere in `src/`. */
+function isAsync(name) {
+  for (const file of sources()) {
+    const text = readFileSync(file, "utf8");
+    for (const m of text.matchAll(/^(?:export )?(?:async )?function (\w+)/gmu)) {
+      if (m[1] !== name) continue;
+      if (/^(?:export )?async function/u.test(m[0])) return true;
+    }
+    // `const saveAs = async (…) =>` and `const saveAs = (…) => Promise<…>`
+    for (const m of text.matchAll(/^(?:export )?const (\w+) = (async\b|(?:\([^)]*\)|\w+) *:?[^=]*=>[\s\S]{0,40}?Promise)/gmu)) {
+      if (m[1] === name) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * #125: an asynchronous menu handler is installed through `voidAction`.
+ *
+ * File ▸ Open and Save As were wired as **bare function references** —
+ * `open: openFile`, `saveAs: saveFileAs` — and `menuItem` installs the value as a
+ * click handler. `openFile` awaits a native picker, a read, an IndexedDB write and
+ * a binding comparison; any of those rejecting is an unhandled promise rejection,
+ * and this application's crash handler treats one as a crash. So the two most
+ * ordinary items in the File menu could take the writer to the crash panel, while
+ * the two imports beside them — which had just been given internal catches —
+ * could not.
+ *
+ * The rule is the one `asyncaction.ts` already states, applied to the tables: a
+ * handler that can reject goes through `voidAction`, which reports instead of
+ * crashing. This fence reads the tables and asks each entry whether the function
+ * it names is `async`, so a **new** async menu item cannot be added unwrapped —
+ * which is the sibling-path half of the issue: *"use one approved wrapper rather
+ * than relying on each action author to remember a catch."*
+ */
+function menuHandlersAreWrapped() {
+  const rows = runTables();
+  ok("the three run tables are in the source", rows.length > 30, `${rows.length} handlers`);
+  const checked = [];
+  for (const row of rows) {
+    // Every identifier in the expression; the ones that name an async function
+    // are what the wrapper has to be around, whichever shape the expression has.
+    const named = [...row.expr.matchAll(/([a-zA-Z_$][\w$]*)/gu)].map((m) => m[1]);
+    const callee = named.reverse().find((n) => isAsync(n));
+    if (!callee) continue;
+    checked.push(`${row.table}.${row.id} → ${callee}`);
+    ok(
+      `${row.table}.${row.id} runs async ${callee}() through voidAction`,
+      /(?:voidAction|\baction)\(/u.test(row.expr),
+      row.expr,
+    );
+  }
+  // The fence has to have something to bite on: if the scan stopped recognising
+  // async declarations it would pass on every table and prove nothing.
+  ok("and the scan found the async handlers it must vouch for", checked.length > 8, checked.length);
+}
+
 function inventoryHasNotRotted() {
   // An entry for a callee that no longer exists is a lie in a file whose job is
   // to say what is accounted for: it tells the next reader a call site is
@@ -174,6 +254,7 @@ const statusClass = () => globalThis.document.getElementById("status").className
 const statusTitle = () => globalThis.document.getElementById("status").title;
 
 export async function run() {
+  menuHandlersAreWrapped();
   inventoryIsComplete();
   inventoryHasNotRotted();
   everyReasonIsAReason();

@@ -155,8 +155,8 @@ export function glyphBtn(
 }
 
 /** One labelled ribbon group: the buttons, plus the caption that names them. */
-export function tbGroup(label: string, buttons: Node[]): HTMLElement {
-  return el("div", { class: "tb-group", role: "group", "aria-label": label }, [
+export function tbGroup(label: string, buttons: Node[], extraClass?: string): HTMLElement {
+  return el("div", { class: extraClass ? `tb-group ${extraClass}` : "tb-group", role: "group", "aria-label": label }, [
     el("div", { class: "tb-group-row" }, buttons),
     el("span", { class: "tb-group-label", "aria-hidden": "true" }, [label]),
   ]);

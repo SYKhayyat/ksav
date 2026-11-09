@@ -269,10 +269,22 @@ export async function run() {
   {
     check("the four answers, in the order the panel offers them", [...settings.ALIGN_CHOICES], [
       "justify",
-      "right",
-      "center",
       "left",
+      "center",
+      "right",
     ]);
+    // The three edges are the same list minus the justified case, and the ribbon
+    // builds its group from this one (#136) rather than typing the order again.
+    check("and the three edges the ribbon offers are that order", [...settings.ALIGN_ORDER], [
+      "left",
+      "center",
+      "right",
+    ]);
+    check(
+      "…with no second opinion about what the three edges are",
+      settings.ALIGN_CHOICES.filter((c) => c !== "justify").join(),
+      [...settings.ALIGN_ORDER].join(),
+    );
   }
 
   {

@@ -19,7 +19,7 @@ import * as heads from "./headings";
 import * as styles from "./styles";
 import * as menus from "./menus";
 import * as macros from "./macros";
-import { settings } from "./settings";
+import { ALIGN_ORDER, settings } from "./settings";
 import { getLang, t, tf, hasKey, type Lang } from "./i18n";
 import { el, iconBtn, tbGroup, glyphBtn, noticeHost } from "./dom";
 import { closeMenus, toggleMenu } from "./panels";
@@ -495,6 +495,31 @@ export function buildToolbar(): HTMLElement {
     });
   };
 
+  /**
+   * The three edges, in the order `settings.ALIGN_CHOICES` offers them (#136).
+   *
+   * Built from that list rather than typed out here, so the ribbon and the
+   * settings control cannot come to different opinions about the order — which
+   * is exactly what they had, and what a writer saw as the right-align button
+   * sitting on the left of its group in an English interface. The glyphs name
+   * edges (`⇤` left, `≡` centre, `⇥` right) and do not mirror, so neither does
+   * the order: the row is pinned left-to-right in `styles.css` and reads the
+   * same in Hebrew and in English.
+   */
+  const ALIGN_BUTTON: Record<(typeof ALIGN_ORDER)[number], { he: string; glyph: string }> = {
+    left: { he: "שמאל", glyph: "⇤" },
+    center: { he: "מרכז", glyph: "≡" },
+    right: { he: "ימין", glyph: "⇥" },
+  };
+  // The class at creation rather than added afterwards: `dom.tbGroup` takes one,
+  // and a test harness that builds these nodes without a live `classList` is the
+  // reason it does.
+  const alignGroup = tbGroup(
+    t("cat.align"),
+    ALIGN_ORDER.map((edge) => b(ALIGN_BUTTON[edge].he, ALIGN_BUTTON[edge].glyph)),
+    "tb-align",
+  );
+
   return el("div", { class: "toolbar", role: "toolbar", "aria-label": t("toolbar") }, [
     tbGroup(t("cat.style"), [
       b("הדגשה", "B"),
@@ -571,7 +596,7 @@ export function buildToolbar(): HTMLElement {
       // third instance is caught by a test rather than by a writer.
       noteBtn("sidenote", "▣", "#הערת_גיליון[|]"),
     ]),
-    tbGroup(t("cat.align"), [b("ימין", "⇥"), b("מרכז", "≡"), b("שמאל", "⇤")]),
+    alignGroup,
     tbGroup(t("cat.torah"), [
       // A guest, declared rather than smuggled.
       //

@@ -453,7 +453,6 @@ export async function run() {
       .flat().filter((s) => HEBREW.test(s));
     ok("the app boots into Hebrew with plenty on screen", heBefore.length > 50);
     check("and the document is right-to-left", await page.getAttribute("html", "dir"), "rtl");
-
     // The switch, pressed the way a writer presses it: the toolbar button whose
     // accessible name is "שפה". Found by its name in the *old* language on
     // purpose — that is the only way a writer can find it.

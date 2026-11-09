@@ -966,9 +966,35 @@ export function isPageField(key: Field): key is PageField {
 // first read of every one of them. The pair keeps the old answer readable and
 // lets the new one win, which is the same shape the per-edge margins use.
 
-/** The four answers, in the order the panel offers them. */
-export const ALIGN_CHOICES = ["justify", "right", "center", "left"] as const;
+/**
+ * The four answers, in the order every surface offers them (#136).
+ *
+ * **Left → centre → right, on screen, in every interface language and for both
+ * document directions.** One contract, and it is a *screen* order rather than a
+ * reading order, which is the decision the report forced:
+ *
+ * the ribbon group was `ימין, מרכז, שמאל` and lay itself out with the page's
+ * flex flow. In a right-to-left interface that put left, centre, right on screen
+ * — right, and by accident. In a left-to-right one the same three buttons
+ * appeared **right, centre, left**: the right-align button on the left of the
+ * group, which is what a writer reported and could not make sense of by changing
+ * the document's direction.
+ *
+ * Reading order was the other candidate and it is worse: it would mirror the
+ * group whenever the interface or the document changed direction, so the button
+ * under a writer's finger would move because they switched a *different* setting
+ * — and the three glyphs are arrows naming edges (`⇤` left, `≡` centre, `⇥`
+ * right), which do not mirror with the text they align.
+ *
+ * The settings control lists the same sequence, so the two surfaces cannot
+ * disagree: the ribbon builds its group from `ALIGN_ORDER`, which is
+ * `ALIGN_CHOICES` minus the justified case.
+ */
+export const ALIGN_CHOICES = ["justify", "left", "center", "right"] as const;
 export type AlignChoice = (typeof ALIGN_CHOICES)[number];
+
+/** The three edges, in that same order — what a ribbon group offers. */
+export const ALIGN_ORDER = ["left", "center", "right"] as const;
 
 /**
  * Which of the four a document is on.

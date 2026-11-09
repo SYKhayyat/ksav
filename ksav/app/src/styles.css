@@ -198,6 +198,13 @@ header {
 .toolbar-empty { padding: 8px 12px; }
 .toolbar-failed { color: var(--danger); font-size: 13px; }
 .tb-group-row { display: flex; align-items: center; gap: 3px; }
+/* The alignment group reads left → centre → right in every direction (#136).
+   Its glyphs name edges of the page — `⇤` left, `≡` centre, `⇥` right — and a
+   page's left edge does not move when the interface language does. Inheriting
+   the row's flow put the right-align button on the left in an English interface,
+   which is what a writer reported and could do nothing about: the group moved
+   when they changed the *document's* direction, not the group's. */
+.tb-align .tb-group-row { direction: ltr; }
 .tb-group-label {
   font-size: 9.5px; letter-spacing: .3px; color: var(--muted);
   text-transform: uppercase; white-space: nowrap; line-height: 1.2;

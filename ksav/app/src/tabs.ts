@@ -214,6 +214,62 @@ export function focusedDoc(tab: Tab): string | null {
 }
 
 /**
+ * Which document a pane stands for: the one it names, or the one it follows.
+ *
+ * `docId: null` is not "no document" — it is *whichever is focused*, which is
+ * the ordinary case (see `panes.Leaf`). A pane that names nothing therefore
+ * stands for its arrangement's document.
+ */
+export function paneDoc(pane: Leaf, tab: Tab): string | null {
+  return pane.docId ?? focusedDoc(tab);
+}
+
+/**
+ * May this pane move into that arrangement? — #139.
+ *
+ * The window renders **one document at a time**: one `EditorState` handed to
+ * every source pane (`panestate.showInEveryPane`), one compile, one set of
+ * preview pages drawn into every preview host. A pane's `docId` is bookkeeping —
+ * what a tab is called, and which tab opening a document should reuse — and not
+ * a second text in the pane.
+ *
+ * So a *source* pane moved into an arrangement showing a different document does
+ * not arrive beside that document: it arrives **as** it. `selectTab` focuses the
+ * carried pane, `focusedDoc` then answers the carried pane's document, `selectTab`
+ * hands the window over to it — and the target tab's own panes, which the writer
+ * arranged and was reading, are all showing somebody else's text. The report
+ * described it as *"replaces existing content and creates extra copies/previews"*,
+ * which is what one document rendered into a mixed tree looks like from outside.
+ *
+ * The answer is a refusal in words and not a mixed tree, because a mixed tree is
+ * not something the renderer can honour: it would need two texts, two compiles
+ * and two sets of pages. When that exists — #43, #118 — this function is the one
+ * place that has to change, and its call site already asks before it touches
+ * anything.
+ *
+ * A **preview** pane is not refused, and that is not an oversight: previews are
+ * drawn from the focused document into every host, so a preview moved into
+ * another arrangement arrives showing that arrangement's document, which is the
+ * truth about it. Outline and notes panes are the same — they list the document
+ * the window is showing.
+ */
+export function moveAcross(
+  pane: Leaf,
+  _from: Tab,
+  to: Tab,
+): { kind: "ok" } | { kind: "mixed"; moves: string; shows: string } {
+  if (pane.role !== "source") return { kind: "ok" };
+  // `pane.docId` and not `paneDoc(pane, from)`: a pane that follows the focus
+  // carries **nothing** — it becomes whatever arrangement it lands in, by
+  // definition — so there is no document of its own to displace another with.
+  // Only a pane that *names* a document can arrive as it.
+  const moves = pane.docId;
+  const shows = focusedDoc(to);
+  if (moves && shows && moves !== shows) return { kind: "mixed", moves, shows };
+  return { kind: "ok" };
+}
+
+/**
  * The index of a tab already showing this document, or -1.
  *
  * What `openIn: "reuse"` is built on: a writer who opens the same sefer twice

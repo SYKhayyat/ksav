@@ -1494,6 +1494,9 @@ export const EN: Dict = {
   movePaneToNewTab: "To a new tab",
   movedToTab: "Pane moved to “{0}”",
   cannotMoveLastPane: "This is the last pane in this arrangement",
+  cannotMixDocuments:
+    "This pane is showing “{0}” and that arrangement is showing “{1}”. The window shows one document at a time, so moving this pane there would replace what that tab is showing. Each document has its own tab — split the tab you are moving into, or open “{0}” again to see them side by side.",
+  cannotMixDocumentsTitle: "A pane cannot carry one document into another document’s arrangement",
   saveArrangement: "Save this arrangement…",
   saveArrangementDesc: "Kept in the list beside the ones that ship with Ksav",
   arrangementName: "Arrangement name",

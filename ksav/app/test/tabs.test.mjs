@@ -20,6 +20,11 @@
 import { check, ok, notOk } from "./harness.mjs";
 import * as tabs from "../.tmp-test/tabs.mjs";
 import * as panes from "../.tmp-test/panes.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
+
+const SRC = path.join(dirOf(import.meta.url), "..", "src");
 
 /** A one-pane arrangement showing a named document. */
 function on(docId) {
@@ -165,6 +170,73 @@ export async function run() {
     const only = tabs.add(on("a"));
     check("the last tab cannot be closed", tabs.close(0).id, only.id);
     check("…and it is still there", tabs.count(), 1);
+  }
+
+  // ------------------------------------- a pane cannot carry a document (#139)
+  //
+  // > *"Moving to a populated tab replaces existing content and creates extra
+  // > copies/previews."*
+  //
+  // The window renders one document at a time — one `EditorState` handed to every
+  // source pane, one compile, one set of pages — so a source pane carried into an
+  // arrangement showing a different document does not arrive *beside* it, it
+  // arrives *as* it: `selectTab` focuses the carried pane, `focusedDoc` answers
+  // its document, and the target tab's own panes all start showing somebody
+  // else's text. `moveAcross` is that question, asked before anything is taken
+  // apart, and the answer is words rather than a mixed tree.
+  {
+    tabs.reset();
+    const tabA = tabs.add(on("doc-a"));
+    const tabB = tabs.add(on("doc-b"));
+
+    check("a pane that names its document stands for it", tabs.paneDoc(panes.leaf("source", "doc-a"), tabA), "doc-a");
+    check(
+      "and a pane that follows the focus stands for its arrangement's",
+      tabs.paneDoc(panes.leaf("source", null), tabB),
+      "doc-b",
+    );
+
+    check("a source pane may join an arrangement showing its own document", tabs.moveAcross(panes.leaf("source", "doc-a"), tabA, tabA).kind, "ok");
+    const refusal = tabs.moveAcross(panes.leaf("source", "doc-b"), tabB, tabA);
+    check("and may not join one showing another", refusal.kind, "mixed");
+    check("…which names the document being carried", refusal.moves, "doc-b");
+    check("…and the one already there", refusal.shows, "doc-a");
+
+    // A pane that follows the focus has no document to carry, so there is nothing
+    // to overwrite: it becomes the target's document by definition.
+    check("a following pane may go anywhere", tabs.moveAcross(panes.leaf("source", null), tabA, tabB).kind, "ok");
+    // Previews, outlines and notes are drawn from whatever the window is showing,
+    // so moving one between arrangements is honest and is not refused.
+    for (const role of ["preview", "outline", "notes", "marks"]) {
+      check(`a ${role} pane may move between documents`, tabs.moveAcross(panes.leaf(role, "doc-b"), tabB, tabA).kind, "ok");
+    }
+    // Nothing here is about there being two tabs: the same tab is a degenerate
+    // case and must not be a refusal either.
+    check("a source pane named for this tab may stay in it", tabs.moveAcross(panes.leaf("source", "doc-a"), tabA, tabA).kind, "ok");
+  }
+
+  // ------------------------------------------------- and the move asks, first
+  //
+  // A decision module that the caller does not consult is not a fix. Asserted as
+  // *order in the function*, because a refusal that has already pulled the pane
+  // out of its arrangement is not a refusal: the window would be missing a pane
+  // and the writer would have been told why afterwards.
+  {
+    const strip = readFileSync(path.join(SRC, "tabstrip.ts"), "utf8");
+    const at = strip.indexOf("export function movePaneToTab");
+    const body = strip.slice(at, strip.indexOf("\n// ------", at));
+    const asked = body.indexOf("tabs.moveAcross(");
+    const tore = body.indexOf("panes.closePane(");
+    ok("the move asks the decision", asked > 0);
+    ok(
+      "…before it takes anything apart" + (asked > 0 && tore > 0 && asked < tore ? "" : `\n    asked at ${asked}, closePane at ${tore}`),
+      asked > 0 && tore > 0 && asked < tore,
+    );
+    // And says so, in words, rather than returning silently. The message names
+    // both documents, which is the difference between "no" and "not that".
+    ok("a refused move is reported", /setStatus\(tf\("cannotMixDocuments"/.test(body));
+    ok("…as a warning, not a success", /cannotMixDocuments"[^)]*\)[^;]*"warn"/s.test(body));
+    notOk("and the decision is not re-derived in the caller", /focusedDoc\(/.test(body));
   }
 
   // -------------------------------------------------------------- persisting

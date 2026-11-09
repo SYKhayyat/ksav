@@ -71,6 +71,28 @@ function handOverPages(leaving: string | null, arriving: string) {
  * is more useful than silently leaving the pane where it is.
  */
 export function movePaneToTab(pane: panes.Leaf, index: number) {
+  // **Before anything is taken apart** (#139). The decision is asked of
+  // `tabs.moveAcross` and not re-derived here, and it is asked here rather than
+  // after `closePane` so a refused move leaves the window exactly as it was —
+  // a refusal that has already pulled the pane out of its arrangement is not a
+  // refusal.
+  //
+  // What it refuses is a source pane carried into an arrangement showing another
+  // document. That move cannot be honoured: the window renders one document at a
+  // time, so the carried pane's document wins and the target tab's own panes —
+  // which the writer arranged and was reading — all start showing it. See
+  // `tabs.moveAcross` for the whole argument, and #43/#118 for the feature that
+  // would make the answer "yes".
+  const current = tabs.all()[tabs.activeIndex()];
+  const to = index >= 0 && index < tabs.all().length ? tabs.all()[index] : undefined;
+  if (current && to) {
+    const answer = tabs.moveAcross(pane, current, to);
+    if (answer.kind === "mixed") {
+      const titleOf = (id: string) => docs.library().find((e) => e.id === id)?.title ?? t("untitled");
+      setStatus(tf("cannotMixDocuments", titleOf(answer.moves), titleOf(answer.shows)), "warn");
+      return;
+    }
+  }
   const without = panes.closePane(panestate.paneTree, pane.id);
   if (without === panestate.paneTree) {
     setStatus(t("cannotMoveLastPane"), "warn");

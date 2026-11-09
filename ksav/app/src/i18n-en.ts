@@ -1000,7 +1000,14 @@ export const EN: Dict = {
   exportMarkdown: "Markdown",
   exportOrg: "Org mode",
   exportText: "Plain text",
-  exportTypst: "Typst source",
+  exportTypst: "Typst source (self-contained)",
+  exportTypstCompact: "Typst source (compact)",
+  typstSelfContained:
+    "Wrote {0} — {1}, self-contained: the whole Ksav prelude is inside it, so it compiles anywhere without Ksav. The compact export writes the same document as two smaller files.",
+  typstCompactPair:
+    "Wrote {0} and {1} — {0} is {2} and imports {1}, so keep the two in one folder.",
+  typstCompactNoPrelude:
+    "The engine sent a compact document without its prelude, so nothing was written — the file would have imported something missing. Try \"Typst source (self-contained)\".",
   print: "Print",
   htmlFellBack: "Typst's HTML export failed — exporting page images instead.",
   exportWord: "Word (.doc)",

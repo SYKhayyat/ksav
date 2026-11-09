@@ -545,7 +545,10 @@ const RULES = [
         // double report this rule exists to prevent.
         if (owners[i] === "exportBackup") return false;
         const near = lines.slice(Math.max(0, i - 3), i + 8).join("\n");
-        return !/"exported"|handOver\(/u.test(near);
+        // `handOverPair` is the compact export's two-file handover (#130), and it
+        // is an announcer for the same reason `handOver` is: it says both names
+        // in the status line before returning.
+        return !/"exported"|handOver\(|handOverPair\(/u.test(near);
       });
     },
   },

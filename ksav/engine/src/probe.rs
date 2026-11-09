@@ -446,3 +446,13 @@ pub fn layout(body: &str, cfg: &crate::DocConfig) -> Result<PagedDocument, Vec<c
 pub fn layout_plain(source: &str) -> Result<PagedDocument, Vec<crate::Diagnostic>> {
     crate::layout_plain(source)
 }
+
+/// A whole Typst document **plus the files it imports** — the compact export's
+/// arrangement (#130), where the prelude is a sibling `ksav.typ` rather than an
+/// inlined block.
+pub fn layout_with_files(
+    source: &str,
+    files: &[(&str, &str)],
+) -> Result<PagedDocument, Vec<crate::Diagnostic>> {
+    crate::layout_plain_with_files(source, files)
+}

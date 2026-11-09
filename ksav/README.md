@@ -430,10 +430,19 @@ measurable with `cargo run --release --example bench-prelude`), and a diagnostic
 line number is a line number rather than a prefix length subtracted from a byte
 offset, because a span carries which file it came from.
 
-"Export .typ" still inlines the prelude, because a self-contained file is the
-whole point of that button; both arrangements come off the same `prelude_text`
-and the same `show_rule`, and `tests/assemble.rs` compiles the exported one
-through an engine with no file resolver on it to prove it still stands alone.
+"Export .typ" comes in two arrangements, and the menu names which is which
+(#130). **Self-contained** inlines the prelude, because a file that compiles
+anywhere — on a machine with no Ksav on it — is the whole point of a file that is
+going to somebody else; the status line says so and puts the size on the end,
+since a five-word note leaves as roughly 550 KB and a writer deserves to know
+that is the price rather than a bug. **Compact** writes the arrangement a compile
+already uses: a `.typ` that `#import`s `ksav.typ`, plus `ksav.typ` itself, both
+handed over in one response so the pair cannot come apart. All three
+arrangements — compiled, self-contained, compact — come off the same
+`prelude_text` and the same `show_rule`; `tests/assemble.rs` compiles the
+self-contained one through an engine with no file resolver on it to prove it
+stands alone, and the compact pair through an engine whose only sibling file is
+the prelude the response carried.
 
 Because **Typst itself parses the document**, we never reimplement a parser — and
 arbitrary cross-nesting (a table inside a footnote inside a heading inside a list
@@ -724,7 +733,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 13,205 editor assertions across 139 files,
+      all nine jobs: the typechecker and 13,221 editor assertions across 139 files,
       1171 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS, a build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -803,8 +812,8 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 13,205 assertions across 139 files |
-| `engine` | both | formatting, lints, then 1173 tests across 81 binaries |
+| `editor` | both | the typechecker, then 13,221 assertions across 139 files |
+| `engine` | both | formatting, lints, then 1175 tests across 81 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 

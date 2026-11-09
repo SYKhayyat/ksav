@@ -95,8 +95,11 @@ const SEAM = [
   {
     what: "assemble: the document as Typst, with nothing laid out",
     file: "lib.rs",
-    at: '"typst_source": assemble_source(',
+    at: '"prelude_name": PRELUDE_PATH',
     ts: "AssembledSource",
+    // The prelude pair is #130's compact arrangement; the self-contained answer
+    // sends the same two keys with an empty `prelude`, deliberately, so that one
+    // shape covers both rather than two shapes that have to be told apart.
     optional: [],
   },
   {
@@ -104,7 +107,7 @@ const SEAM = [
     file: "lib.rs",
     at: '                "typst_source": "",',
     ts: "AssembledSource",
-    optional: [],
+    optional: ["prelude", "prelude_name"],
   },
   {
     what: "jump: which line of which file a click on a page came from",

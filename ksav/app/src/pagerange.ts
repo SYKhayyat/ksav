@@ -154,6 +154,9 @@ const WHY_NOT: Readonly<Record<string, string>> = {
   exportOrg: "noPagesSource",
   exportText: "noPagesSource",
   exportTypst: "noPagesSource",
+  // The compact arrangement is the same source in two files, so it has exactly
+  // as little to do with pages (#130).
+  exportTypstCompact: "noPagesSource",
 };
 
 /** Does this route take a page range? */

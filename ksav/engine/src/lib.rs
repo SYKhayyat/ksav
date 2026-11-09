@@ -3307,8 +3307,31 @@ fn bundled_fonts() -> Vec<&'static [u8]> {
 /// who took the file to a printer. An engine with no source resolver on it
 /// cannot resolve an import, so an export that acquired one fails loudly.
 pub(crate) fn layout_plain(source: &str) -> Result<PagedDocument, Vec<Diagnostic>> {
+    layout_plain_with_files(source, &[])
+}
+
+/// [`layout_plain`], with sibling files the document may `#import`.
+///
+/// This is the *compact* export's arrangement, and it is the only way to check
+/// that arrangement means anything: a document that imports `ksav.typ` compiles
+/// here only if that file is really supplied, so a compact export whose prelude
+/// was incomplete fails in this function rather than in somebody's Typst install.
+pub(crate) fn layout_plain_with_files(
+    source: &str,
+    files: &[(&str, &str)],
+) -> Result<PagedDocument, Vec<Diagnostic>> {
+    use typst::syntax::{RootedPath, Source, VirtualPath, VirtualRoot};
+    let sources: Vec<Source> = files
+        .iter()
+        .map(|(name, text)| {
+            let vpath = VirtualPath::new(*name).expect("a valid virtual path");
+            let id = RootedPath::new(VirtualRoot::Project, vpath).intern();
+            Source::new(id, (*text).to_string())
+        })
+        .collect();
     let engine = TypstEngine::builder()
         .main_file(source.to_string())
+        .with_static_source_file_resolver(sources)
         .fonts(bundled_fonts())
         .build();
     let Warned { output, warnings } = engine.compile::<PagedDocument>();
@@ -3972,9 +3995,26 @@ pub fn assemble_request(input_json: &str) -> String {
         .iter()
         .map(|p| Diagnostic::ours("error", p.clone()))
         .collect();
+    // Two arrangements of one document, and `compact` is the one a writer
+    // asking for a *small* file gets (#130): the prelude is not inlined but
+    // imported from a sibling `ksav.typ`, which this same response hands over —
+    // so the pair is still whole. The prelude's bytes here are `prelude_text()`,
+    // the same string `prelude_source()` compiles, so the file the writer saves
+    // and the file a compile reads cannot be different documents.
+    let compact =
+        d.v.get("compact")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+    let (source, prelude) = if compact {
+        (main_source(&d.expanded.text, &d.cfg), prelude_text())
+    } else {
+        (assemble_source(&d.expanded.text, &d.cfg), String::new())
+    };
     serde_json::json!({
         "ok": diagnostics.is_empty(),
-        "typst_source": assemble_source(&d.expanded.text, &d.cfg),
+        "typst_source": source,
+        "prelude": prelude,
+        "prelude_name": PRELUDE_PATH,
         "diagnostics": diagnostics,
     })
     .to_string()

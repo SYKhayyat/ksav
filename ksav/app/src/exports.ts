@@ -110,9 +110,52 @@ async function warnIfHealed() {
  * A warning after this one wins, deliberately: both sentences are true, and *a
  * file went out but read this first* is the more useful of the two.
  */
-function handOver(name: string, blob: Blob) {
+function handOver(name: string, blob: Blob, said = tf("exported", name)) {
   download(name, blob);
-  runtime.setStatus(`✓ ${tf("exported", name)}`, "ok");
+  runtime.setStatus(`✓ ${said}`, "ok");
+}
+
+/**
+ * Two files, and one sentence naming both (#130).
+ *
+ * The compact Typst export is a **pair** — a document and the prelude it
+ * `#import`s — so it cannot go through `handOver`, which is one file and one
+ * name. It goes through one function for the same reason `handOver` is one
+ * function: the announcement belongs to the act of handing files over, so a
+ * route that reaches for the bare `download` goes quiet again, and
+ * `exports.test.mjs` fails on one.
+ *
+ * The **first** file is the prelude, deliberately. If a browser or a webview
+ * blocks the second download, the writer is left holding a prelude and no
+ * document — a harmless orphan. The other order leaves a document importing a
+ * file that was never saved, which is the failure this whole option exists to
+ * not have.
+ */
+function handOverPair(first: BlobFile, second: BlobFile, said: string) {
+  const text = { type: "text/plain" };
+  download(first.name, new Blob([first.text], text));
+  download(second.name, new Blob([second.text], text));
+  runtime.setStatus(`✓ ${said}`, "ok");
+}
+
+/** A file that goes out: a name, and the bytes as text. */
+interface BlobFile {
+  name: string;
+  text: string;
+}
+
+/**
+ * How big a file is, in the words a writer would use.
+ *
+ * Bytes and not characters: a Hebrew `.typ` is two bytes a letter in UTF-8, and
+ * quoting a character count for a file size is wrong by half on the documents
+ * this application is for.
+ */
+function sizeOf(text: string): string {
+  const bytes = new TextEncoder().encode(text).length;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export async function exportPdf() {
@@ -164,13 +207,24 @@ export async function exportPdf() {
 // with the ellipsis. It had no key and no palette entry, so the box is strictly
 // more reachable than the item it replaces.
 
+/**
+ * The document as one self-contained `.typ`.
+ *
+ * No compile. The .typ *is* what a compile is handed, so asking for the render
+ * to read one field off the response was paying for the layout of the whole
+ * sefer — plus a base64 PDF — to obtain a string the engine builds in
+ * microseconds before Typst is invoked at all.
+ *
+ * Self-contained means **the whole prelude is inside it**, and that is what the
+ * status line says, with the size (#130). It used to say `Wrote sefer.typ.` and
+ * nothing else, so a writer who exported a five-word note got a 550 KB file and
+ * no way to know why — the UAT report's *"exported .typ is outrageously large"*.
+ * The number is the honest half: it is not a bug, it is the price of a file that
+ * compiles anywhere, and [`exportTypstCompact`] is the other answer.
+ */
 export async function exportTypst() {
   runtime.closeMenus();
   await flushSaves();
-  // No compile. The .typ *is* what a compile is handed, so asking for the
-  // render to read one field off the response was paying for the layout of the
-  // whole sefer — plus a base64 PDF — to obtain a string the engine builds in
-  // microseconds before Typst is invoked at all.
   const res = await sourceForExport();
   if (!res) return;
   // A chapter that could not be resolved is a hole in the file. It is the one
@@ -181,7 +235,53 @@ export async function exportTypst() {
     runtime.setStatus(`${t("compileError")} — ${why}`, "err");
     return;
   }
-  handOver(runtime.fileStem() + ".typ", new Blob([res.typst_source], { type: "text/plain" }));
+  const name = runtime.fileStem() + ".typ";
+  handOver(
+    name,
+    new Blob([res.typst_source], { type: "text/plain" }),
+    tf("typstSelfContained", name, sizeOf(res.typst_source)),
+  );
+  await warnIfHealed();
+}
+
+/**
+ * The same document as two small files: a `.typ` that `#import`s its prelude,
+ * and the prelude (#130).
+ *
+ * This is the arrangement a compile already uses — the editor has always handed
+ * the engine `#import "ksav.typ": *` plus the prelude as a file — so the export
+ * is not a new assembly but the one that exists, taken out of the program.
+ *
+ * Both files go out, and the pair is either whole or nothing: the engine sends
+ * the prelude in the same response as the document, so a document that names a
+ * prelude the response did not carry is refused rather than written. A `.typ`
+ * importing a file the writer does not have is exactly the "compact export that
+ * silently depends on something missing" the issue warns against.
+ */
+export async function exportTypstCompact() {
+  runtime.closeMenus();
+  await flushSaves();
+  const res = await sourceForExport(true);
+  if (!res) return;
+  const why = res.diagnostics?.find((d) => d.severity === "error")?.message;
+  if (why) {
+    runtime.setStatus(`${t("compileError")} — ${why}`, "err");
+    return;
+  }
+  const prelude = res.prelude ?? "";
+  const preludeName = res.prelude_name ?? "";
+  if (!prelude || !preludeName) {
+    // The engine promised a compact arrangement and sent half of it. Saying so
+    // is better than writing a document whose import points at nothing.
+    runtime.setStatus(t("typstCompactNoPrelude"), "err");
+    return;
+  }
+  const name = runtime.fileStem() + ".typ";
+  handOverPair(
+    { name: preludeName, text: prelude },
+    { name, text: res.typst_source },
+    tf("typstCompactPair", name, preludeName, sizeOf(res.typst_source)),
+  );
   await warnIfHealed();
 }
 

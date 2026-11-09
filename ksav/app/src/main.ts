@@ -1765,6 +1765,7 @@ function buildHeader(): HTMLElement {
     exportOrg: exports.exportOrg,
     exportText: exports.exportText,
     exportTypst: () => void exports.exportTypst(),
+    exportTypstCompact: () => void exports.exportTypstCompact(),
     print: exports.doPrint,
   };
   // Rebuilt on every open, because the page count in the hint is the count of

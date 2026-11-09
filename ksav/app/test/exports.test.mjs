@@ -531,19 +531,41 @@ export async function run() {
       check("no route hands a file over without saying so", silent, []);
 
       // And the source says it too, so the next route added cannot be the one
-      // that forgets: `handOver` is the only caller of `download` in this file.
-      const bare = EXPORTS_TS
-        .split("\n")
+      // that forgets: `download` is called only inside the two functions that
+      // announce what they wrote — `handOver` for one file, `handOverPair` for
+      // the compact export's two (#130) — and each of those calls sits beside a
+      // `setStatus`.
+      const pairs = [
+        "download(name, blob);",
+        'download(first.name, new Blob([first.text], text));',
+        'download(second.name, new Blob([second.text], text));',
+      ];
+      const bare = EXPORTS_TS.split("\n")
         .map((l, i) => [i + 1, l])
         .filter(([, l]) => /(?<![\w.])download\(/u.test(l))
-        // The import, and the one line inside `handOver` that is allowed to.
         .filter(([, l]) => !l.trim().startsWith("import "))
-        .filter(([, l]) => l.trim() !== "download(name, blob);");
+        .filter(([, l]) => !pairs.includes(l.trim()));
       check(
-        "and only one function in exports.ts reaches for `download`",
+        "and every handover goes through the two functions that announce it",
         bare.map(([n, l]) => `${n}: ${l.trim()}`),
         [],
       );
+      // …and both of those functions do announce. A `download` call added to
+      // them without a `setStatus` would be quiet again, which is what this
+      // half is for.
+      // Read between a function's opening brace and the first line that is a
+      // lone `}` — enough for these two, and enough to see a `setStatus` in
+      // them without a parser.
+      const bodyOf = (name) => {
+        const start = EXPORTS_TS.indexOf(`function ${name}(`);
+        if (start < 0) return "";
+        const end = EXPORTS_TS.indexOf("\n}\n", start);
+        return end < 0 ? "" : EXPORTS_TS.slice(start, end);
+      };
+      const handOverBody = bodyOf("handOver");
+      const pairBody = bodyOf("handOverPair");
+      ok("the one-file handover says what it wrote", handOverBody.includes("setStatus"));
+      ok("and the two-file one says both names", pairBody.includes("setStatus"));
     }
 
     // ------------------------------------------------ 5. the .typ, uncompiled
@@ -583,6 +605,132 @@ export async function run() {
       // …and it says the file went out. Asserted here rather than in the sweep
       // above, for the reason given there.
       ok("and it names what it wrote", statusText().includes(".typ"), statusText());
+    }
+
+    // ------------------------------- 5b. the compact export is two files, and whole
+    //
+    // #130. The self-contained `.typ` is 550 KB whatever the document is, because
+    // it carries the whole prelude. The compact arrangement — the one a compile
+    // already uses — is a document that `#import`s its prelude plus that prelude
+    // as a sibling file. What is asserted here is the shape of that handover:
+    // two files, the prelude first, both named, and nothing written if the engine
+    // sends only half of the pair.
+    {
+      const PRELUDE = "#let _ix = ()\n#let מסמך(..) = none\n";
+      const DOC = '#import "core.typ": *\n#show: מסמך\n\nפתיחה\n';
+      let asked = null;
+      let assembles = 0;
+      let compiles = 0;
+      // Nothing open to save: every route out of the app flushes first, and a
+      // flush with a document but no store behind it records a *real* storage
+      // failure, which the next file in the suite would then read as its own.
+      //
+      // Which means `fileStem()` is `ksav` here — the same name the prelude is
+      // usually called — so the prelude is answered under a name the app could
+      // not possibly have guessed. That is the better assertion anyway: it says
+      // the name is **read from the engine** rather than spelled in `exports.ts`.
+      runtime.setCurrentDoc?.(null);
+      withDoc(BALANCED);
+      runtime.setBackend({
+        async compile() {
+          compiles++;
+          return { ok: true, pages_svg: [], diagnostics: [], pdf_base64: "", typst_source: "" };
+        },
+        async assemble(_body, _cfg, _assets, opts) {
+          assembles++;
+          asked = opts;
+          return {
+            ok: true,
+            typst_source: DOC,
+            prelude: PRELUDE,
+            prelude_name: "core.typ",
+            diagnostics: [],
+          };
+        },
+      });
+
+      captured.downloads.length = 0;
+      captured.blobs.length = 0;
+      await exports_.exportTypstCompact();
+
+      check("a compact export asks the engine for the compact arrangement", asked, { compact: true });
+      check("it writes two files", captured.downloads.length, 2);
+      check(
+        "the two files are the prelude and the document, in that order",
+        captured.downloads.map((d) => d.name),
+        ["core.typ", "ksav.typ"],
+      );
+      check(
+        "the prelude's bytes are the ones the engine sent",
+        (await captured.blobs[0].text()).length,
+        PRELUDE.length,
+      );
+      ok(
+        "and the document names exactly that file",
+        (await captured.blobs[1].text()).startsWith('#import "core.typ": *'),
+        await captured.blobs[1].text(),
+      );
+      ok(
+        "the status names both files",
+        statusText().includes("core.typ") && statusText().includes(captured.downloads[1].name),
+        statusText(),
+      );
+      check("assembled once", assembles, 1);
+      check("and nothing was compiled to get it", compiles, 0);
+    }
+
+    {
+      // Half a pair is not a file. A document importing a prelude that was never
+      // written is the exact failure the compact option exists to avoid, so the
+      // document is refused and the writer is told — rather than saving something
+      // that does not compile.
+      withDoc(BALANCED);
+      runtime.setBackend({
+        async assemble() {
+          return {
+            ok: true,
+            typst_source: '#import "ksav.typ": *\nפתיחה\n',
+            prelude: "",
+            prelude_name: "ksav.typ",
+            diagnostics: [],
+          };
+        },
+      });
+      captured.downloads.length = 0;
+      await exports_.exportTypstCompact();
+      check("a document with no prelude beside it is not written", captured.downloads.length, 0);
+      check("and that is an error, not a warning", statusClass(), "err");
+      ok(
+        "said in words",
+        statusText().includes(DICTS.he.typstCompactNoPrelude.slice(0, 12)),
+        statusText(),
+      );
+    }
+
+    {
+      // And the self-contained route says which of the two it is, with the size
+      // on the end — the missing half of the UAT report. A writer who exports a
+      // five-word note and gets 550 KB is not being told a bug, they are being
+      // told the price of a file that compiles anywhere; the number is what makes
+      // that legible.
+      const short = "#let ...\nפתיחה\n";
+      const bytes = new TextEncoder().encode(short).length;
+      runtime.setCurrentDoc?.(null);
+      withDoc(BALANCED);
+      runtime.setBackend({
+        async assemble() {
+          return { ok: true, typst_source: short, diagnostics: [] };
+        },
+      });
+      captured.downloads.length = 0;
+      await exports_.exportTypst();
+      check("the self-contained export writes one file", captured.downloads.length, 1);
+      ok(
+        "and says the prelude is inside it",
+        statusText().includes("עצמאי") || statusText().includes("self-contained"),
+        statusText(),
+      );
+      ok("with the size it wrote", statusText().includes(`${bytes} B`), statusText());
     }
 
     {

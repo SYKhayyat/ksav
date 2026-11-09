@@ -550,15 +550,24 @@ function rememberPart(id: string, updated: number, body: string): void {
  * resolved exactly as `compileForExport` resolves them, because a `.typ` that
  * opens differently from the document it came out of is not an export.
  */
-export async function sourceForExport(): Promise<AssembledSource | null> {
+export async function sourceForExport(compact = false): Promise<AssembledSource | null> {
   const backend = runtime.backend;
   if (!backend) return null;
   const body = withPreamble(runtime.docText()).body;
   try {
-    return await backend.assemble(body, docConfig(), {
-      ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
-      parts: await includedParts(body),
-    });
+    return await backend.assemble(
+      body,
+      docConfig(),
+      {
+        ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
+        parts: await includedParts(body),
+      },
+      // #130: `compact` asks for the same document with its prelude beside it
+      // rather than inside it. The bytes of the document are otherwise identical
+      // — `engine/tests/assemble.rs` lays out both arrangements and compares the
+      // text and the pages.
+      compact ? { compact: true } : undefined,
+    );
   } catch (e) {
     const bad = troubleSaid(e, "compile");
     runtime.setStatus(`${t("networkError")} — ${bad.said}`, "err", bad.detail);

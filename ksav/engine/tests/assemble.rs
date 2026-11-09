@@ -251,3 +251,119 @@ fn the_exported_file_compiles_on_its_own_to_the_same_document() {
         );
     }
 }
+
+/// The compact export is a **pair**, and the pair is a whole document (#130).
+///
+/// A `.typ` that `#import`s a prelude is only an export if the prelude comes with
+/// it. The response carries both — the document in `typst_source`, the prelude in
+/// `prelude`, under the name `prelude_name` — and the file the writer saves is
+/// checked here by compiling the two together, through an engine whose only
+/// sibling file is the one this response handed over.
+///
+/// The size claim is checked by asserting what the compact arrangement *is*
+/// (no inlined prelude) rather than by a byte count, because a number would go
+/// stale; `the_compact_export_is_the_self_contained_one_without_the_prelude`
+/// below is the one place a ratio is measured.
+#[test]
+fn a_compact_export_brings_its_prelude_with_it() {
+    use ksav_engine::probe;
+
+    for (what, request) in corpus() {
+        let mut ask = request.clone();
+        ask["compact"] = json!(true);
+        let answer = assemble(&ask);
+        // A corpus entry that is *meant* to fail (a chapter that does not exist)
+        // still has to answer with the two halves, so the file it writes is
+        // complete even when a chapter is a hole.
+        assert_eq!(
+            answer["ok"],
+            assemble(&request)["ok"],
+            "{what}: the two arrangements disagreed about whether the document is whole"
+        );
+
+        let document = answer["typst_source"].as_str().unwrap_or_default();
+        let prelude = answer["prelude"].as_str().unwrap_or_default();
+        let name = answer["prelude_name"].as_str().unwrap_or_default();
+        assert_eq!(
+            name, "ksav.typ",
+            "{what}: the prelude's name is the one a compile reads"
+        );
+        assert!(
+            document.starts_with(&format!("#import \"{name}\": *")),
+            "{what}: the compact export must import the prelude it was handed, and it starts: {}",
+            &document[..document.len().min(60)]
+        );
+        assert!(
+            !prelude.is_empty(),
+            "{what}: a document that imports its prelude was handed an empty one"
+        );
+
+        // The arrangement as a writer receives it: two files, one directory.
+        let pair = probe::layout_with_files(document, &[(name, prelude)])
+            .unwrap_or_else(|d| panic!("{what}: the compact pair did not compile: {d:?}"));
+
+        // …and the same document as one self-contained file, which is the
+        // arrangement `assemble` already had and which `tests/assemble.rs` above
+        // proves lays out as the compiled document does. Comparing the two
+        // exports with each other is what makes *this* test about the
+        // arrangement rather than about Typst.
+        let whole = assemble(&request);
+        let packed = probe::layout_plain(whole["typst_source"].as_str().unwrap_or_default())
+            .unwrap_or_else(|d| {
+                panic!("{what}: the self-contained export stopped compiling: {d:?}")
+            });
+        assert_eq!(
+            probe::page_sizes(&pair),
+            probe::page_sizes(&packed),
+            "{what}: the compact pair laid out to different pages than the self-contained file"
+        );
+        let words = |d: &_| {
+            probe::text_runs(d)
+                .iter()
+                .map(|r| r.text.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            words(&pair),
+            words(&packed),
+            "{what}: the compact pair laid out different text"
+        );
+    }
+}
+
+/// And the point of it: the compact document does not carry the prelude, so it is
+/// small — measured against the self-contained export of the same document, which
+/// is the one that has to stay whole.
+///
+/// A ratio rather than a byte count: the prelude will grow and this assertion
+/// should not need editing when it does. What it pins is the *shape* of the
+/// answer — the compact document is a fraction of the self-contained one, and the
+/// prelude it was handed is where the difference went.
+#[test]
+fn the_compact_export_is_the_self_contained_one_without_the_prelude() {
+    let request = json!({ "body": "שלום עולם\n" });
+    let mut ask = request.clone();
+    ask["compact"] = json!(true);
+    let compact = assemble(&ask);
+    let whole = assemble(&request);
+
+    let short = compact["typst_source"].as_str().unwrap_or_default().len();
+    let long = whole["typst_source"].as_str().unwrap_or_default().len();
+    let prelude = compact["prelude"].as_str().unwrap_or_default().len();
+
+    assert!(
+        short * 50 < long,
+        "a one-line document exported to {short} bytes self-contained and {long} compact"
+    );
+    assert!(
+        prelude > long / 2,
+        "the prelude handed over ({prelude} bytes) should be most of {long} bytes"
+    );
+    assert!(
+        whole["typst_source"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(compact["prelude"].as_str().unwrap_or_default()),
+        "the self-contained export no longer contains the prelude the compact one imports"
+    );
+}

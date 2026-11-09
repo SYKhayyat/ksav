@@ -1047,7 +1047,14 @@ export const HE: Dict = {
   exportMarkdown: "Markdown",
   exportOrg: "Org mode",
   exportText: "טקסט רגיל",
-  exportTypst: "מקור Typst",
+  exportTypst: "מקור Typst (קובץ עצמאי)",
+  exportTypstCompact: "מקור Typst (חסכוני)",
+  typstSelfContained:
+    "‏{0} נשמר — {1}, קובץ עצמאי: כל הפתיח של Ksav נמצא בתוכו, ולכן הוא מתקמפל בכל מקום גם בלי Ksav. הייצוא החסכוני כותב את אותו מסמך כשני קבצים קטנים.",
+  typstCompactPair:
+    "‏{0} ו‑{1} נשמרו — {0} הוא {2} ומייבא את {1}, ולכן יש להחזיק את השניים באותה תיקייה.",
+  typstCompactNoPrelude:
+    "המנוע שלח מסמך חסכוני בלי הפתיח שלו, ולכן לא נכתב קובץ — הוא היה מייבא משהו שאינו קיים. נסו \"מקור Typst (קובץ עצמאי)\".",
   print: "הדפסה",
   htmlFellBack: "ייצוא HTML של Typst נכשל — יוצא כתמונות עמוד במקום.",
   exportWord: "Word ‏(.doc)",

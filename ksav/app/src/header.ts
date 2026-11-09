@@ -339,7 +339,14 @@ export const EXPORTS = [
   // whole. See `org.ts`.
   "exportOrg",
   "exportText",
+  // Two arrangements of the same document, side by side in the menu, because
+  // which one is right depends on what the writer is going to do with it: the
+  // self-contained file compiles anywhere and is 550 KB whatever the document is
+  // (#130), and the compact pair is small and needs both its files kept
+  // together. Before this there was one option and no sentence anywhere saying
+  // which of those it was — the UAT report's *"outrageously large"*.
   "exportTypst",
+  "exportTypstCompact",
   "print",
 ] as const;
 

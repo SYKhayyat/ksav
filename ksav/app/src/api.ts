@@ -549,7 +549,31 @@ export interface BodySpot {
 export interface AssembledSource {
   ok: boolean;
   typst_source: string;
+  /**
+   * The prelude module's text, and the name it goes by — sent only when the
+   * request asked for the **compact** export (#130), empty otherwise.
+   *
+   * A compact export is a pair: the document, which `#import`s its prelude, and
+   * this text, which is that prelude's bytes. The engine sends both from one
+   * response so the two cannot be different documents, and the name is read
+   * rather than spelled here, because a document importing `ksav.typ` while the
+   * file beside it is called something else is exactly the failure the compact
+   * option is meant to avoid.
+   */
+  prelude?: string;
+  prelude_name?: string;
   diagnostics: Diagnostic[];
+}
+
+/** What an `assemble` request can ask for beyond the document itself. */
+export interface AssembleOpts {
+  /**
+   * Send the prelude beside the document instead of inside it (#130).
+   *
+   * The self-contained file is still the default and still compiles on its own;
+   * this is the answer for a writer who wants a `.typ` they can read.
+   */
+  compact?: boolean;
 }
 
 /* ── The seven shapes that crossed the wire undeclared ──────────────────────
@@ -812,7 +836,12 @@ export interface Backend {
    * through one reader and assemble through one function, and
    * `engine/tests/assemble.rs` asserts the two agree byte for byte.
    */
-  assemble(body: string, cfg: DocConfig, assets?: RequestAssets): Promise<AssembledSource>;
+  assemble(
+    body: string,
+    cfg: DocConfig,
+    assets?: RequestAssets,
+    opts?: AssembleOpts,
+  ): Promise<AssembledSource>;
   /**
    * Inverse search: what did the writer type, that printed here?
    *

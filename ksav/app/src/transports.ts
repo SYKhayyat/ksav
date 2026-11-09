@@ -23,6 +23,7 @@ import { SERVICE, SERVICE_PATH, type GitOp, type ServiceName } from "./services.
 import { isOp } from "./git";
 import type {
   AssembledSource,
+  AssembleOpts,
   Arrival,
   Backend,
   BodySpot,
@@ -99,8 +100,15 @@ function readSpot(v: unknown): Located | null {
  * expanded *before* assembly, and an export that dropped a chapter would be a
  * hole in a file somebody sent to a printer.
  */
-function assembleRequest(body: string, cfg: DocConfig, assets: RequestAssets) {
-  return { body, ...cfg, parts: assets.parts };
+function assembleRequest(
+  body: string,
+  cfg: DocConfig,
+  assets: RequestAssets,
+  opts?: AssembleOpts,
+) {
+  // `compact` rides beside the document, not inside it: it changes which
+  // arrangement of one document is answered, never what the document is (#130).
+  return { body, ...cfg, parts: assets.parts, ...(opts?.compact ? { compact: true } : {}) };
 }
 
 function readPoints(v: unknown): PagePoint[] {
@@ -228,8 +236,13 @@ abstract class ServiceClient {
   }
 
   /** No timeout anywhere below: none of these lays a document out. */
-  async assemble(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<AssembledSource> {
-    return this.ask("assemble", assembleRequest(body, cfg, assets));
+  async assemble(
+    body: string,
+    cfg: DocConfig,
+    assets = NO_ASSETS,
+    opts?: AssembleOpts,
+  ): Promise<AssembledSource> {
+    return this.ask("assemble", assembleRequest(body, cfg, assets, opts));
   }
 
   async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {

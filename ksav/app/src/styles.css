@@ -205,6 +205,11 @@ header {
    which is what a writer reported and could do nothing about: the group moved
    when they changed the *document's* direction, not the group's. */
 .tb-align .tb-group-row { direction: ltr; }
+/* The edge the caret's paragraph is already on reads as pressed (#175) — the
+   same convention the rest of the app uses for a chip that is a mode, and the
+   only thing that tells a writer whether pressing it again takes it off. */
+.tb-btn[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tb-btn[aria-pressed="true"]:hover { background: var(--accent); color: #fff; }
 .tb-group-label {
   font-size: 9.5px; letter-spacing: .3px; color: var(--muted);
   text-transform: uppercase; white-space: nowrap; line-height: 1.2;

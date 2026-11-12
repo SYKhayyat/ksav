@@ -20,6 +20,7 @@ import * as styles from "./styles";
 import * as menus from "./menus";
 import * as macros from "./macros";
 import { ALIGN_ORDER, settings } from "./settings";
+import { edgeAt } from "./alignment";
 import { getLang, t, tf, hasKey, type Lang } from "./i18n";
 import { el, iconBtn, tbGroup, glyphBtn, noticeHost } from "./dom";
 import { closeMenus, toggleMenu } from "./panels";
@@ -287,6 +288,33 @@ export function paragraphStyleAt(doc: string, pos: number): string {
   return String(heading ? heading.level : 0);
 }
 
+/**
+ * Light the alignment button the caret's paragraph is already on.
+ *
+ * A word processor shows the current alignment the way it shows bold — pressed —
+ * and without it the three buttons were a guess: pressing the one already in
+ * force did something (it wrapped another call) and nothing on screen said which
+ * edge the paragraph was on. `insert.alignment` answers *what* the paragraph is
+ * already aligned to; this is where the answer becomes visible.
+ *
+ * Read off the document rather than kept as state, because the truth is in the
+ * text: the writer can also change it by editing `#ימין[…]` by hand, and a
+ * remembered value would then be a control lying about the file.
+ */
+export function refreshAlignState(): void {
+  if (typeof document === "undefined" || !document.querySelectorAll) return;
+  const buttons = document.querySelectorAll(".tb-align-btn[data-align]");
+  if (!buttons.length) return;
+  const v = runtime.view;
+  const edge = v ? edgeAt(docTextOf(v.state.doc), v.state.selection.main.head) : null;
+  for (const btn of buttons) {
+    const on = btn.getAttribute("data-align") === edge;
+    if ((btn.getAttribute("aria-pressed") === "true") !== on) {
+      btn.setAttribute("aria-pressed", String(on));
+    }
+  }
+}
+
 function applyParagraphStyle(value: string) {
   const doc = docTextOf(runtime.view.state.doc);
   const pos = runtime.view.state.selection.main.head;
@@ -511,12 +539,32 @@ export function buildToolbar(): HTMLElement {
     center: { he: "מרכז", glyph: "≡" },
     right: { he: "ימין", glyph: "⇥" },
   };
-  // The class at creation rather than added afterwards: `dom.tbGroup` takes one,
-  // and a test harness that builds these nodes without a live `classList` is the
-  // reason it does.
+  /**
+   * One alignment button, which knows which edge it is and whether that edge is
+   * the paragraph's already.
+   *
+   * `data-align` is the vocabulary the state is written and read in — `data-command`
+   * names the command, and the Hebrew spelling of a command is not the answer to
+   * "which of these three is on". `refreshAlignState` fills `aria-pressed` from
+   * the paragraph the caret is in, the way B/I would if the ribbon showed their
+   * state; until it runs, every one of them says `false`, which is what a ribbon
+   * built before the editor exists actually knows.
+   */
+  const alignBtn = (edge: (typeof ALIGN_ORDER)[number]) => {
+    const c = byName(ALIGN_BUTTON[edge].he);
+    if (!c) return missingControl(ALIGN_BUTTON[edge].glyph, ALIGN_BUTTON[edge].he);
+    const title = lang === "he" ? c.desc_he : c.desc_en;
+    return iconBtn(
+      ALIGN_BUTTON[edge].glyph,
+      `${title} · #${writing === "he" ? c.he : c.en}`,
+      () => insertSnippet(c.insert),
+      "tb-align-btn",
+      { "data-command": c.he, "data-align": edge, "aria-pressed": "false" },
+    );
+  };
   const alignGroup = tbGroup(
     t("cat.align"),
-    ALIGN_ORDER.map((edge) => b(ALIGN_BUTTON[edge].he, ALIGN_BUTTON[edge].glyph)),
+    ALIGN_ORDER.map((edge) => alignBtn(edge)),
     "tb-align",
   );
 

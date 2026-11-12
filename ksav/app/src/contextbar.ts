@@ -63,6 +63,11 @@ export function updateContextBar() {
   // The paragraph-style readout follows the caret whether or not the ribbon has
   // anything to show, so it is updated before the early return below.
   //
+  // The alignment buttons follow the caret for the same reason (#175): which of
+  // the three is in force is a property of the paragraph the writer is standing
+  // in, and it changes on an arrow key without any click.
+  chrome.refreshAlignState();
+  //
   // `headingAt(doc, pos)` with two arguments fires its default third — the whole
   // heading list — to set the value of a `<select>`, on every arrow key. It is
   // memoised per scan now (`headings.ts`), so this is a lookup rather than a

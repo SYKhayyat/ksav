@@ -46,7 +46,8 @@ import { noteFor } from "./notes";
 import type { NotePick } from "./channels";
 import { continueSeries, inSeries, resequenceAt } from "./numbering";
 import type { EditorView } from "@codemirror/view";
-import { SPELLING, docTextOf, type ListKind } from "./spans";
+import { SPELLING, docTextOf, langOf, type ListKind } from "./spans";
+import { alignPlan, edgeOf } from "./alignment";
 import { t, tf } from "./i18n";
 import { tieredNoteAt } from "./notes";
 import { settings, docConfig } from "./settings";
@@ -137,6 +138,14 @@ export function plan(
   // Read off `snippet` rather than the raw one, because `insertionAt` is what
   // resolved the document's language and the new list has to be written in it.
   const written = commandOf(snippet);
+  // Alignment is a property of the paragraph, not a span spliced in at the
+  // caret — so it is decided before the splice, and answered as a rewrite of the
+  // paragraph the caret is in (#175). See `alignment.ts` for the whole finding.
+  const edge = written ? edgeOf(written) : null;
+  if (edge) {
+    const done = alignPlan(doc, from, to, edge, written ? langOf(written) : whenSilent);
+    if (done) return { kind: "rewrite", text: done.text, caret: done.caret };
+  }
   const kind = written ? LIST_KINDS[written] : undefined;
   if (kind && to > from && itemsFor(doc.slice(from, to)).length > 1) {
     const made = makeList(doc, from, to, kind, written! in LIST_LANG_EN ? "en" : "he");

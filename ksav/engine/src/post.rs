@@ -128,7 +128,23 @@ pub const DEFAULT_WAITING_ROOM: usize = 64;
 /// Read per refusal rather than cached, so the environment is the answer at the
 /// moment the question is asked — the same rule `compile_deadline()` keeps.
 pub fn waiting_room() -> usize {
-    crate::knobs::number("KSAV_INBOX_WAITING_ROOM")
+    room_from(crate::knobs::number("KSAV_INBOX_WAITING_ROOM"))
+}
+
+/// [`waiting_room`] without the environment.
+///
+/// The rule — a positive integer, and **zero is absent rather than a room** —
+/// is worth testing, and it cannot be tested by setting `KSAV_INBOX_WAITING_ROOM`
+/// in a suite that runs in parallel: `std::env::set_var` is `unsafe` in Rust
+/// 2024 exactly because a thread reading the environment at that moment may see
+/// it mid-edit, and this test was doing precisely that. Measured before the
+/// split, `cargo test --lib` failed 9 runs in 12, always the same way —
+/// `waiting_room()` returning `DEFAULT_WAITING_ROOM` three lines after the same
+/// function had returned the number it was just given. A parallel suite is
+/// entitled to read any variable at any time, so the test that needs a room
+/// states one instead of setting one.
+fn room_from(asked: Option<u64>) -> usize {
+    asked
         .map(|n| usize::try_from(n).unwrap_or(usize::MAX))
         .unwrap_or(DEFAULT_WAITING_ROOM)
 }
@@ -251,9 +267,15 @@ fn recover() {
 /// One place, so the two errands that take sources cannot disagree about the
 /// cap or about being written down.
 fn wait(arrival: Arrival) -> Reply {
+    wait_in(arrival, waiting_room())
+}
+
+/// [`wait`] at a room the caller states, so the refusal can be exercised
+/// without the environment. Production has one caller, and it asks
+/// [`waiting_room`].
+fn wait_in(arrival: Arrival, room: usize) -> Reply {
     match INBOX.lock() {
         Ok(mut inbox) => {
-            let room = waiting_room();
             if inbox.len() >= room {
                 // Refused, not silently dropped and not queued forever. Girsa
                 // shows this sentence, so the writer learns what happened
@@ -941,33 +963,61 @@ mod tests {
     /// on a queue a network-bound server shares with everyone. An env var beside
     /// the constant is the minimum the audit asks for; the message above is the
     /// other half.
+    /// The waiting room, stated rather than set.
+    ///
+    /// This test used `std::env::set_var` and was **flaky, not occasionally
+    /// broken**: `cargo test --lib` failed 9 runs in 12, always at the fourth
+    /// arrival, with `waiting_room()` returning the default three lines after it
+    /// had returned the three this test had just given it. `set_var` is `unsafe`
+    /// for exactly this reason — another thread's `getenv` can see the
+    /// environment mid-edit — and `alone()` cannot help, because the other
+    /// threads are not in this module's tests. The room is a parameter now
+    /// ([`room_from`], [`wait_in`]), so the rule is tested and the environment
+    /// is nobody's test fixture.
     #[test]
     fn the_waiting_room_can_be_made_bigger_by_the_deployment() {
         let _alone = alone();
+        // The rule, all of it, with no process state involved.
+        assert_eq!(room_from(None), DEFAULT_WAITING_ROOM, "the default");
+        assert_eq!(room_from(Some(3)), 3, "the deployment sizes the room");
+        // `0` and nonsense reach the room as `None`, because `knobs::number`
+        // refuses both — that is the whole of *zero is absent, not a room*, and
+        // the only way to state it here is through that reader.
         assert_eq!(
-            waiting_room(),
+            room_from(crate::knobs::number("KSAV_NO_SUCH_ROOM_IN_ANY_TEST")),
             DEFAULT_WAITING_ROOM,
-            "the default is the default"
+            "an absent knob is the default"
         );
-        // SAFETY-adjacent: `alone()` holds the suite's lock, and the variable is
-        // set and removed inside this test so no other test reads it.
-        unsafe { std::env::set_var("KSAV_INBOX_WAITING_ROOM", "3") };
-        assert_eq!(waiting_room(), 3, "the deployment sizes the room");
-        for _ in 0..3 {
-            arrived(PACKET).expect("a real packet");
+        assert_eq!(
+            room_from(Some(u64::MAX)),
+            usize::MAX,
+            "a room too big to hold is a room"
+        );
+
+        // And the refusal a room of three produces.
+        let arrival = || Arrival {
+            id: mint_id(),
+            markup: "#הערה[מקור]".to_string(),
+            display: "source".to_string(),
+            reference: String::new(),
+            whole: false,
+        };
+        for filled in 0..3 {
+            let reply = wait_in(arrival(), 3);
+            assert_eq!(reply.status, 200, "the source that fits, number {filled}");
         }
-        let why = arrived(PACKET).expect_err("three is the room it was told");
-        assert!(why.contains("3 sources"), "{why}");
-        assert_eq!(drain(&[]).len(), 3);
-        // Zero and nonsense are not capacities: the room must stay a room.
-        unsafe { std::env::set_var("KSAV_INBOX_WAITING_ROOM", "0") };
-        assert_eq!(
-            waiting_room(),
-            DEFAULT_WAITING_ROOM,
-            "0 is absent, not a room"
+        let full = wait_in(arrival(), 3);
+        assert_eq!(full.status, 503, "the fourth is refused, not dropped");
+        let why = full.body;
+        assert!(
+            why.contains("3 sources"),
+            "the refusal names the room: {why}"
         );
-        unsafe { std::env::remove_var("KSAV_INBOX_WAITING_ROOM") };
-        assert_eq!(waiting_room(), DEFAULT_WAITING_ROOM);
+        assert!(
+            why.contains("KSAV_INBOX_WAITING_ROOM"),
+            "and the setting that raises it: {why}"
+        );
+        assert_eq!(drain(&[]).len(), 3, "the three that fit are still there");
     }
 
     #[test]

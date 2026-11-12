@@ -226,9 +226,11 @@ still right.
 - [ ] #175 alignment buttons go through `insertSnippet` like Bold: no selection inserts an
   empty `#מרכז[]` at the caret (mid-word too) and strips the paragraph's existing
   alignment wrapper. Five-row repro table in the issue. (High, user-facing)
-- [ ] #176 7 of **12**<!--=templates--> bundled templates open with a "no italic face" warning — `#מקור`/marks/
-  tiers default to `style: "italic"`, which no bundled font has; only `#נטוי` got the
-  synthetic oblique. Fence: every template compiles with zero warnings. (Medium)
+- [x] #176 ten of **12**<!--=templates--> bundled templates opened with a "no italic face" warning,
+  because the warning's trigger was still read off the prelude months after `_ks_style`
+  connected the marks to the synthetic oblique. `2e5f470` — the warning is now about a
+  direct `#emph`/`#text(style: "italic")` only; fences: a quiet first open for every
+  template, the inverted mark sweep, and the prelude's own claim. (Medium)
 - [ ] #177 `snapshots.ts:117` native `confirm()` (the last one; dead on WKWebView) and
   `save.ts` `saveNow` clearing `unsavedChanges` set by a newer keystroke. (Low)
 - [ ] #106 the paper-size table is written **twice** and the copies **disagree**:

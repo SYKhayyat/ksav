@@ -80,6 +80,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: clippy, rustfmt
+          # `engine` now includes `engine-wasm`, which asks the compiler for the
+          # browser target on every platform (#172).
+          targets: wasm32-unknown-unknown
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"
@@ -143,7 +146,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@1.97.1
         with:
-          targets: ${{ contains(matrix.args, 'aarch64') && 'aarch64-apple-darwin' || contains(matrix.args, 'x86_64-apple') && 'x86_64-apple-darwin' || '' }}
+          # The matrix triple is the shell's, and `wasm32-unknown-unknown` is the
+          # engine check's: that check selects `engine-wasm` on every platform,
+          # so the browser target is named unconditionally and the matrix one is
+          # appended when there is one.
+          targets: wasm32-unknown-unknown${{ contains(matrix.args, 'aarch64') && ', aarch64-apple-darwin' || contains(matrix.args, 'x86_64-apple') && ', x86_64-apple-darwin' || '' }}
           # For the engine check below, which selects the engine tree's
           # formatting and lints along with its tests.
           components: clippy, rustfmt

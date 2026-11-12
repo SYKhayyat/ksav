@@ -18,6 +18,8 @@ use std::time::Duration;
 
 use tiny_http::{Header, Method, Response, Server};
 
+use crate::facts::DEFAULT_COMPILE_TIMEOUT_MS;
+
 // `error_json` lives beside the registry: a refusal from the dispatcher and a
 // refusal from the service itself have to be indistinguishable to whoever reads
 // the answer, so there is one function that writes both.
@@ -355,14 +357,6 @@ pub fn compile_deadline() -> Duration {
         .map(Duration::from_millis)
         .unwrap_or(Duration::from_millis(DEFAULT_COMPILE_TIMEOUT_MS))
 }
-
-/// The budget when nothing overrides it.
-///
-/// One number, stated once and served to the client (#109): the app used to
-/// carry its own copy of this ceiling under a comment saying it mirrored the
-/// server's, which was true only at the default. `app/src/compiletime.ts` holds
-/// the same constant, and a test on each side reads the other's file.
-pub const DEFAULT_COMPILE_TIMEOUT_MS: u64 = 20_000;
 
 /// Compiles in flight right now, including ones that overran their deadline and
 /// are still finishing on a detached thread.
@@ -854,9 +848,9 @@ mod tests {
     use super::{
         addr_is_loopback, allowed_origin, asset_path, budget_meta, compile_deadline, compile_slots,
         content_type_for, csp, dev_origins, max_body_bytes, network_bind_notes, page_for_run,
-        policy_for, pool_threads, run_bounded, DEFAULT_COMPILE_TIMEOUT_MS, DEFAULT_MAX_BODY_BYTES,
-        DEV_PORT, NO_UI_HTML,
+        policy_for, pool_threads, run_bounded, DEFAULT_MAX_BODY_BYTES, DEV_PORT, NO_UI_HTML,
     };
+    use crate::facts::DEFAULT_COMPILE_TIMEOUT_MS;
     use std::time::Duration;
 
     /// The services that touch this machine answer only on loopback.

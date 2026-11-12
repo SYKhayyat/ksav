@@ -327,6 +327,10 @@ pub struct Facts {
     /// server's, and only the server could be moved (#109). A test compares this
     /// fact with `app/src/compiletime.ts`'s default, so the two cannot drift
     /// without one of them saying so.
+    ///
+    /// The value behind it is [`DEFAULT_COMPILE_TIMEOUT_MS`], which is the
+    /// number stated once — see there for why it is written down in this module
+    /// rather than beside the deadline it is the default of.
     pub compile_timeout_ms: u64,
     pub param_en: crate::diagnostics::ParamTables,
     /// The Hebrew→English command pairing, as the prelude declares it.
@@ -366,6 +370,22 @@ fn git_ops() -> &'static [&'static str] {
     &[]
 }
 
+/// The default compile budget, in ms.
+///
+/// One number, stated once and served to the client (#109): the app used to
+/// carry its own copy of this ceiling under a comment saying it mirrored the
+/// server's, which was true only at the default. `app/src/compiletime.ts` holds
+/// the same constant, and a test on each side reads the other's file.
+///
+/// **It is here, and not beside the deadline it is the default of.** The value
+/// belongs with `facts()` because the browser needs the same budget as the
+/// desk — a runaway `#for` loop is not a desktop problem — and this module is
+/// compiled for every target while `server` is not. Written down in `server.rs`
+/// it worked on the desk and broke `cargo check --target wasm32-unknown-unknown`
+/// on this one reference, from `dc15177` until #172: the number was a fact
+/// filed as a server detail.
+pub const DEFAULT_COMPILE_TIMEOUT_MS: u64 = 20_000;
+
 /// Everything, gathered.
 pub fn facts() -> Facts {
     Facts {
@@ -379,7 +399,7 @@ pub fn facts() -> Facts {
         markup_escapes: crate::escape::MARKUP.iter().collect(),
         papers: paper_facts(),
         paper_aliases: crate::PAPER_ALIASES,
-        compile_timeout_ms: crate::server::DEFAULT_COMPILE_TIMEOUT_MS,
+        compile_timeout_ms: DEFAULT_COMPILE_TIMEOUT_MS,
         param_en: crate::diagnostics::param_tables(crate::PRELUDE),
         command_en: crate::diagnostics::command_aliases(crate::PRELUDE),
     }

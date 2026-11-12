@@ -113,6 +113,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
         with:
           components: clippy, rustfmt
+          # `engine-wasm` asks the compiler for the browser target (#172), and a
+          # target is installed like a component: it is not in a minimal
+          # toolchain. `gate.test.mjs` fails if a job runs a check naming a
+          # target it never installed.
+          targets: wasm32-unknown-unknown
       # The workspace builds the whole Typst compiler, which is not a quick
       # compile from cold.
       - uses: swatinem/rust-cache@v2
@@ -228,6 +233,7 @@ jobs:
           # with `clippy` alone first, and `gate.test.mjs` said so by name
           # before a runner ever saw it.
           components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./ksav/engine -> target"

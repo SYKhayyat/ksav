@@ -33,6 +33,7 @@ import path from "node:path";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
 import { commandCount, offeredCount } from "../tools/commands.mjs";
 import { dirOf } from "../tools/paths.mjs";
+import { CHECKS } from "../../tools/gate.mjs";
 
 const HERE = dirOf(import.meta.url);
 export const APP = path.resolve(HERE, "..");
@@ -162,6 +163,14 @@ export function facts() {
     // Top-level jobs in the CI workflow: a two-space key at the top level of
     // `jobs:`, which is the only place they can be.
     ciJobs: ciJobs(),
+    // How many checks the gate is, asked of the gate.
+    //
+    // Three pages stated it three ways and none of them was right — "nine
+    // checks", "ten checks" twice — because a count of a list that keeps growing
+    // was written by hand in three files and read by nothing. That is the same
+    // arrangement `flake.nix`'s banner had, and the reason this is a fact rather
+    // than a sentence anybody re-counts.
+    gateChecks: CHECKS.length,
     // Documents in the differential parse oracle's corpus, counted off the
     // fixture the generator writes — one JSON object per line, so the corpus
     // grows whenever a template, a note layout or an insertion is added and this
@@ -382,6 +391,9 @@ export const CLAIMS = [
   ["docs/from-word.md", "commands", (n) => `has ${n} bilingual commands`],
   ["docs/from-word.md", "templates", (n) => `${word(n)} templates that all build`],
   ["docs/shortcuts.md", "offered", (n) => `There are ${n} of them`],
+  // The gate's own size, which three pages used to spell three different ways.
+  ["CONTRIBUTING.md", "gateChecks", (n) => `${word(n)} checks`],
+  ["HANDOFF.md", "gateChecks", (n) => `the whole gate, ${word(n)} checks`],
 ];
 
 /**

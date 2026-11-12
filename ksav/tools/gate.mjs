@@ -157,6 +157,25 @@ export const CHECKS = [
     why: "The compiler, the registries and every fence written against them.",
   },
   {
+    id: "engine-wasm",
+    group: "engine",
+    tree: "engine",
+    name: "engine builds for the browser",
+    cwd: "engine",
+    // `check`, not `build`: this is not about the artefact, it is about whether
+    // the crate has a second target at all. It is the cheapest question that
+    // can be asked of it — the compiler and nothing else.
+    command: ["cargo", "check", "--lib", "--target", "wasm32-unknown-unknown"],
+    // The check that was missing for sixteen pushes (#172): `facts.rs` named
+    // `crate::server`, `server` is `#[cfg(not(target_arch = "wasm32"))]`, and
+    // nothing on this desk ever asked the engine to compile for a target that
+    // does not have it. `ci.yml`'s wasm job builds the browser engine, so the
+    // red existed — for a quarter of an hour, in a job that a cancelled macOS
+    // run (#173) hid from the run list. A failed build is not a fence until it
+    // is one command away from the person who broke it.
+    why: "The browser engine is a shipping target and the only way to know the engine still has one.",
+  },
+  {
     id: "shell-clippy",
     group: "shell",
     tree: "shell",

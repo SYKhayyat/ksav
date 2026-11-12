@@ -349,11 +349,18 @@ export async function run() {
   // `shell` began pulling their formatting checks in, and three jobs across two
   // workflows would have started running `cargo fmt` without declaring rustfmt.
   // Per job, because that is the scope an installed component has.
+  //
+  // A **target** is the same rule one word over (#172): `dtolnay/rust-toolchain`
+  // installs the host target and nothing else, so a check that says
+  // `--target wasm32-unknown-unknown` fails on a runner with `can't find crate
+  // for core` — a red about the job's install, dressed as a red about the code,
+  // which is the shape that makes people stop reading. Two lists, one sweep.
   {
     const NEEDS = [
       ["cargo clippy", "clippy"],
       ["cargo fmt", "rustfmt"],
     ];
+    const TARGETS = [["--target wasm32-unknown-unknown", "wasm32-unknown-unknown"]];
     const undeclared = [];
     let jobsSweeping = 0;
     for (const file of workflows()) {
@@ -378,14 +385,20 @@ export async function run() {
           if (new RegExp(`components:.*\\b${component}\\b`).test(block)) continue;
           undeclared.push(`${file} · ${job}: runs \`${verb}\` and never installs ${component}`);
         }
+        for (const [flag, target] of TARGETS) {
+          if (!commands.some((c) => c.includes(flag))) continue;
+          if (new RegExp(`targets:.*\\b${target}\\b`).test(block)) continue;
+          undeclared.push(`${file} · ${job}: runs \`${flag}\` and never installs ${target}`);
+        }
       }
     }
     ok(`there are gate jobs to sweep for components (${jobsSweeping})`, jobsSweeping >= 4);
     ok(
-      "every job installs the rustup components its checks need" +
+      "every job installs the rustup components and targets its checks need" +
         (undeclared.length
-          ? `\n    ${undeclared.join("\n    ")}\n    dtolnay/rust-toolchain installs a minimal toolchain;` +
-            " clippy and rustfmt are components and have to be asked for by name."
+          ? `\n    ${undeclared.join("\n    ")}\n    dtolnay/rust-toolchain installs a minimal toolchain and` +
+            " the host target alone: clippy and rustfmt are components, and another" +
+            " architecture is a target, and both have to be asked for by name."
           : ""),
       undeclared.length === 0,
     );

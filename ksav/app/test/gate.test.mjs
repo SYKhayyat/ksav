@@ -404,6 +404,58 @@ export async function run() {
     );
   }
 
+  // ------------------------------------ a retired runner image is a silent cancel
+  //
+  // GitHub retires images on a date, and the failure is not an error anyone
+  // sees: `runs-on: macos-14` was queued and **cancelled about one second
+  // later** with no steps and no runner, so the run's overall conclusion became
+  // `cancelled` — which reads like a superseded push, not like a job that never
+  // ran. Behind it: a red browser engine and a red desktop shell, sixteen
+  // pushes, and a macOS job that had never executed a step (#173).
+  //
+  // The list below is the only part of that which can be checked on the desk. It
+  // will always trail GitHub by however long it takes somebody to notice the
+  // next retirement — so the workflows name `-latest` where the exact image is
+  // not the point, and this catches the case where a *number* was written down.
+  {
+    const RETIRED = [
+      "macos-11",
+      "macos-12",
+      "macos-13",
+      "macos-14",
+      "ubuntu-18.04",
+      "ubuntu-20.04",
+      "windows-2016",
+      "windows-2019",
+    ];
+    const stale = [];
+    let labels = 0;
+    for (const file of workflows()) {
+      const text = readFileSync(path.join(ROOT, file), "utf8");
+      for (const line of text.split(/\r?\n/)) {
+        if (line.trim().startsWith("#")) continue;
+        const m = /^\s*runs-on:\s*(.+)$/u.exec(line);
+        if (!m) continue;
+        // `${{ matrix.platform }}` and friends are a job's own choice and are
+        // resolved by the runner; only a literal label can be judged here.
+        if (m[1].includes("${{")) continue;
+        for (const label of m[1].split(/[\s,[\]]+/).filter(Boolean)) {
+          labels += 1;
+          if (RETIRED.includes(label)) stale.push(`${file}: runs-on: ${label}`);
+        }
+      }
+    }
+    ok(`there are literal runner labels to sweep (${labels})`, labels > 0);
+    ok(
+      "every job runs on a runner image that still exists" +
+        (stale.length
+          ? `\n    ${stale.join("\n    ")}\n    GitHub retires images on a date and cancels the job in a second;` +
+            " the run then reads `cancelled`, which hides every red behind it."
+          : ""),
+      stale.length === 0,
+    );
+  }
+
   // -------------------------------------------- backward: nobody else lists them
 
   //

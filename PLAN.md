@@ -130,10 +130,25 @@ evidence.
   endnote spacing did not reproduce on the current template, so no issue was filed.
 
 ## Phase 1 — Foundations first (unblock everything below)
+- [x] #172 **the wasm engine does not compile at HEAD** — landed `ece8fcc`. The constant
+  was a *fact* filed as a server detail: `DEFAULT_COMPILE_TIMEOUT_MS` moved to `facts.rs`,
+  which is compiled for every target, and `server.rs` imports it. The fence is
+  `engine-wasm` — `cargo check --lib --target wasm32-unknown-unknown` in the engine group
+  — and building it found a second hole the issue did not name: `gate.test.mjs` swept for
+  installed *components* and not for *targets*, so three jobs would have run the check
+  without installing `wasm32`. The same commit put the gate's own size on the claims
+  sweep after three pages spelled it three ways ("nine", "ten", "ten").
+- [ ] #172's sibling, filed while fixing it: #179, a gate test that set
+  `KSAV_INBOX_WAITING_ROOM` and failed 9 runs in 12 (fixed in the same push, `0e907be`).
 - [ ] #172 **the wasm engine does not compile at HEAD** — `facts.rs:382` names
   `crate::server::DEFAULT_COMPILE_TIMEOUT_MS`, and `server` is cfg'd out on wasm32
   (`lib.rs:102`). Red in CI on every push since `dc15177` (#109); the next tag's Pages
   deploy fails. Fence: a wasm `cargo check` in the gate. (High)
+- [x] #173 CI's macOS job is cancelled in 1 s on every run (`macos-14` retired) — landed
+  next to #172. `runs-on: macos-latest`, and `gate.test.mjs` now refuses eight retired
+  labels; the fence was shown to fire by putting `macos-14` back. The comment that
+  excused the missing Windows job ("it is the desk this is written on") was false — the
+  desk is NixOS — so it now says the gap is a gap, and the gap is filed as #180.
 - [ ] #173 CI's macOS job is cancelled in 1 s on every run (`macos-14` retired:
   "configuration … is not supported"), so every run reads `cancelled` and hides #172
   and #171. Also: `ci.yml:214`'s "Windows is the desk" rationale is no longer true. (High)

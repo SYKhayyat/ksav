@@ -216,13 +216,25 @@ jobs:
   # the fonts are compiled into the binary — those two are why this is one job
   # and not a matrix over every job above.
   #
-  # Windows is not here and is not an oversight: it is the desk this is written
-  # on, so it is checked before every push by the same gate, and a runner would
-  # be paying for a third copy of the slowest job in the file to learn what the
-  # commit already knows.
+  # Windows is **not** checked here, and that is a gap rather than a policy.
+  #
+  # This comment used to say Windows needed no job because it was the desk the
+  # work was written on, so every push had it. It is not the desk any more — the
+  # desk is NixOS (`flake.nix`), and nothing before a push runs the engine suite
+  # on Windows. The `.msi` and `.exe` are built on tag day by `release.yml` and
+  # never run by anything, which is exactly the complaint this job was added to
+  # answer for macOS. Filed as #180 rather than papered over with a sentence.
   macos:
     name: engine on macOS
-    runs-on: macos-14
+    # `macos-latest`, not a numbered image. `macos-14` was retired and the job
+    # was cancelled about a second after it was queued — no steps, no runner,
+    # the annotation reading "the configuration 'macos-14-arm64-us-default' is
+    # not supported" — and the run's overall conclusion became `cancelled`,
+    # which hid two real reds behind it for sixteen pushes (#173). A pinned
+    # image is a date, and dates expire silently; `latest` is the label GitHub
+    # keeps current. `gate.test.mjs` also refuses the labels that have already
+    # expired, so the next one shows up on the desk.
+    runs-on: macos-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7

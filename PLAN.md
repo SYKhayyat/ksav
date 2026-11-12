@@ -154,6 +154,10 @@ evidence.
   and #171. Also: `ci.yml:214`'s "Windows is the desk" rationale is no longer true. (High)
 - [ ] #174 `nix develop` + `npm test` exits 1 on NixOS — `browserlang` finds no runnable
   Chromium; `flake.nix` never sets the `KSAV_CHROMIUM` the test already reads. (Medium)
+- [x] #116 **the editor test suite cannot run at HEAD.** — closed `996a7de` before this
+  sitting; the box here was stale. The rule lives in `tools/publicroot.mjs` and both
+  bundlers are asked the same question. Verified again here: `node test/run.mjs` green
+  across every file.
 - [ ] #116 **the editor test suite cannot run at HEAD.** `run.mjs:100-115` bundles with
   `esbuild.build({bundle:true})` and no CSS asset config, so the 4 root-absolute
   `/fonts/…` `url()`s added by `768b414` resolve against the filesystem root and the
@@ -161,10 +165,14 @@ evidence.
   succeeds** — product and fence use different bundlers and only one got the fix.
   `styles.css` had **zero** `url()` before `768b414`, which is why nothing was ever
   configured. This is the repo's primary fence, down. (High)
+- [x] #107 build toolchain stated 4 ways — closed `3621ccd`; `toolchain.test.mjs` is the
+  fence and this sitting added four assertions to it for the browser (#174).
 - [ ] #107 build toolchain stated 4 ways with 3 disagreeing Node values; `.nvmrc` read by
   nothing; the shipped Linux installers build on Node 20, which `flake.nix:66-70` records
   as EOL. Rust likewise: `rust-toolchain.toml:4` pins `1.97.1` against 11 "stable" sites.
   Fence: one distinct value, read from the files. (High)
+- [x] #115 the single-source gate fence sweeps exactly two file classes — closed
+  `6fde000`; the build verb is in `GATE_VERBS` and `wasmbuild.mjs` is its one spelling.
 - [ ] #115 the single-source gate fence sweeps exactly two file classes
   (`gate.test.mjs:343-358`) and `GATE_VERBS` (`gate.mjs:233-240`) has **no build verb**,
   so build recipes are structurally exempt and `app/tools/`, `packaging/`,

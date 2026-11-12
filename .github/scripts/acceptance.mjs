@@ -278,6 +278,24 @@ async function launchBrowser(chromium) {
   const root = process.platform !== "win32" && process.getuid?.() === 0;
   const args = root ? ["--no-sandbox"] : [];
   const why = [];
+  // A browser named outright, tried **first** (#174).
+  //
+  // All three channels below are places Playwright looks, and a NixOS machine
+  // has a perfectly good Chromium in none of them: the managed download is
+  // linked against FHS paths, so it exists and will not start. `flake.nix`
+  // exports this variable into the dev shell and `browserlang.test.mjs` reads
+  // it for the same reason; two harnesses that drive the same app in the same
+  // browser should not disagree about where it is.
+  const named = (process.env.KSAV_CHROMIUM ?? "").trim();
+  if (named) {
+    const browser = await chromium
+      .launch({ executablePath: named, headless: !HEADED, slowMo: SLOW, args })
+      .catch((e) => {
+        why.push(`  ${named}: ${String(e.message).split("\n")[0]}`);
+        return null;
+      });
+    if (browser) return browser;
+  }
   for (const channel of channels) {
     const browser = await chromium
       .launch({ channel, headless: !HEADED, slowMo: SLOW, args })

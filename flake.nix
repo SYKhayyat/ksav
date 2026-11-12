@@ -94,7 +94,21 @@
             lld
             pkg-config
             git
-          ];
+          ]
+          # The browser the editor suite drives (#174).
+          #
+          # `npm test` runs one file in a real browser — `browserlang.test.mjs`,
+          # the only fence over what the DOM holds after the language switch —
+          # and `run.mjs` treats a file that asserted nothing as a failure, so a
+          # shell with no startable Chromium exits 1 on **every** run. That is
+          # the shell this repository ships on the platform it ships it for.
+          #
+          # Playwright's managed build is dynamically linked against FHS paths
+          # and cannot start on NixOS, which is why `browserlang.test.mjs`
+          # already reads `KSAV_CHROMIUM`: the hook existed and nothing set it.
+          # `browser` below sets it, and `.github/scripts/acceptance.mjs` reads
+          # the same variable, so the two harnesses find one browser.
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.chromium ];
 
           # The Emacs client has its own test suite (`ksav/editors/emacs`), and
           # it looks for the engine on `exec-path` rather than in an environment
@@ -105,7 +119,7 @@
           # own shell because webkitgtk is a large download and nothing else in
           # the repository needs it. On Darwin the platform WebView is used and
           # none of this applies.
-          desktop = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
+          desktopPkgs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [
             webkitgtk_4_1
             gtk3
             glib
@@ -126,17 +140,27 @@
             echo
             echo "  cd ksav && node tools/gate.mjs      # the whole gate"
           '';
-        in
-        {
-          default = pkgs.mkShell {
-            packages = common ++ [ emacs ];
-            shellHook = hello "default";
+
+          # The one thing the shell has to hand the repository rather than the
+          # other way round.
+          #
+          # An attribute given *to* `mkShell` is an exported variable: `nix
+          # develop` puts it in the environment and every subshell inherits it.
+          # Merged onto the finished derivation instead, it would be nothing at
+          # all — which is what the first draft of this did, and what `nix
+          # develop --command bash -c 'echo $KSAV_CHROMIUM'` printed: empty.
+          browser = pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            KSAV_CHROMIUM = "${pkgs.chromium}/bin/chromium";
           };
 
-          desktop = pkgs.mkShell {
-            packages = common ++ [ emacs ] ++ desktop;
-            shellHook = hello "desktop";
-          };
+          # One `mkShell`, two shells.
+          shell = name: extra:
+            pkgs.mkShell ({ packages = common ++ extra; shellHook = hello name; } // browser);
+        in
+        {
+          default = shell "default" [ emacs ];
+
+          desktop = shell "desktop" ([ emacs ] ++ desktopPkgs);
         });
 
       formatter = forAll (pkgs: pkgs.nixpkgs-fmt);

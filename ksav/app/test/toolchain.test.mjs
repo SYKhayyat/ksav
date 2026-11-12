@@ -102,4 +102,29 @@ export async function run() {
   // ships, and the flake cannot promise 1.97.1; see the header comment.
   ok("rust/flake.nix gives a rustc (whatever nixpkgs has)", /^\s*rustc\s*$/m.test(flake));
   ok("rust/flake.nix is the one place left unpinned", actionVersions.length === 1);
+
+  // ------------------------------------------------------------ the browser
+  //
+  // The same shape as everything above, one tool over (#174). `npm test` runs
+  // `browserlang.test.mjs`, which is the only fence over what the DOM holds
+  // after the language switch, and `run.mjs` treats a file that asserted nothing
+  // as a failure — so a dev shell whose Chromium cannot start exits 1 on every
+  // run, on NixOS, the platform the shell exists for. The hook was already
+  // there and nothing set it.
+  //
+  // Three files have to agree about where the browser is: the flake that
+  // exports it, the suite that uses it, and the acceptance harness that drives
+  // the same app. Asserting the name in all three is what stops the export
+  // being deleted along with the reason it was added.
+  {
+    const suite = read(path.join(APP, "test/browserlang.test.mjs"));
+    const acceptance = read(path.join(ROOT, ".github/scripts/acceptance.mjs"));
+    ok("browser/flake.nix installs a chromium", /\bpkgs\.chromium\b/.test(flake));
+    ok(
+      "browser/…and exports the one it installs",
+      /KSAV_CHROMIUM\s*=\s*"\$\{pkgs\.chromium\}\/bin\/chromium"/.test(flake),
+    );
+    ok("browser/the editor suite reads that variable", suite.includes("KSAV_CHROMIUM"));
+    ok("browser/and so does the acceptance harness", acceptance.includes("KSAV_CHROMIUM"));
+  }
 }

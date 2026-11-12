@@ -130,6 +130,15 @@ evidence.
   endnote spacing did not reproduce on the current template, so no issue was filed.
 
 ## Phase 1 — Foundations first (unblock everything below)
+- [ ] #172 **the wasm engine does not compile at HEAD** — `facts.rs:382` names
+  `crate::server::DEFAULT_COMPILE_TIMEOUT_MS`, and `server` is cfg'd out on wasm32
+  (`lib.rs:102`). Red in CI on every push since `dc15177` (#109); the next tag's Pages
+  deploy fails. Fence: a wasm `cargo check` in the gate. (High)
+- [ ] #173 CI's macOS job is cancelled in 1 s on every run (`macos-14` retired:
+  "configuration … is not supported"), so every run reads `cancelled` and hides #172
+  and #171. Also: `ci.yml:214`'s "Windows is the desk" rationale is no longer true. (High)
+- [ ] #174 `nix develop` + `npm test` exits 1 on NixOS — `browserlang` finds no runnable
+  Chromium; `flake.nix` never sets the `KSAV_CHROMIUM` the test already reads. (Medium)
 - [ ] #116 **the editor test suite cannot run at HEAD.** `run.mjs:100-115` bundles with
   `esbuild.build({bundle:true})` and no CSS asset config, so the 4 root-absolute
   `/fonts/…` `url()`s added by `768b414` resolve against the filesystem root and the
@@ -191,6 +200,14 @@ still right.
   only shape where a reader returned a **different interface**, and that is now a
   compile error.
 ## Phase 3 — Correctness Highs
+- [ ] #175 alignment buttons go through `insertSnippet` like Bold: no selection inserts an
+  empty `#מרכז[]` at the caret (mid-word too) and strips the paragraph's existing
+  alignment wrapper. Five-row repro table in the issue. (High, user-facing)
+- [ ] #176 7 of 12 bundled templates open with a "no italic face" warning — `#מקור`/marks/
+  tiers default to `style: "italic"`, which no bundled font has; only `#נטוי` got the
+  synthetic oblique. Fence: every template compiles with zero warnings. (Medium)
+- [ ] #177 `snapshots.ts:117` native `confirm()` (the last one; dead on WKWebView) and
+  `save.ts` `saveNow` clearing `unsavedChanges` set by a newer keystroke. (Low)
 - [ ] #106 the paper-size table is written **twice** and the copies **disagree**:
   `ksav.typ:2426-2434` `_pg_paper_width` (a3/a5/us-letter/letter, silent `else 210mm`)
   vs `lib.rs:590-604` `paper_cm_of` (ten papers, `_ => return None`). `b5` is **176mm vs
@@ -488,6 +505,8 @@ still right.
   it now names the spec as written and lists what **is** bundled. (from #67)
 
 ## Phase 4 — Mediums (engine quality)
+- [ ] #178 search boxes and three settings controls (slider, select, text) have no
+  accessible name. (Low, a11y)
 - [ ] #110 four engine limits have **no override** while the engine's two sibling values
   do — `git.rs:62` 120s (the only network timeout), `server.rs:289` the in-flight cap
   pinned to cores (user-visible at `:319`; `worker_count()` is also the pool size, two

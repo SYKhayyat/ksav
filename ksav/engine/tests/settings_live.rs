@@ -8,7 +8,9 @@
 //! ever looked at. `סגנון: "italic"` was worse — it *was* read, and handed to
 //! `text(style:)`, which is a request for an italic face that no Hebrew family
 //! this engine bundles ships, so Typst returned the upright one. Three of the
-//! eight mark classes shipped that as their default.
+//! eight mark classes shipped that as their default. (It goes through
+//! `_ks_style` now and shears the frame, so the slant prints; the history is
+//! kept here because the fence below was built for a setting that did nothing.)
 //!
 //! Both look exactly like working features from every angle except the page.
 //!

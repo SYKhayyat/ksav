@@ -138,6 +138,7 @@ supersede an earlier one without rewriting it.
 | 2026-10-22 | [main-ts-split-wave-7-git-macros-hydra-drawers](2026-10-22-main-ts-split-wave-7-git-macros-hydra-drawers.md) |
 | 2026-10-22 | [main-ts-split-wave-6-the-settings-drawer-and-the-panels](2026-10-22-main-ts-split-wave-6-the-settings-drawer-and-the-panels.md) |
 | 2026-11-06 | [one-paper-size-table](2026-11-06-one-paper-size-table.md) |
+| 2026-11-12 | [a-warning-about-nothing](2026-11-12-a-warning-about-nothing.md) |
 | 2026-10-11 | [the-editor-scan-is-the-seam](2026-10-11-the-editor-scan-is-the-seam.md) |
 | 2026-10-13 | [a-scan-belongs-to-its-text](2026-10-13-a-scan-belongs-to-its-text.md) |
 | 2026-10-13 | [i18n-data-lives-apart](2026-10-13-i18n-data-lives-apart.md) |

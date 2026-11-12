@@ -788,3 +788,43 @@ fn lcs_remainder<'a>(
     }
     (matched, only_b, only_a)
 }
+
+// ═══════════════════════════════════════════════════════════ a quiet first open
+
+/// Opening a template is the product's first impression, and it must not be a
+/// warning about work the writer has not done yet (#176).
+///
+/// Seven of the twelve bundled templates opened with *"Frank Ruhl Hofshi has no
+/// italic face, so #מקור leaves the text upright…"* in red on line one of the
+/// status strip, before a keystroke. The writer did not ask for a slant; the
+/// template's own `#מקור` did, and so does the marks register for `#גמרא`,
+/// `#פסוק` and `#ציון_מקור`, and every note tier past the first.
+///
+/// A diagnostic nobody caused is a diagnostic everybody learns to skip, which
+/// costs the strip the only thing it is for. It is also *false*: `_ks_style` in
+/// the prelude shears the frame into a synthetic oblique now, so the slant is on
+/// the page and the text is not upright, whatever the sentence says.
+///
+/// The assertion is **no warning at all**, not "not this warning": the next
+/// default that trips on the next template is the same defect with a different
+/// sentence, and this is the only place a template is opened as a writer opens
+/// it.
+#[test]
+fn every_bundled_template_opens_without_a_warning() {
+    let mut noisy = Vec::new();
+    for t in ksav_engine::templates::TEMPLATES {
+        let compiled = ksav_engine::compile(t.body, &DocConfig::default());
+        for d in compiled
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == "warning")
+        {
+            noisy.push(format!("{}: {} — {}", t.id, d.message, d.raw));
+        }
+    }
+    assert!(
+        noisy.is_empty(),
+        "a template opened with a warning the writer did nothing to cause:\n  {}",
+        noisy.join("\n  ")
+    );
+}

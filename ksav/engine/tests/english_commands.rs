@@ -433,11 +433,27 @@ fn document_parameters(prelude: &str) -> Vec<String> {
 // Typst finds none, hands back the upright face, and says nothing. The words
 // used to come out exactly as they went in: *"Italic does not apply."*
 //
-// The fix is a synthetic oblique: `#נטוי`/`#italic` now shear the laid-out frame
-// (see `נטוי` in `ksav.typ`), so emphasis is visibly slanted with any font.
-// Because it is no longer invisible, it no longer warns — the "no italic face"
-// warning is now reserved for the `style: "italic"` paths (the marks) that still
-// hand back the upright face. See `slanting_commands` in `lib.rs`.
+// The fix is a synthetic oblique: `_ks_style`/`#נטוי` shear the laid-out frame
+// (see `_ks_skew` in `ksav.typ`), so a slant is visible with any font — and
+// **every** command and knob that asks for one goes through it, the marks and
+// the note tiers included.
+//
+// # What that did to the warning (#176)
+//
+// When only `#נטוי` was served, the warning was moved onto the remaining
+// `style: "italic"` paths — `#מקור`, `#גמרא`, `#פסוק`, `#ציון_מקור`, the note
+// tiers — and it was correct for as long as they were unserved. Then they were
+// served too, and the warning stayed: **ten of the twelve bundled templates
+// opened with it in red**, saying `#מקור` "leaves the text upright" about text
+// that was sheared on the page. Nobody had re-read the sentence against the
+// prelude, because the test that would have (*"every command that asks says it
+// did not get one"*) asserted the same stale belief as the code.
+//
+// So the warning is about the one thing left that really does come back
+// upright: a request to **Typst itself**, which no prelude function intercepts.
+// `#emph[…]`, or `#text(style: "italic")[…]` written out by hand. The marks are
+// asserted here to say nothing, which is where #176's fence lives at the
+// command level — `templates.rs` holds the same rule for a first open.
 
 #[test]
 fn asking_for_italics_now_renders_a_synthetic_slant_without_warning() {
@@ -464,6 +480,33 @@ fn the_english_spelling_is_the_same_request() {
         .filter(|d| d.severity == "warning" && d.message.contains("italic"))
         .count();
     assert_eq!(italic_warnings, 0, "{:?}", out.diagnostics);
+}
+
+/// The claim `first_italic`'s docstring makes about the prelude, checked.
+///
+/// *"No path in the prelude passes `style:` to `text()` any more."* That is what
+/// makes the warning about a *direct* request rather than about the product's
+/// own commands, so it is the one sentence the whole arrangement rests on. A
+/// `#let` that grows a `text(style: "italic")` tomorrow would put the false
+/// warning back for every command that calls it, and nothing on the page would
+/// say so — the shear would still happen, and the sentence would still be
+/// printed. Comment lines are skipped: five of them talk about `text(style:)`
+/// at length, and this is a test about code.
+#[test]
+fn the_prelude_never_asks_text_for_a_face() {
+    let prelude = include_str!("../typst/ksav.typ");
+    let asking: Vec<(usize, &str)> = prelude
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| !l.trim_start().starts_with("//"))
+        .filter(|(_, l)| l.contains("text(style:") || l.contains("style: \"italic\""))
+        .map(|(i, l)| (i + 1, l.trim()))
+        .collect();
+    assert!(
+        asking.is_empty(),
+        "the prelude hands a slant to `text(style:)` again, so every command that \n\
+         reaches this line warns about a font it never asked: {asking:?}"
+    );
 }
 
 #[test]
@@ -503,12 +546,12 @@ fn an_attached_font_with_an_italic_face_is_believed() {
         font: "David Libre".to_string(),
         ..Default::default()
     };
-    // `#מקור` (a `style: "italic"` mark) still hands back the upright face and
-    // still warns — `#נטוי` is now a synthetic slant and does not. David Libre
+    // `#emph` — Typst's own emphasis, not the prelude's `#נטוי` — asks the font
+    // for a face, so it is still the request that can go missing. David Libre
     // has no italic either, so this warns, and warns about *David Libre*, which
     // is the point: the answer follows the document's font rather than a note
     // about the default one.
-    let out = ksav_engine::compile_with("רגיל #מקור[מקור] סוף", &cfg, &assets);
+    let out = ksav_engine::compile_with("רגיל #emph[נטוי] סוף", &cfg, &assets);
     let said: Vec<&str> = out
         .diagnostics
         .iter()
@@ -523,7 +566,7 @@ fn an_attached_font_with_an_italic_face_is_believed() {
 fn the_warning_names_the_line_the_command_is_on() {
     // A diagnostic that names no place is one the writer has to go looking for.
     let out = ksav_engine::compile(
-        "שורה ראשונה.\n\nשורה שלישית עם #מקור[זה] בתוכה.\n",
+        "שורה ראשונה.\n\nשורה שלישית עם #emph[זה] בתוכה.\n",
         &DocConfig::default(),
     );
     let said = out
@@ -532,35 +575,55 @@ fn the_warning_names_the_line_the_command_is_on() {
         .find(|d| d.message.contains("no italic face"))
         .expect("the warning");
     assert_eq!(said.line, Some(3), "{said:?}");
-    assert_eq!(said.about.as_deref(), Some("#מקור"));
+    assert_eq!(said.about.as_deref(), Some("#emph"));
 }
 
-/// Every command that asks for a slant warns, not only the one that was checked.
-///
-/// The warning above was written for `#נטוי` and looked for that name. It is not
-/// the only command that asks. `#מקור` sets `style: "italic"` outright, and the
-/// marks table gives `גמרא`, `פסוק` and `ציון_מקור` an italic default — so four
-/// more commands promised a slant no bundled family can produce, and said
-/// nothing at all, while the one command that did warn was covered.
-///
-/// The set is read off `ksav.typ` rather than listed here, so a command added to
-/// the prelude that slants is covered without this test changing. What this
-/// holds is the class: whatever asks, warns — and names *itself* while doing it,
-/// because a warning that says `#נטוי` to somebody who typed `#מקור` is a
-/// warning about a command they cannot find.
 #[test]
-fn every_command_that_asks_for_a_slant_says_it_did_not_get_one() {
-    // Read off the prelude, which is what the docstring above has always said
-    // and what the code above it did not do: this was `["מקור", "גמרא", "פסוק",
-    // "ציון_מקור"]`, four names typed out under a paragraph promising they were
-    // derived. The list happened to stay right, so nothing said otherwise — and
-    // the day `"מקור"` gained a size and stopped being *found* by the engine,
-    // this test failed for the right reason by luck rather than by construction.
-    //
-    // Deliberately a different parse from `slanting_commands()`: any row of any
-    // table that asks for an italic style, by the plainest reading there is. Two
-    // readers of one file agreeing is worth something; one reader checked
-    // against a copy of its own output is worth nothing.
+fn the_written_out_request_is_the_same_one() {
+    // `#text(style: "italic")[…]` is the other spelling of *ask the font*, and
+    // it is what a writer copying a Typst snippet writes.
+    let out = ksav_engine::compile(
+        "רגיל #text(style: \"italic\")[נטוי] סוף",
+        &DocConfig::default(),
+    );
+    let said = out
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains("no italic face"))
+        .unwrap_or_else(|| panic!("no warning: {:?}", out.diagnostics));
+    assert!(
+        said.message.contains("text(style:"),
+        "the warning names what the writer wrote: {}",
+        said.message
+    );
+    assert!(
+        said.message.contains("#נטוי"),
+        "and offers the command that does work in any font: {}",
+        said.message
+    );
+}
+
+/// The other half of #176: **no command the product ships asks the font any
+/// more**, so none of them may be told its font has no italic.
+///
+/// This is the test that used to hold the opposite, and it is the reason the
+/// false warning survived: it read every row of the marks table set to
+/// `סגנון: "italic"` out of `ksav.typ` — `#מקור`, `#גמרא`, `#פסוק`,
+/// `#ציון_מקור` — compiled one of each, and demanded a warning for every one.
+/// When `_ks_style` was connected the code stopped being right and the test kept
+/// agreeing with it, so the suite was green and ten templates opened red.
+///
+/// The rule now, and it is the same rule from both ends: every one of those
+/// commands must **slant and be silent**. The slant itself is measured in
+/// `notes_acceptance::a_marks_shipped_slant_reaches_the_page` — a run's position
+/// is not something this file can see — so what is held here is the other half:
+/// the writer gets no sentence about a defect that is not there.
+///
+/// The set is still read off the prelude rather than typed out, for the reason
+/// the old version gave and did not do: a command added to the table tomorrow is
+/// covered without this test changing.
+#[test]
+fn every_mark_that_ships_a_slant_slants_without_saying_it_cannot() {
     let prelude = include_str!("../typst/ksav.typ");
     let asked = prelude
         .lines()
@@ -571,39 +634,37 @@ fn every_command_that_asks_for_a_slant_says_it_did_not_get_one() {
     for &name in &asked {
         let body = format!("רגיל #{name}[טקסט] סוף");
         let out = ksav_engine::compile(&body, &DocConfig::default());
-        let said = out
+        // Not `out.ok`: `#גמרא` wants two arguments and one is not a document.
+        // What must not happen is that the row stopped being *found* — a sweep
+        // over a misspelt name would assert nothing and pass.
+        assert!(
+            !out.diagnostics.iter().any(|d| d.raw.contains("unknown")),
+            "#{name} is not a command any more, so this sweep proves nothing: {:?}",
+            out.diagnostics
+        );
+        let said: Vec<&str> = out
             .diagnostics
             .iter()
-            .find(|d| d.about.as_deref() == Some(&format!("#{name}")))
-            .unwrap_or_else(|| {
-                panic!(
-                    "#{name} asks for an italic face and no bundled family has one, \n\
-                     and the compile said nothing about it. The warning knows only the \n\
-                     commands `slanting_commands()` finds in ksav.typ — if this one \n\
-                     stopped being found, the reader presses a button that does nothing \n\
-                     and is never told. Diagnostics were: {:?}",
-                    out.diagnostics
-                        .iter()
-                        .map(|d| &d.message)
-                        .collect::<Vec<_>>()
-                )
-            });
+            .filter(|d| d.message.contains("no italic face"))
+            .map(|d| d.message.as_str())
+            .collect();
         assert!(
-            said.message.contains(&format!("#{name}")),
-            "the warning for #{name} names a different command: {}",
-            said.message
+            said.is_empty(),
+            "#{name} ships an italic default that `_ks_style` shears, and the 
+\
+             compile still told the writer the text would be upright: {said:?}. 
+\
+             A command the prelude serves is not a command the writer has to fix.",
         );
     }
 
-    // And the command the check was originally written for — `#נטוי` — now
-    // renders a synthetic slant instead of asking for a face that is not there,
-    // so it deliberately does *not* warn any more. The class the sweep holds is
-    // the `style: "italic"` marks above.
+    // The command the check was originally written for — `#נטוי` — shears too,
+    // and must not warn either.
     let out = ksav_engine::compile("רגיל #נטוי[נטוי] סוף", &DocConfig::default());
     assert!(
         !out.diagnostics
             .iter()
-            .any(|d| d.about.as_deref() == Some("#נטוי")),
+            .any(|d| d.message.contains("no italic face")),
         "#נטוי renders a synthetic slant now and must not warn: {:?}",
         out.diagnostics
     );

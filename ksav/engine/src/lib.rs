@@ -2905,132 +2905,77 @@ fn bundled_italic_families() -> &'static std::collections::BTreeSet<String> {
     ONCE.get_or_init(|| families_with_italic(&bundled_fonts()))
 }
 
-/// Every command in the prelude that asks for a slant, read off the prelude.
+/// Where the **writer's own text** asks Typst for an italic face.
 ///
-/// # Why this is derived and was not
+/// # What this used to be, and why it was wrong (#176)
 ///
-/// The warning below was written for `#נטוי` and looked for that name and its
-/// English alias. `#נטוי` is not the only command that asks: `#מקור` sets
-/// `style: "italic"` outright, the marks table gives `גמרא`, `פסוק` and
-/// `ציון_מקור` an italic default, and the note apparatus defaults **every tier
-/// past the first** to italic — so a sefer with sub-notes asks for a slant it
-/// never gets, and the one command that warned about it was the one command
-/// nobody had used.
+/// It read the prelude for commands that ask for a slant — `#מקור` and the three
+/// marks whose default style is italic — and warned for each one the writer
+/// used. That was true when it was written: those commands passed
+/// `style: "italic"` to `text()`, every bundled family has only Regular and
+/// Bold, and Typst handed back the upright face in silence.
 ///
-/// A list of the other names here would be the same mistake with more rows in
-/// it. The prelude is the authority: a `#let` whose body reaches `emph(` or
-/// `style: "italic"` is asking, and so is any name the marks table gives an
-/// italic style to. Add a command to `ksav.typ` that slants and it is covered
-/// without this file changing.
+/// Then `_ks_style` arrived: the prelude now shears the frame into a synthetic
+/// oblique (`_ks_skew` in `ksav.typ`), the five sites that ask for a slant all
+/// reach it, and **no path in the prelude passes `style:` to `text()` any
+/// more**. So the warning became a sentence about nothing — and it was not
+/// rare: ten of the twelve bundled templates opened with it in the status strip,
+/// before a keystroke, saying *"#מקור leaves the text upright"* about text that
+/// was sheared on the page. A diagnostic the writer did nothing to cause, and
+/// that is not true, is how a diagnostics strip stops being read.
 ///
-/// Names only — the apparatus tiers are a *configuration* default rather than a
-/// command, and are handled where the configuration is read, below.
-fn slanting_commands() -> &'static std::collections::BTreeSet<String> {
-    static ONCE: std::sync::OnceLock<std::collections::BTreeSet<String>> =
-        std::sync::OnceLock::new();
-    ONCE.get_or_init(|| {
-        let mut out = std::collections::BTreeSet::new();
-        // `#let name(...) = …` whose right-hand side slants, up to the next
-        // `#let` at the start of a line. Two spellings of the request, which are
-        // the two Typst has: `emph` and an explicit style.
-        for chunk in PRELUDE.split("\n#let ").skip(1) {
-            let Some(name) = chunk
-                .split(['(', ' ', '='])
-                .next()
-                .filter(|n| !n.is_empty())
-            else {
-                continue;
-            };
-            let body = chunk.split("\n#let ").next().unwrap_or(chunk);
-            // `emph(` is no longer a slant that goes missing: `#נטוי`/`#italic`
-            // now shear the frame into a synthetic oblique (see `נטוי` in
-            // `ksav.typ`), so they are visible with any font and must not warn.
-            // Only an explicit `style: "italic"` still hands back the upright
-            // face and still earns the warning.
-            if body.contains("style: \"italic\"") {
-                out.insert(name.to_string());
-            }
-        }
-        // And the marks, whose style is data rather than code: a row of the
-        // marks table with an italic style is the same promise made in a
-        // different grammar.
-        //
-        // Keyed off the row rather than off its first key. This used to count
-        // quotation marks — `": (סגנון: "` followed by `italic` — which reads
-        // `"פסוק": (סגנון: "italic")` and is blind to
-        // `"מקור": (גודל: 0.85em, סגנון: "italic", …)`, because there the slant
-        // is the second thing said. `#מקור` slants, no bundled family has an
-        // italic face, and it warned about that until the day it was given a
-        // size as well. A test whose subject is *every* command that asks was
-        // reading only the ones that ask first.
-        for line in PRELUDE.lines() {
-            let Some(rest) = line.trim_start().strip_prefix('"') else {
-                continue;
-            };
-            let Some((name, row)) = rest.split_once("\": (") else {
-                continue;
-            };
-            if row.contains("סגנון: \"italic\"") {
-                out.insert(name.to_string());
-            }
-        }
-        // Then the aliases, to a fixed point.
-        //
-        // Every command in this prelude has an English name given as `#let
-        // italic = נטוי` — a body with no `emph(` in it, so the pass above sees
-        // nothing. Missing this meant `#italic` stopped warning while `#נטוי`
-        // still did, which is the same bug as the one being fixed with the two
-        // scripts swapped, and the suite said so immediately.
-        loop {
-            let mut added = false;
-            for line in PRELUDE.lines() {
-                let Some(rest) = line.strip_prefix("#let ") else {
-                    continue;
-                };
-                let mut halves = rest.splitn(2, " = ");
-                let (Some(name), Some(points_at)) = (halves.next(), halves.next()) else {
-                    continue;
-                };
-                // An alias only: a name, a space, an equals, and one bare name.
-                let target = points_at.trim();
-                if name.contains('(') || target.contains('(') || target.contains(' ') {
-                    continue;
-                }
-                if out.contains(target) && out.insert(name.to_string()) {
-                    added = true;
-                }
-            }
-            if !added {
-                break;
-            }
-        }
-        out
-    })
-}
-
-/// Where the body first asks for a slant, as a byte offset into it.
+/// # What is left
 ///
-/// Through Typst's own parse rather than a search for a name, for the reason
-/// `spans.ts` gives on the other side of the seam: the name inside a string
+/// A *direct* request from the writer, which nothing in the product intercepts:
+/// `#emph[…]` — Typst's own emphasis, not this prelude's `#נטוי` — and
+/// `#text(style: "italic")[…]` written out by hand. Both still come back
+/// upright in a Hebrew family, both are worth one sentence, and both are rare
+/// enough that the sentence means something when it appears.
+///
+/// Through Typst's own parse rather than a search for the word, for the reason
+/// `spans.ts` gives on the other side of the seam: a name inside a string
 /// literal is not a call, and a warning about a command the writer never wrote
 /// is worse than the silence it replaces.
-///
-/// The **offset** and not merely a yes, because a diagnostic that names no
-/// place is a diagnostic the writer has to go looking for. With one, the status
-/// bar's entry becomes a button that goes there and the line is marked, which
-/// is the whole difference between being told and being able to act.
-fn first_italic(root: &typst::syntax::SyntaxNode) -> Option<(usize, String)> {
+fn first_italic(root: &typst::syntax::SyntaxNode, body: &str) -> Option<(usize, String)> {
     use typst::syntax::{LinkedNode, SyntaxKind};
-    fn walk(node: &LinkedNode) -> Option<(usize, String)> {
-        if node.kind() == SyntaxKind::Ident {
-            let name = node.get().leaf_text();
-            if slanting_commands().contains(name.as_str()) {
-                return Some((node.offset(), name.to_string()));
+
+    /// Is this call one of the two ways a writer asks Typst itself?
+    fn asks(node: &LinkedNode, body: &str) -> Option<String> {
+        let mut children = node.children();
+        let callee = children.next()?;
+        if callee.kind() != SyntaxKind::Ident {
+            return None;
+        }
+        let name = callee.get().leaf_text().to_string();
+        match name.as_str() {
+            // `emph` and nothing else: `#נטוי`/`#italic` are the prelude's own
+            // names for the shear, and they arrive here as their own idents.
+            "emph" => Some(name),
+            // The written-out form. The argument list is read as text because
+            // the question is about a *named argument's value*, and a call whose
+            // fourth argument is a string is not something to walk for.
+            "text" => {
+                let args = children.find(|c| c.kind() == SyntaxKind::Args)?;
+                let said = &body[args.range()];
+                let flat: String = said.split_whitespace().collect::<Vec<_>>().join(" ");
+                let asks =
+                    flat.contains("style: \"italic\"") || flat.contains("style: \"oblique\"");
+                asks.then(|| "text(style: \"italic\")".to_string())
+            }
+            _ => None,
+        }
+    }
+
+    fn walk(node: &LinkedNode, body: &str) -> Option<(usize, String)> {
+        if node.kind() == SyntaxKind::FuncCall {
+            if let Some(name) = asks(node, body) {
+                return Some((node.offset(), name));
             }
         }
-        node.children().find_map(|child| walk(&child))
+        node.children().find_map(|child| walk(&child, body))
     }
-    walk(&LinkedNode::new(root))
+
+    walk(&LinkedNode::new(root), body)
 }
 
 /// Every call of `names` in the body, as (its first string argument, offset).
@@ -3237,19 +3182,27 @@ fn line_column(body: &str, offset: usize) -> (usize, usize) {
     )
 }
 
-/// The warning a document earns by asking for a face its font has not got.
+/// The warning a document earns by asking **Typst itself** for a face its font
+/// has not got.
 ///
 /// A warning and not an error: the document compiles, every other command in it
 /// is fine, and a writer part-way through a sefer is entitled to keep working.
 /// What must not happen is that they keep pressing a button which does nothing
 /// and are never told.
+///
+/// The command named is the one the writer wrote — `#emph` or
+/// `#text(style: "italic")` — and the fix it offers is `#נטוי`, which is this
+/// prelude's own slant and does not need an italic face. See [`first_italic`]
+/// for why the four prelude commands that ship an italic default are no longer
+/// on the trigger list: they are served by `_ks_style` and the warning about
+/// them was false (#176).
 pub(crate) fn italic_warning(
     root: &typst::syntax::SyntaxNode,
     body: &str,
     cfg: &DocConfig,
     assets: &Assets,
 ) -> Option<Diagnostic> {
-    let (at, command) = first_italic(root)?;
+    let (at, command) = first_italic(root, body)?;
     // The bundled answer is cached; only fonts attached to this request are
     // read fresh, and there are usually none.
     let mut with_italic = bundled_italic_families().clone();
@@ -3265,16 +3218,17 @@ pub(crate) fn italic_warning(
         "warning",
         format!(
             concat!(
-                "לגופן {font} אין גרסה נטויה, ולכן #{cmd} משאיר את הטקסט זקוף. ",
-                "בחרו גופן שיש לו אחת, צרפו קובץ גופן, או השתמשו ב#הדגשה · ",
-                "{font} has no italic face, so #{cmd} leaves the text upright. ",
-                "Choose a font that has one, attach a font file, or use bold instead",
+                "לגופן {font} אין גרסה נטויה, ולכן {cmd} משאיר את הטקסט זקוף. ",
+                "השתמשו ב#נטוי, שמטה את הטקסט בכל גופן, או בחרו גופן שיש לו נטויה · ",
+                "{font} has no italic face, so {cmd} leaves the text upright. ",
+                "Use #נטוי, which slants the text in any font, or choose a font that has one",
             ),
             font = cfg.font,
-            // The command the *writer* used, not the one this check was first
-            // written for. A warning that says `#נטוי` to somebody who typed
-            // `#מקור` is a warning about a command they cannot find.
-            cmd = command,
+            // The command the *writer* used. A warning that says `#נטוי` to
+            // somebody who typed `#emph` is a warning about a command they
+            // cannot find — and the two requests are not the same one: `#נטוי`
+            // shears the frame, `#emph` asks the font.
+            cmd = format!("#{command}"),
         ),
     );
     said.line = Some(line);

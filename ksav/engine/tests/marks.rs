@@ -409,25 +409,23 @@ fn a_lemma_is_still_bold() {
     );
 }
 
-/// The slant is **not** asserted, and the reason is worth writing down rather
-/// than leaving as a gap.
+/// The words stay on the page whatever the face question does.
 ///
-/// `italic` on a run is *the face the glyphs came from*, and not one family this
-/// engine bundles ships an italic face — which is why a mark styled `italic`
-/// (like `#גמרא`) produces the "no italic face" warning (`italic_warning` in
-/// `lib.rs`). So `#גמרא`'s italic has never reached a glyph, and an assertion
-/// here would read false either way: a test that cannot pass proves as little as
-/// one that cannot fail.
+/// This test does **not** assert the slant, and the reason is worth writing down
+/// rather than leaving as a gap. `italic` on a run is *the face the glyphs came
+/// from*, and not one family this engine bundles ships an italic face, so a mark
+/// styled `italic` (like `#גמרא`) never gets a glyph from an italic face — its
+/// slant is a shear of the frame, not a face, and a run's `italic` flag would
+/// read false for text that is plainly slanted on the page. A test that cannot
+/// pass proves as little as one that cannot fail.
 ///
-/// Size and weight go through the identical two lines of `_mk_render`, and they
-/// are asserted above and throughout. What is untested is the font book, not the
-/// register.
-///
-/// `#נטוי`/`#italic` are the exception and no longer part of this defect: they
-/// shear the frame into a synthetic oblique (see `נטוי` in `ksav.typ`), so their
-/// slant *is* visible and they do not warn. The `style: "italic"` marks and the
-/// `#הגדרות_*` knobs still hand back the upright face, still warn, and remain
-/// recorded as their own piece of work.
+/// The slant itself is measured where it is observable: a sheared frame moves
+/// every run's position, which is what
+/// `notes_acceptance::a_marks_shipped_slant_reaches_the_page` compares. Size and
+/// weight go through the identical two lines of `_mk_render` here, and that
+/// `#גמרא` says nothing about a missing italic is
+/// `english_commands::every_mark_that_ships_a_slant_slants_without_saying_it_cannot`
+/// (#176: the sentence it used to say was false).
 #[test]
 fn a_slant_the_font_has_not_got_still_leaves_the_words_on_the_page() {
     let runs = render("#גמרא(\"ברכות\", \"ב.\") ורגיל.");

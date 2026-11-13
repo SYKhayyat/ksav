@@ -756,6 +756,49 @@ async function main() {
   }
 
   /**
+   * Every control inside a surface that announces nothing.
+   *
+   * Not "has a placeholder": a placeholder is what a control falls back on when
+   * nobody named it, and it disappears the moment the writer types, so it is
+   * exactly the wrong thing to check for. This asks the four questions a browser
+   * asks — `aria-label`, a resolvable `aria-labelledby`, a `<label>` that wraps
+   * the control or points at it, and `title` — and reports the ones where all
+   * four come back empty. `#178` is the item this is for: six named controls and,
+   * measured, nine, of which not one was inside a label that could have named it.
+   *
+   * Only what is on the screen counts. The font picker's `input[type=file]` is
+   * `display:none` behind a button that opens it, which is a normal shape for a
+   * file picker and not a control a reader can land on.
+   */
+  async function nameless(root, mustBeOpen) {
+    return page.evaluate(
+      ({ sel, gate }) => {
+        const scope = document.querySelector(sel);
+        if (!scope) return ["the surface itself"];
+        if (gate && !document.querySelector(gate)) return ["the surface is not open"];
+        const on = (n) => {
+          const r = n.getBoundingClientRect();
+          const s = getComputedStyle(n);
+          return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none";
+        };
+        const named = (n) => {
+          if ((n.getAttribute("aria-label") ?? "").trim()) return true;
+          const by = n.getAttribute("aria-labelledby");
+          if (by && (document.getElementById(by)?.textContent ?? "").trim()) return true;
+          if (n.labels && n.labels.length) {
+            return Array.from(n.labels).some((l) => (l.textContent ?? "").trim());
+          }
+          return !!(n.getAttribute("title") ?? "").trim();
+        };
+        return Array.from(scope.querySelectorAll("input, select, textarea"))
+          .filter((n) => on(n) && !named(n))
+          .map((n) => `<${n.tagName.toLowerCase()}${n.id ? `#${n.id}` : ""}${n.type ? ` type=${n.type}` : ""}>`);
+      },
+      { sel: root, gate: mustBeOpen },
+    );
+  }
+
+  /**
    * Click something, having first established that a person could have.
    *
    * Every click in this file goes through here, and that is the whole fix rather
@@ -1498,6 +1541,17 @@ async function main() {
 
     await withoutMotion(async () => {
       const seen = await visible(p.id, root);
+      // A control with no name is a control a screen reader calls "edit text",
+      // and it is the one thing on a surface that no measurement of the surface
+      // would otherwise catch. Asked of every surface because that is where the
+      // mistake is made: a row built as a `<div>` with a `<span>` caption beside
+      // it looks labelled and is not.
+      const quiet = await nameless(root, mounted ? null : `${root}.open`);
+      check(
+        `${p.id}: every control on it has a name`,
+        quiet.length === 0,
+        quiet.length ? `without one: ${quiet.join(", ")}` : "",
+      );
       // And the way out, which is the half of this that has already shipped
       // broken: the settings drawer had an opener and no closer, and below 720px
       // the chip that opened it was underneath it. A `×` in the document and off

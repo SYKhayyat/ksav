@@ -59,6 +59,11 @@ export function buildCommandsDrawer(): HTMLElement {
     type: "search",
     placeholder: t("commandsSearch"),
     "data-i18n-placeholder": "commandsSearch",
+    // A placeholder is not a name: it vanishes the moment the writer types, and
+    // several screen readers never announce it (#178). The name is the same
+    // sentence, from the same key, so the two cannot drift apart.
+    "aria-label": t("commandsSearch"),
+    "data-i18n-label": "commandsSearch",
     class: "help-search",
   }) as HTMLInputElement;
   input.addEventListener("input", () => renderCommands(input.value));

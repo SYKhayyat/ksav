@@ -308,6 +308,7 @@ export const HE: Dict = {
   editThisStyleShort: "עריכה",
   styleKeyLabel: "צירוף מקשים",
   knobSize: "גודל",
+  levelLabel: "רמה",
   knobWeight: "משקל",
   knobShift: "רשאית לזוז",
   knobQuote: "דיבור המתחיל",
@@ -512,6 +513,7 @@ export const HE: Dict = {
   regionAdd: "הוספת אזור",
   regionRemove: "הסרת האזור",
   unitCm: "ס״מ",
+  unitLabel: "יחידת מידה",
   // A text size in `em`, which is a proportion of the text around it — and
   // which every word processor calls a percentage. Not `unitPercent`: that one
   // is a percentage *of the page*, and a region height and a font size are two
@@ -805,6 +807,7 @@ export const HE: Dict = {
   // math
   insertFormula: "נוסחה…",
   formulaTitle: "נוסחה",
+  formulaSource: "הנוסחה",
   formulaLede: "כתבו בסימון המתמטי של Typst. הכפתורים מוסיפים מבנים נפוצים.",
   formulaDisplay: "בשורה נפרדת",
   formulaNumbered: "ממוספרת",
@@ -932,6 +935,7 @@ export const HE: Dict = {
   notesReserve: "שטח ההערות (גובה)",
   notesReserveHint: 'ריק = לפי המסמך · אפשר ס"מ או אחוזים',
   reserveBase: "בסיס האחוזים",
+  reserveDrag: "שטח ההערות — גרירה",
   baseSheet: "הדף",
   baseText: "גוש הטקסט",
   reserveOverflow: "כשהאזורים גדולים מהשמורה",

@@ -124,6 +124,11 @@ function optNumberRow(labelKey: string, key: Field, min: number, max: number, st
     max,
     step,
     placeholder: t("perEdgeHint"),
+    // The row's caption, on the box itself: an optional margin's name is what
+    // makes the empty state readable — "empty" means *follow the one margin*, and
+    // a box announced as nothing at all says neither (#178).
+    "aria-label": t(labelKey),
+    "data-i18n-label": labelKey as never,
     value: live === undefined || live === null ? "" : String(live),
     onChange: (e: Event) => {
       const raw = (e.target as HTMLInputElement).value.trim();
@@ -155,6 +160,11 @@ function reserveRow() {
   const input = el("input", {
     type: "text",
     placeholder: t("perEdgeHint").replace(/שוליים/g, "").trim() || "2cm",
+    // Three controls in one row, so each is named on its own (#178): the row's
+    // caption is a `<span>` beside them, not a `<label>` around them, and none of
+    // the three had a name at all.
+    "aria-label": t("notesReserve"),
+    "data-i18n-label": "notesReserve",
     value: (() => {
       const cm = settingsWiring().live("notes_region_cm");
       return cm === undefined || cm === null ? "" : `${cm}cm`;
@@ -162,7 +172,10 @@ function reserveRow() {
   });
   const base = el(
     "select",
-    {},
+    {
+      "aria-label": t("reserveBase"),
+      "data-i18n-label": "reserveBase",
+    },
     [
       ["sheet", t("baseSheet")],
       ["text", t("baseText")],
@@ -197,7 +210,17 @@ function reserveRow() {
   base.onchange = () => apply(input.value.trim());
   // The same write path under the writer's hand: dragging is typing, one
   // value at a time, through `setSetting`.
-  const slider = el("input", { type: "range", min: "0", max: "12", step: "0.1" });
+  const slider = el("input", {
+    type: "range",
+    min: "0",
+    max: "12",
+    step: "0.1",
+    // Its own name, not the text box's: two controls for one value that announce
+    // themselves identically are one control as far as a screen reader is
+    // concerned, and the writer cannot tell which one they are on (#178).
+    "aria-label": t("reserveDrag"),
+    "data-i18n-label": "reserveDrag",
+  });
   const sync = () => {
     const cm = settingsWiring().live("notes_region_cm");
     (slider as HTMLInputElement).value = String(cm ?? 0);
@@ -433,6 +456,14 @@ function textAreaRow(labelKey: string, key: keyof Settings, placeholder = "") {
       class: "set-textarea",
       rows: 4,
       placeholder,
+      // A `<label>` cannot own a control it is not wrapping, and this row is a
+      // block rather than the inline rows above — so the caption is bound by
+      // name instead of by containment (#178). Before this the settings drawer's
+      // two text areas, its reserve slider and its percent select were announced
+      // as "edit text", "slider 0" and "combo box" with nothing to say what they
+      // control.
+      "aria-label": t(labelKey),
+      "data-i18n-label": labelKey as never,
       onInput: (e: Event) => settingsWiring().write(key, (e.target as HTMLTextAreaElement).value as never),
     },
     [String(settings[key] ?? "")],

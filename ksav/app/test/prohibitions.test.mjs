@@ -692,7 +692,81 @@ const RULES = [
     },
     allow: [],
   },
+  {
+    // #178, and the class: **a placeholder is not a name.**
+    //
+    // The issue named six controls with no accessible name; measured in the
+    // assembled application there were nine, and every one of them had a
+    // placeholder. That is not a coincidence — a placeholder is the thing a
+    // control shows *instead of* being named, and it is the wrong substitute for
+    // four reasons that all cost the same writer something:
+    //
+    //   - it disappears the moment they type, so the box loses its identity at
+    //     exactly the point they are lost in it;
+    //   - several screen readers never announce it at all, so the control is
+    //     "edit text" and nothing else;
+    //   - it is what the translation pass moves, which is why an interface in the
+    //     other language kept one Hebrew hint in an English drawer;
+    //   - and it cannot say *what the value means* — "ריק = לפי …" is a rule the
+    //     row's caption should carry, not a ghost in an empty box.
+    //
+    // So: a control literal that shows a placeholder carries a name as well —
+    // `aria-label` or `aria-labelledby`, in the same object so the two cannot
+    // drift. Its `data-i18n-label` travels with it, because `panels.ts` rewrites
+    // `aria-label` from the dictionary on a language switch and a control named
+    // only at construction would go on announcing yesterday's language.
+    //
+    // **What this cannot see, and what covers it.** A control built by one of the
+    // generic constructors (`textField`, `selectControl`, `unitControl`, …) takes
+    // its name from the `<label>` the caller wraps it in, which is correct HTML
+    // and invisible to a source scan. Those are measured instead, in the
+    // assembled application: `.github/scripts/acceptance.mjs` step 8 asks every
+    // surface it opens whether any visible control on it is nameless. Two sweeps
+    // for two shapes of the same mistake.
+    what: "a control that shows a placeholder is named too (issue 178)",
+    where: /^ksav\/app\/src\/.*\.ts$/u,
+    probe: unnamedPlaceholder,
+    allow: [],
+  },
 ];
+
+/**
+ * The object literal of every `el("input" | "select" | "textarea", {…})` in a
+ * file that shows a placeholder and gives no name.
+ *
+ * The literal is read by brace depth rather than by a regular expression,
+ * because a regular expression for "inside an object literal" is the kind of
+ * pattern that passes on the file it was written for and quietly stops matching
+ * one brace later. Strings are not tracked: an unbalanced brace inside a string
+ * in one of these options objects would be the first of that file's problems.
+ */
+function unnamedPlaceholder(body) {
+  const out = [];
+  const open = /el\(\s*"(input|select|textarea)"/gu;
+  let m;
+  while ((m = open.exec(body)) !== null) {
+    const start = body.indexOf("{", m.index + m[0].length);
+    if (start < 0) continue;
+    let depth = 0;
+    let end = start;
+    for (; end < body.length; end += 1) {
+      const c = body[end];
+      if (c === "{") depth += 1;
+      else if (c === "}") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    const literal = body.slice(start, end);
+    const shows = /placeholder\s*:/u.test(literal) || /"data-i18n-placeholder"\s*:/u.test(literal);
+    const named = /["']?aria-label(?:ledby)?["']?\s*:/u.test(literal);
+    if (shows && !named) {
+      const line = body.slice(0, m.index).split("\n").length;
+      out.push(`line ${line}: <${m[1]}> with a placeholder and no aria-label`);
+    }
+  }
+  return out.join("\n");
+}
 
 /** Any character below space that is not tab, newline or carriage return. */
 function hasControlChar(body) {

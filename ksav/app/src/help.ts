@@ -356,6 +356,9 @@ export function buildHelpPanel(): HTMLElement {
     type: "search",
     placeholder: t("helpSearch"),
     "data-i18n-placeholder": "helpSearch",
+    // Named as well as prompted (#178): a placeholder is not an accessible name.
+    "aria-label": t("helpSearch"),
+    "data-i18n-label": "helpSearch",
     class: "help-search",
   }) as HTMLInputElement;
   input.addEventListener("input", () => renderHelp(input.value));

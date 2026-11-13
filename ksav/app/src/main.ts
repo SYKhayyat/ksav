@@ -2473,6 +2473,10 @@ function render() {
         type: "search",
         placeholder: t("findPlaceholder"),
         "data-i18n-placeholder": "findPlaceholder",
+        // The name as well as the prompt (#178): a placeholder disappears the
+        // moment the writer types and is not what a screen reader announces.
+        "aria-label": t("findPlaceholder"),
+        "data-i18n-label": "findPlaceholder",
         class: "help-search",
         onInput: () => renderFindPane(),
       }),
@@ -2542,6 +2546,8 @@ function render() {
           id: "palette-input",
           placeholder: t("searchCommands"),
           "data-i18n-placeholder": "searchCommands",
+          "aria-label": t("searchCommands"),
+          "data-i18n-label": "searchCommands",
           oninput: (e: Event) => renderPaletteList((e.target as HTMLInputElement).value),
           onKeyDown: (e: Event) => {
             if (paletteKey(e as KeyboardEvent)) {

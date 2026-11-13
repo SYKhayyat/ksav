@@ -76,10 +76,16 @@ export function levelsControl(raw: string | undefined, set: (v: string | null) =
     picked.map((current, i) =>
       el("span", { class: "level-row" }, [
         el("span", { class: "level-tag" }, [String(i + 1)]),
-        selectControl(options, current, (v) => {
-          picked[i] = v;
-          write();
-        }),
+        // The tag beside it is "2", which names nothing. Three of these sit in a
+        // row and each says how *that* depth is numbered, so the name has to be
+        // "Level 2" rather than "Level" three times (#178).
+        named(
+          selectControl(options, current, (v) => {
+            picked[i] = v;
+            write();
+          }),
+          `${t("levelLabel")} ${i + 1}`,
+        ),
       ]),
     ),
   );
@@ -107,6 +113,12 @@ export function selectControl(
       ),
     ),
   );
+}
+
+/** Name a control that was built somewhere that had no name to give it. */
+export function named(control: HTMLElement, label: string): HTMLElement {
+  control.setAttribute("aria-label", label);
+  return control;
 }
 
 /** A number input that writes `12pt` / `1.5em`, and clears when emptied. */
@@ -170,6 +182,11 @@ export function sizeControl(raw: string | undefined, set: (v: string | null) => 
       set(styles.writeTextSize(n, u as "%" | "pt"));
     },
   );
+  // The number box and the unit box are two controls for one value, and the
+  // number's name says "size" — so the unit's has to be its own, or a screen
+  // reader offers two "Size" controls and the writer cannot tell which moves
+  // which (#178).
+  units.setAttribute("aria-label", t("unitLabel"));
   return el("span", { class: "knob-size" }, [input, units]);
 }
 
@@ -330,6 +347,11 @@ export function regionHeightControl(
     step: unit === "%" ? 1 : 0.1,
     value: read == null ? "" : String(read.n),
     placeholder: "—",
+    // Named, though the row it sits in would have named it anyway (#178): the
+    // empty box is a real state here — *this region takes the document's
+    // height* — and a dash in it says the state, not the subject.
+    "aria-label": t("regionHeight"),
+    "data-i18n-label": "regionHeight",
   }) as HTMLInputElement;
   const commit = (n: number, u: string) => {
     if (!Number.isFinite(n) || n < 0) return;
@@ -344,5 +366,6 @@ export function regionHeightControl(
     // would move page geometry from a control that says it changes a unit.
     (u) => commit(read?.n ?? (u === "%" ? 10 : 1.5), u),
   );
+  units.setAttribute("aria-label", t("unitLabel"));
   return el("span", { class: "region-height" }, [input, units]);
 }

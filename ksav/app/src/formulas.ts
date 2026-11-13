@@ -35,8 +35,20 @@ const MATH_BITS: [string, string][] = [
 
 export function openFormula() {
   closeMenus();
-  const src = el("textarea", { class: "set-textarea", rows: 3, placeholder: "x^2 + y^2 = z^2" }, [
-  ]) as HTMLTextAreaElement;
+  const src = el(
+    "textarea",
+    {
+      class: "set-textarea",
+      rows: 3,
+      placeholder: "x^2 + y^2 = z^2",
+      // The example in the box is what the writer reads, and it is not a name:
+      // the modal's own heading says "Formula", which is what this control is
+      // for (#178).
+      "aria-label": t("formulaSource"),
+      "data-i18n-label": "formulaSource",
+    },
+    [],
+  ) as HTMLTextAreaElement;
   const display = checkField(true);
   const numbered = checkField();
 

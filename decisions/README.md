@@ -141,6 +141,7 @@ supersede an earlier one without rewriting it.
 | 2026-11-12 | [a-warning-about-nothing](2026-11-12-a-warning-about-nothing.md) |
 | 2026-11-12 | [a-paragraph-is-not-a-span](2026-11-12-a-paragraph-is-not-a-span.md) |
 | 2026-11-12 | [a-save-answers-for-the-state-it-wrote](2026-11-12-a-save-answers-for-the-state-it-wrote.md) |
+| 2026-11-13 | [a-control-is-named-or-it-is-not](2026-11-13-a-control-is-named-or-it-is-not.md) |
 | 2026-10-11 | [the-editor-scan-is-the-seam](2026-10-11-the-editor-scan-is-the-seam.md) |
 | 2026-10-13 | [a-scan-belongs-to-its-text](2026-10-13-a-scan-belongs-to-its-text.md) |
 | 2026-10-13 | [i18n-data-lives-apart](2026-10-13-i18n-data-lives-apart.md) |

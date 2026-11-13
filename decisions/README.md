@@ -148,6 +148,7 @@ supersede an earlier one without rewriting it.
 | 2026-11-13 | [the-delimiter-list-is-rebuilt-on-demand](2026-11-13-the-delimiter-list-is-rebuilt-on-demand.md) |
 | 2026-11-13 | [the-closer-table-does-not-pay](2026-11-13-the-closer-table-does-not-pay.md) |
 | 2026-11-13 | [a-diagnostic-is-a-sentence](2026-11-13-a-diagnostic-is-a-sentence.md) |
+| 2026-11-13 | [a-correct-settle-is-a-glide](2026-11-13-a-correct-settle-is-a-glide.md) |
 | 2026-10-11 | [the-editor-scan-is-the-seam](2026-10-11-the-editor-scan-is-the-seam.md) |
 | 2026-10-13 | [a-scan-belongs-to-its-text](2026-10-13-a-scan-belongs-to-its-text.md) |
 | 2026-10-13 | [i18n-data-lives-apart](2026-10-13-i18n-data-lives-apart.md) |

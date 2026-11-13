@@ -9,14 +9,15 @@
 // a stale reference surviving it.
 
 import * as panestate from "./panestate";
+import type { PagePoint } from "./api";
 import * as panes from "./panes";
 import * as runtime from "./runtime";
 import * as docs from "./docs";
 import { settings, docConfig } from "./settings";
-import { currentPages, pageBox } from "./preview";
+import { currentPages, currentPageText, pageBox } from "./preview";
 import { pixelInPage } from "./jump";
 import { bodyOnScreen } from "./compile";
-import { printedPrefix, fractionAtLine, lineAtFraction, anchorFor, worthFollowing, withinBlock, interpolateAcrossLine } from "./scrollmap";
+import { printedPrefix, fractionAtLine, lineAtFraction, anchorFor, worthFollowing, withinBlock, interpolateAcrossLine, spotOfLine, firstInkLine, glideEase, endOfScroller } from "./scrollmap";
 import { docTextOf } from "./spans";
 
 /**
@@ -137,6 +138,10 @@ export function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
 
       scrollWritten.delete(pane.id);
       scrollFloor = { pane: pane.id, until: now + SCROLL_FLOOR_MS };
+      // A settle gliding into this pane has been overtaken: the person's hand is
+      // where the pane belongs now, and finishing the glide would drag it out
+      // from under them mid-gesture.
+      cancelGlide();
       pane.scrollTop = top;
       // Down or up, which is what the anchor is chosen from. Zero only if the
       // pane genuinely has not moved, which the dead zone has already excluded.
@@ -171,6 +176,9 @@ export function bookLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, 
     const job = scrollBooked;
     scrollBooked = null;
     if (!job) return;
+    // A booked follow is the newer position, so a glide still arriving from the
+    // last settle is no longer the truth about this pane.
+    cancelGlide();
     // Re-read the panes: an arrangement can change between the event and the
     // frame, and writing into a pane that has been closed is a null dereference
     // in the middle of a scroll.
@@ -234,18 +242,36 @@ async function settleNow(from: panes.Leaf, to: panes.Leaf, dir: -1 | 0 | 1) {
   const block = view.lineBlockAtHeight(anchorY);
   const line = view.state.doc.lineAt(block.from);
   const { body, offset } = bodyOnScreen();
-  const points = await runtime.backend
-    .reveal(
-      body,
-      docConfig(),
-      { line: line.number + offset, column: 1 },
-      docs.requestAssets(runtime.currentDoc?.assets ?? []),
-    )
-    // A line that prints nothing — a comment, a `#הגדרות_*` line, a fold's
-    // marker — is not an error and not worth a word in the status bar. The
-    // estimate stands, which is what it is for.
-    .catch(() => []);
-  const at = points[0];
+  // Between two paragraphs the anchor is a blank line, and a blank line prints
+  // nothing — so the engine's honest answer for it is "nowhere" and the settle
+  // did nothing at all going down, while it corrected going up. Ask about the
+  // first line below that can print instead. See `firstInkLine`.
+  const doc = view.state.doc;
+  const asking = firstInkLine(line.number, doc.lines, (n) => doc.line(n).text);
+  // The exact answer is already on this client. Every page the last compile drew
+  // came back with its printed lines and their baselines, so the settle is a
+  // lookup here rather than a compile there. That is what makes it land at
+  // `syncSettleMs` instead of whenever the engine has finished re-laying out the
+  // whole sefer — and a correction that arrives a second late is a jump no
+  // matter how well it is aimed. See `spotOfLine`.
+  const spot = spotOfLine(currentPageText(), asking + offset);
+  let at: PagePoint | null = spot ? { page: spot.page, x_pt: 0, y_pt: spot.y } : null;
+  // A line the on-screen table cannot place — nothing has compiled yet, or the
+  // text changed since the pages were drawn — falls back to asking, as before.
+  if (!at) {
+    at =
+      (await runtime.backend
+        .reveal(
+          body,
+          docConfig(),
+          { line: asking + offset, column: 1 },
+          docs.requestAssets(runtime.currentDoc?.assets ?? []),
+        )
+        // A line that prints nothing — a comment, a `#הגדרות_*` line, a fold's
+        // marker — is not an error and not worth a word in the status bar. The
+        // estimate stands, which is what it is for.
+        .catch(() => []))[0] ?? null;
+  }
   const box = at ? pageBox(pages[at.page]) : null;
   if (!at || !box) return;
   // Somebody started scrolling while the compiler was thinking. Their gesture
@@ -254,14 +280,72 @@ async function settleNow(from: panes.Leaf, to: panes.Leaf, dir: -1 | 0 | 1) {
   if (scrollFloor && scrollFloor.pane !== from.id && performance.now() < scrollFloor.until) return;
   const node = host.querySelector<HTMLElement>(`.page[data-page="${at.page}"]`);
   if (!node) return;
-  const spot = pixelInPage(at, node.getBoundingClientRect(), box);
-  const y = node.offsetTop + spot.y - mp * host.clientHeight;
-  const want = clampScroll(y, host);
-  if (Math.abs(want - host.scrollTop) < 1) return;
-  host.scrollTop = want;
-  // Our own write, so the pane's own handler recognises the echo rather than
-  // treating the settle as a person scrolling and following it back.
-  scrollWritten.set(to.id, host.scrollTop);
+  const spotPx = pixelInPage(at, node.getBoundingClientRect(), box);
+  const y = node.offsetTop + spotPx.y - mp * host.clientHeight;
+  // At either end the settle answers with the endpoint the follow already chose,
+  // so the two never disagree there. See `endOfScroller`.
+  const end = endOfScroller(view.scrollDOM.scrollTop, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight);
+  const want =
+    end === "bottom" ? host.scrollHeight - host.clientHeight : end === "top" ? 0 : clampScroll(y, host);
+  // The settle is a glide, not a jump: a correction of a few hundred pixels
+  // arriving whole would read as the jerk the report was about. Eased over
+  // `GLIDE_MS`, interrupted the moment the writer touches a pane again.
+  glideTo(to.id, host, want);
+}
+
+/** How long a settle takes to land once it knows where to go. */
+const GLIDE_MS = 200;
+
+/** A correction this small is not worth a glide: the eye cannot see it. */
+const GLIDE_MIN = 6;
+
+let glideFrame = 0;
+
+/** Stop the settle glide — somebody has taken the pane, or booked a new follow. */
+export function cancelGlide() {
+  if (!glideFrame) return;
+  cancelAnimationFrame(glideFrame);
+  glideFrame = 0;
+}
+
+/**
+ * Put a pane where the compiler says it belongs, as a glide rather than a jump.
+ *
+ * The estimate is on-screen by the time the hand stops, so the correction is
+ * the difference between where the map's line-height model put things and where
+ * the compiler did — a page break, a note band or a fold makes that tens to
+ * hundreds of pixels on a long sefer. Applied whole it is the visible jerk
+ * mid-settle; applied as an ease-in-out over `GLIDE_MS` it reads as the pane
+ * settling beside the gesture, which is what it is.
+ */
+function glideTo(paneId: string, host: HTMLElement, want: number) {
+  cancelGlide();
+  const from = host.scrollTop;
+  const delta = want - from;
+  // Already there, or a hairline: a 200ms glide for four pixels is a preview
+  // that drifts for no reason.
+  if (Math.abs(delta) < GLIDE_MIN) {
+    if (Math.abs(delta) >= 1) {
+      host.scrollTop = want;
+      scrollWritten.set(paneId, host.scrollTop);
+    }
+    return;
+  }
+  const t0 = performance.now();
+  const step = (now: number) => {
+    const k = Math.min(1, (now - t0) / GLIDE_MS);
+    // Ease-in-out: the correction leaves the estimate's position without a
+    // visible start and arrives without a visible stop. The curve lives in
+    // `scrollmap` so it can be asserted as arithmetic rather than felt for.
+    host.scrollTop = from + delta * glideEase(k);
+    // Record what we wrote this frame, so the scroll event it provokes is
+    // recognised as an echo rather than a person. Same as the single write
+    // before it.
+    scrollWritten.set(paneId, host.scrollTop);
+    if (k < 1) glideFrame = requestAnimationFrame(step);
+    else glideFrame = 0;
+  };
+  glideFrame = requestAnimationFrame(step);
 }
 
 /**
@@ -292,6 +376,15 @@ export function syncLinkedScroll(
   const mp = matchFraction(dir);
   if (from.role === "source") {
     const view = panestate.paneViewOf(from.id)!;
+    // The two ends, where a proportion is not an answer at all: the last
+    // screenful of a source is lines and the last screenful of a preview is lines
+    // plus a page's foot and the pane's padding. Clamped rather than mapped, so
+    // the bottom of the sefer is the bottom of the pages.
+    const end = endOfScroller(top, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight);
+    if (end) {
+      target.scrollTop = end === "bottom" ? target.scrollHeight - target.clientHeight : 0;
+      return;
+    }
     // The point `mp` down the source viewport, in document pixels.
     const anchorY = top + mp * view.scrollDOM.clientHeight;
     // The printed fraction of *that pixel* — not of the line it lands in. The

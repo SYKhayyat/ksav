@@ -163,24 +163,49 @@ export async function run() {
     // Estimate while moving, exact when it settles. The estimate is a
     // line-height model and the exact answer is the compiler's; asking the
     // compiler per scroll event would be a layout per frame.
-    ok("there is a settle", /function settleExactly\(/.test(PANESCROLL));
+    //
+    // Read as the function's own text rather than as "somewhere in the next so
+    // many characters", which is what these were: a comment added inside
+    // `settleNow` moved every match past its window and turned four true
+    // statements into four failures. The slice ends at the glide, which is the
+    // next thing in the file by construction.
+    const settle = PANESCROLL.slice(
+      PANESCROLL.indexOf("async function settleNow("),
+      PANESCROLL.indexOf("const GLIDE_MS"),
+    );
+    ok("there is a settle", settle.length > 0);
     ok("...on a delay the writer sets", /settings\.syncSettleMs \?\? 150/.test(PANESCROLL));
     ok("...which can be turned off", /settings\.syncExact === false/.test(PANESCROLL));
+    // #137: the exact answer is not a compile any more. Every page on screen came
+    // back with its printed lines and their baselines, so the settle *reads* the
+    // layout it has and only asks when the table cannot place the line — which is
+    // what makes the correction land while the hand is still stopping instead of
+    // whenever a whole re-layout has finished.
     ok(
-      "...and it asks the engine",
-      /function settleNow\([\s\S]{0,1200}\.reveal\(/.test(PANESCROLL),
+      "...it answers from the layout already on screen",
+      settle.indexOf("spotOfLine(currentPageText()") > -1,
     );
+    ok(
+      "...before asking for another one",
+      settle.indexOf("spotOfLine(currentPageText()") < settle.indexOf(".reveal("),
+    );
+    ok("...and asks the engine when that table cannot place the line", /\.reveal\(/.test(settle));
     // A gesture that started while the compiler was thinking wins: a preview
     // that jumps a second after you have moved on is worse than a few pixels.
+    ok("...and a newer gesture beats a late answer", /scrollFloor\.pane !== from\.id/.test(settle));
+    // A correction applied whole is the jerk the report was about. It is applied
+    // as a glide, and the glide records each frame's write so the pane's own
+    // handler reads it as an echo rather than as a person scrolling.
+    ok("...and arrives as a glide rather than a jump", /glideTo\(to\.id, host, want\)/.test(settle));
     ok(
-      "...and a newer gesture beats a late answer",
-      /function settleNow\([\s\S]{0,2000}scrollFloor\.pane !== from\.id/.test(PANESCROLL),
+      "...every frame of which is recorded as ours",
+      /function glideTo\([\s\S]{0,1600}scrollWritten\.set\(paneId/.test(PANESCROLL),
     );
-    // Our own write, recognised as an echo — or the settle reads as a person
-    // scrolling the preview and gets followed back into the source.
+    // The ends are clamped, not mapped: the last screenful of a source is lines
+    // and the last screenful of a preview is lines plus a page's foot.
     ok(
-      "...and the settle is not mistaken for a reader",
-      /function settleNow\([\s\S]{0,2400}scrollWritten\.set\(to\.id/.test(PANESCROLL),
+      "...and the follow clamps at the ends instead of mapping them",
+      /endOfScroller\(top, view\.scrollDOM\.scrollHeight - view\.scrollDOM\.clientHeight\)/.test(PANESCROLL),
     );
   }
 }

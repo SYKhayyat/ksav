@@ -74,6 +74,7 @@
 // application, it is what a note looks like for the seconds between filing the
 // body and writing the marker.
 
+import type { PrintedLine } from "./api";
 import { proseRegions } from "./spell";
 import { scan } from "./deferred";
 
@@ -229,6 +230,125 @@ export function lineAtFraction(prefix: number[], f: number): number {
     else hi = mid - 1;
   }
   return lo;
+}
+
+/**
+ * The line a settle should ask about, given the line its anchor landed on.
+ *
+ * A blank line prints nothing, and the engine's answer for one is the honest
+ * empty list. That is what made the settle silent going **down**: the anchor is
+ * the top of the viewport, the top of a viewport between two paragraphs is a
+ * blank line, and the correction never happened — while going up, where the
+ * anchor is the viewport's bottom, it usually did. Walking forward to the first
+ * line with something on it costs a few string reads and makes the answer
+ * available in both directions.
+ *
+ * Bounded, because a document can end in blank lines and the answer there is the
+ * line we started from rather than the end of the file: a settle that jumped to
+ * the last line because the text stopped would be wrong by everything between.
+ */
+export function firstInkLine(
+  from: number,
+  last: number,
+  textOf: (n: number) => string,
+  lookahead = 8,
+): number {
+  const stop = Math.min(last, from + lookahead);
+  for (let n = Math.max(1, from); n <= stop; n++) {
+    if (textOf(n).trim()) return n;
+  }
+  return from;
+}
+
+/**
+ * Where a source line printed, asked of the layout already on screen.
+ *
+ * The settle after a linked scroll needs the *exact* answer — the compiler's,
+ * not the map's — and the compile that drew the pages is already carrying it:
+ * every page comes back with its printed lines, each naming the source line it
+ * came from and its baseline in points. So the exact answer is a lookup, and
+ * the round trip that used to fetch it (`reveal`, a whole compile) was the
+ * reason the correction landed a second or two after the hand stopped instead
+ * of at `syncSettleMs`.
+ *
+ * `line` is in the numbering of the body the engine was sent, not the writer's
+ * file — the caller adds the preamble offset, because the table speaks the same
+ * language `reveal` does.
+ *
+ * A line that printed nothing — a comment, a fold's marker, a `#הגדרות_*` line
+ * — has no row here, and the honest answer is the *last* line before it that
+ * did print: it is above the prose the reader is looking at, and moving to it
+ * cannot land them in a later paragraph. The rule is monotone in `line` on
+ * purpose: a table that could answer "later" for a later line would let the
+ * preview move backwards while the writer scrolls forwards. A line before
+ * everything that printed falls forward to the first printed line, which is the
+ * same rule read from the other end.
+ *
+ * Ties go to the earlier page. One source line can print in two places — a
+ * running head, a siman whose text is quoted again later — and the first one is
+ * the one the source is next to.
+ */
+export function spotOfLine(
+  pages: readonly (readonly PrintedLine[])[],
+  line: number,
+): { page: number; y: number } | null {
+  let before: { page: number; y: number; line: number } | null = null;
+  let first: { page: number; y: number } | null = null;
+  for (let page = 0; page < pages.length; page++) {
+    for (const printed of pages[page]) {
+      if (typeof printed.line !== "number") continue;
+      if (!first) first = { page, y: printed.y };
+      // Skips rather than returns: a later page can hold an earlier-closing
+      // line of the same document, and "the last one before" is a maximum over
+      // all pages, not the first one that closes the gap.
+      if (printed.line <= line && (!before || printed.line > before.line)) {
+        before = { page, y: printed.y, line: printed.line };
+      }
+    }
+  }
+  if (before) return { page: before.page, y: before.y };
+  return first ? { page: first.page, y: first.y } : null;
+}
+
+/**
+ * The end of the scroll a pane is standing at, if it is standing at one.
+ *
+ * A document's ends are the one place a *proportion* cannot be right. The source
+ * pane's last screenful is lines; the preview's is lines plus the foot of a page
+ * and the pane's own padding, and the two counts are not the same count — so at
+ * the very bottom of the source the map still had a few printed lines left over
+ * and the preview stopped short of its own end by exactly the difference. That
+ * is the report this exists for: *"source scrolling never reaches the top of the
+ * preview"*, which at the other end is the same arithmetic with the sign turned
+ * round.
+ *
+ * So the ends are not mapped, they are **clamped**: at the top of one pane is the
+ * top of the other, at the bottom is the bottom. `slack` is a pixel because
+ * `scrollTop` is a float and a browser can stop half a pixel short of its own
+ * maximum.
+ */
+export function endOfScroller(top: number, max: number, slack = 1): "top" | "bottom" | null {
+  if (max <= 0) return "top";
+  if (top <= slack) return "top";
+  if (top >= max - slack) return "bottom";
+  return null;
+}
+
+/**
+ * The shape of a settle: where a correction of the whole has got to, `k` of the
+ * way through its time.
+ *
+ * The settle is a correction of a few hundred pixels arriving after the hand has
+ * already stopped, so *how* it arrives is the whole of whether it is visible. A
+ * straight line starts and stops abruptly; an ease-in-out leaves the estimate's
+ * position without a catchable start and arrives without a catchable stop, and
+ * its steepest moment is twice its average — a bound the acceptance run holds it
+ * to. Zero and one are exact rather than almost, because the pane has to end up
+ * on the compiler's answer and not a pixel beside it.
+ */
+export function glideEase(k: number): number {
+  const t = Math.max(0, Math.min(1, k));
+  return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
 }
 
 // ---------------------------------------------------------------- the anchor

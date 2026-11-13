@@ -2670,6 +2670,173 @@ async function main() {
     check("…and none of it raised anything on the console", newProblems(mark).length === 0, newProblems(mark).join(" | "));
   }
 
+  step(20, "a linked preview settles beside the hand, and both ends meet");
+  {
+    const mark = since();
+    // UAT 32 / #137: *"scrolling in the source makes preview scrolling jerky,
+    // and source scrolling never reaches the top of the preview."*
+    //
+    // The follow is an estimate — a line-height model of what prints — and it is
+    // on-screen a frame after the wheel moves, which is what makes continuous
+    // scrolling smooth. The exact answer used to arrive later as one assignment:
+    // a correction of whatever the model was wrong by, applied whole. Here the
+    // correction is measured the way a reader would see it — position per frame —
+    // and held to three properties: it arrives while the hand is still stopping,
+    // it arrives over several frames, and no single frame carries much of it.
+    //
+    // A sefer long enough for the model's error to be worth correcting: the
+    // estimate assumes a line's height, and every page break, note band and
+    // heading moves the compiler's answer away from it.
+    const para = "דברי הפוסקים בענין זה, ועיין שם.#הערה[עיין שם באריכות.]\n\n";
+    const sefer = Array.from({ length: 14 }, (_, i) => `#כותרת[סימן ${i + 1}]\n\n${para.repeat(4)}`).join("");
+    await clickVisible("the editor", ".cm-content");
+    await press("Control+a");
+    await page.keyboard.insertText(sefer);
+    // The caret goes to the top first: the insert left it at the end, and a caret
+    // follow would answer for a scroll it did not make.
+    await press("Control+Home");
+    await page.waitForTimeout(400);
+    // A window that is known to hold a linked source and preview, rather than
+    // whichever arrangement the steps before this one left standing. The first
+    // built-in is `sourceAndPreview` — preview beside source, both linked.
+    const shell = await page.evaluate(() => ({
+      source: document.querySelectorAll(".source-pane").length,
+      preview: document.querySelectorAll(".preview-host").length,
+      chip: !!document.querySelector("[data-chip=arrangement]"),
+      chipbar: !!document.getElementById("chipbar"),
+      panes: Array.from(document.querySelectorAll(".pane")).map((p) => p.className).join(","),
+    }));
+    check("the window holds a source and a preview to measure", shell.source > 0 && shell.preview > 0, `the window here is ${JSON.stringify(shell)}`);
+    await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+    await clickVisible("the source-and-preview arrangement", "#arrangement-list .pal-item >> nth=0");
+    await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
+    await page.waitForTimeout(400);
+
+    // **Which source follows which preview is not a fact about the window.**
+    // A run arrives here in whatever arrangement the steps before it left, and
+    // naming the pairing after a layout this file would then have to police is a
+    // second thing that can go stale. So it is measured: nudge each source and
+    // take the preview that moved.
+    const measuredRun = await page.evaluate(async () => {
+      const srcs = Array.from(document.querySelectorAll(".source-pane .cm-scroller"));
+      const prevs = Array.from(document.querySelectorAll(".preview-host"));
+      if (!srcs.length || !prevs.length) return { error: "no linked pair to measure" };
+      let pair = null;
+      for (let s = 0; s < srcs.length; s += 1) {
+        const before = prevs.map((p) => Math.round(p.scrollTop));
+        srcs[s].scrollTop += 240;
+        srcs[s].dispatchEvent(new Event("scroll"));
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const moved = prevs.map((p, i) => Math.abs(Math.round(p.scrollTop) - before[i]));
+        const best = moved.indexOf(Math.max(...moved));
+        if (moved[best] > 40 && (!pair || moved[best] > pair.moved)) pair = { s, p: best, moved: moved[best] };
+        srcs[s].scrollTop -= 240;
+        srcs[s].dispatchEvent(new Event("scroll"));
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      }
+      if (!pair) return { error: "no source pane moved a preview" };
+      const src = srcs[pair.s];
+      const prev = prevs[pair.p];
+
+      // One gesture down the source, then every frame of what the preview does
+      // after it. A scroll event rather than only an assignment, because the
+      // follow is booked on the event.
+      const gesture = async (notches, delta) => {
+        for (let i = 0; i < notches; i += 1) {
+          src.scrollTop += delta;
+          src.dispatchEvent(new Event("scroll"));
+          await new Promise((r) => requestAnimationFrame(r));
+        }
+        const estimate = Math.round(prev.scrollTop);
+        const trace = [estimate];
+        const t0 = performance.now();
+        let lastMove = 0;
+        for (let f = 0; f < 100; f += 1) {
+          await new Promise((r) => requestAnimationFrame(r));
+          const top = Math.round(prev.scrollTop);
+          if (top !== trace[trace.length - 1]) {
+            trace.push(top);
+            lastMove = Math.round(performance.now() - t0);
+          }
+        }
+        return { estimate, final: Math.round(prev.scrollTop), lastMove, trace };
+      };
+
+      // Anywhere that needs a correction will do, so the run looks for one rather
+      // than depending on the model being wrong at one particular line.
+      let settle = null;
+      for (let attempt = 0; attempt < 4 && !settle; attempt += 1) {
+        const r = await gesture(16, 160);
+        if (Math.abs(r.final - r.estimate) >= 24) settle = r;
+      }
+
+      // Both ends, reached the way a writer reaches them — by holding the wheel —
+      // because the question is whether the *pages* arrived, not whether a
+      // scrollbar did.
+      const walkTo = async (delta, rounds) => {
+        for (let i = 0; i < rounds; i += 1) {
+          src.scrollTop += delta;
+          src.dispatchEvent(new Event("scroll"));
+          await new Promise((r) => requestAnimationFrame(r));
+        }
+        // Long enough for the settle to have landed, glide and all.
+        await new Promise((r) => setTimeout(r, 1200));
+        const pages = Array.from(prev.querySelectorAll(".page"));
+        const last = pages[pages.length - 1];
+        const box = prev.getBoundingClientRect();
+        return {
+          at: Math.round(prev.scrollTop),
+          max: Math.round(prev.scrollHeight - prev.clientHeight),
+          foot: last ? Math.round(last.getBoundingClientRect().bottom - box.top) : null,
+          viewer: Math.round(box.height),
+        };
+      };
+      const end = await walkTo(900, 240);
+      const top = await walkTo(-900, 240);
+      return { settle, end, top };
+    });
+
+    check("a source pane follows a preview somewhere in this window", !measuredRun.error, measuredRun.error ?? "");
+    if (!measuredRun.error) {
+      const { settle, end, top } = measuredRun;
+      check(
+        "the settle corrects the estimate somewhere in a long sefer",
+        !!settle,
+        "four gestures needed no correction, which would mean the exact answer never arrived",
+      );
+      if (settle) {
+        const correction = Math.abs(settle.final - settle.estimate);
+        const steps = settle.trace.length - 1;
+        const deltas = settle.trace.slice(1).map((v, i) => Math.abs(v - settle.trace[i]));
+        const biggest = Math.max(...deltas);
+        check(
+          "the correction lands while the hand is still stopping",
+          settle.lastMove > 0 && settle.lastMove <= 700,
+          `${settle.lastMove}ms after the last notch`,
+        );
+        check("…as a glide and not a jump", steps >= 3 || `${steps} frame(s) carried a ${correction}px correction`, true);
+        check(
+          "…no frame of which carries more than two fifths of it",
+          biggest <= correction * 0.4 || `one frame carried ${biggest}px of ${correction}px`,
+          true,
+        );
+      }
+      check("the source's end brings the pages to theirs", end.at === end.max, `${end.at} of ${end.max}`);
+      check(
+        "…with the last page's foot on screen",
+        end.foot !== null && end.foot <= end.viewer,
+        `the last page ends ${end.foot}px down a ${end.viewer}px pane`,
+      );
+      check("and the source's top brings them back to theirs", top.at === 0, `${top.at}px`);
+      check(
+        "…with the pages below the fold again",
+        top.foot !== null && top.foot > top.viewer,
+        `the last page ends ${top.foot}px down a ${top.viewer}px pane`,
+      );
+    }
+    check("…and none of it raised anything on the console", newProblems(mark).length === 0, newProblems(mark).join(" | "));
+  }
+
   // ----------------------------------------------------------------- the tally
 
   if (failures.length && (HEADED || KEEP)) {

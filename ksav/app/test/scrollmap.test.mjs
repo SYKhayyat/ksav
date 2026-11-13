@@ -16,7 +16,7 @@
 // was being counted was not.
 
 import { check, ok } from "./harness.mjs";
-import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction, anchorFor, worthFollowing, withinBlock, interpolateAcrossLine } from "../.tmp-test/scrollmap.mjs";
+import { printedPrefix, fractionAtLine, lineAtFraction, viewportFraction, anchorFor, worthFollowing, withinBlock, interpolateAcrossLine, spotOfLine, firstInkLine, glideEase, endOfScroller } from "../.tmp-test/scrollmap.mjs";
 
 export async function run() {
   // ------------------------------------------------------- comments weigh nothing
@@ -304,6 +304,106 @@ async function deferredBodyChecks() {
   const hashed = printedPrefix(line.repeat(3) + "#כלול(\"פרק.ksav\")\n");
   check("skipping the scan is not a different answer", noHash[noHash.length - 1], 51);
   check("and a non-note command still prints nothing", hashed[hashed.length - 1], 51);
+}
+
+// ------------------------------------------- where a line printed (#137)
+//
+// The settle after a linked scroll needs the compiler's exact answer, and the
+// compile that drew the pages is already carrying it — every page comes back with
+// its printed lines, their baselines in points, and the source line each came
+// from. These are the two rules that turn that table into an answer.
+
+{
+  const pages = [
+    [{ y: 100, text: "א", line: 1 }, { y: 200, text: "ב", line: 4 }],
+    [{ y: 100, text: "ג", line: 9 }, { y: 150, text: "ד", line: 12 }],
+  ];
+  check("a line that printed is found where it printed", JSON.stringify(spotOfLine(pages, 4)), JSON.stringify({ page: 0, y: 200 }));
+  check("…on a later page too", JSON.stringify(spotOfLine(pages, 9)), JSON.stringify({ page: 1, y: 100 }));
+  // A comment, a fold's marker, a `#הגדרות_*` line: no ink, no row. The answer
+  // is the last line *before* it that printed — above the prose the writer is
+  // looking at — never the next one, which would land them in a later paragraph.
+  check("a line that printed nothing takes the one above it", JSON.stringify(spotOfLine(pages, 5)), JSON.stringify({ page: 0, y: 200 }));
+  check("…even across a page break", JSON.stringify(spotOfLine(pages, 10)), JSON.stringify({ page: 1, y: 100 }));
+  check("a line before everything that printed takes the first", JSON.stringify(spotOfLine(pages, 0)), JSON.stringify({ page: 0, y: 100 }));
+  check("a line after everything printed takes the last", JSON.stringify(spotOfLine(pages, 99)), JSON.stringify({ page: 1, y: 150 }));
+  check("nothing printed, so nowhere to go", spotOfLine([], 3), null);
+  check("a page of running heads names nothing", spotOfLine([[{ y: 10, text: "ראש" }]], 3), null);
+
+  // The rule is monotone in the line asked about: a table that could answer
+  // "later" for a later line would let the preview move backwards while the
+  // writer scrolls forwards, which is the defect this whole module exists for.
+  const order = (p) => (p ? p.page * 1000 + p.y : -1);
+  let previous = -1;
+  let backwards = 0;
+  for (let n = 0; n <= 14; n++) {
+    const at = order(spotOfLine(pages, n));
+    if (at < previous) backwards += 1;
+    previous = at;
+  }
+  check("sweeping down the source never moves the answer up", backwards, 0);
+}
+
+{
+  // The anchor line of a downward settle is the top of the viewport, and the top
+  // of a viewport between two paragraphs is a blank line — which prints nothing,
+  // so the settle went silent in exactly one direction. One line further down,
+  // the answer exists.
+  const lines = ["", "כותרת", "", "", "גוף", "עוד"];
+  const textOf = (n) => lines[n - 1] ?? "";
+  check("a blank anchor walks to the first line with something on it", firstInkLine(1, 6, textOf), 2);
+  check("…and from the middle of the blank run", firstInkLine(3, 6, textOf), 5);
+  check("a line that has ink is kept", firstInkLine(5, 6, textOf), 5);
+  // Bounded: a document ending in blank lines answers from where it started
+  // rather than jumping to the last thing that exists.
+  check("a blank tail answers from the anchor", firstInkLine(7, 9, () => "", 8), 7);
+  check("…without reading past the last line", firstInkLine(8, 9, textOf, 2), 8);
+  check("an empty document answers line 1", firstInkLine(1, 1, () => ""), 1);
+}
+
+// --------------------------------------------------- the shape of a settle (#137)
+//
+// A correction of a few hundred pixels arrives after the hand has stopped, so
+// how it arrives is the whole of whether it is visible. The steepest moment of
+// an ease-in-out is twice its average, and a `b`-of-`n` frame that carries more
+// than a third of the correction would be a jump wearing a curve's hat.
+
+{
+  check("a settle starts exactly where it was", glideEase(0), 0);
+  check("…and ends exactly where the compiler says", glideEase(1), 1);
+  const FRAMES = 12;
+  let prev = 0;
+  let peak = 0;
+  let monotone = true;
+  for (let f = 1; f <= FRAMES; f++) {
+    const at = glideEase(f / FRAMES);
+    if (at < prev) monotone = false;
+    peak = Math.max(peak, at - prev);
+    prev = at;
+  }
+  check("the curve never moves backwards", monotone, true);
+  ok("no single frame of a twelve-frame settle carries more than a third of it", peak <= 0.34, `${(peak * 100).toFixed(1)}%`);
+  ok("…and the steepest frame is not the whole move", peak < 1, "the whole correction in one frame");
+}
+
+// ------------------------------------------------------- the ends clamp (#137)
+//
+// At the bottom of the source the preview stopped short of its own bottom by the
+// foot of a page and the padding the source pane does not have — a proportion of
+// one pane's pixels is not a proportion of the other's, and the ends are where
+// that stops being "off by a little" and becomes "the sefer never ends".
+
+{
+  check("exactly at the top is top", endOfScroller(0, 5000), "top");
+  check("a float just past the top is top", endOfScroller(0.9, 5000), "top");
+  check("one pixel down is not the top any more", endOfScroller(1.2, 5000), null);
+  check("mid document is not an end", endOfScroller(2500, 5000), null);
+  check("a float just short of the bottom is bottom", endOfScroller(4999.4, 5000), "bottom");
+  check("exactly at the bottom is bottom", endOfScroller(5000, 5000), "bottom");
+  // A document that fits on one screen has both ends in the same place, and it
+  // is the top that wins the name because the preview's top is where it opens.
+  check("a one-screen document is its own top", endOfScroller(0, 0), "top");
+  check("…and a pane with room to move is not an end", endOfScroller(3, 10), null);
 }
 
 // ---------------------------------------------------------------- the anchor

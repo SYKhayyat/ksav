@@ -32,6 +32,27 @@ let savePending: Promise<void> = Promise.resolve();
 /** True while the editor holds text that has not reached durable storage. */
 let unsavedChanges = false;
 /**
+ * How many times the document has changed, ever.
+ *
+ * The counter `unsavedChanges` needed and did not have (#177). A save captures
+ * the text, awaits the write, and then announces *nothing is unsaved* — and that
+ * announcement was unconditional, so a keystroke landing while the write was in
+ * flight set the flag and the older write then cleared it. For up to the 600 ms
+ * debounce the newest text was unsaved while the module said otherwise, and the
+ * only readers of that flag are the three leaving hooks: closing or hiding the
+ * tab in that window skipped the flush.
+ *
+ * Serialising the writes (`savePending`) does not help — the two writes are in
+ * order, and it is the older one's *answer* that is wrong. What identifies the
+ * answer is which document state it wrote, so the state is numbered and the flag
+ * is cleared only if the number has not moved.
+ *
+ * Bumped by `markFileDirty`, which is what an edit does — in this module, and in
+ * `assets.attachAsset`, because a document whose assets changed is a document
+ * whose bytes changed whatever the caret did.
+ */
+let editGeneration = 0;
+/**
  * Which documents differ from the file they are bound to, by id.
  *
  * **A `Set`, not a boolean.** It was one global flag for a library of
@@ -69,6 +90,9 @@ export function markFileSaved(id?: string) {
 }
 export function markFileDirty(id?: string) {
   const doc = docId(id);
+  // Every edit counts, including one made while a write is in flight — that is
+  // what `saveNow` compares against before it clears the unsaved flag (#177).
+  editGeneration += 1;
   if (!doc) return;
   const was = dirtyDocs.has(doc);
   dirtyDocs.add(doc);
@@ -158,8 +182,12 @@ export function saveNow(): Promise<void> {
       }
     }
     try {
+      // Read **before** the write is awaited, so `gen` names the document state
+      // this write actually carried. A keystroke after this point bumps it and
+      // the flag stays set (#177).
+      const gen = editGeneration;
       await docs.putDoc(doc);
-      unsavedChanges = false;
+      if (editGeneration === gen) unsavedChanges = false;
       clearSaveFailure();
     } catch (e) {
       reportSaveFailure(e);
@@ -280,10 +308,15 @@ export async function autosaveToFile(enabled: boolean, text: () => Promise<strin
     return false;
   }
   try {
+    const gen = editGeneration;
     if (!(await files.saveTo(binding, await text()))) return false;
-    markFileSaved();
+    // The dot in the title bar means *the file is behind the editor*, and an
+    // edit that arrived while this write was in flight is behind too — so the
+    // dot stays. Same race as the library copy's flag, same counter (#177).
+    const moved = editGeneration !== gen;
+    if (!moved) markFileSaved();
     await watch.markInSync(docId ?? "", binding);
-    updateTitleBar(); // the background write cleared the file: drop the dot
+    if (!moved) updateTitleBar(); // the background write cleared the file: drop the dot
     // …and the library learns where the document is, on an autosave as much as
     // on a Ctrl+S. A registry that only heard about the saves a writer made by
     // hand would answer *nothing cites this* for every document they left the

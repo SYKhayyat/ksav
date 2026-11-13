@@ -26,6 +26,7 @@ import {
   dirtyDocuments,
   currentFailure,
   saveNow,
+  scheduleSave,
   flushSaves,
   onUpdateTitleBar,
   reportSaveFailure,
@@ -245,6 +246,73 @@ export async function run() {
       // The interval is a fact the file watcher and the settings text both
       // depend on, so it is stated once and asserted to be a sane one.
       check("the background write is every thirty seconds", FILE_AUTOSAVE_MS, 30_000);
+    }
+
+    // ------------------------------------- a write that lands behind the writer
+    //
+    // #177. `saveNow` read the text, awaited the write, and then said
+    // *nothing is unsaved* — unconditionally. A keystroke arriving while that
+    // write was in flight set the flag and the older write cleared it, so the
+    // newest text was unsaved while the module said otherwise, and the three
+    // readers of that flag are all *leaving* hooks: closing or hiding the tab in
+    // that window skipped the flush.
+    //
+    // An IndexedDB transaction commits on its own event-loop turn, never in a
+    // microtask, so "the write has not landed yet" below is a fact rather than a
+    // sleep — which is what makes the race testable at all.
+    {
+      const doc = { id: "race", title: "מרוץ", body: "אחד\n", updated: 1, assets: [] };
+      runtime.setCurrentDoc(doc);
+      runtime.setCurrentBinding(null);
+      runtime.setView({
+        state: { doc: { toString: () => "אחד\n", length: 4 } },
+        dispatch() {},
+        focus() {},
+      });
+      scheduleSave(); // an edit: the flag is set and the timer is armed
+      ok("a keystroke marks the document unsaved", hasUnsavedChanges());
+      const p = saveNow(); // …and this write carries it
+      await Promise.resolve();
+      await Promise.resolve();
+      ok("the queued write has not landed yet", hasUnsavedChanges());
+      scheduleSave(); // the writer types again, with that write still in flight
+      await p;
+      ok("a keystroke during a write leaves the document unsaved (#177)", hasUnsavedChanges());
+      await saveNow(); // the newer text is written, and only then is it clean
+      notOk("…and the next save clears it", hasUnsavedChanges());
+    }
+
+    // The same race on the *bound file*, which had it too: the dot in the title
+    // bar was dropped by an autosave that had already read the text when the
+    // writer typed again, so a document that was behind its file said it was
+    // not. The fake handle is the only tier a test can actually write through —
+    // its `createWritable` is plain JavaScript.
+    {
+      runtime.setCurrentDoc({ id: "dot", title: "dot", body: "" });
+      let began;
+      const started = new Promise((r) => (began = r));
+      let release;
+      const gate = new Promise((r) => (release = r));
+      const handle = {
+        queryPermission: async () => "granted",
+        getFile: async () => ({ lastModified: 1, size: 4 }),
+        createWritable: async () => ({
+          write: async () => {
+            began();
+            await gate;
+          },
+          close: async () => {},
+        }),
+      };
+      runtime.setCurrentBinding({ kind: "handle", name: "k.ksav", handle });
+      markFileSaved();
+      markFileDirty();
+      const p = autosaveToFile(true, async () => "טקסט");
+      await started; // the write is in flight, holding the text it read then
+      markFileDirty(); // the writer types before it lands
+      release();
+      check("the autosave wrote the file", await p, true);
+      ok("an edit during the write leaves the dot (#177)", hasUnsavedFileChanges());
     }
 
     // ------------------------------------------------ flushing before reading

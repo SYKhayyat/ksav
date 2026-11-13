@@ -651,6 +651,47 @@ const RULES = [
     //     reads like it was written for the one it noticed.
     allow: ["ksav/app/src/svgsafe.ts", "ksav/app/src/preview.ts", "ksav/app/src/ksav-lang.ts"],
   },
+  {
+    // #177, and the class: **a confirmation is the application's, never the
+    // browser's.**
+    //
+    // The history panel's *Clear* button was the last `confirm()` in `src/`, and
+    // every other destructive question in this product already went through the
+    // small modal (`wiring.confirm(message, { danger })`) — `restoreSnapshot`,
+    // twenty lines above it in the same file, did. Three things are wrong with
+    // the native one and none of them are taste:
+    //
+    //   - it does not follow the interface language's direction or the theme,
+    //     so a Hebrew writer met an English-shaped dialog;
+    //   - it blocks the event loop, so the preview and the compile freeze behind
+    //     it;
+    //   - in a Tauri WKWebView `window.confirm` is **not implemented** without
+    //     the dialog plugin — it returns `false` and the button does nothing,
+    //     silently, on the shipped macOS build.
+    //
+    // The same is true of `alert()` and `prompt()`: a review panel interpolated
+    // a `prompt()` result straight into a Typst call (`typst-escape.ts`'s own
+    // header), and neither of those exists in a WKWebView either.
+    //
+    // The rule matches a bare call — not `.confirm(` on the wiring object. A
+    // *declaration* is not a call either: `SnapshotsWiring` and
+    // `SettingsWiring` both say `confirm(message: string, …): Promise<boolean>`,
+    // and a rule that forbade naming the thing it wants called would forbid
+    // every wiring interface in the product. So the probe reads the return type
+    // that follows the closing paren, which a call never has.
+    what: "a confirmation is the application's modal, never a native dialog (issue 177)",
+    where: /^ksav\/app\/src\/.*\.ts$/u,
+    probe: (body) => {
+      const out = [];
+      for (const line of body.split("\n")) {
+        if (!/(?:^|[^.\w$])(?:window\.)?(?:confirm|alert|prompt)\s*\(/u.test(line)) continue;
+        if (/\)\s*:\s*(?:Promise<\s*boolean\s*>|boolean|string|null|void)\s*;/u.test(line)) continue;
+        out.push(line.trim());
+      }
+      return out.join("\n");
+    },
+    allow: [],
+  },
 ];
 
 /** Any character below space that is not tab, newline or carriage return. */

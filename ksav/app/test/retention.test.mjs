@@ -93,6 +93,16 @@ export async function run() {
     ok("the history says what it costs", /tf\(\s*"historyCost"/.test(SNAPSHOTS));
     ok("...and why a big sefer keeps fewer", /t\("historyWholeBodies"\)/.test(SNAPSHOTS));
     ok("...and offers a way to clear it", /t\("historyClear"\)/.test(SNAPSHOTS) && /docs\.clearHistory\(/.test(SNAPSHOTS));
+    // #177: the destruction is confirmed by the application's own modal, in the
+    // danger styling, and not by the browser's `confirm()` — which does not
+    // follow the interface language, blocks the compile, and is not implemented
+    // at all in a WKWebView. `prohibitions.test.mjs` forbids the native one;
+    // this says the replacement is the wired one, with the flag that marks it
+    // as destructive.
+    ok(
+      "...and asks first, through the app's own danger modal",
+      /snapWiring\(\)\s*\.confirm\(t\("historyClearConfirm"\),\s*\{\s*danger:\s*true\s*\}\)/.test(SNAPSHOTS),
+    );
     const history = SNAPSHOTS.slice(SNAPSHOTS.indexOf("function renderHistory"));
     ok("...and refresh removes its whole unmanaged footer", /history-scope, \.history-footer/.test(history));
     ok("...so refresh creates one footer owner", /class: "history-footer"/.test(history));

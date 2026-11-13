@@ -114,10 +114,26 @@ export async function renderHistory() {
   const clear = el("button", { class: "sc-key" }, [t("historyClear")]);
   clear.addEventListener("click", () => {
     if (!runtime.currentDoc) return;
-    if (!confirm(t("historyClearConfirm"))) return;
-    void docs.clearHistory(runtime.currentDoc.id).then(() => {
+    // The app's own modal, not the browser's. `confirm()` was the last native
+    // dialog left in `app/src` and it is the wrong one three ways (#177): it
+    // does not follow the interface language's direction or the theme, it
+    // blocks the event loop so the preview freezes behind it, and in a Tauri
+    // WKWebView `window.confirm` is not implemented at all — so on macOS the
+    // button would have done nothing, silently, forever. `restoreSnapshot`
+    // twenty lines up already asked through `confirm`; this was the one call
+    // that did not.
+    //
+    // And it is a `voidAction` rather than a bare `void`, because asking, then
+    // clearing, then redrawing is three awaits and any of them can fail: the
+    // async runner is the module that reports a failure instead of leaving it as
+    // an unhandled rejection.
+    voidAction("general", async () => {
+      const doc = runtime.currentDoc;
+      if (!doc) return;
+      if (!(await snapWiring().confirm(t("historyClearConfirm"), { danger: true }))) return;
+      await docs.clearHistory(doc.id);
       setStatus(t("historyCleared"), "ok");
-      voidAction("general", () => renderHistory());
+      await renderHistory();
     });
   });
   host.append(el("div", { class: "history-footer" }, [

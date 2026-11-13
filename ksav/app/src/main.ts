@@ -2417,13 +2417,29 @@ function render() {
     // triple here would be a second one, and the two would drift the first time
     // somebody split a pane.
     el("main", {}),
+    // The problems region, in the layout rather than over it (#124).
+    //
+    // Diagnostics lived in the status bar until a UAT report: a compile error is
+    // a *sentence*, the bar is one 32px line with `overflow: hidden`, and the
+    // message came back cut in half at exactly the moment the writer needed it.
+    // An overlay would have been the other repair, and a worse one — the thing
+    // that cannot be covered is the thing that is not overlapped, so this takes
+    // the space it needs and the panes get the rest. `:empty` hides it, and
+    // `drawDiagnostics` empties it when there is nothing to say.
+    el("section", {
+      id: "diagnostics",
+      class: "diagnostics",
+      role: "status",
+      "aria-live": "polite",
+      "aria-label": t("problems"),
+      "data-i18n-label": "problems",
+    }),
     // Announced as it changes: "rendering…", "3 pages", a compile error and —
     // the reason this matters — a save failure are all reported here, and a
     // status nobody is told about is the failure mode this whole pass exists to
     // remove. `polite` rather than `assertive`: it must not interrupt typing.
     el("div", { class: "statusbar", role: "status", "aria-live": "polite" }, [
       el("span", { id: "status", class: "ok" }, [t("ready")]),
-      el("span", { id: "diagnostics" }),
       el("span", { id: "wordcount", class: "wordcount" }),
       el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
     ]),

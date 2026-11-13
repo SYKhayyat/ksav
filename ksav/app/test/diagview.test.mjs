@@ -70,6 +70,24 @@ export async function run() {
   check("lines are deduplicated and sorted", markedLines(list), [2, 5]);
   notOk("a warning does not mark a line as an error", markedLines(list).includes(8));
 
+  // ------------------------------------------------- what is shown in full (#124)
+
+  // The strip form is capped; the full form is what the writer reads to fix the
+  // document, and it was the cap — 1,215px of message in a 957px strip — that
+  // made a compile error unreadable at the moment it mattered.
+  const longMessage = `יש שגיאה ארוכה מאוד: ${"פירוט ".repeat(80).trim()}`;
+  const full = show(err({ line: 12, column: 3, message: longMessage, raw: "raw" }), 0);
+  ok("the strip form is still capped", full.said.length <= MAX_MESSAGE_CHARS + 12, `${full.said.length} chars`);
+  ok("…and marked as cut", full.said.endsWith("…"));
+  check("the full form is not capped", full.detail.length, "שורה 12:3 · ".length + longMessage.length);
+  notOk("…and has nothing to cut", full.detail.endsWith("…"));
+  ok("…it is the whole message", full.detail.endsWith(longMessage));
+  // One line, because a compiler wraps its own messages at eighty columns and
+  // those newlines are not the writer's.
+  check("the full form is one line", show(err({ line: 2, message: "a\n  b" }), 0).detail, "שורה 2 · a b");
+  // A diagnostic with no line gets no location, in either form.
+  check("no location, no prefix, in full either", show(err({ line: null, message: "משהו" }), 0).detail, "משהו");
+
   // ---------------------------------------------------------- shortening
 
   check("a short message is untouched", shorten("boom"), "boom");

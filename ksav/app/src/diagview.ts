@@ -1,5 +1,20 @@
 // Putting a diagnostic somewhere the writer can act on it.
 //
+// # Where it goes, and why not the status strip (#124)
+//
+// It went in the status bar: a 32px strip at the bottom of the window with
+// `overflow: hidden` and an ellipsis. A compiler message is a sentence — the one
+// that made this a bug was 1,215px of text in a 957px slot — so the writer got
+// the first two thirds of the reason their sefer would not compile, and the UAT
+// report put it as *"the preview covers the message"*.
+//
+// The strip was never the right owner. It is chrome for one-word facts ("ready",
+// "3 pages"), and it is the only place in the window that cannot grow. So
+// diagnostics have their own region now, above the status bar and **in the
+// layout** rather than over it: it takes the space it needs and the panes get the
+// rest, which is the only arrangement in which "cannot be obscured by the
+// preview" is true by construction instead of by stacking order.
+//
 // The engine now reports a line, a column, the command a message is about and the
 // nearest real command when the one written does not exist (see
 // `engine/src/diagnostics.rs`). This module is the other half: turning that into
@@ -19,6 +34,7 @@
 //     because if it ever stops being true every line number here becomes a lie.
 
 import type { Diagnostic } from "./api";
+import { t } from "./i18n";
 
 export interface Shown {
   /** The diagnostic, unchanged. */
@@ -27,8 +43,17 @@ export interface Shown {
   line: number | null;
   /** 1-based column, or null. */
   column: number | null;
-  /** The one line the status bar shows. */
+  /** The one line a compact notice shows: location and a shortened message. */
   said: string;
+  /**
+   * The whole message, for the problems region.
+   *
+   * `said` is what identifies a diagnostic for dismissal and what fits in a
+   * strip; this is what the writer has to read to fix the document, so it is not
+   * shortened. Whitespace is collapsed, because a compiler wraps its own
+   * messages at eighty columns and those newlines are not the writer's.
+   */
+  detail: string;
 }
 
 /**
@@ -57,8 +82,13 @@ export function lineInDocument(engineLine: number | null | undefined, offset: nu
 export const MAX_MESSAGE_CHARS = 200;
 
 export function shorten(msg: string, max = MAX_MESSAGE_CHARS): string {
-  const oneLine = msg.replace(/\s+/g, " ").trim();
+  const oneLine = onOneLine(msg);
   return oneLine.length > max ? oneLine.slice(0, max - 1) + "…" : oneLine;
+}
+
+/** A compiler message as one line: its own wrapping is not the writer's. */
+export function onOneLine(msg: string): string {
+  return msg.replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -79,7 +109,7 @@ export function show(d: Diagnostic, offset: number): Shown {
   // The chapter's name in front of the line number, because in a twelve-chapter
   // sefer "line 12" is not a location.
   const where = !at && !fromPart ? "" : `${d.file ? `${d.file} · ` : ""}${at}${at ? " · " : ""}`;
-  return { d, line, column, said: where + shorten(d.message) };
+  return { d, line, column, said: where + shorten(d.message), detail: where + onOneLine(d.message) };
 }
 
 export function shown(diags: Diagnostic[], offset: number): Shown[] {
@@ -219,11 +249,18 @@ export function forgetDismissed(): void {
 }
 
 /**
- * Draw the diagnostics into the status bar, and mark their lines.
+ * Draw the diagnostics into the problems region (`#diagnostics`), and mark
+ * their lines.
  *
- * Each one is a button rather than text: it names a line, so it should go there.
- * The raw compiler string is on `title` — kept for the bug report, never the
+ * Each one is a row that names a line, so it should go there. The message shown
+ * is the whole thing (`detail`), not the strip form (`said`) — the strip was
+ * the bug, and a sentence that only survives two thirds is how #124 arrived.
+ * The raw compiler string stays on `title`, for the bug report, never as the
  * message.
+ *
+ * The region is emptied here when there is nothing to show; its CSS hides an
+ * empty region (`:empty`), so a cleared pane and a never-populated one are the
+ * same thing and there is no separate "shown" flag to drift.
  */
 export function drawDiagnostics(into: HTMLElement, list: Shown[]) {
   into.replaceChildren();
@@ -240,13 +277,19 @@ export function drawDiagnostics(into: HTMLElement, list: Shown[]) {
   // document still looks wrong with no way to ask why.
   markLines(markedLines(shown));
   if (!shown.length) return;
+
   if (shown.some(canDismiss)) {
+    const row = document.createElement("div");
+    row.className = "problem problem-dismiss";
     const close = document.createElement("button");
     close.type = "button";
     close.className = "diag-dismiss";
     close.textContent = "×";
-    close.setAttribute("aria-label", "dismiss");
-    close.title = "dismiss";
+    // Named and translated like every other control (#178). A bare "×" would
+    // announce itself as nothing; this says which of the two acts it is.
+    close.setAttribute("aria-label", t("dismiss"));
+    close.setAttribute("data-i18n-label", "dismiss");
+    close.title = t("dismiss");
     close.addEventListener("click", () => {
       // Only what it is entitled to silence. With an error and a warning both
       // up, the × takes the warning and leaves the error standing, rather than
@@ -254,27 +297,33 @@ export function drawDiagnostics(into: HTMLElement, list: Shown[]) {
       for (const s of shown) if (canDismiss(s)) dismissed.add(keyOf(s));
       drawDiagnostics(into, list);
     });
-    into.append(close);
+    row.append(close);
+    into.append(row);
   }
+
   for (const s of shown) {
+    const row = document.createElement("div");
+    row.className = "problem";
+    row.dataset.severity = s.d.severity;
     if (s.line == null) {
       const span = document.createElement("span");
       span.className = "diag";
-      span.textContent = s.said;
+      span.textContent = s.detail;
       if (s.d.raw) span.title = s.d.raw;
-      into.append(span);
-      continue;
+      row.append(span);
+    } else {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "diag diag-go";
+      button.textContent = s.detail;
+      if (s.d.raw) button.title = s.d.raw;
+      const { line, column } = s;
+      const file = s.d.file;
+      button.addEventListener("click", () =>
+        file ? goToPart(file, line, column) : goToLine(line, column),
+      );
+      row.append(button);
     }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "diag diag-go";
-    button.textContent = s.said;
-    if (s.d.raw) button.title = s.d.raw;
-    const { line, column } = s;
-    const file = s.d.file;
-    button.addEventListener("click", () =>
-      file ? goToPart(file, line, column) : goToLine(line, column),
-    );
-    into.append(button);
+    into.append(row);
   }
 }

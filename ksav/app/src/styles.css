@@ -610,22 +610,38 @@ body.dragging-pane * { cursor: grabbing !important; }
 }
 #status.ok { color: var(--ok); }
 #status.err { color: var(--danger); }
-#diagnostics {
-  color: var(--danger); font-family: var(--mono); font-size: 12px;
-  flex: 1; display: flex; gap: 14px; overflow: hidden; align-items: center;
+#status { flex: 1; }
+
+/* ---- problems (#124) ---- */
+/* A diagnostic is a sentence, and a sentence needs lines. This was one line in
+   the status bar with `overflow: hidden`: 1,215px of compiler message in a 957px
+   slot, which is the writer's first two thirds of the reason their sefer will not
+   compile. It is its own region now, above the status bar and *in the layout* —
+   it takes the space it needs and the panes get the rest, so no pane can be drawn
+   over it. An overlay would be the other repair, and it is the worse one: the
+   thing that cannot be covered is the thing that is not overlapped. */
+.diagnostics {
+  flex: none; max-height: 30vh; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; gap: 4px; padding: 6px 14px;
+  background: var(--panel); border-top: 1px solid var(--line);
+  color: var(--danger); font-family: var(--mono); font-size: 12px; line-height: 1.45;
 }
-/* A diagnostic that names a line is a button, because it can go there. */
-.diag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diagnostics:empty { display: none; }
+.problem { display: flex; gap: 8px; align-items: start; min-width: 0; }
+.problem-dismiss { justify-content: flex-end; }
+/* Wrapped, not clipped: the whole message is the point, and #124 was the clip. */
+.diag { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
 .diag-go {
   background: transparent; border: 0; padding: 0; font: inherit; color: inherit;
   cursor: pointer; text-align: start; text-decoration: underline dotted;
 }
 .diag-go:hover { text-decoration-style: solid; }
+/* An error is the danger colour; a warning is the same story told quieter. */
+.problem[data-severity="warning"] { color: color-mix(in srgb, var(--danger) 55%, var(--muted)); }
 /* Wave the whole set away; it comes back only if the errors change. */
 .diag-dismiss {
-  flex: none; order: -1; background: transparent; border: 0; padding: 0 4px;
-  font: inherit; font-size: 15px; line-height: 1; color: var(--muted);
-  cursor: pointer;
+  background: transparent; border: 0; padding: 0 4px; font: inherit; font-size: 15px;
+  line-height: 1; color: var(--muted); cursor: pointer;
 }
 .diag-dismiss:hover { color: var(--danger); }
 /* The line the compiler is complaining about. A tint rather than a squiggle:

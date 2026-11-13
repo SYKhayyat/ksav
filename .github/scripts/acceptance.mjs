@@ -2535,6 +2535,141 @@ async function main() {
     );
   }
 
+  // ------------------------------------------------------------------------
+  step(19, "a compile error is readable in full, and cannot be covered");
+  {
+    const mark = since();
+    // The problems region: a diagnostic is a sentence, and a sentence gets its
+    // own space (UAT 11 / #124). It used to sit in the 32px status bar with
+    // `overflow: hidden`, so a message arrived cut in half at exactly the moment
+    // the writer needed it. It is now a region above the status bar and *in the
+    // layout* — it takes the space it needs and the panes get the rest — which
+    // is the only arrangement in which "cannot be covered by the preview" is true
+    // by construction rather than by stacking order.
+    await clickVisible("the editor", ".cm-content");
+    await press("Control+End");
+    await press("Enter");
+    await type("#לא_קיים[א]");
+    await page.waitForSelector("#diagnostics .diag", { timeout: 20_000 });
+    await settled(await compiles().catch(() => 0)).catch(() => {});
+
+    const width = await page.evaluate(() => {
+      const region = document.getElementById("diagnostics");
+      const bars = [...region.querySelectorAll(".diag")];
+      return {
+        // Clipped horizontally, on the old strip, was the whole bug: 1,215px of
+        // compiler message in a 957px slot. Wrapping means nothing clips.
+        clipped: bars.some((b) => b.scrollWidth > b.clientWidth + 1),
+        truncated: region.textContent.includes("…"),
+        chars: region.textContent.length,
+      };
+    });
+    check("a compile error's message is shown in full", !width.clipped && !width.truncated, `${width.chars} chars, no ellipsis`);
+    check(
+      "…and it is the message itself, not a title the cursor reveals",
+      width.chars > 60,
+      `${width.chars} chars`,
+    );
+
+    const geo = await page.evaluate(() => {
+      const el = document.getElementById("diagnostics");
+      const region = el.getBoundingClientRect();
+      const panes = [...document.querySelectorAll("main .pane")].map((p) => p.getBoundingClientRect());
+      const at = document.elementFromPoint(region.left + region.width / 2, region.top + region.height / 2);
+      return {
+        overlapsPane: panes.some((p) => p.bottom > region.top + 1 && p.top < region.bottom - 1),
+        covered: !(at === el || el.contains(at)),
+        h: Math.round(region.height),
+      };
+    });
+    check("the region takes its own space and no pane is drawn over it", !geo.overlapsPane, `region ${geo.h}px`);
+    check("…and nothing obscures the message", !geo.covered, "");
+    // And it is its own surface, not a visitor in the strip. The status bar is
+    // chrome for one-word facts — "ready", "3 pages" — and a message that grows
+    // it from 32px to 86px is the same defect one step along: chrome whose height
+    // is set by a compiler. Verified red by putting the region back in the bar:
+    // the bar measured 86px and the first of these two failed.
+    const where = await page.evaluate(() => {
+      const el = document.getElementById("diagnostics");
+      return {
+        inBar: el.closest(".statusbar") !== null,
+        barH: Math.round(document.querySelector(".statusbar").getBoundingClientRect().height),
+      };
+    });
+    check("the problems region is not inside the status bar", !where.inBar, where.inBar ? "it is the bar's child" : "");
+    check("…so the bar keeps its one line of chrome", where.barH < 45, `bar is ${where.barH}px`);
+
+    // Clicking it should go there *without* hiding the message first: the writer
+    // needs to read the reason after the navigation, not before it.
+    //
+    // Moving away first, because the caret is already on the error line — the
+    // error was just typed — and a "navigation" that moves nothing is
+    // indistinguishable from a button that does nothing.
+    const reported = Number(/שורה (\d+)/.exec((await page.textContent("#diagnostics .diag")) ?? "")?.[1] ?? 0);
+    check("the diagnostic names a line to go to", reported > 1, `line ${reported}`);
+    const caretLine = () =>
+      page.evaluate(() => {
+        const sel = window.getSelection();
+        if (!sel?.anchorNode) return null;
+        const node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+        const line = node?.closest?.(".cm-line");
+        const lines = [...document.querySelectorAll(".cm-line")];
+        return line ? lines.indexOf(line) + 1 : null;
+      });
+    await clickVisible("the editor", ".cm-content");
+    await press("Control+Home");
+    const atTop = await caretLine();
+    await clickVisible("the diagnostic", "#diagnostics .diag");
+    const after = await page.evaluate(() => ({
+      still: document.querySelectorAll("#diagnostics .problem").length,
+    }));
+    const landed = await caretLine();
+    check(
+      "clicking the diagnostic goes to the line it names",
+      landed === reported && atTop !== reported,
+      `caret line ${landed}, reported ${reported}, was ${atTop}`,
+    );
+    check(
+      "…and the message is still there to read afterwards",
+      after.still >= 1,
+      `${after.still} problem(s) still shown`,
+    );
+
+    // Small windows: the region is bounded (it scrolls) but every line still
+    // wraps rather than being cut off.
+    await page.setViewportSize({ width: 760, height: 500 });
+    const small = await page.evaluate(() => {
+      const region = document.getElementById("diagnostics");
+      const unclipped = [...region.querySelectorAll(".diag")].every(
+        (b) => b.scrollWidth <= b.clientWidth + 1,
+      );
+      return { unclipped, h: Math.round(region.getBoundingClientRect().height) };
+    });
+    check("a small window keeps the message readable (it scrolls, not clips)", small.unclipped, `h=${small.h}`);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // Fix the error: the region empties and the panes get their space back.
+    //
+    // The whole document, not four word-deletions: this step typed an error into
+    // a document it did not create, and guessing how many Backspaces undo a
+    // command name is the kind of cleanup that leaves the next run a different
+    // document. Empty is a state the application has opinions about, and step 9
+    // already holds them.
+    await clickVisible("the editor", ".cm-content");
+    await press("Control+a");
+    await press("Delete");
+    await settled(await compiles().catch(() => 0)).catch(() => {});
+    await page.waitForFunction(
+      () => document.getElementById("diagnostics").children.length === 0,
+      { timeout: 20_000 },
+    );
+    const emptyH = await page.evaluate(
+      () => document.getElementById("diagnostics").getBoundingClientRect().height,
+    );
+    check("fixing the error clears the region and returns the space", emptyH < 2, `${emptyH}px`);
+    check("…and none of it raised anything on the console", newProblems(mark).length === 0, newProblems(mark).join(" | "));
+  }
+
   // ----------------------------------------------------------------- the tally
 
   if (failures.length && (HEADED || KEEP)) {

@@ -1159,6 +1159,9 @@ export const HE: Dict = {
   deferSortAction: "סידור הגופים לפי סדר הטקסט",
   // status
   ready: "מוכן",
+  // The problems region: a diagnostic is a sentence and gets a line of its own.
+  problems: "בעיות",
+  dismiss: "התעלמות מזה",
   rendering: "מרנדר…",
   pages: "עמ׳",
   compileError: "שגיאת קומפילציה",

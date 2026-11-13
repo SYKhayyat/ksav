@@ -1115,6 +1115,9 @@ export const EN: Dict = {
   deferRecalledCount: "Brought {0} note(s) back into the text.",
   deferSortAction: "Sort the bodies into the order of the text",
   ready: "Ready",
+  // The problems region: a diagnostic is a sentence and gets a line of its own.
+  problems: "Problems",
+  dismiss: "Dismiss this one",
   rendering: "Rendering…",
   pages: "pp.",
   compileError: "Compilation error",

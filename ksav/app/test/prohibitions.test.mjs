@@ -693,6 +693,44 @@ const RULES = [
     allow: [],
   },
   {
+    // #170, and the class: **a setting is not a property of the pane you are
+    // standing in.**
+    //
+    // UAT 6 closed with *"it looks like typewriter mode is on even when
+    // unchecked"*, and there was no bug in the code anybody read: the extension
+    // was rebuilt on the toggle and the CSS is scoped to `[data-typewriter]`, so
+    // the look could not outlive the flag **in the pane it was toggled in**. It
+    // could outlive it in the pane beside it. Seven settings — theme, prose,
+    // direction, focus, typewriter, autocomplete, bracket pairing, whitespace —
+    // were reconfigured on `runtime.view`, the view that had focus, so a split
+    // window kept the old answer in the half nobody was standing in. Reproduced
+    // by driving it: on in pane 1, click pane 2, uncheck, and pane 1 goes on
+    // holding its line at half-height with 50vh of padding above and below it
+    // while the checkbox says off.
+    //
+    // The editing mode had already been fixed this way — a pane without vim
+    // *types* the commands into the sefer — and it has an acceptance step to
+    // itself. This is the same rule for every compartment a setting reaches:
+    // through `toEveryPane`, never `runtime.view.dispatch`.
+    what: "a setting reaches every source pane, not the one that had focus (issue 170)",
+    where: /^ksav\/app\/src\/.*\.ts$/u,
+    probe: (body) => {
+      const out = [];
+      const call = /runtime\.view\.dispatch\s*\(/gu;
+      let m;
+      while ((m = call.exec(body)) !== null) {
+        // The effects argument, near enough: a compartment reconfigure names its
+        // compartment within the first couple of lines of the call.
+        const near = body.slice(m.index, m.index + 400);
+        if (/Compartment\.reconfigure/u.test(near)) {
+          out.push(`line ${body.slice(0, m.index).split("\n").length}: runtime.view.dispatch with a compartment reconfigure`);
+        }
+      }
+      return out.join("\n");
+    },
+    allow: [],
+  },
+  {
     // #178, and the class: **a placeholder is not a name.**
     //
     // The issue named six controls with no accessible name; measured in the

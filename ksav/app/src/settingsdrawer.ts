@@ -101,6 +101,7 @@ function numberRow(labelKey: string, key: Field, min: number, max: number, step:
     min,
     max,
     step,
+    "data-setting": key,
     // The live value, which for page setup is the open document's (B26).
     value: String(settingsWiring().live(key)),
     onChange: (e: Event) => settingsWiring().write(key, Number((e.target as HTMLInputElement).value) as never),
@@ -123,6 +124,7 @@ function optNumberRow(labelKey: string, key: Field, min: number, max: number, st
     min,
     max,
     step,
+    "data-setting": key,
     placeholder: t("perEdgeHint"),
     // The row's caption, on the box itself: an optional margin's name is what
     // makes the empty state readable — "empty" means *follow the one margin*, and
@@ -417,6 +419,7 @@ function listRow(labelKey: string, key: Field) {
   const live = settingsWiring().live(key);
   const input = el("input", {
     type: "text",
+    "data-setting": key,
     value: Array.isArray(live) ? live.join(", ") : "",
     onChange: (e: Event) => {
       const parts = (e.target as HTMLInputElement).value
@@ -432,6 +435,11 @@ function listRow(labelKey: string, key: Field) {
 function checkRow(labelKey: string, key: Field) {
   const input = el("input", {
     type: "checkbox",
+    // The stable name the selects in this drawer already carry, for the same
+    // reason `selectRow` states: a row found by its localised label is a row that
+    // is found in one language and not in the other. `acceptance.mjs` drives the
+    // typewriter switch through this (#170).
+    "data-setting": key,
     ...(settingsWiring().live(key) ? { checked: "checked" } : {}),
     onChange: (e: Event) => settingsWiring().write(key, (e.target as HTMLInputElement).checked as never),
   });
@@ -441,6 +449,7 @@ function textRow(labelKey: string, key: Field, placeholder = "") {
   const input = el("input", {
     type: "text",
     placeholder,
+    "data-setting": key,
     // `now`, not `settings`: header and footer are page setup and belong to the
     // open document (B26), so reading the app preference here showed one value
     // in the box and typeset another on the page.
@@ -456,6 +465,7 @@ function textAreaRow(labelKey: string, key: keyof Settings, placeholder = "") {
       class: "set-textarea",
       rows: 4,
       placeholder,
+      "data-setting": key,
       // A `<label>` cannot own a control it is not wrapping, and this row is a
       // block rather than the inline rows above — so the caption is bound by
       // name instead of by containment (#178). Before this the settings drawer's

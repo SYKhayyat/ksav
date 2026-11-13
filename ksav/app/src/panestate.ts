@@ -22,7 +22,7 @@ import { settings, saveSettings } from "./settings";
 import { preambleOffset, scheduleCompile } from "./compile";
 import { docTextOf } from "./spans";
 import type { LineWindow } from "./preview";
-import { EditorState } from "@codemirror/state";
+import { EditorState, type StateEffect } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 
 /** The pane roles, named for a list rather than for a strip — the one table,
@@ -207,6 +207,27 @@ export function sourceViews(): EditorView[] {
     if (v) out.push(v);
   }
   return out;
+}
+
+/**
+ * Dispatch to **every** source pane, not to the one that happens to have focus.
+ *
+ * A setting is not a property of a pane. `focusMode`, `typewriter`, `theme`,
+ * `prose`, `dir`, `autocomplete`, `autoPairBrackets` and `showWhitespace` are
+ * each one answer for the whole application, and every one of them was written
+ * to `runtime.view` — so in a split, the pane the writer was standing in changed
+ * and the one beside it did not. Reproduced for #170 the way the report
+ * described it: turn typewriter scrolling on in one pane, click into the second,
+ * uncheck it, and the first pane goes on holding its line in the middle of the
+ * window with 50vh of padding above and below while the checkbox says off. The
+ * *look lingers* because the state does.
+ *
+ * The editing-mode branch had already been fixed this way (and has an acceptance
+ * step to itself); this is the same fix for the settings that reach a
+ * compartment, gathered in one function so the next one has somewhere to go.
+ */
+export function toEveryPane(effects: StateEffect<unknown> | readonly StateEffect<unknown>[]): void {
+  for (const v of sourceViews()) v.dispatch({ effects });
 }
 
 /**

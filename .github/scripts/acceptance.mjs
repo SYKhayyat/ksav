@@ -2452,6 +2452,89 @@ async function main() {
     );
   }
 
+  // ------------------------------- 18. a setting holds every pane, not one of them
+
+  // UAT 6's clause, at the end of the report: *"it looks like typewriter mode is
+  // on even when unchecked"*. No bug could be found by reading, because the
+  // reading was fine in one pane: `focusExtension` is rebuilt on the toggle and
+  // the CSS is scoped to `[data-typewriter]`, so the look cannot outlive the flag
+  // in the statics. What it could outlive is a **pane**.
+  //
+  // Every setting that reaches a compartment was written to `runtime.view` — the
+  // pane that had focus — so in a split the pane the writer was standing in
+  // changed and the one beside it did not. The way to see it is the way the
+  // report describes: turn it on in one pane, click into the other, uncheck it,
+  // and watch the first pane go on holding its line in the middle of the window
+  // with half a viewport of padding above and below it.
+  //
+  // Step 15 already drives the same class for the editing mode ("a pane with no
+  // vim in it does not decline to move the cursor — it writes the commands into
+  // the sefer"). This is the settings half, and it is one step because it is one
+  // mistake: the fix is `toEveryPane`, and the flag it is measured on is the one
+  // the report named.
+  step(18, "a setting holds every pane, not the one that had focus");
+  {
+    const mark = since();
+    check(
+      "there are two source panes to disagree with each other",
+      (await page.locator(".source-pane").count()) >= 2,
+      `${await page.locator(".source-pane").count()} source pane(s)`,
+    );
+
+    // What a pane looks like: the flag, and the room it is holding. Both, because
+    // the flag is the state and the padding is the look the writer reported, and
+    // a check on either one alone would have passed on the bug.
+    const panes = () =>
+      page.$$eval(".source-pane .cm-content", (els) =>
+        els.map((e) => ({
+          on: e.getAttribute("data-typewriter") === "true",
+          pad: parseFloat(getComputedStyle(e).paddingTop) || 0,
+        })),
+      );
+    const setting = async (on) => {
+      await clickVisible("the settings chip", '[data-chip="settings"]');
+      const box = page.locator('[data-setting="typewriter"]');
+      await box.waitFor({ state: "attached", timeout: 10_000 });
+      if ((await box.isChecked()) !== on) await box.click();
+      await press("Escape");
+    };
+
+    await clickVisible("the first pane", ".source-pane >> nth=0 >> .cm-content");
+    await setting(true);
+    const afterOn = await panes();
+    check(
+      "turning typewriter scrolling on pads the pane it was turned on in",
+      afterOn[0].on && afterOn[0].pad > 100,
+      `pane 0: flag ${afterOn[0].on}, padding ${afterOn[0].pad}px`,
+    );
+    check(
+      "…and the pane beside it, which is what the fix is about",
+      afterOn.every((p) => p.on),
+      afterOn.map((p, i) => `pane ${i}: ${p.on}`).join(", "),
+    );
+
+    // The sequence from the report: stand in the *other* pane and turn it off
+    // there. Before the fix this left pane 0 padded with the switch reading off.
+    await clickVisible("the second pane", ".source-pane >> nth=1 >> .cm-content");
+    await setting(false);
+    const afterOff = await panes();
+    check(
+      "unchecking it in the second pane clears the first one too",
+      afterOff.every((p) => !p.on),
+      afterOff.map((p, i) => `pane ${i} still says ${p.on}`).join(", "),
+    );
+    check(
+      "…and the room it was holding goes with it",
+      afterOff.every((p) => p.pad < 40),
+      afterOff.map((p, i) => `pane ${i} holds ${p.pad}px`).join(", "),
+    );
+    check(
+      "…and none of it raised anything on the console",
+      newProblems(mark).length === 0,
+      newProblems(mark).join(" | "),
+    );
+  }
+
   // ----------------------------------------------------------------- the tally
 
   if (failures.length && (HEADED || KEEP)) {

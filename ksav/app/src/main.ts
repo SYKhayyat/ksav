@@ -181,6 +181,7 @@ import {
   setFocusedPane,
   paneTree,
   sourceViews,
+  toEveryPane,
   wirePanes,
 } from "./panestate";
 import { renderPanes, refreshPaneHeads, cyclePaneZoom, gotoPart } from "./panehost";
@@ -2175,7 +2176,7 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     for (const [v, at] of wasAt) v.scrollDOM.scrollTop = at;
   } else if (key === "theme") {
     applyTheme();
-    runtime.view.dispatch({ effects: themeCompartment.reconfigure(editorTheme(settings.theme === "dark")) });
+    toEveryPane(themeCompartment.reconfigure(editorTheme(settings.theme === "dark")));
     // …and the chip that reports the theme, which is the one thing this branch
     // did not do. Found by pressing it: the page went dark, the editor went
     // dark, and the chip went on saying 🌙 — "switch to dark" — for as long as
@@ -2184,10 +2185,10 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     // odd one out, and it is the toggle a writer presses first.
     rerenderChrome();
   } else if (key === "prose") {
-    runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw()) });
+    toEveryPane(proseCompartment.reconfigure(proseOrRaw()));
     rerenderChrome();
   } else if (key === "dir") {
-    runtime.view.dispatch({ effects: dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })) });
+    toEveryPane(dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })));
     // The preview pane reads in the document's direction, so flipping the
     // document has to re-point the pane in the same act.
     applyPreview();
@@ -2200,15 +2201,15 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     // Caught by driving it: the settings list never showed a single `M-x` row.
     action("save_file", () => setEditingMode(value)).then(rerenderChrome);
   } else if (key === "focusMode" || key === "typewriter" || key === "typewriterAnchor") {
-    runtime.view.dispatch({
-      effects: focusCompartment.reconfigure(
+    toEveryPane(
+      focusCompartment.reconfigure(
         focusExtension(
           !!settings.focusMode,
           !!settings.typewriter,
           settings.typewriterAnchor ?? "center",
         ),
       ),
-    });
+    );
   } else if (key === "zoom" || key === "fitWidth") {
     applyPreview();
   } else if (key === "sourceZoom") {
@@ -2224,7 +2225,7 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     // went on describing the state before. Found by pressing it.
     if (isPanelOpen("settings-drawer")) rerenderChrome();
   } else if (key === "autocomplete") {
-    runtime.view.dispatch({ effects: autoCompartment.reconfigure(autoExtension()) });
+    toEveryPane(autoCompartment.reconfigure(autoExtension()));
   } else if (key === "spellcheck") {
     // Turning it off must take the existing squiggles with it, not just stop
     // adding new ones.
@@ -2237,7 +2238,7 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
     clearSpellCheck();
     forceFullSpellCheck();
   } else if (key === "autoPairBrackets" || key === "autoPairQuotes") {
-    runtime.view.dispatch({ effects: pairCompartment.reconfigure(pairExtension()) });
+    toEveryPane(pairCompartment.reconfigure(pairExtension()));
   } else if (key === "minimap") {
     // The strip is a **surface**, so the setting is a request to open or close it
     // rather than something reconfigured in place. Two directions because a setting
@@ -2248,9 +2249,7 @@ function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
   } else if (key === "showWhitespace") {
     // `[]` rather than the plugin emptied: reconfigure **is** the toggle, so there
     // is no state to clear and nothing to leave behind.
-    runtime.view.dispatch({
-      effects: whitespaceCompartment.reconfigure(whitespaceExtension()),
-    });
+    toEveryPane(whitespaceCompartment.reconfigure(whitespaceExtension()));
   } else {
     scheduleCompile();
   }

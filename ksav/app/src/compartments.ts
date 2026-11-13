@@ -21,7 +21,7 @@ import * as runtime from "./runtime";
 import { rerenderChrome } from "./runtime";
 import { settings, docConfig, saveSettings } from "./settings";
 import { voidAction } from "./asyncaction";
-import { sourceViews } from "./panestate";
+import { sourceViews, toEveryPane } from "./panestate";
 import * as keymodes from "./keymodes";
 import { focusCompartment, focusExtension } from "./focus";
 import { keybindings } from "./keyhint";
@@ -324,7 +324,9 @@ export function setProseHere(prose: boolean) {
   // for every document they open.
   settings.prose = prose;
   saveSettings();
-  runtime.view.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw(prose)) });
+  // Every pane, for the reason `toEveryPane` gives: this is the document's own
+  // answer and a split shows one document twice (#170).
+  toEveryPane(proseCompartment.reconfigure(proseOrRaw(prose)));
   rerenderChrome();
 }
 

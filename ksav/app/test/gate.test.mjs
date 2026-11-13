@@ -36,7 +36,20 @@
 import { check, ok } from "./harness.mjs";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { CHECKS, GROUPS, TREES, NAMES, GATE_VERBS, KSAV, select, summarise } from "../../tools/gate.mjs";
+import {
+  CHECKS,
+  GROUPS,
+  TREES,
+  NAMES,
+  GATE_VERBS,
+  KSAV,
+  NEED_FIELD,
+  howToRun,
+  missingNeed,
+  select,
+  summarise,
+  verdict,
+} from "../../tools/gate.mjs";
 import { ROOT, livingPages } from "./docfacts.mjs";
 
 /** The workflow the *forward* sweep is about: the one that runs on every push. */
@@ -287,6 +300,74 @@ export async function run() {
     ok("a red run does not call itself green", !red.includes("the gate is green"));
   }
 
+  // ------------------------------------- a check this shell cannot build (#181)
+  //
+  // Four checks of the `shell` group went red on a desk where nothing was wrong
+  // with the tree: WebKitGTK is in `desktopPkgs` in `flake.nix`, which is the
+  // **`desktop`** shell, and the gate was run in the default one. What the reader
+  // got was sixty lines of `pkg-config` transcript and no sentence saying so.
+  //
+  // The rule is that a missing system library is a fact about the machine and
+  // not a verdict about the code, so it has its own mark (`–`), its own
+  // sentence, and its own exit semantics — a failure only when the run asks for
+  // it (`--require`, which every workflow invocation now passes).
+  {
+    const shell = CHECKS.filter((c) => c.group === "shell");
+    ok("the shell group is where this matters", shell.length >= 3, `${shell.length} checks`);
+    const weak = shell.filter((c) => c.command[0] === "cargo" && c.command[1] !== "fmt" && !c.needs);
+    check(
+      "every shell check that builds something says what it needs",
+      weak.map((c) => c.id),
+      [],
+    );
+    check(
+      "…and the field it says it in is the one exported for the sweep",
+      shell.filter((c) => c.needs).map((c) => c.needs.pkg).filter((p, i, all) => all.indexOf(p) === i),
+      ["gdk-3.0"],
+      NEED_FIELD,
+    );
+
+    const lints = CHECKS.find((c) => c.id === "shell-clippy");
+    ok("a library that is here is not a reason to skip", missingNeed(lints, () => true) === null);
+    const gone = missingNeed(lints, () => false);
+    ok("…and one that is not is", !!gone && gone.pkg === "gdk-3.0");
+    ok("…and it knows which shell has it", gone.shell === "desktop");
+    ok("a check with no needs is never skipped", missingNeed(CHECKS[0], () => false) === null);
+    ok(
+      "the way to measure it names the desktop shell and a gate group",
+      howToRun(lints).includes("nix develop .#desktop") && howToRun(lints).includes("tools/gate.mjs shell"),
+      howToRun(lints),
+    );
+    ok(
+      "…and the command it replaces, when nothing is missing",
+      howToRun(CHECKS[0]) === `cd ksav/${CHECKS[0].cwd} && ${CHECKS[0].command.join(" ")}`,
+      howToRun(CHECKS[0]),
+    );
+
+    // The summary, with one of the three in it: the mark, the sentence, the way
+    // out — and no claim that the gate is green, and no claim that anything
+    // failed either.
+    const results = CHECKS.map((check) =>
+      check === lints
+        ? { check, secs: 0, ok: true, shown: check.command.join(" "), unmeasured: check.needs }
+        : { check, ok: true, secs: 0.1, shown: check.command.join(" ") },
+    );
+    const said = summarise(results, [], []).join("\n");
+    ok("a check that could not run is marked and not ticked", said.includes("– desktop shell lints"), said);
+    ok("…and says what is missing", said.includes("gdk-3.0"), said);
+    ok("…and does not call the run green", !said.includes("the gate is green"), said);
+    ok("…and does not call it a failure", !said.includes("failed. To reproduce"), said);
+
+    // The exit code, which is the part that decides whether a push is stopped.
+    const pass = [{ check: CHECKS[0], ok: true, secs: 0, shown: "" }];
+    const skip = [{ check: lints, ok: true, secs: 0, shown: "", unmeasured: lints.needs }];
+    const broke = [{ check: CHECKS[0], ok: false, secs: 0, shown: "" }];
+    check("a clean run passes", verdict(pass, true), 0);
+    check("a desk without the library passes", verdict(skip, false), 0);
+    check("…and fails when the run requires it", verdict(skip, true), 1);
+    check("a real failure fails either way", [verdict(broke, false), verdict(broke, true)], [1, 1]);
+  }
+
   // ------------------------------------------------------- forward: CI runs them
 
   const workflowPath = path.join(ROOT, WORKFLOW);
@@ -298,6 +379,7 @@ export async function run() {
   // with no group runs everything, so it covers all of them.
   const invoked = new Set();
   let invocations = 0;
+  const unrequired = [];
   for (const [, line] of wLines) {
     if (!line.includes(RUNNER)) continue;
     invocations += 1;
@@ -305,7 +387,13 @@ export async function run() {
     const named = after.split(/\s+/).filter((w) => w && !w.startsWith("-"));
     if (!named.length) for (const g of NAMES) invoked.add(g);
     for (const w of named) invoked.add(w);
+    // A runner cannot answer "is this machine able to build the shell?" honestly
+    // by guessing, and a check it could not measure is a check it did not run. On
+    // CI that is a broken image, not a desk with the wrong shell open, so every
+    // invocation there requires what it selects (#181).
+    if (!after.split(/\s+/).includes("--require")) unrequired.push(line.trim());
   }
+  check("every invocation on a runner requires what it runs", unrequired, []);
 
   ok("the workflow calls the runner", invocations > 0);
 

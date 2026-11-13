@@ -160,7 +160,7 @@ jobs:
       # bundle assembled afterwards from the same tree.
       - name: Check the editor
         working-directory: ./ksav
-        run: node tools/gate.mjs editor
+        run: node tools/gate.mjs editor --require
 
       # Pages has no rewrite rules, so a reload on any path that is not a real
       # file 404s. Ksav puts the whole document in the fragment and never routes

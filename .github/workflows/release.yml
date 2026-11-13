@@ -73,7 +73,7 @@ jobs:
       # is written down. See the header of `ci.yml`.
       - name: Check the editor
         working-directory: ./ksav
-        run: node tools/gate.mjs editor
+        run: node tools/gate.mjs editor --require
       # `engine` names a tree, so it selects the engine's formatting check as
       # well as its lints and tests. Both components declared rather than
       # inherited from whatever the runner image happens to carry.
@@ -97,7 +97,7 @@ jobs:
         env:
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_BENCH_LTO: "false"
-        run: node tools/gate.mjs engine --release
+        run: node tools/gate.mjs engine --release --require
 
   build:
     needs: check
@@ -173,7 +173,7 @@ jobs:
       # editor code is broken.
       - name: Check the editor
         working-directory: ./ksav
-        run: node tools/gate.mjs editor
+        run: node tools/gate.mjs editor --require
 
       # Same setting, same reason as the job above and as `ci.yml`. Note that it
       # reaches only this check: `tauri-action` below builds `app/src-tauri`,
@@ -186,7 +186,7 @@ jobs:
         env:
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_BENCH_LTO: "false"
-        run: node tools/gate.mjs engine --release
+        run: node tools/gate.mjs engine --release --require
 
       - uses: tauri-apps/tauri-action@v1
         env:

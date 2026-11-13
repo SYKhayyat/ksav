@@ -745,7 +745,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all nine jobs: the typechecker and 13,426 editor assertions across 141 files,
+      all nine jobs: the typechecker and 13,445 editor assertions across 141 files,
       1178 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS, a build-and-run check of the browser (wasm) engine, the assembled
       application in a real browser, the Emacs package against a live engine on
@@ -824,7 +824,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, then 13,426 assertions across 141 files |
+| `editor` | both | the typechecker, then 13,445 assertions across 141 files |
 | `engine` | both | formatting, lints, then 1178 tests across 81 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
@@ -837,6 +837,19 @@ with kind as the only axis, `fmt` and `engine` are siblings, and asking for
 **A partial run says so.** Selecting a name is normal — CI does it in five jobs —
 but the run ends by naming every check it did not run, because "the gate is green
 — 2 checks" is a two-of-nine answer wearing a nine-of-nine sentence.
+
+**A check that cannot run here is not a failure here.** The `shell` group links
+WebKitGTK, which lives in the `desktop` dev shell and nowhere else, so in the
+default shell those three checks report **not measured here** and print the
+command that would measure them:
+
+```sh
+nix develop .#desktop --command bash -c "cd ksav && node tools/gate.mjs shell"
+```
+
+`--require` turns those into failures, and CI passes it: a runner with no
+WebKitGTK is a broken runner, while a desk where the same commit is green under
+`.#desktop` is not (#181).
 
 **One command, deliberately.** `tools/gate.mjs` is the one place a check command
 is written; the workflow selects by name rather than spelling the steps out a

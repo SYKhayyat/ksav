@@ -4,6 +4,11 @@
 //   node tools/gate.mjs engine          every check about the engine crate
 //   node tools/gate.mjs fmt             every formatting check, all three trees
 //   node tools/gate.mjs engine --release  as `ci.yml` runs it
+//   node tools/gate.mjs --require       a check this shell cannot build is a failure
+//
+// A check that needs a system library this shell does not have is reported as
+// **not measured here**, with the shell that has it, rather than as a failure
+// (#181). `--require` turns those into failures, and CI passes it.
 //
 // A name is a group (`fmt`, `editor`, `engine`, `shell`) or a tree (`engine`,
 // `wasm`, `shell`, `editor`), and a partial run always ends by naming the
@@ -181,6 +186,10 @@ export const CHECKS = [
     tree: "shell",
     name: "desktop shell lints",
     cwd: "app/src-tauri",
+    // Asked before it runs rather than discovered in a pkg-config transcript
+    // (#181). The shell links WebKitGTK, which only the `desktop` dev shell
+    // carries — see NEED_FIELD below.
+    needs: { pkg: "gdk-3.0", shell: "desktop" },
     // `dpr-probe` so the render check's command is linted somewhere. A check
     // that is compiled only by the check that runs it is a check whose code can
     // rot unobserved, and the next person to run it gets a clippy error on code
@@ -197,6 +206,7 @@ export const CHECKS = [
     tree: "shell",
     name: "desktop shell tests",
     cwd: "app/src-tauri",
+    needs: { pkg: "gdk-3.0", shell: "desktop" },
     command: ["cargo", "test", "--features", "dpr-probe"],
     why: "The path allowlist, the deep link and the Girsa desk.",
   },
@@ -205,6 +215,7 @@ export const CHECKS = [
     group: "shell",
     tree: "shell",
     name: "desktop render scale",
+    needs: { pkg: "gdk-3.0", shell: "desktop" },
     // `app/src-tauri`, not `app`: a check belongs in the cwd of the tree it is
     // about, and the editor checks already own `app`. The script sits in
     // `app/tools` with the app's other tooling and resolves its own paths, so it
@@ -218,6 +229,32 @@ export const CHECKS = [
     why: "The shipped UI had no coverage at all — a cargo test never opens a window.",
   },
 ];
+
+/**
+ * What a check needs from the machine, and how to get it.
+ *
+ * #181: four checks of the `shell` group went red on a desk where nothing was
+ * wrong with the tree — WebKitGTK is in `desktopPkgs` in
+ * `flake.nix`, which is the **`desktop`** shell, and the gate was being run in
+ * the default one. What the reader got was sixty lines of `pkg-config`
+ * transcript and no sentence saying which shell has these packages. Two things
+ * were wrong with that:
+ *
+ *   - a missing system library is not a verdict about the tree. The same commit
+ *     is green on CI and green here under the right shell, and reporting it in
+ *     the same red as a real failure teaches people that the gate is red for
+ *     reasons that mean nothing;
+ *   - the way from the red to `nix develop .#desktop` did not exist in the
+ *     output at all.
+ *
+ * So a check may declare `needs: { pkg, shell }`. Before it runs, `pkg-config
+ * --exists` is asked; if the answer is no, the check is **not measured here**
+ * and says so, with the command that would measure it. It fails the run only
+ * when the run is asked to require it (`--require`, which is what CI passes), so
+ * a local reader gets an honest "not measured" instead of a red about their
+ * machine.
+ */
+export const NEED_FIELD = "needs";
 
 /** The groups, in the order they appear above. */
 export const GROUPS = [...new Set(CHECKS.map((c) => c.group))];
@@ -241,6 +278,54 @@ export function select(names) {
 }
 
 /**
+ * Can this machine build what this check is about?
+ *
+ * `has` is injected so a test can ask both answers without a machine that lacks
+ * WebKitGTK. In a real run it is `pkg-config --exists`, which is the same
+ * question the cargo build will ask four minutes later — asked in a millisecond,
+ * before the reader has started waiting.
+ */
+export function missingNeed(check, has = pkgConfigHas) {
+  if (!check.needs) return null;
+  if (has(check.needs.pkg)) return null;
+  return check.needs;
+}
+
+function pkgConfigHas(name) {
+  const done = spawnSync("pkg-config", ["--exists", name], { stdio: "ignore" });
+  return done.status === 0;
+}
+
+/**
+ * The command that would measure a check this shell cannot.
+ *
+ * Printed instead of the check's own command, because the check's own command is
+ * what the reader already has and what just failed to make sense.
+ */
+export function howToRun(check, names) {
+  const inner = `cd ksav/${check.cwd} && ${check.command.join(" ")}`;
+  if (!check.needs) return inner;
+  const group = names?.length ? names.join(" ") : check.group;
+  return (
+    `nix develop .#${check.needs.shell} --command bash -c ` +
+    `"cd ksav && node tools/gate.mjs ${group}"`
+  );
+}
+
+/**
+ * The exit code, as a question about three facts rather than nine branches.
+ *
+ * A failure is a failure. A check that could not be measured here is **not** one
+ * — unless the run was asked to require it, which is what CI does, because a
+ * runner without WebKitGTK is a broken runner (#181).
+ */
+export function verdict(results, require) {
+  if (results.some((r) => !r.ok)) return 1;
+  if (require && results.some((r) => r.unmeasured)) return 1;
+  return 0;
+}
+
+/**
  * What to say when the run is over.
  *
  * Split out of `main` so it can be tested, and it needs testing because the
@@ -251,26 +336,59 @@ export function select(names) {
  * to do — `ci.yml` does it in five jobs — so the fix is not to forbid it but to
  * say which checks did not run, every time, by name.
  */
-export function summarise(results, skipped) {
+export function summarise(results, skipped, names = []) {
   const failed = results.filter((r) => !r.ok);
-  const lines = results.map(
-    (r) => `${r.ok ? "✓" : "✗"} ${r.check.name.padEnd(32)} ${r.secs.toFixed(1)}s`,
+  const unmeasured = results.filter((r) => r.unmeasured);
+  // `–` for a check this machine cannot build, `✓` for one that passed, `✗` for
+  // one that failed. Three marks, because they are three different facts and
+  // the whole of #181 is that the first was being reported as the third.
+  const lines = results.map((r) =>
+    r.unmeasured
+      ? `– ${r.check.name.padEnd(32)} not measured here: ${r.unmeasured.pkg} is not in this shell`
+      : `${r.ok ? "✓" : "✗"} ${r.check.name.padEnd(32)} ${r.secs.toFixed(1)}s`,
   );
 
+  if (unmeasured.length) {
+    lines.push(`\n${unmeasured.length} not measured here, and not a verdict on the tree:`);
+    for (const r of unmeasured) lines.push(`  ${r.check.id}: ${howToRun(r.check, names)}`);
+  }
   if (failed.length) {
     lines.push(`\n${failed.length} of ${results.length} failed. To reproduce:`);
-    for (const r of failed) lines.push(`  cd ksav/${r.check.cwd} && ${r.shown}`);
+    for (const r of failed) lines.push(`  ${howToRun(r.check, names)}`);
     return lines;
   }
+  // The floor from the other side: a run where everything was skipped is not a
+  // green run, it is a run that measured nothing.
+  if (unmeasured.length === results.length) {
+    lines.push(`\nnothing was measured — every chosen check needs a library this shell does not have.`);
+    return lines;
+  }
+  const passed = results.filter((r) => r.ok && !r.unmeasured).length;
+  const unmeasuredNote = unmeasured.length
+    ? `, ${unmeasured.length} not measured here`
+    : "";
+
   if (!skipped.length) {
-    lines.push(`\nthe gate is green — ${results.length} checks`);
+    lines.push(
+      unmeasured.length
+        ? `\n${passed} of ${results.length} checks passed${unmeasuredNote}.` +
+            ` Not the whole gate: the checks above were not run.`
+        : `\nthe gate is green — ${results.length} checks`,
+    );
     return lines;
   }
   lines.push(
-    `\n${results.length} of ${CHECKS.length} checks passed. This was not the whole gate —` +
+    `\n${passed} of ${CHECKS.length} checks passed${unmeasuredNote}. This was not the whole gate —` +
       ` ${skipped.length} did not run:`,
   );
   for (const c of skipped) lines.push(`  ${c.id.padEnd(16)} ${c.cwd}: ${c.command.join(" ")}`);
+  const elsewhere = skipped.filter((c) => c.needs);
+  if (elsewhere.length) {
+    lines.push(
+      `\n${elsewhere.length} of those need the desktop shell, which is where their system libraries are:`,
+    );
+    lines.push(`  ${howToRun(elsewhere[0])}`);
+  }
   lines.push(`\nnode tools/gate.mjs   — all of them`);
   return lines;
 }
@@ -324,6 +442,12 @@ function runCheck(check, release) {
 function main() {
   const args = process.argv.slice(2);
   const release = args.includes("--release");
+  // `--require` makes a check this shell cannot build a failure. CI passes it,
+  // because a runner with no WebKitGTK is a broken runner and should say so;
+  // a desk where the same commit is green under `nix develop .#desktop` is not,
+  // and saying so in the same red as a real failure is what teaches people to
+  // stop reading the gate (#181).
+  const require = args.includes("--require");
   const wanted = args.filter((a) => !a.startsWith("-"));
 
   const unknown = wanted.filter((g) => !NAMES.includes(g));
@@ -343,14 +467,35 @@ function main() {
   // stop is a red that hid behind another red — or rather, a red that everybody
   // stopped reading. Stopping at the first one would report a single name and
   // leave the rest of the answer unmeasured.
+  // Asked before anything runs: a missing system library is a fact about this
+  // shell, and learning it in a millisecond rather than after a build's worth of
+  // pkg-config transcript is the difference between a message and a mystery.
   const results = [];
-  for (const check of chosen) results.push(runCheck(check, release));
+  for (const check of chosen) {
+    const need = missingNeed(check);
+    if (need) {
+      console.log(
+        `\n– ${check.name}  (${check.cwd}) — not run: ${need.pkg} is not in this shell`,
+      );
+      results.push({ check, secs: 0, ok: true, shown: check.command.join(" "), unmeasured: need });
+      continue;
+    }
+    results.push(runCheck(check, release));
+  }
 
   console.log("\n" + "-".repeat(60));
   const skipped = CHECKS.filter((c) => !chosen.includes(c));
-  for (const line of summarise(results, skipped)) console.log(line);
+  for (const line of summarise(results, skipped, wanted)) console.log(line);
 
-  if (results.some((r) => !r.ok)) process.exit(1);
+  const unmeasured = results.filter((r) => r.unmeasured);
+  const code = verdict(results, require);
+  if (code && unmeasured.length && !results.some((r) => !r.ok)) {
+    console.log(
+      `\n--require: ${unmeasured.length} check(s) could not be measured in this shell,` +
+        ` and this run was asked to require them.`,
+    );
+  }
+  if (code) process.exit(code);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

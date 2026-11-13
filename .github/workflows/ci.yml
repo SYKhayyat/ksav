@@ -102,7 +102,7 @@ jobs:
         run: npx vite build
       - name: Check
         working-directory: ./ksav
-        run: node tools/gate.mjs editor
+        run: node tools/gate.mjs editor --require
 
   engine:
     name: engine
@@ -167,7 +167,7 @@ jobs:
         env:
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_BENCH_LTO: "false"
-        run: node tools/gate.mjs engine --release
+        run: node tools/gate.mjs engine --release --require
 
   # Formatting, across every Rust tree in this repository.
   #
@@ -200,7 +200,7 @@ jobs:
       # abandoned prototype would be a red nobody can act on.
       - name: Check
         working-directory: ./ksav
-        run: node tools/gate.mjs fmt
+        run: node tools/gate.mjs fmt --require
 
   # The other platform this ships to, checked rather than assumed.
   #
@@ -261,7 +261,7 @@ jobs:
         env:
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_BENCH_LTO: "false"
-        run: node tools/gate.mjs engine --release
+        run: node tools/gate.mjs engine --release --require
 
   wasm:
     name: browser engine
@@ -646,4 +646,4 @@ jobs:
         # without a display. Xvfb is X11, which is the backend that already worked;
         # a developer on native Wayland gets the stronger check by running the gate
         # by hand. See #101 and the header of app/tools/render-check.mjs.
-        run: xvfb-run -a node tools/gate.mjs shell
+        run: xvfb-run -a node tools/gate.mjs shell --require

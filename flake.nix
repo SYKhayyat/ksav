@@ -139,6 +139,10 @@
             echo "  emacs   $(emacs --version | head -1 | cut -d' ' -f3)"
             echo
             echo "  cd ksav && node tools/gate.mjs      # the whole gate"
+            ${pkgs.lib.optionalString (name != "desktop") ''
+              echo "  the shell group needs WebKitGTK — that is the desktop shell:"
+              echo '    nix develop .#desktop --command bash -c "cd ksav && node tools/gate.mjs shell"'
+            ''}
           '';
 
           # The one thing the shell has to hand the repository rather than the

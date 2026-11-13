@@ -29,6 +29,60 @@ export async function run() {
   check("wire recovery matches local recovery", wire.delims, local.delims);
   check("wire recovery comments match local recovery", wire.comments, local.comments);
 
+  // ---------------------------------------------- #182: delimiters on demand
+  //
+  // The list used to be built eagerly: 30,780 `Delimiter` objects per keystroke
+  // at 1,000 pages, for an array only the pause paths read. It is rebuilt from
+  // recorded numbers now, and these are the claims that keeps honest — that the
+  // rebuild happens on the first read and not before, that it is the same list
+  // `delimiters()` gives, that a stray closer survives it, and that a `#let`
+  // frame is not mistaken for a bracket (it is a frame with no delimiter in it,
+  // and an early version of this rebuild emitted `ch: undefined` for it).
+  clearScanCache();
+  const bracketDoc = "#טבלה(עמודות: (1fr, 2fr),\n  תא[א], תא[ב],\n)";
+  const scanned = scan(bracketDoc);
+  check(
+    "#182: a scan does not build its delimiter list until it is read",
+    typeof Object.getOwnPropertyDescriptor(scanned, "delims").get,
+    "function",
+  );
+  const listed = scanned.delims;
+  ok("#182: …and then it has one", listed.length > 0, `${listed.length} delimiters`);
+  check("#182: …the same array delimiters() answers with", listed, delimiters(bracketDoc).delims);
+  check(
+    "#182: …and reading it again does not rebuild it",
+    Object.getOwnPropertyDescriptor(scanned, "delims").value,
+    listed,
+  );
+  check(
+    "#182: …in document order",
+    listed.every((d, i) => i === 0 || listed[i - 1].pos < d.pos),
+    true,
+  );
+
+  clearScanCache();
+  const stray = '#f(] "רש\"י ) עוד';
+  const strayList = scan(stray).delims;
+  check(
+    "#182: a stray closer is in the rebuilt list",
+    JSON.stringify(strayList),
+    JSON.stringify(delimiters(stray).delims),
+  );
+  ok("#182: …and it is not structural", strayList.some((d) => !d.opener), `${strayList.length} delimiters`);
+
+  clearScanCache();
+  const keyword = "#let x = 1\n#הדגשה[א]";
+  const keywordDelims = scan(keyword).delims;
+  notOk(
+    "#182: a `#let` frame is not a delimiter",
+    keywordDelims.some((d) => !"[({])}".includes(d.ch)),
+  );
+  check(
+    "#182: …so the list is the one bracket pair and nothing else",
+    keywordDelims.map((d) => d.ch).join(""),
+    "[]",
+  );
+
   const altered = scanWire("#f[x]");
   altered.closes = [];
   altered.contentGroups = [];

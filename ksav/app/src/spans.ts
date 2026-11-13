@@ -97,14 +97,16 @@
 // duplicated.
 //
 // It is also deliberately pure (text in, spans out), so it tests without a
-// browser, a CodeMirror instance or a compiler. Its one import is
-// `engine.gen.ts` — a generated table of literals with no imports of its own,
-// carrying the Hebrew↔English pairing that the *engine's* prelude makes. That is
-// a dependency on data rather than on machinery, and it is the difference
-// between this file knowing what the engine defines and this file having a
-// second opinion about it.
+// browser, a CodeMirror instance or a compiler. Its imports are data and derived
+// structures, never machinery: `engine.gen.ts` — a generated table of literals
+// with no imports of its own, carrying the Hebrew↔English pairing that the
+// *engine's* prelude makes, which is the difference between this file knowing
+// what the engine defines and this file having a second opinion about it — and
+// `delimits.ts`, which turns the numbers this file records into the
+// `Delimiter[]` the bracket lint reads (see its header for why that is late).
 
 import { COMMAND_EN, bothSpellings, withAliases } from "./engine.gen";
+import { delimsOfLex, demandDelims } from "./delimits";
 
 // ---------------------------------------------------------------- characters
 
@@ -512,11 +514,6 @@ export interface Delimiter {
   structural: boolean;
 }
 
-const DELIM_CH: Record<number, Delimiter["ch"]> = {
-  0x5b: "[", 0x28: "(", 0x7b: "{",
-  0x5d: "]", 0x29: ")", 0x7d: "}",
-};
-
 /**
  * Keywords after which Typst is in code mode for the rest of the statement.
  *
@@ -600,9 +597,14 @@ interface LexOpts {
    * behind, which is the only honest thing available to a lint.
    */
   recover: boolean;
-  /** Collect every structural bracket. Only `delimiters()` wants the array. */
-  delims: boolean;
 }
+//
+// There was a second option here, `delims: boolean`, meaning "push a `Delimiter`
+// object per bracket". #182 found what that cost — 30,780 allocations per
+// keystroke, for an array only the pause paths read — and the recording is now
+// one packed number per closer, which is cheap enough that "record it" is not a
+// choice worth offering: a lex without `closers` would be a lex that some other
+// reader's cache entry could not answer from.
 
 /**
  * One left-to-right pass: comments, strings, matched delimiters, the mode of
@@ -624,7 +626,14 @@ function lexCore(
   closes: Map<number, number>;
   heads: Head[];
   frames: Frame[];
-  delims: Delimiter[];
+  /**
+   * Every closer, packed as `position * 2 + (structural ? 1 : 0)`, ascending.
+   *
+   * Numbers in an array rather than 15,390 objects: this is the half of the
+   * delimiter list that `frames` cannot give for free, recorded so that
+   * `delimsOf` can rebuild the whole list the moment somebody asks. See #182.
+   */
+  closers: number[];
   needsRecovery: boolean;
 } {
   LEX_PASSES++;
@@ -654,7 +663,7 @@ function lexCore(
   const openOf = new Int32Array(text.length + 1);
   const heads: Head[] = [];
   const frames: Frame[] = [];
-  const delims: Delimiter[] = [];
+  const closers: number[] = [];
   const stack: { pos: number; code: number; ctx: Ctx; frame: Frame; structural: boolean }[] = [];
   let ctx: Ctx = "content";
   let needsRecovery = false;
@@ -791,23 +800,18 @@ function lexCore(
       // `[` is structure wherever it appears; the other two only in code.
       const structural = c === 0x5b || inner === "code";
       stack.push({ pos: i, code: c, ctx, frame, structural });
-      if (opts.delims) {
-        delims.push({ pos: i, ch: DELIM_CH[c], opener: true, name: head.name, structural });
-      }
       ctx = inner;
       continue;
     }
     if (c === 0x5d /* ] */ || c === 0x29 /* ) */ || c === 0x7d /* } */) {
       const want = c === 0x5d ? 0x5b : c === 0x29 ? 0x28 : 0x7b;
       const top = stack[stack.length - 1];
-      if (opts.delims) {
-        // A closer is structure if the opener it answers was. With nothing open
-        // to answer, the context it stands in decides: a `)` in code is a
-        // mistake, and a `)` in a sentence is punctuation.
-        const structural =
-          c === 0x5d || (top && top.code === want ? top.structural : ctx === "code");
-        delims.push({ pos: i, ch: DELIM_CH[c], opener: false, name: "", structural });
-      }
+      // A closer is structure if the opener it answers was. With nothing open to
+      // answer, the context it stands in decides: a `)` in code is a mistake, and
+      // a `)` in a sentence is punctuation.
+      const structural =
+        c === 0x5d || (top && top.code === want ? top.structural : ctx === "code");
+      closers.push(i * 2 + (structural ? 1 : 0));
       if (top && top.code === want) {
         closes.set(top.pos, i);
         openOf[i] = top.pos + 1;
@@ -903,7 +907,7 @@ function lexCore(
   // `frames` is already in document order: a frame is pushed at its opener, and
   // openers arrive left to right. Nested frames therefore run outermost-first,
   // which is the order `framesAt` hands back.
-  return { comments, raws, strings, contentGroups, closes, heads, frames, delims, needsRecovery };
+  return { comments, raws, strings, contentGroups, closes, heads, frames, closers, needsRecovery };
 }
 
 type Lex = ReturnType<typeof lexCore>;
@@ -917,7 +921,7 @@ function lexical(text: string): (typeof LEX_CACHE)[number] {
     LEX_CACHE.push(hit);
     return hit;
   }
-  const entry = { text, strict: lexCore(text, { recover: false, delims: true }) };
+  const entry = { text, strict: lexCore(text, { recover: false }) };
   LEX_CACHE.push(entry);
   if (LEX_CACHE.length > CACHE_SIZE) LEX_CACHE.shift();
   return entry;
@@ -1015,8 +1019,8 @@ export function hydrateScan(text: string, value: unknown): Scan {
   for (const g of v.contentGroups) {
     if (text[g.from - 1] !== "[" || closes.get(g.from - 1) !== g.to) return bad();
   }
-  return assembleScan(text, { comments: v.strictComments, delims: v.delims, raws: v.raws,
-    strings: v.strings, contentGroups: v.contentGroups, closes, heads: v.heads, frames: v.frames }, v.comments, true);
+  return assembleScan(text, { comments: v.strictComments, raws: v.raws,
+    strings: v.strings, contentGroups: v.contentGroups, closes, heads: v.heads, frames: v.frames }, v.comments, true, v.delims);
 }
 
 // ----------------------------------------------------------------- assembly
@@ -1167,7 +1171,15 @@ function trimmed(text: string, g: Group): Group {
   return { from, to };
 }
 
-type AssemblyLex = Pick<Lex, "comments" | "raws" | "strings" | "contentGroups" | "closes" | "heads" | "frames" | "delims">;
+type AssemblyLex = Pick<
+  Lex,
+  "comments" | "raws" | "strings" | "contentGroups" | "closes" | "heads" | "frames"
+> & {
+  /** Present when the lex came off the wire; the scanner's own lexes carry `closers`. */
+  closers?: number[];
+  /** Delimiters supplied *whole* by a caller that has them already (`hydrateScan`). */
+  delims?: Delimiter[];
+};
 
 interface ArgFacts {
   closes: Map<number, number>;
@@ -1523,8 +1535,14 @@ export function clearScanCache(): void {
   resetScanInstrumentation();
 }
 
-function assembleScan(text: string, lex: AssemblyLex, recoveryComments: Comment[], suppliedFacts = false): Scan {
-  const { comments, raws, strings, contentGroups, closes, heads, frames, delims } = lex;
+function assembleScan(
+  text: string,
+  lex: AssemblyLex,
+  recoveryComments: Comment[],
+  suppliedFacts = false,
+  suppliedDelims?: Delimiter[],
+): Scan {
+  const { comments, raws, strings, contentGroups, closes, heads, frames } = lex;
   const nodes: Node[] = [];
   const byStart = new Map<number, Node>();
   const preparedArgs = suppliedFacts ? argumentFacts(lex, text.length) : undefined;
@@ -1601,7 +1619,14 @@ function assembleScan(text: string, lex: AssemblyLex, recoveryComments: Comment[
       .filter((a) => !CELL_ARG.test(a) && !COLS_ARG_HEAD.test(a));
   }
 
-  return { nodes, roots, comments, recoveryComments, delims, raws, strings, contentGroups, byStart, closes, frames, text };
+  const scan: Scan = {
+    nodes, roots, comments, recoveryComments,
+    // Filled below, one way or the other: whole, or on demand.
+    delims: suppliedDelims ?? [],
+    raws, strings, contentGroups, byStart, closes, frames, text,
+  };
+  if (!suppliedDelims && lex.closers) demandDelims(scan, lex as { frames: Frame[]; closers: number[] }, text);
+  return scan;
 }
 
 function scanUncached(text: string): Scan {
@@ -1623,12 +1648,15 @@ function scanUncached(text: string): Scan {
   const entry = lexical(text);
   if (!entry.strict.needsRecovery) return assembleScan(text, entry.strict, entry.strict.comments);
   const recovery = recoveryLex(entry, text);
-  return assembleScan(text, { ...entry.strict, delims: recovery.delims }, recovery.comments);
+  // Nodes from the strict pass, delimiters from the recovery one: a node tree
+  // describes the document as written, while the delimiter list is what the
+  // bracket lint reads. `scan-oracle.json` pins the split.
+  return assembleScan(text, { ...entry.strict, closers: recovery.closers }, recovery.comments);
 }
 
 /** The recovery-mode lex of `text`, lexed at most once per cache entry. */
 function recoveryLex(entry: { recovery?: Lex }, text: string): Lex {
-  return entry.recovery ?? (entry.recovery = lexCore(text, { recover: true, delims: true }));
+  return entry.recovery ?? (entry.recovery = lexCore(text, { recover: true }));
 }
 
 // ------------------------------------------------------------------- context
@@ -1721,11 +1749,8 @@ export function delimiters(text: string): Delimiters {
   const entry = lexical(text);
   // Balanced documents use exactly the same lexical result as scan(). Only a
   // mismatched closer/unwind asks for the recovery pass used by the lint.
-  if (!entry.strict.needsRecovery) {
-    return { delims: entry.strict.delims, comments: entry.strict.comments };
-  }
-  const recovery = recoveryLex(entry, text);
-  return { delims: recovery.delims, comments: recovery.comments };
+  const lex = entry.strict.needsRecovery ? recoveryLex(entry, text) : entry.strict;
+  return { delims: delimsOfLex(lex, text), comments: lex.comments };
 }
 
 /** The delimiters of a CodeMirror document, paying for its text at most once. */

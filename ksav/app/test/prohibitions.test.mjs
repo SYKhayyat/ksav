@@ -818,29 +818,52 @@ const RULES = [
     },
     allow: [],
   },
+  {
+    // #182, and the class: **a structure built per keystroke for a reader that
+    // runs later.**
+    //
+    // `lexCore` allocated one `Delimiter` per bracket — 30,780 of them on a
+    // 993-page sefer, 6.2% of the scan plus its garbage — into `Scan.delims`,
+    // which on the keystroke path nobody reads. The three readers are the
+    // bracket lint, compile's heal and the export warning count, and all three
+    // run when the writer pauses. The openers were already in `frames`; the
+    // closers are one packed number each now, and the list is rebuilt on first
+    // read.
+    //
+    // The rule is the shape rather than the instance: the lexer may record
+    // positions and flags, and may not allocate the objects a later reader wants.
+    what: "the lexer records bracket positions as numbers, not as objects (issue 182)",
+    where: /^ksav\/app\/src\/spans\.ts$/u,
+    probe: (body) => {
+      const inner = functionBody(body, "lexCore");
+      if (inner == null) return "lexCore is gone";
+      return /ch\s*:\s*DELIM_CH\[/u.test(inner)
+        ? "lexCore allocates a Delimiter object per bracket on the keystroke path"
+        : "";
+    },
+    allow: [],
+  },
 ];
 
 /**
- * The text of `function <name>(…) { … }` in a stripped source file, or null.
+ * The source of one top-level function, from its own declaration to the next
+ * top-level declaration, or null if it is not there.
  *
- * Braces counted, not matched: these two functions contain object literals and
- * template braces, and a regular expression for "the body" is the pattern that
- * passes on the file it was written for.
+ * **Not** brace-matched, and the first version of this was: it took the first
+ * `{` after the name, which for `lexCore` is its *return type* — so the probe
+ * looked at a type annotation, found no allocation in it, and passed while the
+ * allocation it was written to forbid sat six hundred lines further down. The
+ * lesson is the one this file is about, arriving through its own test.
+ *
+ * A function in this repository is a top-level statement, so the next statement
+ * that starts at column zero ends it — which is also how a reader finds it.
  */
 function functionBody(body, name) {
-  const at = body.search(new RegExp(`function\\s+${name}\\s*\\(`, "u"));
+  const at = body.search(new RegExp(`^(?:export\\s+)?function\\s+${name}\\s*\\(`, "mu"));
   if (at < 0) return null;
-  const open = body.indexOf("{", at);
-  if (open < 0) return null;
-  let depth = 0;
-  for (let i = open; i < body.length; i += 1) {
-    if (body[i] === "{") depth += 1;
-    else if (body[i] === "}") {
-      depth -= 1;
-      if (depth === 0) return body.slice(open, i + 1);
-    }
-  }
-  return null;
+  const rest = body.slice(at);
+  const end = rest.search(/\n(?:export\s+)?(?:function|interface|type|const|class)\b/u);
+  return end < 0 ? rest : rest.slice(0, end);
 }
 
 /**

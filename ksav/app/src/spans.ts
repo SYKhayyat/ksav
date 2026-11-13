@@ -543,8 +543,14 @@ const NO_HEAD = { name: "", hash: false } as const;
  *
  * Skips back over complete groups already written, so the second bracket of
  * `#כותרת(רמה: 2)[…]` and of `#גמרא[ברכות][ב.]` still knows whose it is.
- * `openerOf` makes that a map lookup rather than a backwards bracket walk, so
+ * `openAt` makes that a table lookup rather than a backwards bracket walk, so
  * the whole routine stays bounded by identifier length on the hot path.
+ *
+ * `base` is the position `openAt` starts at, and the reason this takes a
+ * parameter rather than always reading absolute positions: the lexer allocates
+ * one table for the whole document and passes 0, while `walkArgs` starts
+ * mid-document — sometimes a half-megabyte in, where a table's argument list
+ * begins — and sizes its own table to the range it walks.
  *
  * The hash is the half `mode.ts` did not have and needs. In **content** mode a
  * name running up to a `(` is still prose — `#הדגשה[ראה(רש"י) כאן]` lays out as
@@ -554,16 +560,18 @@ const NO_HEAD = { name: "", hash: false } as const;
 function headBefore(
   text: string,
   i: number,
-  openerOf: Map<number, number>,
+  openAt: Int32Array,
+  base: number,
 ): { name: string; hash: boolean } {
   let j = i - 1;
   for (;;) {
     if (j < 0) return NO_HEAD;
     const c = text.charCodeAt(j);
     if (c !== 0x29 /* ) */ && c !== 0x5d /* ] */) break;
-    const open = openerOf.get(j);
-    if (open == null) return NO_HEAD;
-    j = open - 1;
+    // Stored plus one, so the array's zero fill is the "no opener" answer.
+    const at = openAt[j - base];
+    if (at === 0) return NO_HEAD;
+    j = at - 2;
   }
   if (!isNameCh(text.charCodeAt(j))) {
     return text.charCodeAt(j) === 0x23 /* # */ ? { name: "", hash: true } : NO_HEAD;
@@ -626,7 +634,24 @@ function lexCore(
   const strings: Group[] = [];
   const contentGroups: Group[] = [];
   const closes = new Map<number, number>();
-  const openerOf = new Map<number, number>();
+  // `closer position → opener position + 1`, and 0 for "nothing opens here".
+  //
+  // This was a `Map`. It is read by `headBefore` on every opener and written on
+  // every matched closer, so it was a second 15,390-entry hash table built per
+  // lex purely to answer a backwards hop over the group just written — and at
+  // 1,000 pages that was **5.9% of the whole scan**, most of it the table
+  // growing. A dense array is the right shape for it: the keys are positions in
+  // a range that is known up front, the writes arrive in document order so the
+  // pages are touched forwards, and a fresh `Int32Array` is zero-filled by the
+  // allocator rather than by a loop. The `+1` is what lets that zero fill mean
+  // "no opener" without a pass to write −1 everywhere.
+  //
+  // It does not outlive the lex, so it costs 4 bytes a character transiently and
+  // nothing in the cache. The `closes` map beside it stays a `Map`: it is part of
+  // `Scan`, consumers ask it `.get`/`.has`, and a typed array is *slower* there
+  // — measured at 2.7 ms to rebuild a 2.5 MB one from the map's 15,390 entries
+  // against 1.1 ms for the 30,000 lookups the assembly then makes.
+  const openOf = new Int32Array(text.length + 1);
   const heads: Head[] = [];
   const frames: Frame[] = [];
   const delims: Delimiter[] = [];
@@ -753,7 +778,7 @@ function lexCore(
 
     // ---- delimiters ----
     if (c === 0x5b /* [ */ || c === 0x28 /* ( */ || c === 0x7b /* { */) {
-      const head = headBefore(text, i, openerOf);
+      const head = headBefore(text, i, openOf, 0);
       // `[` is always content. `(` and `{` open code when the `#` is there, or
       // when we are already in code and they are an array, a block or a nested
       // argument list. **A bare `(` in markup is a character** — see the
@@ -785,7 +810,7 @@ function lexCore(
       }
       if (top && top.code === want) {
         closes.set(top.pos, i);
-        openerOf.set(i, top.pos);
+        openOf[i] = top.pos + 1;
         top.frame.close = i;
         if (want === 0x5b) contentGroups.push({ from: top.pos + 1, to: i });
         stack.pop();
@@ -1075,7 +1100,12 @@ function walkArgs(
   // Local, because this walk starts mid-document: a `)` here may close a group
   // that opened before `from`, and then there is no opener to skip back over.
   // `headBefore` answers `NO_HEAD` for that, which in code mode changes nothing.
-  const openerOf = new Map<number, number>();
+  // Its own `closer → opener` table, over its own range: absolute positions
+  // minus `from`, because this walk starts mid-document and a table's argument
+  // list can end a half-megabyte into the file. `Math.max` because a caller with
+  // a reversed range gets an empty walk rather than a `RangeError` from the
+  // length, which is what the map this replaced would have done.
+  const openAt = new Int32Array(Math.max(0, to - from + 1));
   const opens: number[] = [];
   for (let i = from; i < to; i++) {
     const c = text[i];
@@ -1111,7 +1141,7 @@ function walkArgs(
       ctx =
         c === "["
           ? "content"
-          : ctx === "code" || headBefore(text, i, openerOf).hash
+          : ctx === "code" || headBefore(text, i, openAt, from).hash
             ? "code"
             : ctx;
       opens.push(i);
@@ -1121,7 +1151,7 @@ function walkArgs(
         depth--;
         ctx = stack.pop() ?? "code";
         const open = opens.pop();
-        if (open != null) openerOf.set(i, open);
+        if (open != null) openAt[i - from] = open + 1;
       }
     } else if (depth === 0) {
       if (visit(i, c)) return;
@@ -1178,15 +1208,74 @@ function splitArgsFromFacts(text: string, from: number, to: number, facts: ArgFa
   return out.filter((g) => text.slice(g.from, g.to).trim() !== "");
 }
 
-function classify(text: string, node: Node, closes: Map<number, number>, facts?: ArgFacts): void {
-  const { name } = node;
+/**
+ * What a name *is*, decided once per distinct name rather than once per node.
+ *
+ * The ladder below used to run against the node: `NOT_HEADINGS.has`, then three
+ * `Record` reads, then three `Set.has` calls, then `CELL_KINDS` — up to eight
+ * hash lookups for a single `#תא`, on a document where `הערה` and `פריט` and
+ * `תא` are each written thousands of times. A sefer has a vocabulary of dozens
+ * of command names and 15,390 nodes, so the answer for a name cannot change
+ * inside a document, and it cannot change between documents either: every table
+ * this reads is a module constant with no writer. Profiling at 1,000 pages put
+ * the ladder at **4.5% of the whole scan**, most of it in those lookups.
+ *
+ * The tables stay exactly where they were, exported and documented; this only
+ * remembers what they said. `role: "other"` is the memo of "nothing here
+ * matches", which is the common case for a span or a `#ברכה`.
+ */
+interface Kind {
+  role: Role;
+  /** Heading level, for a heading whose level is fixed or implied by the name. */
+  level?: number;
+  levelFixed?: boolean;
+  listKind?: ListKind;
+  header?: boolean;
+  merge?: boolean;
+}
 
-  if (NOT_HEADINGS.has(name)) return; // named so this stays a decision, not an omission
+const KINDS = new Map<string, Kind>();
+
+function kindOf(name: string): Kind {
+  const hit = KINDS.get(name);
+  if (hit) return hit;
+  const kind = decide(name);
+  KINDS.set(name, kind);
+  return kind;
+}
+
+function decide(name: string): Kind {
+  // `#שער` is not a heading, and that is a decision rather than an omission.
+  if (NOT_HEADINGS.has(name)) return { role: "other" };
 
   const fixed = FIXED_HEADINGS[name];
-  if (fixed != null) {
+  if (fixed != null) return { role: "heading", level: fixed, levelFixed: true };
+
+  const named = NAMED_HEADINGS[name];
+  if (named != null) return { role: "heading", level: named, levelFixed: false };
+
+  if (GENERIC_HEADINGS.has(name)) return { role: "heading", levelFixed: false };
+
+  const listKind = LIST_KINDS[name];
+  if (listKind) return { role: "list", listKind };
+
+  if (ITEM_NAMES.has(name)) return { role: "item" };
+  if (TABLE_NAMES.has(name)) return { role: "table" };
+
+  const cell = CELL_KINDS[name];
+  if (cell) return { role: "cell", header: cell.header, merge: cell.merge };
+
+  return { role: "other" };
+}
+
+function classify(text: string, node: Node, closes: Map<number, number>, facts?: ArgFacts): void {
+  const kind = kindOf(node.name);
+
+  if (kind.role === "other") return;
+
+  if (kind.role === "heading" && kind.level != null && kind.levelFixed) {
     node.role = "heading";
-    node.level = fixed;
+    node.level = kind.level;
     node.levelFixed = true;
     // `#סימן("א", [דיני תפילה])` — the words are in the content argument, not in
     // a body, which is why an outline built from `[…]` groups on the line found
@@ -1201,55 +1290,43 @@ function classify(text: string, node: Node, closes: Map<number, number>, facts?:
     return;
   }
 
-  const named = NAMED_HEADINGS[name];
-  if (named != null) {
+  if (kind.role === "heading") {
     node.role = "heading";
-    node.level = named;
+    // A generic `#כותרת(רמה: 2)[…]` carries its level in the argument; a named
+    // one carries it in the table. Both are the heading the writer asked for.
+    const m = kind.level == null && node.args ? LEVEL_ARG.exec(text.slice(node.args.from, node.args.to)) : null;
+    node.level = kind.level ?? (m ? Math.max(1, parseInt(m[1], 10)) : 1);
     node.levelFixed = false;
     node.titleGroups = node.bodies.slice(0, 1);
     return;
   }
 
-  if (GENERIC_HEADINGS.has(name)) {
-    node.role = "heading";
-    const m = node.args ? LEVEL_ARG.exec(text.slice(node.args.from, node.args.to)) : null;
-    node.level = m ? Math.max(1, parseInt(m[1], 10)) : 1;
-    node.levelFixed = false;
-    node.titleGroups = node.bodies.slice(0, 1);
-    return;
-  }
-
-  const kind = LIST_KINDS[name];
-  if (kind) {
+  if (kind.role === "list") {
     node.role = "list";
-    node.listKind = kind;
+    node.listKind = kind.listKind;
     return;
   }
 
-  if (ITEM_NAMES.has(name)) {
+  if (kind.role === "item") {
     node.role = "item";
     return;
   }
 
-  if (TABLE_NAMES.has(name)) {
+  if (kind.role === "table") {
     node.role = "table";
     readColumns(text, node, closes, facts);
     return;
   }
 
-  const cell = CELL_KINDS[name];
-  if (cell) {
-    node.role = "cell";
-    node.header = cell.header;
-    // `#מיזוג(2)[…]` — the span is the one positional argument.
-    let span = 1;
-    if (cell.merge && node.args) {
-      const m = /^\s*(\d+)\s*$/.exec(text.slice(node.args.from, node.args.to));
-      if (m) span = Math.max(1, parseInt(m[1], 10));
-    }
-    node.span = span;
-    return;
+  // `#מיזוג(2)[…]` — the span is the one positional argument.
+  node.role = "cell";
+  node.header = kind.header ?? false;
+  let span = 1;
+  if (kind.merge && node.args) {
+    const m = /^\s*(\d+)\s*$/.exec(text.slice(node.args.from, node.args.to));
+    if (m) span = Math.max(1, parseInt(m[1], 10));
   }
+  node.span = span;
 }
 
 /**
@@ -1528,9 +1605,30 @@ function assembleScan(text: string, lex: AssemblyLex, recoveryComments: Comment[
 }
 
 function scanUncached(text: string): Scan {
-  const { strict } = lexical(text);
-  const recovery = delimiters(text);
-  return assembleScan(text, { ...strict, delims: recovery.delims }, recovery.comments);
+  // One cache probe, one lex. This used to be `lexical(text)` followed by
+  // `delimiters(text)`, which is the *same* cache probed a second time — four
+  // full-string comparisons of a half-megabyte document each — and then a spread
+  // of ten arrays into a copy of the lex that was already in hand.
+  //
+  // The copy was there for `delims`/`comments`, and on a balanced document —
+  // every document that compiles, which is every document somebody is typing in
+  // — `delimiters` answers out of the *strict* pass (see its comment: "Only a
+  // mismatched closer/unwind asks for the recovery pass"). So on that path the
+  // strict lex already is the lex this needs, and nothing is copied.
+  //
+  // An unbalanced document keeps the old split exactly: its nodes are assembled
+  // from the strict facts, because a node tree is a description of the document
+  // as written, while `delims`/`comments` come from the recovery pass because
+  // they are what the bracket lint reads. `scan-oracle.json` pins that split.
+  const entry = lexical(text);
+  if (!entry.strict.needsRecovery) return assembleScan(text, entry.strict, entry.strict.comments);
+  const recovery = recoveryLex(entry, text);
+  return assembleScan(text, { ...entry.strict, delims: recovery.delims }, recovery.comments);
+}
+
+/** The recovery-mode lex of `text`, lexed at most once per cache entry. */
+function recoveryLex(entry: { recovery?: Lex }, text: string): Lex {
+  return entry.recovery ?? (entry.recovery = lexCore(text, { recover: true, delims: true }));
 }
 
 // ------------------------------------------------------------------- context
@@ -1626,7 +1724,7 @@ export function delimiters(text: string): Delimiters {
   if (!entry.strict.needsRecovery) {
     return { delims: entry.strict.delims, comments: entry.strict.comments };
   }
-  const recovery = entry.recovery ?? (entry.recovery = lexCore(text, { recover: true, delims: true }));
+  const recovery = recoveryLex(entry, text);
   return { delims: recovery.delims, comments: recovery.comments };
 }
 

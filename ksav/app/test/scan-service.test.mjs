@@ -15,6 +15,7 @@ export async function run() {
   clearScanCache();
   const balanced = "#f(\"😀[\")[גוף]";
   scan(balanced);
+  check("a scan of a balanced document is one lexical pass", lexPassCount(), 1);
   delimiters(balanced);
   check("balanced scan and delimiters share one lexical pass", lexPassCount(), 1);
 

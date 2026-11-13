@@ -144,6 +144,7 @@ supersede an earlier one without rewriting it.
 | 2026-11-13 | [a-control-is-named-or-it-is-not](2026-11-13-a-control-is-named-or-it-is-not.md) |
 | 2026-11-13 | [a-setting-is-not-a-pane](2026-11-13-a-setting-is-not-a-pane.md) |
 | 2026-11-13 | [not-measured-here](2026-11-13-not-measured-here.md) |
+| 2026-11-13 | [the-scan-does-not-ask-twice](2026-11-13-the-scan-does-not-ask-twice.md) |
 | 2026-10-11 | [the-editor-scan-is-the-seam](2026-10-11-the-editor-scan-is-the-seam.md) |
 | 2026-10-13 | [a-scan-belongs-to-its-text](2026-10-13-a-scan-belongs-to-its-text.md) |
 | 2026-10-13 | [i18n-data-lives-apart](2026-10-13-i18n-data-lives-apart.md) |

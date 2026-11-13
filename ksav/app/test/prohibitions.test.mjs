@@ -766,7 +766,82 @@ const RULES = [
     probe: unnamedPlaceholder,
     allow: [],
   },
+  {
+    // #169, and the class: **a hot path asks the cache once and takes the answer
+    // it already has.**
+    //
+    // Profiling the scan at 1,000 pages found `scanUncached` doing
+    // `lexical(text)` and then `delimiters(text)`, which is the *same*
+    // four-slot cache probed a second time — four comparisons of a
+    // half-megabyte string each, on every keystroke — and then spreading ten
+    // arrays into a copy of the object it had just found. On a balanced
+    // document, which is every document that compiles, both answers are the
+    // one in hand.
+    //
+    // So the scan may not reach for `delimiters` at all: it holds the entry, and
+    // asks `recoveryLex` for the recovery pass only when the strict lex says
+    // there is something to recover.
+    what: "the scan takes its delimiters from the lex it already probed (issue 169)",
+    where: /^ksav\/app\/src\/spans\.ts$/u,
+    probe: (body) => {
+      const inner = functionBody(body, "scanUncached");
+      if (inner == null) return "scanUncached is gone";
+      return /\bdelimiters\s*\(/u.test(inner)
+        ? "scanUncached calls delimiters() on a cache it has already probed"
+        : "";
+    },
+    allow: [],
+  },
+  {
+    // #169 again, from the other end: **a decision that depends only on a name is
+    // made once per name, not once per node.**
+    //
+    // `classify` used to run the whole ladder against every node — up to eight
+    // hash lookups to decide that `#תא` is a cell — on a document where `הערה`
+    // and `פריט` and `תא` are each written thousands of times. The tables are
+    // module constants with no writer, so the answer cannot change inside a
+    // document; the memo in `kindOf` remembers it, and `decide` is the only
+    // place that reads them.
+    //
+    // The sweep is the second half, and it is the half that matters: a table
+    // read that creeps back into `classify` is a second dispatch path that will
+    // disagree with the memo the day one of them is edited.
+    what: "a command name is classified in one place, not per node (issue 169)",
+    where: /^ksav\/app\/src\/spans\.ts$/u,
+    probe: (body) => {
+      const inner = functionBody(body, "classify");
+      if (inner == null) return "classify is gone";
+      const tables = /\b(NOT_HEADINGS|FIXED_HEADINGS|NAMED_HEADINGS|GENERIC_HEADINGS|LIST_KINDS|ITEM_NAMES|TABLE_NAMES|CELL_KINDS)\b/u.exec(inner);
+      return tables
+        ? `classify reads ${tables[1]} itself instead of asking kindOf`
+        : "";
+    },
+    allow: [],
+  },
 ];
+
+/**
+ * The text of `function <name>(…) { … }` in a stripped source file, or null.
+ *
+ * Braces counted, not matched: these two functions contain object literals and
+ * template braces, and a regular expression for "the body" is the pattern that
+ * passes on the file it was written for.
+ */
+function functionBody(body, name) {
+  const at = body.search(new RegExp(`function\\s+${name}\\s*\\(`, "u"));
+  if (at < 0) return null;
+  const open = body.indexOf("{", at);
+  if (open < 0) return null;
+  let depth = 0;
+  for (let i = open; i < body.length; i += 1) {
+    if (body[i] === "{") depth += 1;
+    else if (body[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return body.slice(open, i + 1);
+    }
+  }
+  return null;
+}
 
 /**
  * The object literal of every `el("input" | "select" | "textarea", {…})` in a

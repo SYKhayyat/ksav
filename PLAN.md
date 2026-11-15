@@ -140,6 +140,20 @@ evidence.
   sweep after three pages spelled it three ways ("nine", "ten", "ten").
 - [ ] #172's sibling, filed while fixing it: #179, a gate test that set
   `KSAV_INBOX_WAITING_ROOM` and failed 9 runs in 12 (fixed in the same push, `0e907be`).
+- [x] #180 **nothing ran the engine suite on Windows before a push** — landed `7ed8d69`.
+  A `windows-latest` job beside macOS, and the fence is a **graph** question the two
+  line-by-line sweeps could not ask: `workflowJobs()` parses `runsOn`/`needs`/`steps`/
+  matrix platforms, and three assertions read it — every platform this ships to has its
+  engine job (Linux counted by the `engine` job's *runner*, because its job is not called
+  "engine on Linux"), every `needs:` resolves, and the release matrix's engine gate
+  covers every leg it builds for. **That last one found the bigger half of the issue:**
+  `release.yml` gated its engine check on `ubuntu-22.04`, so three of the four legs a
+  release ships were untested on the day they shipped. Three mutations, all red and all
+  naming the instance. Two drafts of the fence passed on nothing (a trailing YAML comment
+  the regex demanded the end of, and a condition read off the job rather than off the
+  step) — filed as #187. The `.msi` is still never installed or launched, and
+  `release.yml`'s `Run it` step is broken on Windows (a relative path with no `.\` is not
+  an executable path in pwsh): #186.
 - [ ] #172 **the wasm engine does not compile at HEAD** — `facts.rs:382` names
   `crate::server::DEFAULT_COMPILE_TIMEOUT_MS`, and `server` is cfg'd out on wasm32
   (`lib.rs:102`). Red in CI on every push since `dc15177` (#109); the next tag's Pages

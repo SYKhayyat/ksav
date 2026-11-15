@@ -119,6 +119,72 @@ const SWEPT_TREES = [
   { dir: ".github/scripts", ext: [".mjs", ".js"], comments: ["//"] },
 ];
 
+/**
+ * The jobs of a workflow, as a graph rather than as text.
+ *
+ * Two sweeps above read workflows line by line, which is enough for "does this
+ * string appear" and is not enough for the questions #180 needs answered: which
+ * job runs on which machine, what it waits for, and what it gates. A line scan
+ * cannot tell a `needs:` that names a deleted job from prose about one, and a
+ * dangling `needs:` makes GitHub reject the **whole file** — no job runs, and the
+ * annotation names no check.
+ *
+ * The parse is deliberately shallow: jobs are the two-space keys under `jobs:`, a
+ * job ends at the next one, and inside a job only three things are read —
+ * `name:`, `runs-on:` and `needs:` at the job's own indent, plus any
+ * `matrix.platform == '<label>'` condition on a step. A real YAML parser is not
+ * a dependency this file should take to answer three questions, and a step list
+ * that stops fitting this shape fails the counts below rather than passing
+ * silently.
+ */
+function workflowJobs(text) {
+  const after = text.slice(text.indexOf("\njobs:"));
+  if (after === text.slice(0, 0)) return [];
+  const blocks = after.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1);
+  return blocks.map((block) => {
+    const id = block.slice(0, block.indexOf(":"));
+    const job = { id, name: id, runsOn: [], needs: [], matrixPlatforms: [], platformChecks: [], steps: [] };
+    // One string per step: `- ` at six spaces is the list item both workflows
+    // use, and a step's `if:`/`run:` has to be read together.
+    job.steps = block.split(/^ {6}- /m).slice(1);
+    for (const line of block.split(/\r?\n/)) {
+      if (line.trim().startsWith("#")) continue;
+      const atJobIndent = /^ {4}([\w-]+):\s*(.*)$/.exec(line);
+      if (atJobIndent) {
+        const [, key, value] = atJobIndent;
+        if (key === "name") job.name = value.trim();
+        else if (key === "runs-on") job.runsOn = value.trim().replace(/^\[|\]$/g, "").split(",").map((s) => s.trim());
+        else if (key === "needs") {
+          job.needs = value.trim().replace(/^\[|\]$/g, "").split(",").map((s) => s.trim()).filter(Boolean);
+        }
+        continue;
+      }
+      // `runs-on:` as a list item under `strategy.matrix` is not a job's runner.
+      const platform = /matrix\.platform\s*==\s*'([^']+)'/.exec(line);
+      if (platform) job.platformChecks.push(platform[1]);
+      // A trailing YAML comment is common on these lines — `- platform:
+      // windows-latest  # .msi (WiX)` — and a regex that demanded end-of-line
+      // silently matched none of them on the first draft.
+      const runsLabel = /^ {10}- platform:\s*([\w.-]+)\s*(?:#.*)?$/.exec(line);
+      if (runsLabel) job.matrixPlatforms.push(runsLabel[1]);
+    }
+    return job;
+  });
+}
+
+/** `needs:` entries that name no job in the same file. */
+function danglingJobRefs(jobs) {
+  const known = new Set(jobs.map((j) => j.id));
+  const out = [];
+  for (const job of jobs) {
+    for (const need of job.needs) {
+      if (need.startsWith("$")) continue;
+      if (!known.has(need)) out.push(`${job.id} needs: ${need}`);
+    }
+  }
+  return out;
+}
+
 /** Every swept file, deduplicated. */
 function sweptFiles() {
   const out = new Set(workflows());
@@ -644,6 +710,115 @@ export async function run() {
     "the README tells a developer the one command",
     fencedLines(readme).some(([, l]) => l.includes(RUNNER)),
   );
+
+  // ------------------------------------- every desktop job reaches every platform
+  //
+  // The forward sweep above asks whether some job runs each check **somewhere**.
+  // That is the weaker question, and it is exactly how Windows was missed: the
+  // `engine` checks were run, on Linux and on macOS, so nothing was unrun and the
+  // sweep stayed green while the third platform this ships to had no engine job
+  // at all (#180). The release matrix then *built* an `.msi` and an `.exe` on tag
+  // day and nothing ran them.
+  //
+  // So a job is a promise about a platform, and the promise is testable: if a
+  // tree's jobs are desktop jobs — they name a system library, or they are
+  // platform jobs by name — then a run list that is missing one of the three
+  // platforms is a gap wearing a green.
+  //
+  // This is a graph question, not a text one, which is why the older sweeps here
+  // could not see it. `danglingJobRefs` covers the other half: a `needs:` naming a
+  // job that does not exist makes GitHub reject the *whole workflow* with an
+  // "Invalid workflow file" annotation and no step ever runs — a red that names
+  // no check.
+  {
+    for (const file of files) {
+      const jobs = workflowJobs(readFileSync(path.join(ROOT, file), "utf8"));
+      if (jobs.length) {
+        ok(`the sweep can read the jobs in ${file} (${jobs.length})`, jobs.length > 0);
+      }
+      const dangling = danglingJobRefs(jobs);
+      ok(
+        `every needs: in ${file} names a job that exists` +
+          (dangling.length
+            ? `\n    ${dangling.join("\n    ")}\n GitHub rejects the whole workflow for one dangling` +
+              " `needs:`, with an annotation that names no check."
+            : ""),
+        dangling.length === 0,
+      );
+    }
+
+    // The jobs that are about a *platform* rather than about a tree, and the
+    // three this product ships to. A platform job is one that selects a check
+    // without saying which machine it needs: `desktopShell` carries
+    // `needs: { pkg: "gdk-3.0" }` for that question, and these deliberately do
+    // not, because the editor, the engine and the wasm build are built for a
+    // platform by the platform's own runner.
+    const PLATFORMS = ["ubuntu", "macos", "windows"];
+    const onPlatform = (job) => PLATFORMS.find((p) => job.runsOn.some((l) => l.startsWith(p)));
+    const ci = workflowJobs(readFileSync(path.join(ROOT, WORKFLOW), "utf8"));
+    // By name, because a platform job is one per machine and there is no other
+    // property that says so: the `engine` job and the three platform jobs run
+    // the same command on different runners.
+    const named = ci.filter((j) => /^engine on /u.test(j.name));
+    ok(
+      "there are per-platform engine jobs to sweep" +
+        ` (${named.map((j) => j.name).join(", ")})`,
+      named.length >= 2,
+    );
+    // Linux's engine job is not called "engine on Linux" — it is `engine`, the
+    // job everything else is written beside — so the runner is read as well as
+    // the name, and a job that appears in the list by either is a job.
+    const reached = new Set();
+    for (const job of ci) {
+      if (!named.includes(job) && !/^engine$/u.test(job.id)) continue;
+      const p = onPlatform(job);
+      if (p) reached.add(p);
+    }
+    const absent = PLATFORMS.filter((p) => !reached.has(p));
+    ok(
+      "every platform this ships to has its own engine job" +
+        (absent.length
+          ? `\n    ${absent.join(", ")} — the release matrix builds an installer there and no job` +
+            " runs the engine suite on it."
+          : ""),
+      absent.length === 0,
+    );
+
+    // And the other half of the same promise: on tag day `release.yml` gates the
+    // engine check on one runner, so the build legs nobody gates are the ones
+    // nobody has tested. What this requires is that the gate names **every**
+    // platform the matrix builds for — either by listing them or by gating them
+    // all — so a fifth build target cannot arrive already ungated.
+    const release = workflowJobs(readFileSync(path.join(ROOT, ".github/workflows/release.yml"), "utf8"));
+    const matrix = release.find((j) => j.matrixPlatforms.length);
+    ok("release.yml still has a build matrix with literal platforms", !!matrix);
+    if (matrix) {
+      const built = matrix.matrixPlatforms.map((p) => PLATFORMS.find((f) => p.startsWith(f)));
+      const gated = new Set(matrix.platformChecks.map((g) => PLATFORMS.find((f) => g === f)));
+      // Every step in this job that runs the engine check, and the platforms it
+      // is conditioned on — or none, which means every leg gates. Both halves are
+      // read from the job rather than assumed: the draft of this fence asked
+      // `matrix.platformChecks`, the condition reached the step and not the job,
+      // and the message it printed read "gates the engine check on  only".
+      const ENGINE_CHECK = /gate\.mjs\s+engine\s+--release/u;
+      const gateSteps = matrix.steps.filter((s) => ENGINE_CHECK.test(s));
+      ok(`the release matrix runs the engine check somewhere (${gateSteps.length})`, gateSteps.length > 0);
+      const ungated = built.filter((p) =>
+        !gateSteps.some((s) => {
+          const cond = /matrix\.platform\s*==\s*'([^']+)'/u.exec(s);
+          return !cond || (cond[1] && PLATFORMS.find((f) => cond[1].startsWith(f)) === p);
+        }),
+      );
+      ok(
+        "the release matrix's engine gate covers the platforms it builds for" +
+          (ungated.length
+            ? `\n    ${ungated.join(", ")} — \`${matrix.name}\` runs the engine check under a` +
+              ` \`matrix.platform\` condition that excludes it, so the commit handed to other people is untested there.`
+            : ""),
+        ungated.length === 0,
+      );
+    }
+  }
 
   // ------------------------------------------ an exported constant has readers
   //

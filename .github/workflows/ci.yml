@@ -5,10 +5,10 @@
 # to — and since there was no remote at all, not even that. The moment a remote
 # exists this is the file that starts earning its keep.
 #
-# Deliberately not the release matrix: this has to be fast enough that people
-# wait for it. It builds the engine on Linux and runs everything there, and
-# builds it a second time on macOS to run the half a platform can break — see
-# the `macos` job for why that is one job rather than a matrix over all of them.
+# Three platforms, and the platform jobs are on all three (#180). It builds the
+# engine on Linux and runs everything there, then builds it again on macOS and on
+# Windows to run the half a platform can break — see the three `engine on …`
+# jobs for why that is three jobs rather than one job with a matrix.
 #
 # # One checkout
 #
@@ -223,7 +223,7 @@ jobs:
   # desk is NixOS (`flake.nix`), and nothing before a push runs the engine suite
   # on Windows. The `.msi` and `.exe` are built on tag day by `release.yml` and
   # never run by anything, which is exactly the complaint this job was added to
-  # answer for macOS. Filed as #180 rather than papered over with a sentence.
+  # answer for macOS. It is answered for Windows by the `windows` job below.
   macos:
     name: engine on macOS
     # `macos-latest`, not a numbered image. `macos-14` was retired and the job
@@ -256,6 +256,59 @@ jobs:
       # The same command and the same reason as the Linux engine job: forty test
       # binaries, each statically linking the whole Typst compiler, and the
       # optimisation pass is the only thing this turns off.
+      - name: Check
+        working-directory: ./ksav
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_BENCH_LTO: "false"
+        run: node tools/gate.mjs engine --release --require
+
+  # The third platform this ships to, and the one that had no job at all (#180).
+  #
+  # Why Windows is the interesting one rather than a symmetry exercise: the
+  # release matrix *builds* an `.msi` and an `.exe` on tag day and nothing ever
+  # runs them, and the engine suite is the only thing that would notice the
+  # platform-shaped work underneath — `git.rs` shells out to `git` with quoting
+  # the Windows shell reads differently, `desk.rs` binds loopback and can raise a
+  # firewall prompt, the inbox endpoint lives under `%APPDATA%`, and the fonts go
+  # through `embed-ui`. None of that is visible from a Linux runner.
+  #
+  # `--release` for the same reason as macOS: forty test binaries each link the
+  # whole Typst compiler, and the suite is documented at ~3,400 seconds. The
+  # host target is this runner's own, so nothing extra is installed.
+  windows:
+    name: engine on Windows
+    # `windows-latest`, never a number: `macos-14` was retired and the job was
+    # cancelled a second after queueing, and the run then read `cancelled`
+    # (#173). `gate.test.mjs` refuses retired labels and `platformWorkflows()`
+    # fails if this job stops existing.
+    runs-on: windows-latest
+    # The suite is about an hour on a Linux runner; a Windows runner is slower at
+    # linking, so this is the same 45 a platform job gets plus room rather than a
+    # guess that turns a slow job into a red one.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          # Same pair as macOS, and for the same reason: `engine` names a group
+          # *and* a tree, the union runs, and the formatting and lint checks are
+          # part of it.
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./ksav/engine -> target"
+          cache-on-failure: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # `git` is preinstalled on the Windows runner image and `git.rs` shells out
+      # to whatever is on `PATH`, so the version is pinned here to the entry the
+      # job is meant to be testing rather than left as "some git".
+      - name: The git this machine has
+        shell: pwsh
+        run: git --version
       - name: Check
         working-directory: ./ksav
         env:

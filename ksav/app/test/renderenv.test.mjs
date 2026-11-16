@@ -23,10 +23,21 @@ import { renderEnv, renderNodes } from "../tools/renderenv.mjs";
 export async function run() {
   const NODE = ["/dev/dri/renderD128"];
 
+  // Every case that is about WebKitGTK says `linux`, and must.
+  //
+  // These calls used to leave `platform` out and take the default,
+  // `process.platform`. The module is right and this file was green on the
+  // machine it was written on — which is a Linux machine — so eight assertions
+  // about WebKitGTK's renderer passed there and went red on every Windows
+  // checkout, on the same commit. A test that asks about one platform and reads
+  // another is the same fault as a claim nothing measures: it says something
+  // about a machine rather than about the code (#171).
+  const LINUX = "linux";
+
   // --- a machine with a GPU -------------------------------------------------
 
   {
-    const r = renderEnv({ display: ":0", waylandDisplay: undefined, renderNodes: NODE });
+    const r = renderEnv({ display: ":0", waylandDisplay: undefined, renderNodes: NODE, platform: LINUX });
     ok("a machine with a render node keeps WebKit's default renderer", Object.keys(r.env).length === 0);
     ok("and it is not described as software", r.software === false);
   }
@@ -34,7 +45,7 @@ export async function run() {
   // --- a machine without one (the CI runner) --------------------------------
 
   {
-    const r = renderEnv({ display: ":99", waylandDisplay: undefined, renderNodes: [] });
+    const r = renderEnv({ display: ":99", waylandDisplay: undefined, renderNodes: [], platform: LINUX });
     ok("no render node turns the DMA-BUF renderer off", r.env.WEBKIT_DISABLE_DMABUF_RENDERER === "1");
     ok("and stops asking for accelerated compositing", r.env.WEBKIT_DISABLE_COMPOSITING_MODE === "1");
     ok("the run is recorded as software", r.software === true);
@@ -44,20 +55,20 @@ export async function run() {
   // --- two displays, one measurement ----------------------------------------
 
   {
-    const r = renderEnv({ display: ":0", waylandDisplay: "wayland-0", renderNodes: NODE });
+    const r = renderEnv({ display: ":0", waylandDisplay: "wayland-0", renderNodes: NODE, platform: LINUX });
     ok("with both displays present, Wayland is cleared so X11 is measured", r.cleared.includes("WAYLAND_DISPLAY"));
     ok("and the note says why the backend was pinned", r.notes.some((n) => n.includes("pins X11")));
   }
 
   {
-    const r = renderEnv({ display: ":0", waylandDisplay: undefined, renderNodes: NODE });
+    const r = renderEnv({ display: ":0", waylandDisplay: undefined, renderNodes: NODE, platform: LINUX });
     ok("X11 alone clears nothing", r.cleared.length === 0);
   }
 
   // A Wayland-only session must not have its display removed: it is the only
   // display there is, and dropping it would turn #103's own case into "no display".
   {
-    const r = renderEnv({ display: undefined, waylandDisplay: "wayland-0", renderNodes: NODE });
+    const r = renderEnv({ display: undefined, waylandDisplay: "wayland-0", renderNodes: NODE, platform: LINUX });
     ok("Wayland alone is left alone", r.cleared.length === 0);
   }
 
@@ -84,7 +95,7 @@ export async function run() {
       mkdirSync(path.join(dir, "renderD129"));
       ok("regular files called renderD* are not render nodes", renderNodes(dir).length === 0);
 
-      const env = renderEnv({ display: ":99", waylandDisplay: undefined, renderNodes: renderNodes(dir) });
+      const env = renderEnv({ display: ":99", waylandDisplay: undefined, renderNodes: renderNodes(dir), platform: LINUX });
       ok(
         "a fake render node still lands on the software path",
         env.env.WEBKIT_DISABLE_DMABUF_RENDERER === "1",

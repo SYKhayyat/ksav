@@ -31,6 +31,7 @@
 import { check, ok, installChrome } from "./harness.mjs";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { action, isCancellation, cancelled } from "../.tmp-test/asyncaction.mjs";
 
@@ -59,7 +60,12 @@ function bareVoids() {
       const at = line.indexOf("//");
       const body = at < 0 ? line : line.slice(0, at);
       const m = /\bvoid\s+([a-zA-Z_$][\w$]*)\s*\(/.exec(body);
-      if (m) found.push({ file: file.slice(ROOT.length), name: m[1] });
+      // Windows separators, because this key is compared against INVENTORY
+      // entries written by hand. `file.slice(ROOT.length)` on a Windows
+      // checkout is `\\src\\save.ts`, so every entry missed and this file
+      // reported all 36 of them as both unknown and stale — one fault, two
+      // failures, on a machine nobody had run it on (#171).
+      if (m) found.push({ file: file.slice(ROOT.length).split(path.sep).join("/"), name: m[1] });
     }
   }
   return found;

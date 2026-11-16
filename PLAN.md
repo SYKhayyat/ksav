@@ -40,7 +40,7 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 
 - [ ] #171 desktop shell job is red. Layers 1 and 2 are fixed. The render check's silent failure now names the state it is in (`37cd10f`); CI's next red will say which, because the runner never reaches `setup` (`window: never created`) and that part is unexplained.
 - [x] #187 gate sweeps read workflows as lines, not as a graph. The parser landed in 7ed8d69; it now reads both matrix spellings and reports what it could not understand (`ad52d40`).
-- [ ] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh.
+- [x] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh. Anchored on `$GITHUB_WORKSPACE`, the Windows leg runs it under `pwsh`, and the gate refuses a bare relative path (`818d4e5`).
 - [ ] Check #140 (the audit index) and close it if nothing is left open. As of 2026-11-15 every child was closed except ledger debts #163 and #164, which are in the Debt section above. Ask the owner before closing.
 - [ ] Check #22 (the `main.ts` split) and close it if every split wave is done. As of 2026-11-15 they were, but `main.ts` was still about 3,500 lines against a target of about 1,500. That gap is in the Debt section above. Ask the owner before closing.
 

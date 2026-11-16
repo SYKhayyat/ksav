@@ -38,7 +38,7 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
 Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 
-- [ ] #171 desktop shell job is red. Layers 1 and 2 are fixed. The render check's silent failure now names the state it is in (`37cd10f`); CI's next red will say which, because the runner never reaches `setup` (`window: never created`) and that part is unexplained.
+- [ ] #189 desktop shell job is red: the webview never reaches `setup` on the runner. #171's layers 1–2 and its reporting are done (`37cd10f`), which is how this was narrowed to the webview rather than the page.
 - [x] #187 gate sweeps read workflows as lines, not as a graph. The parser landed in 7ed8d69; it now reads both matrix spellings and reports what it could not understand (`ad52d40`).
 - [x] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh. Anchored on `$GITHUB_WORKSPACE`, the Windows leg runs it under `pwsh`, and the gate refuses a bare relative path (`818d4e5`).
 - [ ] Check #140 (the audit index) and close it if nothing is left open. As of 2026-11-15 every child was closed except ledger debts #163 and #164, which are in the Debt section above. Ask the owner before closing.

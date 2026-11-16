@@ -32,7 +32,7 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 - [ ] #163 multi-preview sync.
 - [ ] #164 the `e.code` / `e.key` split.
 - [ ] #32 trim the test and documentation tower.
-- [ ] #188 `main.ts` size (left over from #22): 3,536 lines against a target of about 1,500. Filed with the five functions that hold it up and an order to take them in. **Waves 1–3 done** (`3f192a9`, `3b75967`, `9c68270`): the extension stack is `editorstate.ts`, the header is `appheader.ts`, and the settings value write is `settings.ts`; main is 2,824, 712 lines off. Wave 3 bought separation rather than subtraction — the change set stayed in main because moving it closed 28 import cycles. Both new modules are imported by tests rather than grepped.
+- [ ] #188 `main.ts` size (left over from #22): 3,536 lines against a target of about 1,500. Filed with the five functions that hold it up and an order to take them in. **Waves 1–3, 5 done** (`3f192a9`, `3b75967`, `9c68270`, `32d401d`): the extension stack is `editorstate.ts`, the header is `appheader.ts`, the settings value write is `settings.ts`, and the window composition is `layout.ts`; main is 2,468, 968 lines off. Wave 3 bought separation rather than subtraction — the change set stayed in main because moving it closed 28 import cycles. Wave 5 moved cleanly with no seam at all. Every new module is imported by a test rather than grepped.
 
 ## M0 — Green and honest
 

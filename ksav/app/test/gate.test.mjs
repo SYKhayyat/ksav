@@ -176,6 +176,29 @@ function workflowJobs(text) {
     // One string per step: `- ` at six spaces is the list item both workflows
     // use, and a step's `if:`/`run:` has to be read together.
     job.steps = block.split(/^ {6}- /m).slice(1);
+    // The same steps, as fields, for the questions that are about a step's own
+    // keys rather than about the text under them (#186: a `run:` and the shell
+    // it runs in are one decision).
+    job.stepFields = job.steps.map((text) => {
+      const lines = text.split(/\r?\n/);
+      // A step's keys sit at eight spaces, and `run: |` opens a block whose body
+      // is indented further — so every key is found by its own indent and the
+      // block is collected until the indent drops back.
+      const field = (key) => {
+        const at = lines.findIndex((l) => new RegExp(`^ {8}${key}:`).test(l));
+        if (at < 0) return "";
+        const rest = lines[at].slice(lines[at].indexOf(":") + 1).trim();
+        if (rest && rest !== "|" && rest !== ">") return rest.replace(/^["']|["']$/g, "");
+        const body = [];
+        for (let i = at + 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          if (!/^ {10,}/.test(lines[i])) break;
+          body.push(lines[i].trim());
+        }
+        return body.join(" ");
+      };
+      return { shell: field("shell"), run: field("run"), text };
+    });
     const lines = block.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -886,6 +909,93 @@ export async function run() {
             : ""),
         ungated.length === 0,
       );
+    }
+  }
+
+  // ------------------------------------------ a relative path is not a command
+  //
+  // #186: `release.yml`'s `Run it` step ran a release binary by a bare relative
+  // path — `ksav/engine/target/.../ksav.exe --version` — under `shell: bash`, on
+  // a matrix that includes Windows. Windows PowerShell does not treat a relative
+  // path as a command: it needs `.\`, and a path with neither that nor a drive
+  // is not an invocation at all. The step failed on the Windows leg alone, with
+  // "The term ... is not recognized", which reads as "Windows is broken".
+  //
+  // The rule this turns into: **a `run:` that invokes a file by a relative path
+  // must anchor it.** Three ways to satisfy it, all of which this accepts —
+  // `$GITHUB_WORKSPACE/...`, a qualified `.\...`, or a path that starts with a
+  // slash — and one way to fail it, which is the bare relative path that broke.
+  //
+  // What this cannot see is whether the shell itself exists on the runner. That
+  // is why the fix *also* stops depending on it: the Windows leg now runs the
+  // same check under `pwsh`, which every Windows runner has.
+  {
+    // A path with at least one separator, in command position. The file name is
+    // whatever follows the last slash — `ksav.exe` on Windows, `ksav` on Linux —
+    // so an extension list would have made half the release invisible, which is
+    // the same blindness this fence exists to end.
+    const RELATIVE_EXEC = /(^|[\s&;(|])((?:\.{0,2}\/)?(?:[\w.${}-]+\/)+[\w.${}-]+)(?=\s|$)/;
+    const ANCHORED = /^(?:\$GITHUB_WORKSPACE|\$\{?GITHUB_WORKSPACE|\$env:|\/|\.\\|\.\/)/;
+    const offenders = [];
+    for (const file of files) {
+      const jobs = workflowJobs(readFileSync(path.join(ROOT, file), "utf8"));
+      for (const job of jobs) {
+        for (const step of job.stepFields) {
+          if (!step.run) continue;
+          // Only the first token of each command line: a path handed to `cp` or
+          // `gh` as an argument is data, not an invocation, and `cp a/b/c dest`
+          // is not the bug this is about.
+          for (const command of step.run.split(/&&|\|\||;|\n/)) {
+            const first = command.trim().split(/\s+/)[0] ?? "";
+            const m = RELATIVE_EXEC.exec(first);
+            if (!m) continue;
+            if (ANCHORED.test(m[2])) continue;
+            offenders.push(`${job.id}: ${first} (shell: ${step.shell || "default"})`);
+          }
+        }
+      }
+    }
+    ok(
+      "every workflow step that runs a file by path anchors the path" +
+        (offenders.length
+          ? `\n    ${offenders.join("\n    ")}\n A bare relative path is not a command under Windows PowerShell, and a` +
+            " step that fails on one leg reads as a broken platform rather than a broken line (#186)."
+          : ""),
+      offenders.length === 0,
+    );
+
+    // …and the fence can fail. The step that broke, as it was written.
+    const broke = `name: f
+on: [push]
+jobs:
+  engine:
+    name: engine
+    runs-on: \${{ matrix.target.runner }}
+    steps:
+      - name: Run it
+        shell: bash
+        run: ksav/engine/target/x86_64-pc-windows-msvc/release/ksav.exe --version
+`;
+    const caught = [];
+    for (const job of workflowJobs(broke)) {
+      for (const step of job.stepFields) {
+        const first = (step.run || "").trim().split(/\s+/)[0] ?? "";
+        const m = RELATIVE_EXEC.exec(first);
+        if (m && !ANCHORED.test(m[2])) caught.push(m[2]);
+      }
+    }
+    check("the old `Run it` line is what this refuses", caught, [
+      "ksav/engine/target/x86_64-pc-windows-msvc/release/ksav.exe",
+    ]);
+
+    // And the two shapes the fix uses are accepted, so the fence does not force
+    // a spelling it cannot check.
+    for (const [why, anchored] of [
+      ["$GITHUB_WORKSPACE", "$GITHUB_WORKSPACE/ksav/engine/target/t/release/ksav"],
+      ["a PowerShell environment variable", "$env:GITHUB_WORKSPACE\\ksav\\engine\\target\\t\\release\\ksav.exe"],
+    ]) {
+      const m = RELATIVE_EXEC.exec(anchored) ?? RELATIVE_EXEC.exec(anchored.replace(/^\$env:/, ""));
+      ok(`an anchored path is accepted (${why})`, !m || ANCHORED.test(m[2]) || !m);
     }
   }
 

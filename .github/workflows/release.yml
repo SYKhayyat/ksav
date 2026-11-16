@@ -345,20 +345,58 @@ jobs:
       # dies is the failure this catches, and `--version` is the cheapest thing
       # that proves a process got as far as its own main. Skipped where the
       # binary is not for this machine, which is only the Intel macOS build.
+      #
+      # # The shell is a fact about the runner, not a preference (#186)
+      #
+      # This declared `shell: bash` on every leg. Windows' runner image carries
+      # Git Bash *and* MSYS2, and GitHub deprecated both in 2025 — with either
+      # gone, `shell: bash` falls back to `pwsh` with a warning, and under `pwsh`
+      # `ksav/engine/.../ksav.exe` is not an invocation: Windows PowerShell needs
+      # a relative path qualified as `.\`. The step then failed on the
+      # x86_64-pc-windows-msvc leg alone with "The term ... is not recognized",
+      # which reads as "Windows is broken" rather than "this line is broken".
+      #
+      # And if the fallback bash *is* still there, `shell: bash` was running a
+      # Windows binary through a POSIX shell, so the guarantee was "Git Bash
+      # could find it", not "a person on Windows can run it". The gate in
+      # `app/test/gate.test.mjs` now refuses a relative executable path under a
+      # shell the runner may not have.
       - name: Run it
         if: matrix.target.triple != 'x86_64-apple-darwin'
         shell: bash
-        run: ksav/engine/target/${{ matrix.target.triple }}/release/${{ matrix.target.built }} --version
+        # A block scalar, for the same reason as the PowerShell step below: a
+        # `run:` value that opens with a quote is a quoted YAML scalar, and
+        # `... --version` after the closing quote is not YAML.
+        run: |
+          "$GITHUB_WORKSPACE/ksav/engine/target/${{ matrix.target.triple }}/release/${{ matrix.target.built }}" --version
+
+      # The same check on the runner's own shell, for the one leg where the
+      # shell above is the thing under suspicion. `pwsh` is always present on a
+      # Windows runner, so this states the guarantee in terms of a shell nobody
+      # has deprecated rather than depending on which bash the image still
+      # carries.
+      - name: Run it, in PowerShell
+        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        # A block scalar, because the command needs both quotes and backslashes
+        # and a single-quoted YAML string with `\"` in it is not one string.
+        run: |
+          & "$env:GITHUB_WORKSPACE\ksav\engine\target\${{ matrix.target.triple }}\release\${{ matrix.target.built }}" --version
 
       # Only on a tag. Everything above it — the build, the matrix, the
       # toolchain — still runs on a dispatch, which is the point of one.
+      # `shell: bash` for the same reason the step above no longer takes it as a
+      # given: this job has a Windows leg, and the file paths here are read by
+      # `cp` inside whatever shell the runner has. Anchored on
+      # `$GITHUB_WORKSPACE` so it does not depend on the job's default directory
+      # either (#186).
       - name: Attach it to the release
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cp "ksav/engine/target/${{ matrix.target.triple }}/release/${{ matrix.target.built }}" \
+          cp "$GITHUB_WORKSPACE/ksav/engine/target/${{ matrix.target.triple }}/release/${{ matrix.target.built }}" \
              "${{ matrix.target.asset }}"
           gh release upload "${{ github.ref_name }}" "${{ matrix.target.asset }}" --clobber
 

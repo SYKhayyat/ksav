@@ -31,7 +31,11 @@ import { dirOf } from "../tools/paths.mjs";
 
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const ROWLISTS = readFileSync(path.join(SRC, "rowlists.ts"), "utf8");
-const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
+// `renderFindPane` moved into the layout composition (wave 5 of #188), so the
+// find drawer's markup is read from `layout.ts` alongside `main.ts`.
+const MAIN =
+  readFileSync(path.join(SRC, "main.ts"), "utf8") +
+  readFileSync(path.join(SRC, "layout.ts"), "utf8");
 const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 const COMPILE = readFileSync(path.join(SRC, "compile.ts"), "utf8");
 const FIND = readFileSync(path.join(SRC, "find.ts"), "utf8");

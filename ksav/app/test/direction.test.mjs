@@ -41,6 +41,9 @@ const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
 // about what that list contains read it, and the one about `documentElement.dir`
 // still reads `main.ts`, because setting the root direction is boot behaviour.
 const extlist = readFileSync(path.join(SRC, "editorstate.ts"), "utf8");
+// Wave 5 of #188: `applyUiDir` and the root-direction assignment moved to
+// `layout.ts`, so the two assertions about them read there.
+const layout = readFileSync(path.join(SRC, "layout.ts"), "utf8");
 const preview = readFileSync(path.join(SRC, "preview.ts"), "utf8");
 
 export async function run() {
@@ -61,10 +64,10 @@ export async function run() {
 
   // ------------------------------------------- and main.ts says so, in words
 
-  const assignments = main
+  const assignments = layout
     .split("\n")
     .filter((l) => /documentElement\.dir\s*=/.test(l) && !l.trim().startsWith("//"));
-  ok("main.ts sets the root direction somewhere", assignments.length > 0);
+  ok("the application sets the root direction somewhere", assignments.length > 0);
   ok(
     "the root direction is the interface's" +
       (assignments.every((l) => l.includes("rootDir("))
@@ -103,5 +106,5 @@ export async function run() {
 
   // The interface's own direction is still asked of `i18n.ts`, which is the one
   // module that knows what languages exist.
-  ok("the UI direction is asked of i18n", main.includes("isRtlUi()"));
+  ok("the UI direction is asked of i18n", layout.includes("isRtlUi()"));
 }

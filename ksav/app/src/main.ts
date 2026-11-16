@@ -1,6 +1,7 @@
 import "./styles.css";
 import { EditorView } from "@codemirror/view";
 import { buildExtensions } from "./editorstate";
+import { render, applyTheme, applySourceZoom, applyUiDir, nameGutterMarks, updateCounts } from "./layout";
 import { buildHeader, wireHeader } from "./appheader";
 import { EditorState } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
@@ -14,19 +15,18 @@ import { type Placement } from "./minimap";
 import { openMinimap, closeMinimap, minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
 import { healAll } from "./bracket-lint";
 import { moveOutTarget } from "./brackets";
-import { rootDir } from "./direction";
+
 import { renderAllNotes } from "./apparatus-lint";
-import { onAttachRef } from "./sourcenote-lint";
+
 import { renumberAll, scheduleRenumber } from "./numbering-lint";
 import { jumpDeferred, deferHere, recallHere, deferAll, inlineAll, sortDeferredBodies } from "./deferred-editor";
 
 import { createBackend } from "./transports";
 import * as panelviews from "./panelviews";
-import { getLang, isRtlUi, setLang, t, tf } from "./i18n";
+import { getLang, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
 
 import * as docs from "./docs";
-import * as opendocs from "./opendocs";
 import * as panes from "./panes";
 import * as tabs from "./tabs";
 import {
@@ -81,27 +81,12 @@ import * as styles from "./styles";
 //   boot(), and the header bar (its three main-locals are the settings
 //     machinery wave 6 held — see #147's record) — the recipe for how the
 //     whole app is assembled.
-import { el, glyphBtn } from "./dom";
 import * as runtime from "./runtime";
-import { setStatus, closeMenus, jumpTo, editDoc } from "./runtime";
+import { setStatus, closeMenus, editDoc } from "./runtime";
 import { docTextNow, wireChrome } from "./ribbon";
-import { contextBar, updateContextBar } from "./contextbar";
-import {
-  openPanel,
-  closePanel,
-  togglePanel,
-  isPanelOpen,
-  wirePanel,
-  closeOnEscape,
-  handleEscape,
-  closeOnOutsideClick,
-  panelHead,
-  panelLede,
-  overlayPanel,
-  localise,
-  rebuildOpenPanels,
-} from "./panels";
-import { docTextOf, plainText, scanDoc } from "./spans";
+import { updateContextBar } from "./contextbar";
+import { openPanel, closePanel, togglePanel, isPanelOpen, wirePanel, closeOnEscape, handleEscape, closeOnOutsideClick, localise, rebuildOpenPanels } from "./panels";
+import { docTextOf, scanDoc } from "./spans";
 import {
   settings,
   saveSettings,
@@ -127,39 +112,28 @@ import * as save from "./save";
 import { scheduleSave, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, compileNow, onStale, onAfterCompile, onSchedule } from "./compile";
 import { applyPreview, drawCurrentInto } from "./preview";
-import { setPaneTree, setFocusedPane, sourceViews, toEveryPane, wirePanes } from "./panestate";
+import { sourceViews, toEveryPane, wirePanes } from "./panestate";
 import { renderPanes, refreshPaneHeads, cyclePaneZoom, gotoPart } from "./panehost";
 import { narrowHere, widenHere } from "./paneview";
 import { swapPaneToward } from "./panedrag";
 import { invalidateScrollMap, followCaretInPreview } from "./panescroll";
 import { installScrollPolicy } from "./scrollpolicy";
-import {
-  refreshPanes,
-  selectTab,
-  closeTab,
-  newTab,
-  newDocTab,
-  retargetPanes,
-  buildTabStrip,
-  refreshTabStrip,
-} from "./tabstrip";
-import { applyPageView } from "./panearrangements";
+import { refreshPanes, selectTab, closeTab, newTab, newDocTab } from "./tabstrip";
 
 import { toggleIsolate } from "./bidi";
-import { nameMarks } from "./changes";
+
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
 import * as watch from "./watch";
 
-import { offsetOf, setErrorLines } from "./errorlines";
-import { onGoToLine, onGoToPart, onMarkLines } from "./diagview";
-import { buildNikudBar } from "./nikud";
+import { onGoToPart } from "./diagview";
+
 import * as zoom from "./zoom";
 import { troubleSaid } from "./diagnostics";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as macros from "./macros";
-import { openHelp, renderHelp, buildHelpPanel } from "./help";
+import { openHelp, renderHelp } from "./help";
 import { renderOutline, renderNotesPane, renderMarksPane, renderFindPane, drawList, LOOKS, wireRows } from "./rowlists";
 import { buildSettingsDrawer, captureShortcut, resetShortcuts, wireSettings } from "./settingsdrawer";
 import { applyCustomStyle, unwrapCustomStyle, openNewStyle, openStyleEditor } from "./customstyles";
@@ -178,7 +152,7 @@ import { showChromeNotice, clearChromeNotice } from "./ribbon";
 import { openDoc, openSwitcher, goToLastDoc, closeOpenDoc, refreshBaseline, updateTitleBar, loadBody, newDoc, wireDocswitch } from "./docswitch";
 import { takeSnapshot, restoreSnapshot, renderHistory, wireSnapshots } from "./snapshots";
 import { refreshGit, openGit, renderGitPanel, wireGit } from "./gitui";
-import { openCommands, buildCommandsDrawer, renderCommands } from "./commandsdrawer";
+import { openCommands, renderCommands } from "./commandsdrawer";
 import { openKeys } from "./keysdrawer";
 import {
   noteAction,
@@ -196,15 +170,8 @@ import { insertSnippet, insertCommand, tieredNoteHere, docLang, wireInsert } fro
 import * as hiding from "./hiding";
 import { LIST_DEPTHS } from "./lists";
 import * as lists from "./lists";
-import {
-  linkifySelection,
-  refreshSources,
-  askForMekor,
-  tellGirsaWhereItIs,
-  attachRefToNote,
-  installGirsaPoll,
-} from "./girsa";
-import { openPalette, paletteKey, renderPaletteList, wirePalette } from "./palette";
+import { linkifySelection, refreshSources, askForMekor, installGirsaPoll } from "./girsa";
+import { openPalette, renderPaletteList, wirePalette } from "./palette";
 import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
 import { focusCompartment, focusExtension } from "./focus";
 import { wireCompartments } from "./compartments";
@@ -852,16 +819,6 @@ function moveOutOfBracket(v: EditorView, toNextLine: boolean, all = false): bool
 // `)`, so `#צבע(rgb("#b91c1c"))[…]` left a stray paren in the number a writer
 // watches. One question, asked of the scanner that already knows the answer:
 // `spans.ts` tells a string from a bracket, which is what all six askers lacked.
-function countNow() {
-  const el = document.getElementById("wordcount");
-  if (!el || !runtime.view) return;
-  const text = plainText(docTextOf(runtime.view.state.doc));
-  const words = (text.match(/[^\s]+/g) || []).length;
-  const chars = text.replace(/\s+/g, " ").trim().length;
-  el.textContent = `${words} ${t("words")} · ${chars} ${t("chars")}`;
-}
-let countTimer: number | undefined;
-const COUNT_DEBOUNCE_MS = 200;
 /**
  * The count, on a short beat rather than on every keystroke.
  *
@@ -872,10 +829,6 @@ const COUNT_DEBOUNCE_MS = 200;
  * sixty frames a second; a fifth of a second late it is still the same number,
  * and the keystroke it is late for is the one being typed.
  */
-function updateCounts() {
-  clearTimeout(countTimer);
-  countTimer = window.setTimeout(countNow, COUNT_DEBOUNCE_MS);
-}
 
 /**
  * The three constructs, through one door each.
@@ -1427,9 +1380,6 @@ function adoptPageSetupAsDefault(): void {
 }
 
 // ---------------------------------------------------------------- layout / theme / chrome
-function applyTheme() {
-  document.documentElement.dataset.theme = settings.theme;
-}
 
 /**
  * The source's zoom, as a number the stylesheet multiplies by.
@@ -1440,12 +1390,6 @@ function applyTheme() {
  * that leaves that difference intact — a zoom that set a font size outright
  * would have flattened page view back to a code pane.
  */
-function applySourceZoom() {
-  document.documentElement.style.setProperty(
-    "--source-zoom",
-    String(zoom.clamp(settings.sourceZoom ?? zoom.DEFAULT)),
-  );
-}
 
 /**
  * Zoom the surface the writer is in. `by` is +1, -1, or 0 for "back to 100%".
@@ -1513,9 +1457,6 @@ function scheduleAutoSnapshots() {
 // was a global: there was only ever one fraction to store. A tree keeps its
 // fractions on its splits, where a second divider has somewhere to put its own.
 
-function openPreviewOverlay() {
-  openPanel("preview-modal");
-}
 /**
  * Tell the change gutter what its three marks mean.
  *
@@ -1523,30 +1464,6 @@ function openPreviewOverlay() {
  * the margin and the line in the help say the same sentence — a legend and a
  * tooltip that are two hand-written lists are two lists that disagree.
  */
-function nameGutterMarks() {
-  // The keys as well as the sentences, so a language switch can re-render a
-  // marker CodeMirror built itself.
-  const keys = { added: "mark.added", changed: "mark.changed", removed: "mark.removed" };
-  nameMarks({ added: t(keys.added), changed: t(keys.changed), removed: t(keys.removed) }, keys);
-}
-
-function applyUiDir() {
-  document.documentElement.lang = getLang();
-  // The **interface's** direction, which is the interface language's (#122).
-  //
-  // This used to be `docConfig().dir` — the document's — added to fix the caret
-  // in a Hebrew document under an English interface. It fixed the caret and
-  // mirrored the product: an English UI with a Hebrew sefer opened right to
-  // left, drawers and menus flipped, and the pane tree (which `styles.css` keeps
-  // physical so "preview on the right" is the right of the screen) started
-  // laying itself out backwards.
-  //
-  // The editor was never relying on this. It is told the document's direction on
-  // its own content element (`dirCompartment`) and again by `bidiSupport`, and
-  // the preview sets each pane's direction in `applyPreview`. Text surfaces take
-  // the document; the page takes the interface. See `direction.ts`.
-  document.documentElement.dir = rootDir(isRtlUi());
-}
 
 function rerenderChrome() {
   applyUiDir();
@@ -1570,279 +1487,6 @@ function rerenderChrome() {
 }
 
 // ---------------------------------------------------------------- boot
-function render() {
-  const app = document.getElementById("app")!;
-  app.append(
-    buildHeader(),
-    // Directly under the toolbar, where Word and LibreOffice put their
-    // contextual tabs. It used to be a four-button strip pinned to the bottom
-    // of the window, which the writer reasonably reported as "no UI at all".
-    contextBar(),
-    buildNikudBar(scheduleCompile),
-    // Arrangements, when there is more than one. Above the panes because that
-    // is what it selects between, and invisible at one because a strip of one
-    // tab is a row of chrome saying nothing.
-    buildTabStrip(),
-    // Empty. `renderPanes` fills it from the pane tree, which is the one
-    // statement of what the window looks like — a fixed preview/splitter/source
-    // triple here would be a second one, and the two would drift the first time
-    // somebody split a pane.
-    el("main", {}),
-    // The problems region, in the layout rather than over it (#124).
-    //
-    // Diagnostics lived in the status bar until a UAT report: a compile error is
-    // a *sentence*, the bar is one 32px line with `overflow: hidden`, and the
-    // message came back cut in half at exactly the moment the writer needed it.
-    // An overlay would have been the other repair, and a worse one — the thing
-    // that cannot be covered is the thing that is not overlapped, so this takes
-    // the space it needs and the panes get the rest. `:empty` hides it, and
-    // `drawDiagnostics` empties it when there is nothing to say.
-    el("section", {
-      id: "diagnostics",
-      class: "diagnostics",
-      role: "status",
-      "aria-live": "polite",
-      "aria-label": t("problems"),
-      "data-i18n-label": "problems",
-    }),
-    // Announced as it changes: "rendering…", "3 pages", a compile error and —
-    // the reason this matters — a save failure are all reported here, and a
-    // status nobody is told about is the failure mode this whole pass exists to
-    // remove. `polite` rather than `assertive`: it must not interrupt typing.
-    el("div", { class: "statusbar", role: "status", "aria-live": "polite" }, [
-      el("span", { id: "status", class: "ok" }, [t("ready")]),
-      el("span", { id: "wordcount", class: "wordcount" }),
-      el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
-    ]),
-    buildSettingsDrawer(),
-    el("aside", { id: "outline-drawer", class: "drawer drawer-start", "aria-label": t("outline"), "data-i18n-label": "outline" }, [
-      // Its own close control, for the same reason the settings drawer needed
-      // one: below 720px a drawer is the full viewport, so the chip that opened
-      // it is underneath it and cannot be the only way back out.
-      panelHead("outline-drawer", "outline", { level: "h3" }),
-      panelLede("outlineLede"),
-      el("div", { id: "outline-list", class: "outline-list" }),
-    ]),
-    // The notes pane, beside the outline: the two halves of a sefer's structure.
-    el("aside", { id: "notes-drawer", class: "drawer drawer-start", "aria-label": t("notesPane"), "data-i18n-label": "notesPane" }, [
-      panelHead("notes-drawer", "notesPane", { level: "h3" }),
-      panelLede("notesPaneLede"),
-      el("div", { id: "notes-list", class: "notes-list" }),
-    ]),
-    // The marks pane, beside the other two: what the document *says things are*,
-    // where the outline is what it is built from and the notes pane is what hangs
-    // off it.
-    el("aside", { id: "marks-drawer", class: "drawer drawer-start", "aria-label": t("marksPane"), "data-i18n-label": "marksPane" }, [
-      panelHead("marks-drawer", "marksPane", { level: "h3" }),
-      // **The report, and it is one sentence long:** *"the marks pane reads as
-      // a second siman/seif outline and gives no indication of what it actually
-      // lists"*. It did read that way — three drawers on the same edge, each a
-      // list of Hebrew phrases with a chip, and only the heading to tell them
-      // apart. A heading names a pane; it does not say what a pane is *for*,
-      // and "Marks" is not a word that explains itself.
-      //
-      // All three get one, and that is the fix rather than an extra: labelling
-      // only the one that was reported would leave the two it is confused with
-      // still unlabelled, and the confusion is between them.
-      panelLede("marksPaneLede"),
-      el("div", { id: "marks-list", class: "marks-list" }),
-    ]),
-    // Find. A drawer on the same edge as the three list panes, because the
-    // answer is a list of places in the document and that is what that edge is
-    // for — but transient, because it answers a question rather than showing a
-    // view of the sefer.
-    el("aside", { id: "find-drawer", class: "drawer drawer-start", "aria-label": t("findTitle"), "data-i18n-label": "findTitle" }, [
-      panelHead("find-drawer", "findTitle", { level: "h3" }),
-      panelLede("findLede"),
-      el("input", {
-        id: "find-query",
-        type: "search",
-        placeholder: t("findPlaceholder"),
-        "data-i18n-placeholder": "findPlaceholder",
-        // The name as well as the prompt (#178): a placeholder disappears the
-        // moment the writer types and is not what a screen reader announces.
-        "aria-label": t("findPlaceholder"),
-        "data-i18n-label": "findPlaceholder",
-        class: "help-search",
-        onInput: () => renderFindPane(),
-      }),
-      // The scope, on the surface it governs and not only in the settings
-      // drawer. A search that is quietly looking somewhere else is the whole
-      // complaint; a writer has to be able to see which sefer is being read and
-      // change it without leaving the answer.
-      el("label", { class: "find-scope" }, [
-        el("span", { "data-i18n": "searchScope" }, [t("searchScope")]),
-        el(
-          "select",
-          {
-            id: "find-scope",
-            onChange: (e: Event) => {
-              settings.searchScope = (e.target as HTMLSelectElement).value as Settings["searchScope"];
-              saveSettings();
-              // The printed text is only fetched while a scope that reads it is
-              // on screen, so switching to one has to ask for a compile — or
-              // the drawer would say the preview is unavailable until the next
-              // keystroke happened to trigger one.
-              if (settings.searchScope !== "source") compileNow();
-              renderFindPane();
-            },
-          },
-          [
-            el("option", { value: "source", "data-i18n": "searchScope.source" }, [t("searchScope.source")]),
-            el("option", { value: "preview", "data-i18n": "searchScope.preview" }, [t("searchScope.preview")]),
-            el("option", { value: "both", "data-i18n": "searchScope.both" }, [t("searchScope.both")]),
-          ],
-        ),
-      ]),
-      el("div", { id: "find-list", class: "marks-list" }),
-    ]),
-    // styles panel (a drawer, so the document stays visible while you tune it)
-    el("aside", { id: "styles-panel", class: "drawer drawer-styles", "aria-label": t("stylesTitle"), "data-i18n-label": "stylesTitle" }, [
-      el("div", { id: "styles-body" }),
-    ]),
-    // review panel (a drawer, so the document stays visible while you go
-    // through the changes — the whole point is comparing them with the text)
-    el("aside", { id: "review-panel", class: "drawer drawer-styles", "aria-label": t("reviewTitle"), "data-i18n-label": "reviewTitle" }, [
-      el("div", { id: "review-body" }),
-    ]),
-    // version control (a drawer for the review panel's reason: deciding what to
-    // commit means reading the document while you decide)
-    el("aside", { id: "git-panel", class: "drawer drawer-styles", "aria-label": t("git.title"), "data-i18n-label": "git.title" }, [
-      el("div", { id: "git-body" }),
-    ]),
-    // The keyboard. A drawer for the reason the command list is one: it is read
-    // while working — "what is the key for this" is asked mid-sentence — and a
-    // window over the document would hide the thing the question is about.
-    el("aside", { id: "keys-drawer", class: "drawer drawer-styles", "aria-label": t("keysTitle"), "data-i18n-label": "keysTitle" }, [
-      panelHead("keys-drawer", "keysTitle", { level: "h3" }),
-      el("div", { id: "keys-body" }),
-    ]),
-    // a shared form modal (section page setup, formulas)
-    overlayPanel("form-modal", "palette-box form-modal-box", [el("div", { id: "form-modal-body" })]),
-    buildCommandsDrawer(),
-    buildHelpPanel(),
-    // the hydra panel — a strip, not an overlay: the document must stay visible
-    // and the caret must stay where it is while operations fire against it
-    el("div", { id: "hydra", class: "hydra" }),
-    // notes chooser overlay
-    overlayPanel("notes-chooser", "notes-chooser-box", [el("div", { id: "notes-chooser-body" })]),
-    // command palette overlay
-    overlayPanel("palette", "palette-box", [
-        el("input", {
-          id: "palette-input",
-          placeholder: t("searchCommands"),
-          "data-i18n-placeholder": "searchCommands",
-          "aria-label": t("searchCommands"),
-          "data-i18n-label": "searchCommands",
-          oninput: (e: Event) => renderPaletteList((e.target as HTMLInputElement).value),
-          onKeyDown: (e: Event) => {
-            if (paletteKey(e as KeyboardEvent)) {
-              e.preventDefault();
-              e.stopPropagation();
-            }
-          },
-        }),
-      el("div", { id: "palette-list" }),
-    ]),
-    // The open-document switcher. Deliberately its own surface and not a row in
-    // the palette: with several documents open, a strip of chrome cannot be an
-    // inventory of what is open and also stay out of the way, so this is the
-    // surface that tells that truth. Tabs for the eye, switcher for the hand.
-    overlayPanel("switcher", "palette-box", [el("div", { id: "switcher-list" })]),
-    overlayPanel("arrangement", "palette-box", [el("div", { id: "arrangement-list" })]),
-    // floating preview (page mode): a button + a modal showing the rendered pages
-    glyphBtn("📄", t("preview"), openPreviewOverlay, "float-preview-btn", {
-      "data-i18n-both": "preview",
-      id: "float-preview-btn",
-      "data-i18n-title": "preview",
-    }),
-    overlayPanel("preview-modal", "preview-modal-box", [el("div", { id: "preview-modal-body" })]),
-    // version history modal
-    overlayPanel("history-modal", "palette-box", [
-      el("div", { class: "history-head" }, [
-        el("b", { "data-i18n": "history" }, [t("history")]),
-        el("button", { class: "sc-key", "data-i18n": "snapshotNow", onClick: () => void takeSnapshot(true) }, [
-          t("snapshotNow"),
-        ]),
-      ]),
-      el("div", { id: "history-list" }),
-    ]),
-    // Every place a line printed (#82). The head names the line and the file it
-    // is in, so a list of numbers is answerable rather than merely shown.
-    overlayPanel("places-chooser", "palette-box", [
-      el("div", { class: "history-head" }, [
-        el("b", { "data-i18n": "revealPlaces" }, [t("revealPlaces")]),
-        el("span", { id: "places-subject" }),
-      ]),
-      el("div", { id: "places-list" }),
-    ]),
-    // Every citation in the document, as the library has it now (spec.md
-    // §10.2). See `refreshSources` for what the errand is and why the rows come
-    // back instead of a rewritten file.
-    overlayPanel("refresh-panel", "palette-box", [
-      // `panelHead` and not a hand-built ×. The panel *claims* a head exit, and
-      // `chrome.test.mjs` checks that the claim is kept by the one function
-      // that builds one — which is how an exit comes to be a promise rather
-      // than a note in a registry.
-      panelHead("refresh-panel", "refreshTitle", { level: "h3" }),
-      el("div", { id: "refresh-list" }),
-    ]),
-  );
-
-  // The window, from the pane tree. Builds the editors, so it comes before
-  // anything that reaches for one.
-  // The strip, or a single tab holding whatever arrangement was stored. A
-  // restart has to come back to the window the writer left, or an arrangement
-  // they built is worth less than no arrangement at all.
-  if (!tabs.restore(settings.tabs)) {
-    tabs.reset();
-    tabs.add((settings.panes as panes.PaneNode | undefined) ?? panes.defaultTree());
-  }
-  setPaneTree(tabs.current()!.tree);
-  setFocusedPane(tabs.current()!.focusedPane);
-  renderPanes();
-  // The document boot built the editor around is open, and is the focused one.
-  // Said here rather than inside `makeEditor` because the open set is a fact
-  // about the application, and the editor is one view onto it.
-  opendocs.put({
-    id: runtime.currentDoc.id,
-    state: runtime.view.state,
-    scrollTop: 0,
-    prose: !!settings.prose,
-  });
-  opendocs.focus(runtime.currentDoc.id);
-  // And the panes say which document they are showing, so the tab strip can
-  // name itself the moment there is more than one tab.
-  retargetPanes(null, runtime.currentDoc.id);
-  refreshTabStrip();
-  // A diagnostic that names a line has to be able to go there, and the line has
-  // to be visible in the editor. `diagview` knows nothing about CodeMirror and
-  // does not need to; it asks.
-  // The source-note lint knows which notes want a ref; it does not know how to
-  // go and get one, because that is a network errand to Girsa.
-  onAttachRef(attachRefToNote);
-  onGoToLine((line, column) => {
-    const at = offsetOf(runtime.view, line, column);
-    if (at != null) jumpTo(at);
-  });
-  onMarkLines((lines) => runtime.view.dispatch({ effects: setErrorLines.of(lines) }));
-  save.onFileWritten(() => tellGirsaWhereItIs());
-  applyTheme();
-  applySourceZoom();
-  applyPageView();
-  applyUiDir();
-  nameGutterMarks();
-  applyPreview();
-  updateCounts();
-  // The three surfaces whose open state is a saved preference rather than a
-  // thing the writer just did. `togglePanel(id, false)` on a panel that is
-  // already closed does nothing at all — including running its close hook — so
-  // this restores what was on without announcing anything about what was off.
-  togglePanel("nikud-bar", settings.nikud);
-  togglePanel("outline-drawer", settings.outline);
-  togglePanel("notes-drawer", !!settings.notesPane);
-  togglePanel("marks-drawer", !!settings.marksPane);
-}
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
 /**

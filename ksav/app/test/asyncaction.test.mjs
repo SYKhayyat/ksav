@@ -122,6 +122,8 @@ const INVENTORY = {
   "src/apparatus-lint.ts:renderAllNotes": "returns the number of dumps added; no promise",
   "src/numbering-lint.ts:renumberAll": "returns the number of fields renumbered; no promise",
   "src/appheader.ts:undo": "returns a promise the editor already handles",
+  // moved with the layout scan (wave 5 of #188)
+  "src/layout.ts:takeSnapshot": "returns a promise the snapshot module already handles",
   "src/appheader.ts:redo": "returns a promise the editor already handles",
   "src/appheader.ts:foldAll": "a synchronous fold walk",
   "src/appheader.ts:unfoldAll": "a synchronous fold walk",

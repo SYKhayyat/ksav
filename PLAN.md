@@ -6,7 +6,10 @@ reaches one, stop and ask the owner. Don't decide a gate from inside a worker
 session.
 
 Worker loop (see `AI_ISSUE_ROUTING.md`): take the top unchecked item that is
-not behind an open gate. Fix only that issue and its resolving test, commit,
+not behind an open gate. **Clearing technical debt always comes first:** the
+Debt section sits above every milestone, and new debt is filed there, not
+deferred behind a pay condition.
+Fix only that issue and its resolving test, commit,
 check the box here, and stop. New issues go into the milestone where they
 block something, not at the end. The milestones are ordered from foundations
 to features, so "insert into the right phase" still applies. Each milestone is
@@ -21,6 +24,16 @@ everyone else. Linux packaging stays distro-neutral, with no Nix-only paths.
 
 ---
 
+## Debt — always first
+
+Clear these before any milestone work. The older ledger, with the reasons each
+item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
+
+- [ ] #163 multi-preview sync.
+- [ ] #164 the `e.code` / `e.key` split.
+- [ ] #32 trim the test and documentation tower.
+- [ ] `main.ts` size (left over from #22): about 3,500 lines against a target of about 1,500. File an issue for it, then split further.
+
 ## M0 — Green and honest
 
 Exit: CI on `main` is fully green, and every check that CI reports actually ran.
@@ -28,8 +41,8 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 - [ ] #171 desktop shell job is red. Layers 1 and 2 are fixed; the render check still never runs.
 - [ ] #187 gate sweeps read workflows as lines, not as a graph. The parser partly landed in 7ed8d69.
 - [ ] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh.
-- [ ] Close #140 (the audit index: every child is closed except ledger debts #163 and #164, which stay under Debt below).
-- [ ] Close #22 (all split waves are done). Record that `main.ts` is still about 3,500 lines against a target of about 1,500, and leave that as debt, not as an open issue.
+- [ ] Check #140 (the audit index) and close it if nothing is left open. As of 2026-11-15 every child was closed except ledger debts #163 and #164, which are in the Debt section above. Ask the owner before closing.
+- [ ] Check #22 (the `main.ts` split) and close it if every split wave is done. As of 2026-11-15 they were, but `main.ts` was still about 3,500 lines against a target of about 1,500. That gap is in the Debt section above. Ask the owner before closing.
 
 ## ◆ D0 — Do we decide the UI and backend direction now?
 
@@ -87,8 +100,8 @@ code instead.
 
 ## M3 — Audit
 
-Exit: a fresh audit with every finding either fixed or entered in the
-accepted-debt ledger with a pay condition.
+Exit: a fresh audit with every finding either fixed or filed in the Debt
+section at the top of this plan.
 
 - [ ] Engine (Rust/Typst) audit: correctness, panics on bad input, and export fidelity.
 - [ ] Tauri shell audit (it was not covered by the #140 sweep): IPC surface, file-system scope, updater.
@@ -133,16 +146,3 @@ Decide #184 here if D1 deferred it.
 - [ ] #69 templated headings
 - [ ] #66 smart navigation
 - [ ] #44 nikud/shemos handling on export
-
----
-
-## Debt — pay when the condition becomes true
-
-Not queued. A debt is paid when its condition becomes true, and its fix is then
-inserted into the milestone where that happens. The full ledger is in
-`decisions/2026-10-22-accepted-debts.md`.
-
-- #163 multi-preview sync. Pay when a second preview pane ships (likely M2 or D1).
-- #164 the `e.code` / `e.key` split. Pay when a non-QWERTY or Hebrew-layout keybinding bug is reported.
-- #32 trim the test and documentation tower. Pay when a test run is too slow to keep, or when D1 chooses a rewrite.
-- `main.ts` size (from #22). Pay when the next change to `main.ts` is hard to review.

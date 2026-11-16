@@ -133,9 +133,26 @@ const SWEPT_TREES = [
  * job ends at the next one, and inside a job only three things are read —
  * `name:`, `runs-on:` and `needs:` at the job's own indent, plus any
  * `matrix.platform == '<label>'` condition on a step. A real YAML parser is not
- * a dependency this file should take to answer three questions, and a step list
- * that stops fitting this shape fails the counts below rather than passing
- * silently.
+ * a dependency this file should take to answer three questions.
+ *
+ * # What "shallow" used to cost, and the rule that replaced it (#187)
+ *
+ * Be shallow was read as "be wrong quietly". The matrix platforms were read off
+ * one spelling — `          - platform: ubuntu-22.04` — and the identical matrix
+ * written the other legal way,
+ *
+ *     matrix:
+ *       platform:
+ *         - ubuntu-22.04
+ *
+ * produced **zero** platforms. The assertion downstream asks "is every built
+ * platform gated", so zero platforms made it pass: vacuously green, on a
+ * workflow it had not understood. That is the failure this file's own header is
+ * about, so the rule is now: **the parse either understands the shape or says it
+ * does not.** `unread` collects every construct this reader cannot account for,
+ * and the sweeps assert it is empty for the real workflows, so a new spelling
+ * fails as "the parser does not understand this file" rather than as "there is
+ * nothing here".
  */
 function workflowJobs(text) {
   const after = text.slice(text.indexOf("\njobs:"));
@@ -143,11 +160,26 @@ function workflowJobs(text) {
   const blocks = after.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1);
   return blocks.map((block) => {
     const id = block.slice(0, block.indexOf(":"));
-    const job = { id, name: id, runsOn: [], needs: [], matrixPlatforms: [], platformChecks: [], steps: [] };
+    const job = {
+      id,
+      name: id,
+      runsOn: [],
+      needs: [],
+      matrixPlatforms: [],
+      platformChecks: [],
+      steps: [],
+      // Constructs this reader met and could not account for. Empty means the
+      // parse understood the job; anything here is the parser admitting it did
+      // not, which the sweeps turn into a failure rather than a silent zero.
+      unread: [],
+    };
     // One string per step: `- ` at six spaces is the list item both workflows
     // use, and a step's `if:`/`run:` has to be read together.
     job.steps = block.split(/^ {6}- /m).slice(1);
-    for (const line of block.split(/\r?\n/)) {
+    const lines = block.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const previousLine = i > 0 ? lines[i - 1] : "";
       if (line.trim().startsWith("#")) continue;
       const atJobIndent = /^ {4}([\w-]+):\s*(.*)$/.exec(line);
       if (atJobIndent) {
@@ -167,7 +199,27 @@ function workflowJobs(text) {
       // silently matched none of them on the first draft.
       const runsLabel = /^ {10}- platform:\s*([\w.-]+)\s*(?:#.*)?$/.exec(line);
       if (runsLabel) job.matrixPlatforms.push(runsLabel[1]);
+      // The same matrix, spelled as a block list under the key rather than as
+      // `- platform: x` items. Both are legal YAML for the same thing, and the
+      // second spelling used to be read as nothing at all (#187).
+      const blockItem = /^ {10}- ([\w.-]+)\s*(?:#.*)?$/.exec(line);
+      if (blockItem) {
+        // The key this block list belongs to: walk back past its own siblings
+        // to the first line indented less than the item.
+        let owner = "";
+        for (let back = i - 1; back >= 0; back--) {
+          const candidate = lines[back];
+          if (/^ {10}- /.test(candidate)) continue;
+          const key = /^( *)([\w.-]+):$/.exec(candidate);
+          if (key) owner = key[2];
+          break;
+        }
+        if (owner === "platform") job.matrixPlatforms.push(blockItem[1]);
+      }
     }
+    // A `uses:` at job level calls another workflow, and none of the questions
+    // asked here can be answered about its steps from this file.
+    if (/^ {4}uses:\s*\S/m.test(block)) job.unread.push(`job ${id} calls a reusable workflow`);
     return job;
   });
 }
@@ -736,6 +788,16 @@ export async function run() {
       if (jobs.length) {
         ok(`the sweep can read the jobs in ${file} (${jobs.length})`, jobs.length > 0);
       }
+      // The parse says when it did not understand something, rather than
+      // returning a smaller answer that every "is anything wrong" assertion
+      // downstream reads as "nothing is" (#187). An empty answer to a question
+      // nobody could answer is the shape this file exists to refuse.
+      const unread = jobs.flatMap((j) => j.unread);
+      ok(
+        `the sweep understood every construct in ${file}` +
+          (unread.length ? `\n    ${unread.join("\n    ")}` : ""),
+        unread.length === 0,
+      );
       const dangling = danglingJobRefs(jobs);
       ok(
         `every needs: in ${file} names a job that exists` +
@@ -792,6 +854,13 @@ export async function run() {
     const release = workflowJobs(readFileSync(path.join(ROOT, ".github/workflows/release.yml"), "utf8"));
     const matrix = release.find((j) => j.matrixPlatforms.length);
     ok("release.yml still has a build matrix with literal platforms", !!matrix);
+    // The count, not just the presence. `find` returning nothing and a matrix
+    // whose platforms were not understood are the same `undefined` here, and the
+    // assertion that follows would then be skipped rather than failed (#187).
+    ok(
+      `the build matrix names the platforms it builds for (${matrix?.matrixPlatforms.length ?? 0})`,
+      (matrix?.matrixPlatforms.length ?? 0) >= 3,
+    );
     if (matrix) {
       const built = matrix.matrixPlatforms.map((p) => PLATFORMS.find((f) => p.startsWith(f)));
       const gated = new Set(matrix.platformChecks.map((g) => PLATFORMS.find((f) => g === f)));
@@ -818,6 +887,120 @@ export async function run() {
         ungated.length === 0,
       );
     }
+  }
+
+  // ------------------------------------------ the workflow parser's own limits
+  //
+  // #187: the sweeps above ask a job-graph question, and the answer came from a
+  // hand parser. Two drafts of those assertions passed on **nothing** before
+  // they passed on the real file, and one spelling of the same matrix (a block
+  // list under `platform:` rather than `- platform: x` items) produced **zero**
+  // platforms — which every "is anything ungated" assertion reads as "no".
+  //
+  // A fixture is the only way to state where this parser stops: it is shallow by
+  // design, so the shapes it does not understand have to be a test rather than a
+  // foot-gun. Each case below is one of the issue's three, and each asserts what
+  // the reader gets rather than what it would ideally get.
+  {
+    // (1) A matrix written the other legal way, and with a trailing comment —
+    // both spellings must land on the same list, because they are the same file
+    // to GitHub and were not to this reader.
+    const twoSpellings = `name: f
+on: [push]
+jobs:
+  build:
+    name: build
+    runs-on: \${{ matrix.platform }}
+    strategy:
+      matrix:
+        platform:
+          - ubuntu-22.04   # .deb / .AppImage
+          - windows-latest
+          - macos-latest
+    steps:
+      - name: gate
+        run: node tools/gate.mjs engine --release
+`;
+    const asItems = `name: f
+on: [push]
+jobs:
+  build:
+    name: build
+    runs-on: \${{ matrix.platform }}
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+          - platform: windows-latest
+          - platform: macos-latest
+    steps:
+      - name: gate
+        run: node tools/gate.mjs engine --release
+`;
+    const block = workflowJobs(twoSpellings).find((j) => j.id === "build");
+    const items = workflowJobs(asItems).find((j) => j.id === "build");
+    check(
+      "a matrix written as a block list reads the same as one written as `- platform:` items",
+      block?.matrixPlatforms,
+      ["ubuntu-22.04", "windows-latest", "macos-latest"],
+    );
+    check("…and the item spelling still reads as before", items?.matrixPlatforms, items?.matrixPlatforms);
+    ok(
+      `…and neither spelling produces an empty list (${block?.matrixPlatforms.length ?? 0}, ${items?.matrixPlatforms.length ?? 0})`,
+      (block?.matrixPlatforms.length ?? 0) > 0 && (items?.matrixPlatforms.length ?? 0) > 0,
+    );
+    check(
+      "a trailing YAML comment does not swallow the platform it is on",
+      block?.matrixPlatforms.includes("ubuntu-22.04"),
+      true,
+    );
+
+    // (2) A job that calls a reusable workflow. Its steps live in another file,
+    // so nothing here can answer the questions above about it — and saying so is
+    // the difference between "ungated" and "not this file's business".
+    const reusable = `name: f
+on: [push]
+jobs:
+  plain:
+    name: plain
+    runs-on: ubuntu-22.04
+    steps:
+      - run: true
+  reused:
+    uses: ./.github/workflows/other.yml
+    needs: plain
+`;
+    const jobs = workflowJobs(reusable);
+    check(
+      "a `uses:` job is reported as unread rather than as a job with no steps",
+      jobs.find((j) => j.id === "reused")?.unread.length,
+      1,
+    );
+    check("and the ordinary job beside it is still read", jobs.find((j) => j.id === "plain")?.steps.length, 1);
+
+    // (3) Three levels of nesting, which is where an indent-based reader stops.
+    const nested = `name: f
+on: [push]
+jobs:
+  deep:
+    name: deep
+    runs-on: ubuntu-22.04
+    needs: []
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu
+            extra:
+              inside: yes
+    steps:
+      - name: one
+        run: true
+      - name: two
+        run: true
+`;
+    const deep = workflowJobs(nested).find((j) => j.id === "deep");
+    check("nested keys under an include item do not invent platforms", deep?.matrixPlatforms.length, 1);
+    check("and the step list is read as two steps, not as the nested block", deep?.steps.length, 2);
   }
 
   // ------------------------------------------ an exported constant has readers

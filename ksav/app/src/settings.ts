@@ -9,6 +9,7 @@
 
 import type { DocConfig } from "./api";
 import { DOC_DEFAULTS } from "./engine.gen";
+import { makeWiring } from "./wiring";
 import * as runtime from "./runtime";
 import type { Lang } from "./i18n";
 
@@ -1249,4 +1250,54 @@ export function undoPreset(onto: (change: PageSetup) => void): boolean {
   onto(styleUndo.before as PageSetup);
   styleUndo = null;
   return true;
+}
+
+// ------------------------------------------------------- the value, and only it
+//
+// A setting is a value on `settings` plus a `saveSettings()`. That is all this
+// file can do by itself, and wave 3 of #188 stopped there on purpose: the arms
+// that follow a change — repaint the theme, reconfigure every pane, rebuild the
+// chrome that reports it — belong to the surfaces that own them, and this module
+// is imported by nearly every one of those, so importing them back here closed
+// 28 import cycles (measured: `tools/imports.mjs`). The change set arrives as
+// `applyChange`, which `main.ts` supplies.
+
+/** What a settings change moves beyond the value itself. */
+export interface SettingsWiring {
+  /** Everything a change to `key` does after the value is written. */
+  applyChange(key: Field, value: unknown): void;
+  /** Write page setup onto the open document. */
+  setPageSetup(change: PageSetup): void;
+  /** Remember a document's page setup, through the module that owns the write. */
+  rememberConfig(id: string, config: Record<string, unknown>): void;
+}
+
+const settingsWriteWire = makeWiring<SettingsWiring>("wireSettingsWrite");
+
+export function wireSettingsWrite(w: SettingsWiring): void {
+  settingsWriteWire.wire(w);
+}
+
+const wiring = (): SettingsWiring => settingsWriteWire.get();
+
+/**
+ * Write one setting, then let the change set catch up.
+ *
+ * The write is here because this is the module that owns the value; what follows
+ * is `applyChange`, because this module cannot see the themes, the panes or the
+ * chrome, and should not be able to.
+ */
+export function setSetting<K extends Field>(key: K, value: ValueOf<K>): void {
+  if (isPageField(key)) {
+    wiring().setPageSetup({ [key as string]: value } as PageSetup);
+  } else {
+    (settings as unknown as Record<string, unknown>)[key as string] = value;
+    saveSettings();
+  }
+  wiring().applyChange(key, value);
+}
+
+/** Write page setup onto the open document, merging rather than replacing. */
+export function setPageSetup(change: PageSetup): void {
+  wiring().setPageSetup(change);
 }

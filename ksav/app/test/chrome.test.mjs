@@ -380,8 +380,12 @@ check(
   // so the number falling is the fix working, not the fence weakening.
   ok("…and it reads several settings", shown.length >= 4, `${shown.length}`);
 
-  const set = MAIN.slice(MAIN.indexOf("function setSetting"));
-  const fn = set.slice(0, set.indexOf(END) + END.length);
+  // Wave 3 of #188 split the dispatcher: the value write is `settings.ts`'s
+  // `setSetting`, and the change set it triggers is `main.ts`'s
+  // `applySettingChange`, because every arm behind it reaches for a subsystem
+  // that imports `settings.ts` back. The arms live in the second one.
+  const dispatcher = MAIN.slice(MAIN.indexOf("function applySettingChange"));
+  const fn = dispatcher.slice(0, dispatcher.indexOf(END) + END.length);
   // Each `else if (key === "x") { … }` arm, with its body.
   const arms = new Map();
   const ARM = /key === "(\w+)"\)\s*\{([\s\S]*?)\n  \}/g;
@@ -390,7 +394,7 @@ check(
 
   const silent = shown
     .filter((key) => arms.has(key))
-    .filter((key) => !arms.get(key).includes("rerenderChrome()"));
+    .filter((key) => !/rerenderChrome\(\)/u.test(arms.get(key)));
   check("a setting the chipbar shows is a setting that rebuilds it", silent, []);
 }
 

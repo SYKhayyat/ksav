@@ -153,7 +153,8 @@ export function run() {
     // over a rule stated about a file that no longer stated it.
     const main =
       readFileSync(path.join(SRC, "editorstate.ts"), "utf8") +
-      readFileSync(path.join(SRC, "main.ts"), "utf8");
+      readFileSync(path.join(SRC, "main.ts"), "utf8") +
+      readFileSync(path.join(SRC, "settings.ts"), "utf8");
     const machinery = readFileSync(path.join(SRC, "compartments.ts"), "utf8");
     const both = main + "\n" + machinery;
     // Every call site, not most of them: an editor built without the anchor is

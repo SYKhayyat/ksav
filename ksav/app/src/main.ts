@@ -24,6 +24,7 @@ import { createBackend } from "./transports";
 import * as panelviews from "./panelviews";
 import { getLang, isRtlUi, setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
+
 import * as docs from "./docs";
 import * as opendocs from "./opendocs";
 import * as panes from "./panes";
@@ -41,13 +42,7 @@ import {
 import { aliasesInForce } from "./bindings";
 import * as sefarim from "./sefarim";
 import * as spell from "./spell";
-import {
-  clearSpellCheck,
-  forceFullSpellCheck,
-  markSpellDirty,
-  openSpellMenu,
-  scheduleSpellCheck,
-} from "./spellcheck";
+import { clearSpellCheck, forceFullSpellCheck, markSpellDirty, openSpellMenu, scheduleSpellCheck } from "./spellcheck";
 import { keybindings } from "./keyhint";
 
 import * as entity from "./entity";
@@ -117,6 +112,9 @@ import {
   ownPageSetup,
   settingsLoadFailure,
   reportSettingsWriteFailures,
+  setSetting,
+  setPageSetup,
+  wireSettingsWrite,
 } from "./settings";
 import type { Field, Settings, PageSetup, ValueOf } from "./settings";
 // The alignment pair is read and written as a unit rather than field by field —
@@ -149,7 +147,6 @@ import { applyPageView } from "./panearrangements";
 
 import { toggleIsolate } from "./bidi";
 import { nameMarks } from "./changes";
-import { focusCompartment, focusExtension } from "./focus";
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
 import * as watch from "./watch";
@@ -172,7 +169,7 @@ import { settlePendingModals, ask, askText } from "./formmodal";
 import { markReview, addComment, isReviewOpen, renderReviewPanel } from "./reviewpanel";
 import { applyNotePick, bodyHome, renderNotesChooser } from "./noteschooser";
 import { addFont, removeAsset } from "./assets";
-import { starterDoc, swapUntouchedStarter, searchPhrases, wireStarter, maybeOnboard } from "./starter";
+import { starterDoc, searchPhrases, swapUntouchedStarter, wireStarter, maybeOnboard } from "./starter";
 import { wireTemplates } from "./templates";
 import { openFile, saveFile, saveFileAs, reloadFromDisk, openSharedIfLinked, autosaveToFile } from "./fileui";
 import { offerRecovery, maybeCheckForUpdate, registerServiceWorker, showCrashPanel } from "./applifecycle";
@@ -208,7 +205,8 @@ import {
   installGirsaPoll,
 } from "./girsa";
 import { openPalette, paletteKey, renderPaletteList, wirePalette } from "./palette";
-import { proseCompartment, dirCompartment, themeCompartment, phraseCompartment, pairCompartment, whitespaceCompartment, autoCompartment, editorTheme, syncGlobals, setEditingMode, reconfigureShortcuts, pairExtension, whitespaceExtension, autoExtension, proseOrRaw, proseHere, whose } from "./compartments";
+import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
+import { focusCompartment, focusExtension } from "./focus";
 import { wireCompartments } from "./compartments";
 
 // ---- configurable keyboard shortcuts ----
@@ -1408,13 +1406,6 @@ function now<K extends Field>(key: K): ValueOf<K> {
  * margin does not silently reset the paper. Saved through `docs.update`, which is
  * where every other change to a document goes.
  */
-function setPageSetup(change: PageSetup): void {
-  const doc = runtime.currentDoc;
-  if (!doc) return;
-  const config = { ...(doc.config ?? {}), ...change };
-  runtime.setCurrentDoc({ ...doc, config });
-  void docs.rememberConfig(doc.id, config).catch(reportSaveFailure);
-}
 
 /**
  * Make the open document's layout what a **new** document starts with (B26).
@@ -1433,110 +1424,6 @@ function adoptPageSetupAsDefault(): void {
   settings.newDocument = ownPageSetup(docConfig() as unknown as PageSetup);
   saveSettings();
   showChromeNotice("setupIsDefault");
-}
-
-function setSetting<K extends Field>(key: K, value: ValueOf<K>) {
-  if (isPageField(key)) {
-    setPageSetup({ [key as string]: value } as PageSetup);
-  } else {
-    (settings as unknown as Record<string, unknown>)[key as string] = value;
-    saveSettings();
-  }
-  if (key === "lang") {
-    setLang(value as Lang);
-    swapUntouchedStarter();
-    // Replacing the header and flipping the root direction reflows everything
-    // below, and CodeMirror keeps its pixel offset against a layout that just
-    // moved — so the source visibly jumps. Capture each scroller's position and
-    // put it back after the chrome is rebuilt.
-    const wasAt = new Map<EditorView, number>();
-    for (const v of sourceViews()) wasAt.set(v, v.scrollDOM.scrollTop);
-    // Every source pane, and the search panel with them: `rerenderChrome`
-    // rebuilds our own DOM and cannot reach a panel CodeMirror owns.
-    for (const v of sourceViews()) {
-      v.dispatch({ effects: phraseCompartment.reconfigure(EditorState.phrases.of(searchPhrases())) });
-    }
-    rerenderChrome();
-    for (const [v, at] of wasAt) v.scrollDOM.scrollTop = at;
-  } else if (key === "theme") {
-    applyTheme();
-    toEveryPane(themeCompartment.reconfigure(editorTheme(settings.theme === "dark")));
-    // …and the chip that reports the theme, which is the one thing this branch
-    // did not do. Found by pressing it: the page went dark, the editor went
-    // dark, and the chip went on saying 🌙 — "switch to dark" — for as long as
-    // the session lasted, because nothing rebuilt the header. Its four siblings
-    // (`lang`, `prose`, `layout`, `editingMode`) all rerender; this one was the
-    // odd one out, and it is the toggle a writer presses first.
-    rerenderChrome();
-  } else if (key === "prose") {
-    toEveryPane(proseCompartment.reconfigure(proseOrRaw()));
-    rerenderChrome();
-  } else if (key === "dir") {
-    toEveryPane(dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })));
-    // The preview pane reads in the document's direction, so flipping the
-    // document has to re-point the pane in the same act.
-    applyPreview();
-    scheduleCompile();
-  } else if (key === "editingMode") {
-    // **After**, not beside. The mode is fetched over the network, so a
-    // `rerenderChrome()` on the next line runs while `activeMode()` is still
-    // "default" and the chrome is rebuilt describing the mode that is on its way
-    // out — the shortcut list goes on printing keys the mode is about to take.
-    // Caught by driving it: the settings list never showed a single `M-x` row.
-    action("save_file", () => setEditingMode(value)).then(rerenderChrome);
-  } else if (key === "focusMode" || key === "typewriter" || key === "typewriterAnchor") {
-    toEveryPane(
-      focusCompartment.reconfigure(
-        focusExtension(
-          !!settings.focusMode,
-          !!settings.typewriter,
-          settings.typewriterAnchor ?? "center",
-        ),
-      ),
-    );
-  } else if (key === "zoom" || key === "fitWidth") {
-    applyPreview();
-  } else if (key === "sourceZoom") {
-    applySourceZoom();
-  } else if (key === "autoSnapshot" || key === "autoSnapshotMinutes") {
-    // The timer is rebuilt rather than left to the next reload, which is the
-    // whole difference between a setting and a constant.
-    scheduleAutoSnapshots();
-    // …and so is the sentence under the switch. `snapshotNote` says which of the
-    // two states the history is in and how to keep a version by hand; without
-    // this, turning the clock off left it reading *"a version is kept by itself
-    // whenever the text has changed"* — the switch moved and the line under it
-    // went on describing the state before. Found by pressing it.
-    if (isPanelOpen("settings-drawer")) rerenderChrome();
-  } else if (key === "autocomplete") {
-    toEveryPane(autoCompartment.reconfigure(autoExtension()));
-  } else if (key === "spellcheck") {
-    // Turning it off must take the existing squiggles with it, not just stop
-    // adding new ones.
-    if (settings.spellcheck) scheduleSpellCheck();
-    else clearSpellCheck();
-  } else if (key === "spellcheckComments") {
-    // A wider or narrower checkable text, so the answer on screen is stale
-    // either way — and turning it *off* has to clear the squiggles it put in
-    // comments rather than leave them there until the next keystroke.
-    clearSpellCheck();
-    forceFullSpellCheck();
-  } else if (key === "autoPairBrackets" || key === "autoPairQuotes") {
-    toEveryPane(pairCompartment.reconfigure(pairExtension()));
-  } else if (key === "minimap") {
-    // The strip is a **surface**, so the setting is a request to open or close it
-    // rather than something reconfigured in place. Two directions because a setting
-    // can be loaded as `true` at startup and must come up with the strip, not with a
-    // canvas nobody asked for.
-    if (settings.minimap && !minimapIsOpen()) toggleMinimap();
-    else if (!settings.minimap && minimapIsOpen()) toggleMinimap();
-  } else if (key === "showWhitespace") {
-    // `[]` rather than the plugin emptied: reconfigure **is** the toggle, so there
-    // is no state to clear and nothing to leave behind.
-    toEveryPane(whitespaceCompartment.reconfigure(whitespaceExtension()));
-  } else {
-    scheduleCompile();
-  }
 }
 
 // ---------------------------------------------------------------- layout / theme / chrome
@@ -1959,6 +1846,112 @@ function render() {
 
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
 /**
+ * What a settings change moves, once the value itself is written.
+ *
+ * Registered with `settings.ts` at boot. This half stayed in `main.ts` when the
+ * value writer moved there (wave 3 of #188) because every arm below reaches for a
+ * subsystem — `settings.ts` is imported by nearly all of them and importing them
+ * back closed 28 cycles.
+ */
+function applySettingChange(key: Field, value: unknown): void {
+  if (key === "lang") {
+    setLang(value as Lang);
+    swapUntouchedStarter();
+    // Replacing the header and flipping the root direction reflows everything
+    // below, and CodeMirror keeps its pixel offset against a layout that just
+    // moved — so the source visibly jumps. Capture each scroller's position and
+    // put it back after the chrome is rebuilt.
+    const wasAt = new Map<EditorView, number>();
+    for (const v of sourceViews()) wasAt.set(v, v.scrollDOM.scrollTop);
+    // Every source pane, and the search panel with them: `rerenderChrome`
+    // rebuilds our own DOM and cannot reach a panel CodeMirror owns.
+    for (const v of sourceViews()) {
+      v.dispatch({ effects: phraseCompartment.reconfigure(EditorState.phrases.of(searchPhrases())) });
+    }
+    rerenderChrome();
+    for (const [v, at] of wasAt) v.scrollDOM.scrollTop = at;
+  } else if (key === "theme") {
+    applyTheme();
+    toEveryPane(themeCompartment.reconfigure(editorTheme(settings.theme === "dark")));
+    // …and the chip that reports the theme, which is the one thing this branch
+    // did not do. Found by pressing it: the page went dark, the editor went
+    // dark, and the chip went on saying 🌙 — "switch to dark" — for as long as
+    // the session lasted, because nothing rebuilt the header. Its four siblings
+    // (`lang`, `prose`, `layout`, `editingMode`) all rerender; this one was the
+    // odd one out, and it is the toggle a writer presses first.
+    rerenderChrome();
+  } else if (key === "prose") {
+    toEveryPane(proseCompartment.reconfigure(proseOrRaw()));
+    rerenderChrome();
+  } else if (key === "dir") {
+    toEveryPane(dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })));
+    // The preview pane reads in the document's direction, so flipping the
+    // document has to re-point the pane in the same act.
+    applyPreview();
+    scheduleCompile();
+  } else if (key === "editingMode") {
+    // **After**, not beside. The mode is fetched over the network, so a
+    // `rerenderChrome()` on the next line runs while `activeMode()` is still
+    // "default" and the chrome is rebuilt describing the mode that is on its way
+    // out — the shortcut list goes on printing keys the mode is about to take.
+    // Caught by driving it: the settings list never showed a single `M-x` row.
+    action("save_file", () => setEditingMode(value)).then(rerenderChrome);
+  } else if (key === "focusMode" || key === "typewriter" || key === "typewriterAnchor") {
+    toEveryPane(
+      focusCompartment.reconfigure(
+        focusExtension(
+          !!settings.focusMode,
+          !!settings.typewriter,
+          settings.typewriterAnchor ?? "center",
+        ),
+      ),
+    );
+  } else if (key === "zoom" || key === "fitWidth") {
+    applyPreview();
+  } else if (key === "sourceZoom") {
+    applySourceZoom();
+  } else if (key === "autoSnapshot" || key === "autoSnapshotMinutes") {
+    // The timer is rebuilt rather than left to the next reload, which is the
+    // whole difference between a setting and a constant.
+    scheduleAutoSnapshots();
+    // …and so is the sentence under the switch. `snapshotNote` says which of the
+    // two states the history is in and how to keep a version by hand; without
+    // this, turning the clock off left it reading *"a version is kept by itself
+    // whenever the text has changed"* — the switch moved and the line under it
+    // went on describing the state before. Found by pressing it.
+    if (isPanelOpen("settings-drawer")) rerenderChrome();
+  } else if (key === "autocomplete") {
+    toEveryPane(autoCompartment.reconfigure(autoExtension()));
+  } else if (key === "spellcheck") {
+    // Turning it off must take the existing squiggles with it, not just stop
+    // adding new ones.
+    if (settings.spellcheck) scheduleSpellCheck();
+    else clearSpellCheck();
+  } else if (key === "spellcheckComments") {
+    // A wider or narrower checkable text, so the answer on screen is stale
+    // either way — and turning it *off* has to clear the squiggles it put in
+    // comments rather than leave them there until the next keystroke.
+    clearSpellCheck();
+    forceFullSpellCheck();
+  } else if (key === "autoPairBrackets" || key === "autoPairQuotes") {
+    toEveryPane(pairCompartment.reconfigure(pairExtension()));
+  } else if (key === "minimap") {
+    // The strip is a **surface**, so the setting is a request to open or close it
+    // rather than something reconfigured in place. Two directions because a setting
+    // can be loaded as `true` at startup and must come up with the strip, not with a
+    // canvas nobody asked for.
+    if (settings.minimap && !minimapIsOpen()) toggleMinimap();
+    else if (!settings.minimap && minimapIsOpen()) toggleMinimap();
+  } else if (key === "showWhitespace") {
+    // `[]` rather than the plugin emptied: reconfigure **is** the toggle, so there
+    // is no state to clear and nothing to leave behind.
+    toEveryPane(whitespaceCompartment.reconfigure(whitespaceExtension()));
+  } else {
+    scheduleCompile();
+  }
+}
+
+/**
  * Is this keystroke somebody typing into a field?
  *
  * `.cm-content` is `contenteditable`, so the editor is covered by the same
@@ -2277,6 +2270,17 @@ function installHooks() {
   // (refreshContextBar via contextbar, refreshStylesPanel via stylespanel,
   // saveFileAs via fileui's ribbon import). The other twenty-five were direct
   // imports in their own modules all along — see ribbon.ts.
+  wireSettingsWrite({
+    applyChange: applySettingChange,
+    setPageSetup: (change) => {
+      const doc = runtime.currentDoc;
+      if (!doc) return;
+      const config = { ...(doc.config ?? {}), ...change };
+      runtime.setCurrentDoc({ ...doc, config });
+      void docs.rememberConfig(doc.id, config).catch(reportSaveFailure);
+    },
+    rememberConfig: (id, config) => void docs.rememberConfig(id, config as never).catch(reportSaveFailure),
+  });
   wireHeader({
     setSetting,
     startFind,

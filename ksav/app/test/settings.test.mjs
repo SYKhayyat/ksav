@@ -376,7 +376,9 @@ function everyPreferenceHasAControl() {
   // The pane modules (wave-2 carve) hold controls of their own — `previewSide`
   // is named by the splitter `panedrag.ts` builds — so a preference is reachable
   // if any module the application ships names it.
-  const srcs = ["main.ts", "settingsdrawer.ts", "panedrag.ts", "panehost.ts", "panescroll.ts", "panemenu.ts", "panearrangements.ts", "tabstrip.ts"]
+  // `settings.ts` joined the list in wave 3 of #188: the write path moved there,
+  // and with it the dispatcher arms that name a setting's value.
+  const srcs = ["main.ts", "settings.ts", "settingsdrawer.ts", "panedrag.ts", "panehost.ts", "panescroll.ts", "panemenu.ts", "panearrangements.ts", "tabstrip.ts"]
     .map((f) => readFileSync(path.join(SRC, f), "utf8"))
     .join("\n");
   // The two that are not typed into a row and never will be. `layout` is which

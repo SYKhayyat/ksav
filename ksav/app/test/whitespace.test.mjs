@@ -147,7 +147,7 @@ export function run() {
     // The list is `editorstate.ts`; the toggle still reconfigures from
     // `main.ts`, so both are read — a fence that read one of them would be
     // asking a file about a line it does not contain.
-    const main = code("editorstate.ts") + code("main.ts");
+    const main = code("editorstate.ts") + code("main.ts") + code("settings.ts");
     // Its own compartment, because all three must be free **together** — a writer
     // wants whitespace and bidi marks at once and neither is "turn the other off".
     ok(

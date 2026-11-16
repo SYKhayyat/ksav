@@ -142,7 +142,9 @@ export async function run() {
 
   // The wiring fence: the mechanism can be perfect and the feature still not exist.
   {
-    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const main =
+      readFileSync(new URL("../src/editorstate.ts", import.meta.url), "utf8") +
+      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
     ok("the dimming is in the editor's extension list", /tagDim\(/u.test(main),
       "without this every assertion above still passes");
     ok("and the setting feeds it", /settings\.dimOutsideTag/u.test(main));

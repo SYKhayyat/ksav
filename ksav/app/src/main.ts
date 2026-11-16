@@ -1,51 +1,24 @@
 import "./styles.css";
-import { EditorView, keymap, drawSelection, highlightActiveLine } from "@codemirror/view";
-import { Compartment, EditorSelection, EditorState, Prec } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { buildExtensions } from "./editorstate";
+import { EditorState } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
-import { historyKeymap, defaultKeymap, indentWithTab, undo, redo } from "@codemirror/commands";
-import { searchKeymap, search, openSearchPanel } from "@codemirror/search";
-import {
-  foldGutter,
-  foldKeymap,
-  foldAll,
-  unfoldAll,
-  foldEffect,
-  foldService,
-  bracketMatching,
-} from "@codemirror/language";
-import {
-  completionKeymap,
-  closeBrackets,
-  closeBracketsKeymap,
-} from "@codemirror/autocomplete";
-import {
-  ksavHighlighter,
-  ksavFold,
-  ksavFolding,
-  revealAll,
-  setRevealAll,
-  } from "./ksav-lang";
-import { tagSelectExtension, tagContaining, selectTag, type TagSelection } from "./tagselect";
-import { indentView, DEFAULT_INDENT } from "./indent";
-import { tagDim } from "./tagdim";
-import { minimapExtension, type Placement } from "./minimap";
+import { undo, redo } from "@codemirror/commands";
+import { openSearchPanel } from "@codemirror/search";
+import { foldAll, unfoldAll, foldEffect, foldService } from "@codemirror/language";
+import { setRevealAll } from "./ksav-lang";
+import { tagContaining, selectTag, type TagSelection } from "./tagselect";
+
+import { type Placement } from "./minimap";
 import { openMinimap, closeMinimap, minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
-import { bracketLint, healAll } from "./bracket-lint";
+import { healAll } from "./bracket-lint";
 import { moveOutTarget } from "./brackets";
 import { rootDir } from "./direction";
-import { apparatusLint, renderAllNotes } from "./apparatus-lint";
-import { onAttachRef, sourceNoteMarks } from "./sourcenote-lint";
-import { numberingMarks, renumberAll, scheduleRenumber } from "./numbering-lint";
-import {
-  deferredNotes,
-  jumpDeferred,
-  deferHere,
-  recallHere,
-  deferAll,
-  inlineAll,
-  sortDeferredBodies,
-} from "./deferred-editor";
-import { sourcesOf } from "./api";
+import { renderAllNotes } from "./apparatus-lint";
+import { onAttachRef } from "./sourcenote-lint";
+import { renumberAll, scheduleRenumber } from "./numbering-lint";
+import { jumpDeferred, deferHere, recallHere, deferAll, inlineAll, sortDeferredBodies } from "./deferred-editor";
+
 import { createBackend } from "./transports";
 import * as panelviews from "./panelviews";
 import { getLang, isRtlUi, setLang, t, tf } from "./i18n";
@@ -74,11 +47,10 @@ import {
   openSpellMenu,
   scheduleSpellCheck,
 } from "./spellcheck";
-import { hintFor, keybindings } from "./keyhint";
+import { keybindings } from "./keyhint";
 
 import * as entity from "./entity";
 import * as styles from "./styles";
-import { narrowing } from "./narrowing";
 
 // The modules `main.ts` was split into, wave by wave, and what each one took —
 // the map the refactor's end-state acceptance promised would live here:
@@ -200,15 +172,15 @@ import {
   refreshTabStrip,
 } from "./tabstrip";
 import { openArrangements, applyPageView } from "./panearrangements";
-import { isPlainClick } from "./jump";
-import { bidiSupport, toggleIsolate } from "./bidi";
-import { changeGutter, changeHighlight, changes, nameMarks } from "./changes";
+
+import { toggleIsolate } from "./bidi";
+import { nameMarks } from "./changes";
 import { focusCompartment, focusExtension } from "./focus";
 import * as keymodes from "./keymodes";
 import * as crash from "./crash";
 import * as watch from "./watch";
-import { overviewRuler } from "./ruler";
-import { errorLineDecorations, errorLines, offsetOf, setErrorLines } from "./errorlines";
+
+import { offsetOf, setErrorLines } from "./errorlines";
 import { onGoToLine, onGoToPart, onMarkLines } from "./diagview";
 import { buildNikudBar } from "./nikud";
 import * as exports from "./exports";
@@ -219,19 +191,7 @@ import * as structure from "./structure";
 import * as heads from "./headings";
 import * as macros from "./macros";
 import { openHelp, renderHelp, buildHelpPanel } from "./help";
-import {
-  toggleOutline,
-  toggleNotesPane,
-  toggleMarksPane,
-  renderOutline,
-  renderNotesPane,
-  renderMarksPane,
-  renderFindPane,
-  openNoteMenu,
-  drawList,
-  LOOKS,
-  wireRows,
-} from "./rowlists";
+import { toggleOutline, toggleNotesPane, toggleMarksPane, renderOutline, renderNotesPane, renderMarksPane, renderFindPane, drawList, LOOKS, wireRows } from "./rowlists";
 import { buildSettingsDrawer, toggleSettings, captureShortcut, resetShortcuts, wireSettings } from "./settingsdrawer";
 import { applyCustomStyle, unwrapCustomStyle, openNewStyle, openStyleEditor } from "./customstyles";
 import { openStyles, openStylesFor, renderStylesPanel, wireStyles } from "./stylespanel";
@@ -292,8 +252,8 @@ import {
   wireMacros,
 } from "./macros";
 import { openHydra, resetHydra, wireHydra } from "./hydra";
-import { revealCursor, revealPlaces, revealFromSourceClick, renderPlaces } from "./reveal";
-import { insertSnippet, insertCommand, tieredNoteHere, snippetTab, docLang, wireInsert } from "./insert";
+import { revealCursor, revealPlaces, renderPlaces } from "./reveal";
+import { insertSnippet, insertCommand, tieredNoteHere, docLang, wireInsert } from "./insert";
 import * as hiding from "./hiding";
 import { LIST_DEPTHS } from "./lists";
 import * as lists from "./lists";
@@ -306,35 +266,9 @@ import {
   installGirsaPoll,
 } from "./girsa";
 import { openPalette, paletteKey, renderPaletteList, wirePalette } from "./palette";
-import {
-  proseCompartment,
-  dirCompartment,
-  themeCompartment,
-  phraseCompartment,
-  pairCompartment,
-  whitespaceCompartment,
-  autoCompartment,
-  shortcutCompartment,
-  editorTheme,
-  syncGlobals,
-  setEditingMode,
-  buildShortcutKeymap,
-  reconfigureShortcuts,
-  pairExtension,
-  whitespaceExtension,
-  autoExtension,
-  proseOrRaw,
-  proseHere,
-  setProseHere,
-  whose,
-} from "./compartments";
+import { proseCompartment, dirCompartment, themeCompartment, phraseCompartment, pairCompartment, whitespaceCompartment, autoCompartment, editorTheme, syncGlobals, setEditingMode, reconfigureShortcuts, pairExtension, whitespaceExtension, autoExtension, proseOrRaw, proseHere, setProseHere, whose } from "./compartments";
 import { wireCompartments } from "./compartments";
 import * as header from "./header";
-
-
-
-
-
 
 // ---- configurable keyboard shortcuts ----
 // Each action has an id (localized in Settings) and a runner. Keys are CM key
@@ -709,9 +643,6 @@ function styleActions(): { id: string; run: (v: EditorView) => boolean }[] {
   }));
 }
 
-
-
-
 /** Convert a keydown event to a CodeMirror key string ("Mod-Shift-k").
  *
  * **From `e.code`, deliberately, and the cost is on record.** `e.code` is the
@@ -773,14 +704,10 @@ function codeToKey(code: string): string {
   return special[code] ?? code;
 }
 
-
 // What commands this document has is `commands.ts`'s question, and the compiler,
 // the completions and the palette all ask it there. `userCommandNames` used to live
 // here, read `settings.customCommands` only — disagreeing with `compile.ts` about a
 // shared sefer's own commands — and had exactly one caller (B27).
-
-
-
 
 /**
  * Wrap the selection in a directional isolate, or take one off.
@@ -849,8 +776,6 @@ function structureKeymap() {
   }
   return out;
 }
-const structureCompartment = new Compartment();
-
 /**
  * A fresh editor state for one document.
  *
@@ -873,345 +798,56 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
   return EditorState.create({
     doc: body,
     ...(at === undefined ? {} : { selection: { anchor: Math.max(0, Math.min(at, body.length)) } }),
-    extensions: [
-      // In a compartment, and owned by `runtime.ts`, because a document swap
-      // has to be able to throw the stack away. See `swapDocument` there.
-      runtime.historyExtension(),
-      drawSelection(),
-      highlightActiveLine(),
-      ksavFolding,
-      foldGutter(),
-      bracketMatching(),
-      // #86 — click an opening `[` and the tag selects. `Alt`+click gives the other
-      // answer, so the setting below is about what a bare click means and not about
-      // which of the two is reachable.
-      tagSelectExtension(() => settings.clickSelectsTag ?? "whole"),
-      // #85 — dim every line outside the tag the caret is in, with the fade
-      // graded by nesting. `0` means off, and off is free.
-      tagDim(() => (settings.dimOutsideTag ?? 0) / 100),
-      // #89 — the minimap. It lives in *this* editor and draws on a canvas, so
-      // there is no second copy of the document; `null` is a closed panel.
-      minimapExtension(() => ({
-        on: !!settings.minimap,
-        colors: !!settings.minimapColors,
-      })),
-      // #84 — the indent view. Every dial is the writer's own number, read per
-      // rebuild so the toggle and the settings reconfigure rather than being
-      // captured once at construction.
-      indentView(() => ({
-        ...DEFAULT_INDENT,
-        on: !!settings.indentView,
-        amount: settings.indentAmount ?? DEFAULT_INDENT.amount,
-        minWords: settings.indentMinWords ?? DEFAULT_INDENT.minWords,
-        percent: settings.indentPercent ?? DEFAULT_INDENT.percent,
-      })),
-      // The answer to "three characters is too many to type all day". A fold's
-      // marks have to be comments or the page would print them, Typst's comment
-      // is `//`, and one brace after it is the shortest brace-like thing that
-      // can follow — so `//{` is the floor, not a choice. What can be bought is
-      // the rest: finish the opener and the editor writes the closer, the line
-      // between them and the caret. Above `closeBrackets`, which would otherwise
-      // answer the same `{` with a `}` that prints.
-      EditorView.inputHandler.of((view, from, to, text) => {
-        if (text !== "{") return false;
-        const sel = view.state.selection.main;
-        if (!sel.empty || from !== sel.from || to !== sel.to) return false;
-        const doc = docTextOf(view.state.doc);
-        const closer = hiding.foldCloser(doc, from);
-        if (!closer) return false;
-        view.dispatch({
-          changes: { from, to, insert: "{" + closer.insert },
-          selection: { anchor: closer.caret },
-          userEvent: "input.type",
-        });
-        return true;
-      }),
-      closeBrackets(),
-      // What it is allowed to close: two switches, in a compartment because they
-      // are settings. Typst's `$…$` pairs with the brackets — typstify's
-      // `editor/typst.go` does the same, and `$…$` works in a Ksav body because
-      // the body *is* Typst. The gershayim ships **off**, for the reason
-      // `brackets.ts` gives at length: `"` is not a delimiter in a Hebrew
-      // document, because רש״י and שו״ע are everywhere and pairing quotes
-      // swallows whole tables. Off is a default, not a refusal — see
-      // `pairExtension`.
-      pairCompartment.of(pairExtension()),
-      whitespaceCompartment.of(whitespaceExtension()),
-      search({ top: true }),
-      phraseCompartment.of(EditorState.phrases.of(searchPhrases())),
-      // The hydra is *not* here, and that is the fix rather than an omission.
-      // It was `Prec.highest(keymap.of(hydraKeymap()))` a dozen lines below,
-      // under a comment claiming it was "ahead of everything, including the
-      // mode keymaps". It was not, and no position in this array could have
-      // made it so: `@replit/codemirror-vim` handles keys from a **ViewPlugin
-      // event handler** (`vimPlugin`, `keydown`), and a plugin's DOM handlers
-      // run before the `keymap` facet regardless of precedence. See
-      // `captureHydraKeys`, which owns the keyboard by actually being first.
-      //
-      // Vim / Emacs, when one is chosen. Deliberately *before* the shortcut
-      // keymap: both are Prec.highest and CodeMirror breaks that tie by array
-      // order, so the mode gets first refusal on every key. See `keymodes.ts`
-      // for why the mode wins rather than Ksav's own bindings.
-      keymodes.modeCompartment.of([]),
-      // Dim everything but the paragraph in hand, and keep the caret line
-      // centred. Two settings, in one compartment because they are reconfigured
-      // together and never independently.
-      focusCompartment.of(
-        focusExtension(
-          !!settings.focusMode,
-          !!settings.typewriter,
-          settings.typewriterAnchor ?? "center",
-        ),
-      ),
-      shortcutCompartment.of(Prec.highest(keymap.of(buildShortcutKeymap()))),
-      autoCompartment.of(autoExtension()),
-      // Structural keys, above the defaults: inside a list, Enter makes the next
-      // bullet and Tab indents it, exactly as in Word and every outliner. They
-      // fall through untouched everywhere else, so Enter is still Enter in
-      // ordinary prose.
-      structureCompartment.of(Prec.high(keymap.of(structureKeymap()))),
-      keymap.of([
-        ...closeBracketsKeymap,
-        ...defaultKeymap,
-        ...historyKeymap,
-        ...searchKeymap,
-        ...completionKeymap,
-        ...foldKeymap,
-        snippetTab,
-        indentWithTab,
-      ]),
-      EditorView.lineWrapping,
-      ksavHighlighter,
-      ksavFold,
-      bracketLint,
-      // Notes collected and never rendered: valid source, finished-looking page,
-      // and the prose missing from it.
-      apparatusLint,
-      // A source note that is not in the source index says so, on its own line.
-      // See `sourcenote-lint.ts`: the whole value of the command is the half
-      // that does not print, and nothing on screen said which kind you had.
-      sourceNoteMarks,
-      // A siman or a se'if whose number no longer says where it is. The
-      // insertion path resequences on insert; this is the half that catches a
-      // delete and a move, neither of which asks this application anything.
-      numberingMarks,
-      deferredNotes,
-      revealAll,
-      // A pane locked to one section. Per state and therefore per pane, which is
-      // the whole feature: the point of narrowing is that the pane beside it is
-      // still showing the whole sefer. See `narrowing.ts` for why the anchor
-      // lives here rather than on the `Leaf` in `panes.ts`.
-      narrowing,
-      dirCompartment.of(EditorView.contentAttributes.of({ dir: docConfig().dir })),
-      // The document's direction above is the *fallback*; every line that has a
-      // letter in it answers for itself, and the syntax is held apart from the
-      // prose so a command stops migrating through the sentence it is in.
-      bidiSupport(() => (docConfig().dir === "ltr" ? "ltr" : "rtl")),
-      // The parameter, not `proseHere()`: a state may be built for a document
-      // that is not the focused one, and asking "what mode is the screen in"
-      // would give it somebody else's answer.
-      proseCompartment.of(proseOrRaw(prose)),
-      themeCompartment.of(editorTheme(settings.theme === "dark")),
-      spell.misspellings,
-      spell.spellDecorations,
-      // What the squiggle means, and both ways to act on it. The left button
-      // used to be the only route to the suggestions, and it cost the caret;
-      // this is the route that costs nothing. The key it names is read live off
-      // the bindings, so rebinding `spellSuggest` moves the sentence with it.
-      spell.spellTooltip((m) => {
-        const which = m.lang === "en" ? t("spellLexEn") : t("spellLexHe");
-        return tf("spellTip", which, hintFor("spellSuggest"));
-      }),
-      errorLines,
-      errorLineDecorations,
-      // What has moved since the last snapshot: the gutter, the faint line
-      // highlight, and the ticks the overview ruler reads off the same field.
-      changes,
-      changeGutter,
-      changeHighlight,
-      // Everything wrong with the document, on one strip beside the scrollbar.
-      // Purely a view over the four fields above it — it computes no marks of
-      // its own, which is why it can be added last and removed with one line.
-      overviewRuler,
-      // A squiggle answers to a plain click, not only a right-click: on a
-      // touchscreen there is no right-click at all.
-      EditorView.domEventHandlers({
-        /**
-         * A paste that might be a source Girsa put down (spec.md §10.2).
-         *
-         * Girsa's Ctrl+C writes three flavours: `text/plain`, `text/html`, and
-         * a **real native clipboard format** carrying the Source Packet — eighty
-         * -six careful lines to do it, because a webview can only write
-         * Chromium's *web custom format*, which no native application can read.
-         * Nothing here read the third one, so that copy landed in an editor
-         * that only ever took the first.
-         *
-         * The packet cannot be read off this event — a `paste` exposes
-         * `text/plain`, `text/html` and files, and a custom native format is
-         * not among them on any platform — so the engine is asked, in the
-         * process that can open the real clipboard.
-         *
-         * Which makes the ordering the whole of the care needed here. The ask
-         * is asynchronous and `preventDefault` is not, so the plain text is
-         * taken *now*, the default is stopped, and the text is put in
-         * immediately; if a packet turns up, the same text is replaced by the
-         * markup. A reader pasting from anywhere else sees an ordinary paste
-         * and never waits for a clipboard round-trip.
-         */
-        paste(e, v) {
-          const plain = e.clipboardData?.getData("text/plain") ?? "";
-          const sources = sourcesOf(runtime.backend);
-          if (!sources || !plain) return false;
-          e.preventDefault();
-          const at = v.state.selection.main;
-          // Every range, not just the main one.
-          //
-          // CodeMirror's own paste inserts into all of them; this replaced
-          // `selection.main` and left every other cursor untouched with no
-          // indication at all. A writer holding four carets pasted into one of
-          // them and had to find out by looking.
-          //
-          // And `userEvent`, because without it the macro recorder never sees
-          // this transaction: its filter is `if (!tr.isUserEvent("input"))
-          // continue`, and the comment directly above that filter says the
-          // opposite — *"so an IME, **a paste** and a nikud button all record as
-          // the text they produced"*. A macro recorded with a paste in it
-          // replayed without it.
-          v.dispatch(
-            v.state.changeByRange((r) => ({
-              changes: { from: r.from, to: r.to, insert: plain },
-              range: EditorSelection.cursor(r.from + plain.length),
-            })),
-            { userEvent: "input.paste" },
-          );
-          const from = at.from;
-          void sources
-            .clipboardSource()
-            .then((markup) => {
-              if (!markup) return;
-              // Only if the text this put in is still there. A reader who kept
-              // typing while the clipboard was being read has moved on, and
-              // rewriting what is under their caret now would be worse than
-              // the plain paste they already have.
-              const here = docTextOf(v.state.doc).slice(from, from + plain.length);
-              if (here !== plain) return;
-              v.dispatch({
-                changes: { from, to: from + plain.length, insert: markup },
-                selection: { anchor: from + markup.length },
-                userEvent: "input.paste",
-              });
-              setStatus(t("sourcePasted"), "ok");
-              scheduleCompile();
-            })
-            .catch((err) => {
-              // A packet that arrived and could not be read — a schema
-              // mismatch carries both version numbers. The plain text is
-              // already in, so this is a line and not a failure.
-              const bad = troubleSaid(err, "reach_girsa");
-              setStatus(bad.said, "warn", bad.detail);
-            });
-          return true;
-        },
-        // **There is no `mousedown` here, and that is the fix.**
-        //
-        // It used to open the suggestion menu on any press over a squiggle,
-        // with `preventDefault()` in front of it — so the left button, whose
-        // one job in a text editor is to put the caret somewhere, could not
-        // put the caret on a misspelled word. `misspellingAt` counted the
-        // boundary *after* the word as a hit too, which is why the report was
-        // "on or after". A writer with a page of unrecognised Torah
-        // terminology could not click into their own sentences.
-        //
-        // Suggestions are a right-click and a key now — which is what they are
-        // in Word, in the browser and in every code editor — and the squiggle
-        // says so on hover, so nothing is lost with the gesture. See
-        // `spellTooltip` in `spell.ts`.
-        contextmenu(e, v) {
-          const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
-          if (pos == null) return false;
-          if (settings.spellcheck) {
-            // `misspellingUnder`, not `misspellingAt`: a pointer landed on a
-            // character, and the boundary after the last one is the next word.
-            const m = spell.misspellingUnder(v, pos);
-            if (m) {
-              e.preventDefault();
-              void openSpellMenu(m, e.clientX, e.clientY);
-              return true;
-            }
-          }
-          // Right-click on a note: convert it, delete it with its marker, or
-          // hang another note off it. The operations existed as commands and
-          // nowhere a pointer could reach them.
-          if (noteAt(docTextOf(v.state.doc), pos)) {
-            e.preventDefault();
-            openNoteMenu(e, pos);
-            return true;
-          }
-          return false;
-        },
-        // The mirror of clicking a rendered page to move the caret: a plain
-        // left-click in the source scrolls the preview to where that word — or
-        // that footnote marker — printed. CodeMirror has already placed the
-        // caret by the time `mouseup` fires, so the deferred reveal reads the
-        // caret the click set. A drag is a selection, not a click, and is left
-        // alone; the reveal is quiet and only fires when `clickToPreview` is on.
-        //
-        // The event is handed on rather than dropped because `clickTarget: keep`
-        // needs the one fact only the click carries: how far down its own pane
-        // it was made. Read here, at the moment it happens, since the reveal
-        // runs 120 ms later and the pane may have scrolled by then.
-        mouseup(e) {
-          if (e.button !== 0) return false;
-          if (!isPlainClick(window.getSelection())) return false;
-          revealFromSourceClick(e);
-          return false;
-        },
-      }),
-      EditorView.updateListener.of((u) => {
-        if (u.docChanged || u.selectionSet) updateContextBar();
-        // The caret moved and the text did not — an arrow key, a click, a jump.
-        // Bring the preview to it. Not on `docChanged`: typing moves the caret
-        // every keystroke, and the compile-and-follow already handles that; doing
-        // it here too would fight the writer's own scroll.
-        if (u.selectionSet && !u.docChanged) followCaretInPreview();
-        // The recorder's other half: what the writer typed. Read off the
-        // transaction rather than off keydown, so an IME, a paste and a nikud
-        // button all record as the text they produced rather than as the keys
-        // that produced them — which is the difference between a macro that
-        // replays Hebrew and one that replays a keyboard layout.
-        if (u.docChanged && isRecording()) {
-          for (const tr of u.transactions) {
-            if (!tr.isUserEvent("input")) continue;
-            let typed = "";
-            tr.changes.iterChanges((_fa, _ta, _fb, _tb, ins) => {
-              typed += ins.toString();
-            });
-            noteTyped(typed);
-          }
+    // The stack itself lives in `editorstate.ts`, which is where a decision
+    // about what the editor *is* can be imported and tested. What stays here is
+    // the listener below, because it is behaviour: it schedules, marks dirty and
+    // renumbers, and every one of those is a `main.ts` function.
+    extensions: [...buildExtensions(prose, { structureKeymap }),
+    EditorView.updateListener.of((u) => {
+      if (u.docChanged || u.selectionSet) updateContextBar();
+      // The caret moved and the text did not — an arrow key, a click, a jump.
+      // Bring the preview to it. Not on `docChanged`: typing moves the caret
+      // every keystroke, and the compile-and-follow already handles that; doing
+      // it here too would fight the writer's own scroll.
+      if (u.selectionSet && !u.docChanged) followCaretInPreview();
+      // The recorder's other half: what the writer typed. Read off the
+      // transaction rather than off keydown, so an IME, a paste and a nikud
+      // button all record as the text they produced rather than as the keys
+      // that produced them — which is the difference between a macro that
+      // replays Hebrew and one that replays a keyboard layout.
+      if (u.docChanged && isRecording()) {
+        for (const tr of u.transactions) {
+          if (!tr.isUserEvent("input")) continue;
+          let typed = "";
+          tr.changes.iterChanges((_fa, _ta, _fb, _tb, ins) => {
+            typed += ins.toString();
+          });
+          noteTyped(typed);
         }
-        if (u.docChanged) {
-          // Remember which paragraph moved, so the next spell check re-tokenises
-          // only that region rather than the whole sefer.
-          markSpellDirty(u.changes);
-          // What prints has moved, so the scroll map is stale. Dropped rather
-          // than rebuilt: a scroll event will rebuild it if one comes, and most
-          // keystrokes are never followed by a scroll.
-          invalidateScrollMap();
-          // Saving and rendering are scheduled independently. One must never be
-          // able to stop the other — that coupling is what silently lost text.
-          scheduleSave();
-          scheduleCompile();
-          updateCounts();
-          refreshPanes();
-          // Delete and move, which are the two the insertion path cannot see:
-          // a writer deletes a siman by selecting it and pressing a key, and
-          // drags one by cut and paste, and this application is asked no
-          // question at either moment. So the *document* is watched instead of
-          // the gesture — which is also the honest shape for a sefer opened
-          // from a file, or edited by somebody else, or merged.
-          scheduleRenumber();
-        }
-      }),
+      }
+      if (u.docChanged) {
+        // Remember which paragraph moved, so the next spell check re-tokenises
+        // only that region rather than the whole sefer.
+        markSpellDirty(u.changes);
+        // What prints has moved, so the scroll map is stale. Dropped rather
+        // than rebuilt: a scroll event will rebuild it if one comes, and most
+        // keystrokes are never followed by a scroll.
+        invalidateScrollMap();
+        // Saving and rendering are scheduled independently. One must never be
+        // able to stop the other — that coupling is what silently lost text.
+        scheduleSave();
+        scheduleCompile();
+        updateCounts();
+        refreshPanes();
+        // Delete and move, which are the two the insertion path cannot see:
+        // a writer deletes a siman by selecting it and pressing a key, and
+        // drags one by cut and paste, and this application is asked no
+        // question at either moment. So the *document* is watched instead of
+        // the gesture — which is also the honest shape for a sefer opened
+        // from a file, or edited by somebody else, or merged.
+        scheduleRenumber();
+      }
+    }),
     ],
   });
 }
@@ -1301,7 +937,6 @@ function updateCounts() {
   clearTimeout(countTimer);
   countTimer = window.setTimeout(countNow, COUNT_DEBOUNCE_MS);
 }
-
 
 /**
  * The three constructs, through one door each.
@@ -1405,8 +1040,6 @@ function moveRunningIntoDoc(which: "header" | "footer") {
   closePanel("settings-drawer");
   runtime.view.focus();
 }
-
-
 
 /** A fold: collapsible while writing, and every word of it prints. */
 function insertFold() {
@@ -1861,7 +1494,6 @@ function buildHeader(): HTMLElement {
   ]);
 }
 
-
 /** Swap the whole document and put the caret somewhere sensible. */
 function replaceAll(text: string, caret: number) {
   editDoc(text, caret);
@@ -1938,15 +1570,12 @@ function renderKeysPanel(): void {
   );
 }
 
-
 function columnStepFor(id: string): string {
   const rtl = docConfig().dir !== "ltr";
   if (id === "table.cellStartward") return rtl ? "table.cellStartward" : "table.cellEndward";
   if (id === "table.cellEndward") return rtl ? "table.cellEndward" : "table.cellStartward";
   return id;
 }
-
-
 
 /** Any action by id — built-in, structural, or a saved macro. */
 function actionById(id: string): { id: string; run: (v: EditorView) => boolean } | undefined {
@@ -2031,7 +1660,6 @@ function runStructureAction(action: structure.StructureAction, sticky = false): 
   return true;
 }
 
-
 /**
  * Select, unwrap or remove the construct the caret is in.
  *
@@ -2076,7 +1704,6 @@ function entityAct(what: "select" | "unwrap" | "remove"): boolean {
   runtime.view.focus();
   return true;
 }
-
 
 // ---------------------------------------------------------------- setting mutations
 /**
@@ -2774,7 +2401,6 @@ function wireKeys() {
   });
 }
 
-
 /**
  * Hand the shell's own operations to the modules that need them.
  *
@@ -3463,7 +3089,6 @@ async function boot() {
 }
 /** True when this session's autosave should be quiet. */
 
-
 function tabHidden(): boolean {
   return typeof document !== "undefined" && document.visibilityState === "hidden";
 }
@@ -3530,7 +3155,4 @@ function minimapDeps() {
 }
 
 boot().then(openMinimapIfSaved);
-
-
-
 

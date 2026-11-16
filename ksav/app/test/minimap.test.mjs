@@ -55,7 +55,9 @@ export async function run() {
 
   // The wiring fence. Everything above can pass with the feature absent.
   {
-    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const main =
+      readFileSync(new URL("../src/editorstate.ts", import.meta.url), "utf8") +
+      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
     ok("the minimap is in the editor's extension list", /minimapExtension\(/u.test(main),
       "without this every assertion above still passes");
     ok("and both settings reach it", /settings\.minimap\b/u.test(main) && /settings\.minimapColors/u.test(main));
@@ -167,7 +169,9 @@ export async function run() {
       /closing = true/u.test(strip),
       "a declared-but-never-assigned guard means closePanel recurses and nothing closes");
     // And the key is not a chord with nothing behind it.
-    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const main =
+      readFileSync(new URL("../src/editorstate.ts", import.meta.url), "utf8") +
+      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
     ok("the key has an action behind it",
       /id: "minimap", run:/u.test(main),
       "a chord in DEFAULT_KEYS with no action is a chord that silently does nothing");

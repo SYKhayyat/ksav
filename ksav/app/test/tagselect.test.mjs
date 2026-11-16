@@ -201,7 +201,9 @@ export async function run() {
   // the whole life of a bug. **A fence that cannot fail on "this is not used" is
   // not a fence.**
   {
-    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const main =
+      readFileSync(new URL("../src/editorstate.ts", import.meta.url), "utf8") +
+      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
     const drawer = readFileSync(new URL("../src/settingsdrawer.ts", import.meta.url), "utf8");
     ok(
       "the extension is in the editor's list, not merely exported",

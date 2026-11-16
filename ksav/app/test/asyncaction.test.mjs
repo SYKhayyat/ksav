@@ -100,6 +100,9 @@ const INVENTORY = {
   "src/girsa.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
   "src/noteschooser.ts:fillNotePreview": "guarded; a note that will not preview is left alone",
   "src/main.ts:openSpellMenu": "guarded; the menu's own failure path",
+  // The extension list moved here in the `main.ts` split; the same call, the
+  // same guard, at its new address.
+  "src/editorstate.ts:openSpellMenu": "guarded; the menu's own failure path",
   "src/main.ts:linkifySelection": "guarded; a newer linkify run supersedes this one",
   "src/main.ts:loadRegistries": "guarded; a registry that will not load is reported once",
   "src/save.ts:saveNow": "guarded; the save module's own try/catch and notice",

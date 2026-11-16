@@ -147,7 +147,13 @@ export function run() {
     // Both files: the compartments the notebook's `syncGlobals` reconfigures live
     // in `compartments.ts` (the audit's #161 move) and the one `makeState` builds
     // stays in main. A call site is a call site wherever it lives.
-    const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+    // Two files, because two facts: the typewriter extension is in the list
+    // (`editorstate.ts`), and the setting reconfigures the live editor and the
+    // action exists (`main.ts`). Reading only the first made this fence pass
+    // over a rule stated about a file that no longer stated it.
+    const main =
+      readFileSync(path.join(SRC, "editorstate.ts"), "utf8") +
+      readFileSync(path.join(SRC, "main.ts"), "utf8");
     const machinery = readFileSync(path.join(SRC, "compartments.ts"), "utf8");
     const both = main + "\n" + machinery;
     // Every call site, not most of them: an editor built without the anchor is

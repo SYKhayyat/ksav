@@ -278,15 +278,21 @@ export async function run() {
     // application on import and so can only be read. A prohibition, then —
     // the same shape `chrome.test.mjs` uses, and for the same reason: absence
     // is the one thing a regex over source gets right every time.
+    // The extension list is `editorstate.ts` now; `main.ts` is still where the
+    // application boots, so a handler that reappeared there would be the same
+    // regression. Both are read, because the fact is "no handler anywhere".
+    const list = readFileSync(path.join(SRC, "editorstate.ts"), "utf8");
     const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
-    const handlers = main.slice(main.indexOf("EditorView.domEventHandlers({"));
+    const openers = ["EditorView.domEventHandlers({", "domEventHandlers({"];
+    const at = openers.map((o) => main.indexOf(o)).find((i) => i !== -1) ?? -1;
+    const handlers = at === -1 ? "" : main.slice(at);
     notOk(
       "nothing binds the left button over a squiggle any more",
       /\bmousedown\s*\(/.test(handlers),
     );
     ok(
       "the pointer route asks the pointer's question",
-      main.includes("spell.misspellingUnder(v, pos)"),
+      (list + main).includes("spell.misspellingUnder(v, pos)"),
     );
     ok(
       "…and there is a keyboard route, so nothing is lost with the gesture",

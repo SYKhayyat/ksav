@@ -37,6 +37,10 @@ import { check, notOk, ok } from "./harness.mjs";
 import { rootDir, textDir } from "../.tmp-test/direction.mjs";
 
 const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+// The editor's extension list moved to `editorstate.ts`; the two assertions
+// about what that list contains read it, and the one about `documentElement.dir`
+// still reads `main.ts`, because setting the root direction is boot behaviour.
+const extlist = readFileSync(path.join(SRC, "editorstate.ts"), "utf8");
 const preview = readFileSync(path.join(SRC, "preview.ts"), "utf8");
 
 export async function run() {
@@ -85,12 +89,12 @@ export async function run() {
   ok(
     "the editor's content element is told the document's direction",
     /dirCompartment\.of\(\s*EditorView\.contentAttributes\.of\(\{\s*dir:\s*docConfig\(\)\.dir/.test(
-      main.replace(/\s+/g, " ").replace(/ /g, " "),
-    ) || (main.includes("dirCompartment.of") && main.includes("contentAttributes.of({ dir:")),
+      extlist.replace(/\s+/g, " ").replace(/ /g, " "),
+    ) || (extlist.includes("dirCompartment.of") && extlist.includes("contentAttributes.of({ dir:")),
   );
   ok(
     "the bidi extension reads the document, not the interface",
-    /bidiSupport\(\(\)\s*=>\s*\(docConfig\(\)\.dir/.test(main),
+    /bidiSupport\(\(\)\s*=>\s*\(docConfig\(\)\.dir/.test(extlist),
   );
   ok(
     "every preview pane takes the document's direction",

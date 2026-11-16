@@ -653,12 +653,37 @@ mod render_probe {
         std::env::var_os("KSAV_DPR_BOOT").map(std::path::PathBuf::from)
     }
 
-    fn report_boot() {
+    /// Writes down that `setup` ran — and **which** windows exist, versus the
+    /// one the probe asks for.
+    ///
+    /// # Why the labels are in the record (#188)
+    ///
+    /// This wrote `{"setup":true}` and nothing else, and the probe below asks
+    /// for a window labelled `main`. Declaring the window under another label is
+    /// a one-word edit: every call in this shell then finds nothing, the probe
+    /// is never evaluated and the page never answers — which the check reported
+    /// as "the page loaded and did not run the probe", the one shape of failure
+    /// that pointed at the frontend. Measured by relabelling the window to
+    /// `primary`: 25 seconds, a boot record that said the window existed, and no
+    /// line anywhere naming what was actually there.
+    ///
+    /// So the record names what is really present (`handle.webview_windows()`),
+    /// the label the probe asks for, and the two are compared by the check —
+    /// not by a constant the record and the probe happen to share.
+    fn report_boot(handle: &tauri::AppHandle) {
+        use tauri::Manager as _;
         let Some(path) = boot_path() else { return };
+        let labels: Vec<String> = handle.webview_windows().keys().cloned().collect();
+        let labels = serde_json::to_string(&labels).unwrap_or_else(|_| "[]".to_string());
+        let record = format!("{{\"setup\":true,\"labels\":{labels},\"asked\":\"{WINDOW_LABEL}\"}}");
         if let Ok(mut file) = std::fs::File::create(&path) {
-            let _ = file.write_all(b"{\"setup\":true}");
+            let _ = file.write_all(record.as_bytes());
         }
     }
+
+    /// The label of the window the probe asks for. One name, used by the search
+    /// above and reported in the boot record, so the two cannot disagree.
+    pub const WINDOW_LABEL: &str = "main";
 
     /// Called from the page. Writes the measurement, so that the check can read a
     /// number rather than judge a picture.
@@ -683,10 +708,10 @@ mod render_probe {
         if output_path().is_none() {
             return;
         }
-        report_boot();
+        report_boot(&handle);
         std::thread::spawn(move || {
             for _ in 0..40 {
-                if let Some(window) = handle.get_webview_window("main") {
+                if let Some(window) = handle.get_webview_window(WINDOW_LABEL) {
                     let _ = window.eval(JS);
                 }
                 std::thread::sleep(std::time::Duration::from_millis(500));

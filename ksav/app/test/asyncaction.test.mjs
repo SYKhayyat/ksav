@@ -121,11 +121,10 @@ const INVENTORY = {
   "src/bracket-lint.ts:healAll": "returns the number of fixes applied; no promise",
   "src/apparatus-lint.ts:renderAllNotes": "returns the number of dumps added; no promise",
   "src/numbering-lint.ts:renumberAll": "returns the number of fields renumbered; no promise",
-  "src/main.ts:startFind": "returns whether a find opened; no promise",
-  "src/main.ts:foldAll": "a synchronous fold walk",
-  "src/main.ts:unfoldAll": "a synchronous fold walk",
-  "src/main.ts:undo": "returns a promise the editor already handles",
-  "src/main.ts:redo": "returns a promise the editor already handles",
+  "src/appheader.ts:undo": "returns a promise the editor already handles",
+  "src/appheader.ts:redo": "returns a promise the editor already handles",
+  "src/appheader.ts:foldAll": "a synchronous fold walk",
+  "src/appheader.ts:unfoldAll": "a synchronous fold walk",
   "src/girsa.ts:runPoll": "a timer tick, not a promise",
   "src/watch.ts:tick": "try/catch/finally with the reason in a comment — the model for this file",
 };
@@ -156,8 +155,16 @@ function inventoryIsComplete() {
  * returned nothing.
  */
 function runTables() {
-  const main = readFileSync(join(SRC, "main.ts"), "utf8");
+  // The run tables are spread across the files that own the surfaces they
+  // drive: `main.ts` keeps most, and the header's `CHIP_RUN` moved to
+  // `appheader.ts` in wave 2 of #188. Scanning one file would have quietly
+  // stopped vouching for the chips — which is the failure mode this whole file
+  // is about.
+  const sourcesWithTables = ["main.ts", "appheader.ts"].map((f) =>
+    readFileSync(join(SRC, f), "utf8"),
+  );
   const out = [];
+  for (const main of sourcesWithTables)
   for (const table of main.matchAll(/const ([A-Z][A-Z_]*_RUN)[^{]*\{([\s\S]*?)\n\s*\};/gu)) {
     for (const line of table[2].split("\n")) {
       // `open: openFile,` … or the shorthand `newDoc,` — one is a reference and

@@ -48,8 +48,11 @@ const DOCSWITCH = readFileSync(path.join(SRC, "docswitch.ts"), "utf8");
 // Wave 11: the templates and the file doors call the funnel from their own files.
 const FILEUI = readFileSync(path.join(SRC, "fileui.ts"), "utf8");
 const TEMPLATES = readFileSync(path.join(SRC, "templates.ts"), "utf8");
+// Wave 2 of #188: the header's menus are where three template/file routes are
+// clicked from, so its lines are scanned with the rest.
+const APPHEADER = readFileSync(path.join(SRC, "appheader.ts"), "utf8");
 
-/** `main.ts`, `tabstrip.ts` and `docswitch.ts`, as one line list tagged with its source. */
+/** Every file that can open a document, as one line list tagged with its source. */
 const LINES = [
   ...MAIN.split("\n").map((line, i) => ({ src: "main.ts", n: i + 1, line })),
   ...TAB.split("\n").map((line, i) => ({ src: "tabstrip.ts", n: i + 1, line })),
@@ -58,6 +61,7 @@ const LINES = [
   ...DOCSWITCH.split("\n").map((line, i) => ({ src: "docswitch.ts", n: i + 1, line })),
   ...FILEUI.split("\n").map((line, i) => ({ src: "fileui.ts", n: i + 1, line })),
   ...TEMPLATES.split("\n").map((line, i) => ({ src: "templates.ts", n: i + 1, line })),
+  ...APPHEADER.split("\n").map((line, i) => ({ src: "appheader.ts", n: i + 1, line })),
 ];
 
 /** Every line of either file calling `name(`, with its position in `LINES`. */

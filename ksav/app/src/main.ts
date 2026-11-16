@@ -1,6 +1,7 @@
 import "./styles.css";
 import { EditorView } from "@codemirror/view";
 import { buildExtensions } from "./editorstate";
+import { buildHeader, wireHeader } from "./appheader";
 import { EditorState } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { undo, redo } from "@codemirror/commands";
@@ -85,26 +86,10 @@ import * as styles from "./styles";
 //   boot(), and the header bar (its three main-locals are the settings
 //     machinery wave 6 held — see #147's record) — the recipe for how the
 //     whole app is assembled.
-import {
-  el,
-  glyphBtn,
-  iconBtn,
-} from "./dom";
+import { el, glyphBtn } from "./dom";
 import * as runtime from "./runtime";
 import { setStatus, closeMenus, jumpTo, editDoc } from "./runtime";
-import {
-  buildToolbar,
-  buildDocsMenu,
-  buildMacroMenu,
-  buildFormatMenu,
-  buildSourcesMenu,
-  buildTableMenu,
-  buildInsertMenu,
-  lazyMenu,
-  docTextNow,
-  menu,
-  wireChrome,
-} from "./ribbon";
+import { docTextNow, wireChrome } from "./ribbon";
 import { contextBar, updateContextBar } from "./contextbar";
 import {
   openPanel,
@@ -143,19 +128,8 @@ import { savedNameMap } from "./macros";
 import * as save from "./save";
 import { scheduleSave, reportSaveFailure } from "./save";
 import { scheduleCompile, runCompile, compileNow, onStale, onAfterCompile, onSchedule } from "./compile";
-import {
-  applyPreview,
-  currentPages,
-  drawCurrentInto,
-} from "./preview";
-import {
-  setPaneTree,
-  setFocusedPane,
-  paneTree,
-  sourceViews,
-  toEveryPane,
-  wirePanes,
-} from "./panestate";
+import { applyPreview, drawCurrentInto } from "./preview";
+import { setPaneTree, setFocusedPane, sourceViews, toEveryPane, wirePanes } from "./panestate";
 import { renderPanes, refreshPaneHeads, cyclePaneZoom, gotoPart } from "./panehost";
 import { narrowHere, widenHere } from "./paneview";
 import { swapPaneToward } from "./panedrag";
@@ -171,7 +145,7 @@ import {
   buildTabStrip,
   refreshTabStrip,
 } from "./tabstrip";
-import { openArrangements, applyPageView } from "./panearrangements";
+import { applyPageView } from "./panearrangements";
 
 import { toggleIsolate } from "./bidi";
 import { nameMarks } from "./changes";
@@ -183,62 +157,30 @@ import * as watch from "./watch";
 import { offsetOf, setErrorLines } from "./errorlines";
 import { onGoToLine, onGoToPart, onMarkLines } from "./diagview";
 import { buildNikudBar } from "./nikud";
-import * as exports from "./exports";
 import * as zoom from "./zoom";
-import * as pagerange from "./pagerange";
 import { troubleSaid } from "./diagnostics";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as macros from "./macros";
 import { openHelp, renderHelp, buildHelpPanel } from "./help";
-import { toggleOutline, toggleNotesPane, toggleMarksPane, renderOutline, renderNotesPane, renderMarksPane, renderFindPane, drawList, LOOKS, wireRows } from "./rowlists";
-import { buildSettingsDrawer, toggleSettings, captureShortcut, resetShortcuts, wireSettings } from "./settingsdrawer";
+import { renderOutline, renderNotesPane, renderMarksPane, renderFindPane, drawList, LOOKS, wireRows } from "./rowlists";
+import { buildSettingsDrawer, captureShortcut, resetShortcuts, wireSettings } from "./settingsdrawer";
 import { applyCustomStyle, unwrapCustomStyle, openNewStyle, openStyleEditor } from "./customstyles";
-import { openStyles, openStylesFor, renderStylesPanel, wireStyles } from "./stylespanel";
+import { openStylesFor, renderStylesPanel, wireStyles } from "./stylespanel";
 import { destinationRows, wireDestinations } from "./destinations";
 import { settlePendingModals, ask, askText } from "./formmodal";
-import { markReview, addComment, isReviewOpen, openReview, renderReviewPanel } from "./reviewpanel";
-import { openNotesChooser, applyNotePick, bodyHome, renderNotesChooser } from "./noteschooser";
+import { markReview, addComment, isReviewOpen, renderReviewPanel } from "./reviewpanel";
+import { applyNotePick, bodyHome, renderNotesChooser } from "./noteschooser";
 import { addFont, removeAsset } from "./assets";
 import { starterDoc, swapUntouchedStarter, searchPhrases, wireStarter, maybeOnboard } from "./starter";
-import {
-  startFromTemplate,
-  loadTemplate,
-  templatesForMenu,
-  userTemplates,
-  saveAsTemplate,
-  deleteUserTemplate,
-  wireTemplates,
-} from "./templates";
-import {
-  openFile,
-  saveFile,
-  saveFileAs,
-  reloadFromDisk,
-  importWord,
-  importOrg,
-  copyShareLink,
-
-  openSharedIfLinked,
-  autosaveToFile,
-} from "./fileui";
+import { wireTemplates } from "./templates";
+import { openFile, saveFile, saveFileAs, reloadFromDisk, openSharedIfLinked, autosaveToFile } from "./fileui";
 import { offerRecovery, maybeCheckForUpdate, registerServiceWorker, showCrashPanel } from "./applifecycle";
 import { FILE_AUTOSAVE_MS } from "./save";
 import { showChromeNotice, clearChromeNotice } from "./ribbon";
-import {
-  openDoc,
-  openSwitcher,
-  goToLastDoc,
-  closeOpenDoc,
-  refreshBaseline,
-  renameDoc,
-  updateTitleBar,
-  loadBody,
-  newDoc,
-  wireDocswitch,
-} from "./docswitch";
-import { takeSnapshot, restoreSnapshot, openHistory, renderHistory, wireSnapshots } from "./snapshots";
-import { refreshGit, openGit, gitForHeader, renderGitPanel, wireGit } from "./gitui";
+import { openDoc, openSwitcher, goToLastDoc, closeOpenDoc, refreshBaseline, updateTitleBar, loadBody, newDoc, wireDocswitch } from "./docswitch";
+import { takeSnapshot, restoreSnapshot, renderHistory, wireSnapshots } from "./snapshots";
+import { refreshGit, openGit, renderGitPanel, wireGit } from "./gitui";
 import { openCommands, buildCommandsDrawer, renderCommands } from "./commandsdrawer";
 import { openKeys } from "./keysdrawer";
 import {
@@ -266,9 +208,8 @@ import {
   installGirsaPoll,
 } from "./girsa";
 import { openPalette, paletteKey, renderPaletteList, wirePalette } from "./palette";
-import { proseCompartment, dirCompartment, themeCompartment, phraseCompartment, pairCompartment, whitespaceCompartment, autoCompartment, editorTheme, syncGlobals, setEditingMode, reconfigureShortcuts, pairExtension, whitespaceExtension, autoExtension, proseOrRaw, proseHere, setProseHere, whose } from "./compartments";
+import { proseCompartment, dirCompartment, themeCompartment, phraseCompartment, pairCompartment, whitespaceCompartment, autoCompartment, editorTheme, syncGlobals, setEditingMode, reconfigureShortcuts, pairExtension, whitespaceExtension, autoExtension, proseOrRaw, proseHere, whose } from "./compartments";
 import { wireCompartments } from "./compartments";
-import * as header from "./header";
 
 // ---- configurable keyboard shortcuts ----
 // Each action has an id (localized in Settings) and a runner. Keys are CM key
@@ -1208,290 +1149,6 @@ function startFind(view: EditorView): boolean {
   if ((settings.searchScope ?? "source") === "source") return openSearchPanel(view);
   openPanel("find-drawer");
   return true;
-}
-
-const CHIP_RUN: Record<header.ChipId, () => void> = {
-  undo: () => void undo(runtime.view),
-  redo: () => void redo(runtime.view),
-  styles: openStyles,
-  find: () => void startFind(runtime.view),
-  outline: toggleOutline,
-  notesChooser: openNotesChooser,
-  notesPane: toggleNotesPane,
-  marksPane: toggleMarksPane,
-  review: openReview,
-  git: openGit,
-  commands: openCommands,
-  language: () => setSetting("lang", getLang() === "he" ? "en" : "he"),
-  foldAll: () => void foldAll(runtime.view),
-  unfoldAll: () => void unfoldAll(runtime.view),
-  prose: () => setProseHere(!proseHere()),
-  arrangement: openArrangements,
-  theme: () => setSetting("theme", settings.theme === "light" ? "dark" : "light"),
-  nikud: toggleNikud,
-  history: openHistory,
-  record: toggleRecording,
-  help: openHelp,
-  settings: toggleSettings,
-};
-
-/** The header's view of the world, gathered in one place. */
-function headerState(): header.HeaderState {
-  return {
-    theme: settings.theme,
-    prose: proseHere(),
-    arrangement: panes.arrangementOf(paneTree),
-    // Three of these are optional settings and one is the recorder's own
-    // buffer. `header.ts` takes booleans, because "is this chip on" is a
-    // question with two answers and `undefined` is not one of them.
-    outline: !!settings.outline,
-    nikud: !!settings.nikud,
-    notesPane: !!settings.notesPane,
-    marksPane: !!settings.marksPane,
-    recording: isRecording(),
-    // Absent until something has actually asked git. See `gitForHeader`: "not
-    // asked" and "clean" are different states, and only one of them is a claim.
-    vcs: gitForHeader(),
-  };
-}
-
-/**
- * The pages box at the head of the Export menu.
- *
- * One control for the whole menu rather than one route with a prompt in front of
- * it. The hint under it is the part that makes it usable: an empty box has to
- * say what empty *means* — and it means every page, which is not something a
- * blank field communicates — and a spec with a piece in it that names nothing
- * has to say so here, before a file goes out that is quietly not the one that
- * was asked for.
- */
-function pagesRow(): HTMLElement {
-  const hint = el("div", { class: "menu-desc", id: "export-pages-hint" }, [pagesHint()]);
-  const input = el("input", {
-    type: "text",
-    id: "export-pages",
-    class: "menu-input",
-    value: exports.pagesText(),
-    placeholder: t("pagesAll"),
-    "aria-label": t("pagesLabel"),
-    onInput: (e: Event) => {
-      exports.setPages((e.target as HTMLInputElement).value);
-      hint.textContent = pagesHint();
-    },
-  });
-  return el("div", { class: "menu-input-row" }, [
-    el("span", { class: "menu-cat" }, [t("pagesLabel")]),
-    input,
-    hint,
-  ]);
-}
-
-/** What the pages box is currently asking for, in words. */
-function pagesHint(): string {
-  const spec = exports.pagesSpec();
-  const total = currentPages().length;
-  if (spec.bad.length) return tf("pagesUnreadable", spec.bad.join(", "));
-  // A one-page document gets its own sentence rather than "all 1 pages", which
-  // is the kind of thing that reads as a program talking to itself. Hebrew is
-  // worse about it than English, which is why it is a separate string and not a
-  // clever plural rule.
-  if (!spec.spans) return total === 1 ? t("pagesAllOne") : tf("pagesAllOf", total);
-  if (pagerange.beyond(spec, total)) {
-    return total === 1 ? t("pagesBeyondOne") : tf("pagesBeyond", total);
-  }
-  return tf("pagesChosen", pagerange.select(spec, currentPages()).length, total);
-}
-
-/**
- * One export route, and — when a range is set — whether it can honour it.
- *
- * The reason the finding says was never given. It is said at the point of use
- * and only when it is relevant: six rows permanently captioned "this format has
- * no pages" is noise, and the same six rows silently ignoring a range the writer
- * just typed is the bug.
- */
-function exportItem(row: header.MenuRow, run: () => void): HTMLElement {
-  const btn = el("button", { class: "menu-item", "data-export": row.id, onClick: run }, [row.label]);
-  const why = pagerange.whyNoRange(row.id);
-  if (!why || !exports.pagesSpec().spans) return btn;
-  btn.append(el("span", { class: "menu-why" }, [t(why)]));
-  return btn;
-}
-
-function buildHeader(): HTMLElement {
-  const menuItem = (row: header.MenuRow, run: () => void, extra: Record<string, string> = {}) =>
-    el("button", { class: "menu-item", ...extra, onClick: run }, [row.label]);
-
-  const templatesByMenu = new Map(templatesForMenu().map((tpl) => [tpl.he, tpl]));
-  const users = userTemplates();
-  const usersById = new Map(users.map((u) => [u.id, u]));
-  const templatesMenu = menu(
-    "templates",
-    "📄 " + t("templates"),
-    header
-      .templateItems(
-        templatesForMenu().map((tpl) => ({ ...tpl, id: tpl.he })),
-        users,
-      )
-      .map((entry) => {
-        if (header.isSep(entry)) return el("div", { class: "menu-sep" });
-        const ut = usersById.get(entry.id);
-        if (ut) {
-          return el("div", { class: "menu-item-row" }, [
-            el("button", {
-              class: "menu-item menu-item-main",
-              onClick: () => voidAction("save_file", () => startFromTemplate(ut.body, ut.name)),
-            }, [
-              el("b", {}, [entry.label]),
-            ]),
-            el("button", {
-              class: "menu-del",
-              title: t("delete"),
-              "aria-label": t("delete"),
-              onClick: (e: Event) => {
-                e.stopPropagation();
-                deleteUserTemplate(ut.id);
-              },
-            }, ["×"]),
-          ]);
-        }
-        const tpl = templatesByMenu.get(entry.id)!;
-        return el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => loadTemplate(tpl)) }, [
-          el("b", {}, [entry.label]),
-          el("span", { class: "menu-desc" }, [entry.desc ?? ""]),
-        ]);
-      }),
-  );
-
-  // Keyed by the union, not by `string`. See `header.ExportId` for what that
-  // buys and what it was one keystroke away from costing.
-  // **Every entry here goes through `voidAction`** (#125).
-  //
-  // Four of them were wired as bare function references — `open: openFile`,
-  // `saveAs: saveFileAs` — which reads as tidy and is not: `menuItem` installs
-  // the value as a click handler, `openFile` awaits a native picker, a file read,
-  // an IndexedDB write and a binding comparison, and any of those rejecting is an
-  // unhandled promise rejection, which this app's crash handler treats as a
-  // crash. So File ▸ Open *could* take the writer to the crash panel — the UAT
-  // report's items 13 and 15 — while the two import routes beside it, which had
-  // just been given internal catches, could not.
-  //
-  // `voidAction` is the approved form (`asyncaction.ts`): it starts the promise,
-  // does not wait, and reports a failure as a status line. A cancelled picker
-  // throws `CANCELLED` and says nothing, which is why cancelling is quiet.
-  //
-  // The four that are not wrapped do not return promises: `newDoc`,
-  // `save`→`saveFile`, and `saveAsTemplate` are `async` and therefore *are*
-  // wrapped; what is left is nothing — every entry below is a `voidAction` call,
-  // and `asyncaction.test.mjs` reads this table and fails if one is not.
-  const FILE_RUN: Record<header.FileItemId, () => void> = {
-    newDoc,
-    open: () => voidAction("save_file", () => openFile()),
-    save: () => voidAction("save_file", () => saveFile()),
-    saveAs: () => voidAction("save_file", () => saveFileAs()),
-    importWord: () => voidAction("save_file", () => importWord()),
-    importOrg: () => voidAction("save_file", () => importOrg()),
-    shareRead: () => voidAction("general", () => copyShareLink(false)),
-    shareReview: () => voidAction("general", () => copyShareLink(true)),
-    saveAsTemplate: () => voidAction("save_file", () => saveAsTemplate()),
-  };
-  const fileMenu = menu(
-    "file",
-    "📁 " + t("file"),
-    header
-      .fileItems(files.supportsRealFiles())
-      // A type guard rather than a cast, so the id that reaches `FILE_RUN` is
-      // the union and not `string` — which is the whole point of the union.
-      .filter((e): e is { id: header.FileItemId } & header.MenuRow => !header.isSep(e))
-      .map((e) => menuItem(e, FILE_RUN[e.id])),
-  );
-
-  // The Skins menu is gone: presets now live inside the Styles panel, next to
-  // the settings they overwrite, where the relationship is visible.
-
-  // Every asynchronous route, through `voidAction` for the same reason as the
-  // File menu above (#125): `exportPdf` awaits a compile and a decode, and
-  // `void exports.exportPdf()` on a rejection is a crash panel rather than a
-  // sentence. The three synchronous ones — Markdown, Org and text — return a
-  // string and a file, and have nothing to reject.
-  const EXPORT_RUN: Record<header.ExportId, () => void> = {
-    exportPdf: () => voidAction("general", () => exports.exportPdf()),
-    exportWord: () => voidAction("general", () => exports.exportWord()),
-    copyForWord: () => voidAction("general", () => exports.copyForWord()),
-    exportHtml: () => voidAction("general", () => exports.exportHtml()),
-    exportMarkdown: exports.exportMarkdown,
-    exportOrg: exports.exportOrg,
-    exportText: exports.exportText,
-    exportTypst: () => voidAction("general", () => exports.exportTypst()),
-    exportTypstCompact: () => voidAction("general", () => exports.exportTypstCompact()),
-    print: exports.doPrint,
-  };
-  // Rebuilt on every open, because the page count in the hint is the count of
-  // the document as it stands and the range is whatever the writer last typed.
-  const exportMenu = lazyMenu("export", "⬇ " + t("export"), () => [
-    pagesRow(),
-    ...header.exportItems().map((row) =>
-      exportItem(row, EXPORT_RUN[row.id]),
-    ),
-  ]);
-
-  const name = header.docTitle(runtime.currentDoc?.title, runtime.currentBinding?.name);
-
-  return el("header", { role: "banner" }, [
-    el("div", { class: "brand" }, [
-      el("span", { class: "brand-name" }, [t("appName")]),
-      el("small", {}, [t("tagline")]),
-    ]),
-    // The open document's name, clickable to rename — a writing tool with a
-    // library needs to say, at all times, which document you are in.
-    el(
-      "button",
-      {
-        class: "doc-title-btn",
-        type: "button",
-        title: t("rename"),
-        "aria-label": name.label,
-        onClick: renameDoc,
-      },
-      [
-        el("span", { class: "doc-title", id: "doc-title" }, [name.title]),
-        el("small", { class: "doc-file", id: "doc-file" }, [name.file]),
-      ],
-    ),
-    buildToolbar(),
-    // The menu bar and the runtime.view chips are navigation, and saying so is what
-    // gives a screen-reader user a way to skip past forty-odd controls to the
-    // editor. The page had no landmarks at all.
-    el("nav", { class: "menubar", "aria-label": t("menubar") }, [
-      buildInsertMenu(),
-      buildFormatMenu(),
-      buildTableMenu(),
-      buildSourcesMenu(),
-      buildMacroMenu(),
-      buildDocsMenu(),
-      fileMenu,
-      templatesMenu,
-      exportMenu,
-    ]),
-    el("div", { class: "spacer" }),
-    el(
-      "div",
-      { class: "chipbar", role: "group", "aria-label": t("viewControls") },
-      // `disabled` in the class list is what `iconBtn` reads to set the real
-      // attribute, and `recording` is a class the stylesheet pulses.
-      header.chips(headerState()).map((c) =>
-        iconBtn(
-          c.glyph,
-          c.title,
-          CHIP_RUN[c.id],
-          ["chip", c.active ? "active" : "", c.disabled ? "disabled" : "", c.id === "record" && c.active ? "recording" : ""]
-            .filter(Boolean)
-            .join(" "),
-          { "data-chip": c.id },
-        ),
-      ),
-    ),
-  ]);
 }
 
 /** Swap the whole document and put the caret somewhere sensible. */
@@ -2620,6 +2277,11 @@ function installHooks() {
   // (refreshContextBar via contextbar, refreshStylesPanel via stylespanel,
   // saveFileAs via fileui's ribbon import). The other twenty-five were direct
   // imports in their own modules all along — see ribbon.ts.
+  wireHeader({
+    setSetting,
+    startFind,
+    toggleNikud,
+  });
   wireChrome({
     entityAct,
     insertFold,

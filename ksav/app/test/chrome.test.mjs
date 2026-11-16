@@ -365,7 +365,10 @@ check(
 // names `theme`.
 {
   const END = "\n}\n";
-  const state = MAIN.slice(MAIN.indexOf("function headerState()"));
+  // `headerState` moved with the header (wave 2), so the fence reads the file
+  // the state is gathered in now rather than the one it used to be in.
+  const HEADER_SRC = SOURCES.get("appheader.ts");
+  const state = HEADER_SRC.slice(HEADER_SRC.indexOf("function headerState()"));
   const body = state.slice(0, state.indexOf(END) + END.length);
   ok("the header's state is gathered in one place", body.includes("settings."));
   const shown = [...body.matchAll(/settings\.(\w+)/g)].map((m) => m[1]);

@@ -32,7 +32,7 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 - [ ] #163 multi-preview sync.
 - [ ] #164 the `e.code` / `e.key` split.
 - [ ] #32 trim the test and documentation tower.
-- [ ] `main.ts` size (left over from #22): about 3,500 lines against a target of about 1,500. File an issue for it, then split further.
+- [ ] #188 `main.ts` size (left over from #22): 3,536 lines against a target of about 1,500. Filed with the five functions that hold it up and an order to take them in.
 
 ## M0 — Green and honest
 

@@ -1,1243 +1,148 @@
-# PLAN — ksav (work top to bottom, one issue per worker session)
-
-Worker loop: pick the top unchecked item, fix ONLY that issue + its resolving test, commit, check it off, stop. Do not batch. Do not reorder.
-Already done (closed): #2? no — #2 open. Done: #4, #10, #13, #16, #17, #18, #24, #25, #26, #27, #28, #29, #30, #40, #41, #49.
-Also closed 2026-10-05: #21, #34, #36, #78, #88, #90, #91, #92, #93 — and the acceptance harness now completes (737 checks, 0 failed) — see the session section at
-the end, which also records the pattern worth more than the fixes: **four in a row were already
-shipped**, and twice a survey believed a stale *comment* rather than the code beside it.
-
-## SKIP — do not work (see AI_ISSUE_ROUTING.md)
-- #94 Insert menu hardcodes Hebrew — **FALSE POSITIVE on the behaviour, true on the
-  literal, and the fifth "already shipped" in a row.** The three note buttons do pass
-  hardcoded Hebrew snippets (`main.ts:6537-6553`), and `channels.noteLine`,
-  `pickLine` and `setStyleArgs` all do take a `lang` — so a survey reading the call
-  sites concluded an English document gets `#הערה[|]`. It does not, and the reason is
-  one line in `mode.ts:486`: **`insertionAt` is the seam, and it translates.** Its own
-  comment says why it is there — *"the language decision lives here rather than in the
-  two callers, because there is no version of 'each surface remembers' that survives a
-  fourth surface"* — which is exactly the sentence #94's fix would have re-implemented.
-  Measured, not argued: removing that one line makes the insertion-fixtures generator
-  go red on **every** command that carries a Hebrew parameter name in an English
-  document, and the note-path translation removed beside it makes the destination
-  scaffolding Hebrew.
-  The deliverable is therefore a **fence, not a fix**: `insert.test.mjs` §"the language it
-  is written in" (an English document takes an English command, its argument names with
-  it, and Hebrew inside a Hebrew note whatever the rest of the document is) and
-  `notelangs.test.mjs` §6.4 (the three buttons' full journey, in both languages, with
-  nothing Hebrew anywhere in the resulting document — the marker *and* the scaffolding).
-  Both mutation-checked: dropping `insertionAt`'s translation, dropping `docLang`'s
-  innermost-call rule, and making `destinationLines` write Hebrew each turn their own
-  assertion red. **What the fences found on the way, both real:** an unclosed note's node
-  ends at its own name, so `docLang`'s innermost-call rule cannot see a caret inside one;
-  and the marker's own translation in `applyNotePick` is *redundant* — `insertionAt`
-  translates whatever lands anyway. #14 §5's "it lands as `#הערה[…]`" was corrected in
-  place, because a false expectation written into the UAT script is a defect with a
-  brighter future.
-- #36 watch.forget — FALSE POSITIVE, and now **closed** (`cc753a7`). Two callers:
-  `main.ts:749` in `closeOpenDoc` ("on close") and `main.ts:836` in the delete path
-  ("when its binding is replaced") — the two its own comment names. **The comment is what
-  made it a filed defect twice**: it read *"Nothing called it"* three lines above a live
-  call, describing the pre-fix state in the present tense. Rewritten. No callerless-export
-  sweep added, per `documentation.test.mjs:161` — it flags test-only helpers and API surface
-  by the dozen, and people silence those.
-- #29 registry "docs in the wire" — FALSE POSITIVE, measured: the essays are
-  `///`/`//` comments (15,181 of 40,053 bytes, none a value); the literals are 22
-  chars at the median and `commands_json` is 224 bytes a row. The descriptions
-  stay — the palette displays and searches them. What was missing was a fence, and
-  `engine/tests/registry_wire.rs` (column set, length, size, the four deprecation
-  notices) is it. See decisions/2026-09-25-the-registry-wire-is-a-palette.md.
-- #12 does not exist.
-
-## UAT follow-up — 2026-10-20
-
-Investigated against `UAT.org`, `HEAD` (`8d70c80`), recent history, and the current
-source. The latest "Fix 10 UAT items" commit was not accepted as evidence by itself:
-`nix develop --command npm run build` currently stops at `bindings.ts:136` before any
-editor test runs. Confirmed residuals are filed here; links are deliberately grouped
-only where the same root cause owns the sibling symptoms.
-
-- [ ] #119 [UAT 1] caret-follow interpolation uses a character offset instead of a
-  visual line position and still has a last-line/short-document bottom jump.
-- [ ] #120 [UAT 6] Settings-drawer touchpad scrolling delegates raw deltas to native
-  `overflow: auto` with no app-level policy or boundary behavior.
-- [ ] #121 [UAT 7] bracket escape shortcuts have no all-brackets action and the new
-  matcher is not typed-stack-correct for mixed nesting.
-- [ ] #122 [UAT 8] the attempted Hebrew-caret fix sets the whole HTML root to the
-  document direction, breaking the independent UI direction.
-- [ ] #123 [UAT 9, 28] the UAT fix commit leaves HEAD unbuildable; after the syntax typo,
-  the note paragraph producer/consumer still disagree about the edit shape.
-- [ ] #124 [UAT 11] actionable diagnostics live in the low status strip with no
-  guaranteed readable surface above the preview panes.
-- [ ] #125 [UAT 13, 15] File-menu Open and Save As wire rejected async handlers
-  directly, bypassing `asyncaction.ts` and reaching the crash handler.
-- [ ] #126 [UAT 14] source navigation has no semantic mode that skips Typst markup
-  while retaining a deliberate raw-character navigation mode.
-- [ ] #127 [UAT 18] PDF export always uses the generic download path; desktop never
-  offers the native destination picker.
-- [ ] #128 [UAT 19, 25, 26, 27] document title/filename identity and the Documents/File
-  menus are duplicated, while row actions remain icon-only and hover-dependent.
-- [ ] #129 [UAT 20] plain text, Markdown, and Org exports preserve layout markers and
-  add unwanted breaks through shared, non-normalizing atom renderers.
-- [ ] #130 [UAT 21] `.typ` export inlines the complete prelude with no compact/project
-  export contract.
-- [ ] #131 [UAT 22] Word export is HTML-in-`.doc`, while the visible product promise
-  and filename do not make that handoff explicit.
-- [ ] #132 [UAT 23] native reflowable HTML trusts Typst HTML defaults and does not add
-  or verify the document direction; fallback/Word paths disagree.
-- [ ] #133 [UAT 28] Windows shortcut/startup still lacks a clean-build and packaged
-  smoke test; the exact Windows failure remains to be retested with a launch log.
-- [ ] #134 [UAT 2, 3, 4, 5, 10, 12, 16, 17] verify the recent-fix claims in a
-  buildable application, with focused regression tests and sibling-path coverage;
-  source inspection is explicitly not sufficient.
-- [ ] #135 [UAT 30] English first-run and plain/legacy `.ksav` documents can fall
-  through to the shipped RTL default; initialize the starter after a document
-  exists, define the no-config migration policy, and verify LTR persistence.
-- [ ] #136 [UAT 31] the alignment toolbar has a hand-authored, direction-dependent
-  visual order without a toolbar/settings ordering contract or regression fence.
-  Keep the UI/document direction separation in #122.
-- [ ] #137 [UAT 32] linked source-to-preview scrolling uses an approximate rAF
-  estimate followed by delayed exact settling and a direction-dependent anchor;
-  scrolling jitters and upward scrolling can miss the preview top. Sibling of
-  #119, not a replacement for its caret-follow cases.
-- [ ] #138 [UAT 34] opening documents does not match the intended Emacs-like
-  window/buffer model: default `openIn: reuse` creates arrangements for
-  unrepresented documents, and `tabs.showing()` ignores non-focused panes.
-- [ ] #139 [UAT 35] moving panes between tabs allows a mixed-document tree to
-  enter a globally single-document renderer, so target panes/previews can be
-  overwritten or duplicated; define whether a new-tab move carries one pane or
-  a source/preview pair and fence stale async moves.
-- [ ] #119 follow-up [UAT 33] Select All is routed through caret-follow using
-  `selection.main.head`, so a full-document selection moves the preview toward
-  the bottom. Add this regression case to #119.
-
-The following UAT items were previously believed fixed or not reproduced by source
-inspection. That is now tracked as an explicit verification issue, #134; none of
-these items should be treated as closed until that issue has real application
-evidence.
-
-- **2, 3, 4, 5, 12, 16**: the current code contains focused changes for heading
-  reveal anchoring, prose chip state, import catches, physical-key bindings, paired
-  bracket close, and Word import catches. They still need regression coverage after
-  #123 restores a buildable frontend; #134 is the verification record.
-- **10**: the list path now excludes nested bracket bodies before applying list-item
-  Enter behavior. A broader nested-structure audit belongs with #121/#126 if a
-  reproduction remains; #134 is the verification record.
-- **17**: the no-Girsa paths now use the explicit `girsaNeedsApp` message rather than
-  exposing transport text; no residual cryptic path was found in the current source,
-  but #134 must verify every Girsa entry point in the running app.
-- **24**: the provided article template was rendered with the engine probe. Its notes
-  were on the page foot and the deferred body was visible; the reported unreadable
-  endnote spacing did not reproduce on the current template, so no issue was filed.
-
-## Phase 1 — Foundations first (unblock everything below)
-- [x] #172 **the wasm engine does not compile at HEAD** — landed `ece8fcc`. The constant
-  was a *fact* filed as a server detail: `DEFAULT_COMPILE_TIMEOUT_MS` moved to `facts.rs`,
-  which is compiled for every target, and `server.rs` imports it. The fence is
-  `engine-wasm` — `cargo check --lib --target wasm32-unknown-unknown` in the engine group
-  — and building it found a second hole the issue did not name: `gate.test.mjs` swept for
-  installed *components* and not for *targets*, so three jobs would have run the check
-  without installing `wasm32`. The same commit put the gate's own size on the claims
-  sweep after three pages spelled it three ways ("nine", "ten", "ten").
-- [ ] #172's sibling, filed while fixing it: #179, a gate test that set
-  `KSAV_INBOX_WAITING_ROOM` and failed 9 runs in 12 (fixed in the same push, `0e907be`).
-- [x] #180 **nothing ran the engine suite on Windows before a push** — landed `7ed8d69`.
-  A `windows-latest` job beside macOS, and the fence is a **graph** question the two
-  line-by-line sweeps could not ask: `workflowJobs()` parses `runsOn`/`needs`/`steps`/
-  matrix platforms, and three assertions read it — every platform this ships to has its
-  engine job (Linux counted by the `engine` job's *runner*, because its job is not called
-  "engine on Linux"), every `needs:` resolves, and the release matrix's engine gate
-  covers every leg it builds for. **That last one found the bigger half of the issue:**
-  `release.yml` gated its engine check on `ubuntu-22.04`, so three of the four legs a
-  release ships were untested on the day they shipped. Three mutations, all red and all
-  naming the instance. Two drafts of the fence passed on nothing (a trailing YAML comment
-  the regex demanded the end of, and a condition read off the job rather than off the
-  step) — filed as #187. The `.msi` is still never installed or launched, and
-  `release.yml`'s `Run it` step is broken on Windows (a relative path with no `.\` is not
-  an executable path in pwsh): #186.
-- [ ] #172 **the wasm engine does not compile at HEAD** — `facts.rs:382` names
-  `crate::server::DEFAULT_COMPILE_TIMEOUT_MS`, and `server` is cfg'd out on wasm32
-  (`lib.rs:102`). Red in CI on every push since `dc15177` (#109); the next tag's Pages
-  deploy fails. Fence: a wasm `cargo check` in the gate. (High)
-- [x] #173 CI's macOS job is cancelled in 1 s on every run (`macos-14` retired) — landed
-  next to #172. `runs-on: macos-latest`, and `gate.test.mjs` now refuses eight retired
-  labels; the fence was shown to fire by putting `macos-14` back. The comment that
-  excused the missing Windows job ("it is the desk this is written on") was false — the
-  desk is NixOS — so it now says the gap is a gap, and the gap is filed as #180.
-- [ ] #173 CI's macOS job is cancelled in 1 s on every run (`macos-14` retired:
-  "configuration … is not supported"), so every run reads `cancelled` and hides #172
-  and #171. Also: `ci.yml:214`'s "Windows is the desk" rationale is no longer true. (High)
-- [ ] #174 `nix develop` + `npm test` exits 1 on NixOS — `browserlang` finds no runnable
-  Chromium; `flake.nix` never sets the `KSAV_CHROMIUM` the test already reads. (Medium)
-- [x] #116 **the editor test suite cannot run at HEAD.** — closed `996a7de` before this
-  sitting; the box here was stale. The rule lives in `tools/publicroot.mjs` and both
-  bundlers are asked the same question. Verified again here: `node test/run.mjs` green
-  across every file.
-- [ ] #116 **the editor test suite cannot run at HEAD.** `run.mjs:100-115` bundles with
-  `esbuild.build({bundle:true})` and no CSS asset config, so the 4 root-absolute
-  `/fonts/…` `url()`s added by `768b414` resolve against the filesystem root and the
-  build step fails before any test runs. Files are present and tracked; **`vite build`
-  succeeds** — product and fence use different bundlers and only one got the fix.
-  `styles.css` had **zero** `url()` before `768b414`, which is why nothing was ever
-  configured. This is the repo's primary fence, down. (High)
-- [x] #107 build toolchain stated 4 ways — closed `3621ccd`; `toolchain.test.mjs` is the
-  fence and this sitting added four assertions to it for the browser (#174).
-- [ ] #107 build toolchain stated 4 ways with 3 disagreeing Node values; `.nvmrc` read by
-  nothing; the shipped Linux installers build on Node 20, which `flake.nix:66-70` records
-  as EOL. Rust likewise: `rust-toolchain.toml:4` pins `1.97.1` against 11 "stable" sites.
-  Fence: one distinct value, read from the files. (High)
-- [x] #115 the single-source gate fence sweeps exactly two file classes — closed
-  `6fde000`; the build verb is in `GATE_VERBS` and `wasmbuild.mjs` is its one spelling.
-- [ ] #115 the single-source gate fence sweeps exactly two file classes
-  (`gate.test.mjs:343-358`) and `GATE_VERBS` (`gate.mjs:233-240`) has **no build verb**,
-  so build recipes are structurally exempt and `app/tools/`, `packaging/`,
-  `.github/scripts/` are invisible to it. Highest value per effort: `facts.mjs:52`
-  exports `REGENERATE` with **zero importers** while three sibling files re-spell it
-  byte-identically. (High)
-- [x] #25 heal seam ×3 → centralize into one RenderPlan; runCompile/compileUnfocused/bodyOnScreen derive from it. (High)
-- [x] #27 all three English tables are facts values now; each with a cross-check that exits 1. (High)
-- [x] #28 the templates' collective guarantee is a predicate; it found three unreachable capabilities. (Medium)
-- [x] #29 FALSE POSITIVE, measured; the fence it was missing is `engine/tests/registry_wire.rs`. (Medium)
-
-## Phase 2 — Security Criticals
-- [x] #50 missing-chapter marker injects name into Typst unescaped. (High→Critical)
-- [x] #51 opening .ksav executes customCommands with no warning. (High)
-- [x] #53 engine SVG innerHTML + attribute passthrough. (High)
-- [x] #52 asset names unvalidated; ksav.typ shadows prelude. (High) — the shadowing was
-  already closed by resolver order; what was real is a **panic** in `typst-as-lib`'s
-  path handling, i.e. one unauthenticated request could take a worker thread down.
-
-**Phase 2 complete.** Four Highs, all fixed at the root with a fence that was shown
-to fire. Two of them (#52, and #29 before it) turned out to be mis-identified: what
-was actually there was smaller or larger than the report said, and the fix list was
-still right.
-
-## Phase 3 — Correctness Highs
-- [x] #83 a click on a word from an included chapter puts the caret at that line
-  number **in the parent**. (High, from #82) — The engine returns the file and a
-  test fences it; `readSpot` dropped it into a two-key `BodySpot` **at the wire
-  reader**, so `main.ts` never had it. **`Located` declared `file` and was imported
-  nowhere** — `rg "Located" app/src` returned its own declaration and nothing
-  else, for the whole life of the bug, reading like a contract. The fence for it
-  is **the type, not a test**: `readSpot` now returns `Located`, so a reader that
-  forgets a field does not type-check (proven — `TS2741`). `jumpFromClick` asks
-  the question `diagview.show` has always asked for a diagnostic, through one
-  shared `clickedChapter`, and hands the answer to the one `gotoPart` that opens
-  a chapter — so the two paths cannot come to disagree about what a chapter is.
-  **Five mutations, all caught, across three fences:** the reader keeping the type
-  and discarding the file (goes red on every transport), `jump`'s declared type
-  reverted to `BodySpot`, the decision ignoring the open document, the click
-  branch removed from `main.ts`, and the branch handing over the raw `file`
-  instead of the decision it made.
-  **What it did not fix, and why it is not in this fence:** `wire.test.mjs` checks
-  that a shape is *declared* and cannot check that it is *read* — measured, **five**
-  more wire interfaces are declared and never named (`ClipboardSource`,
-  `Linkified`, `RefreshResult`, `Revealed`, `ServiceRow`). All five are
-  single-field or flat shapes read structurally, so a blanket "must be named"
-  rule would be red on five innocent ones and is not the fence. `Located` was the
-  only shape where a reader returned a **different interface**, and that is now a
-  compile error.
-## Phase 3 — Correctness Highs
-- [ ] #175 alignment buttons go through `insertSnippet` like Bold: no selection inserts an
-  empty `#מרכז[]` at the caret (mid-word too) and strips the paragraph's existing
-  alignment wrapper. Five-row repro table in the issue. (High, user-facing)
-- [x] #176 ten of **12**<!--=templates--> bundled templates opened with a "no italic face" warning,
-  because the warning's trigger was still read off the prelude months after `_ks_style`
-  connected the marks to the synthetic oblique. `2e5f470` — the warning is now about a
-  direct `#emph`/`#text(style: "italic")` only; fences: a quiet first open for every
-  template, the inverted mark sweep, and the prelude's own claim. (Medium)
-- [ ] #177 `snapshots.ts:117` native `confirm()` (the last one; dead on WKWebView) and
-  `save.ts` `saveNow` clearing `unsavedChanges` set by a newer keystroke. (Low)
-- [ ] #106 the paper-size table is written **twice** and the copies **disagree**:
-  `ksav.typ:2426-2434` `_pg_paper_width` (a3/a5/us-letter/letter, silent `else 210mm`)
-  vs `lib.rs:590-604` `paper_cm_of` (ten papers, `_ => return None`). `b5` is **176mm vs
-  210mm** — 34mm apart; `a2` 420mm vs 210mm; `letter` is one-sided and `sanitize_paper`
-  does not map it. `lib.rs:576` then answers `.unwrap_or((21.0, 29.7))` — a **silent
-  A4**. The same pair also disagrees about sanitising (`:576` raw vs `:615` sanitized).
-  Class: #38's shape, a supervising truth with two copies and no cross-check. (Critical)
-- [ ] #108 setting `KSAV_TOKEN` disables all **7** `nativeOnly` services for every browser
-  client. The server demands `X-Ksav-Token` (`server.rs:627`) and it appears in **zero**
-  `.ts` files. `server.rs:603-604` documents the design but not the consequence, and the
-  refusal names a header no client can send. The desktop build is unaffected, so the
-  operator's own machine looks fine. (High)
-- [ ] #109 `api.ts:1564` `COMPILE_TIMEOUT_MS = 20_000` is hardcoded and its comment says
-  it *mirrors the server's* — true only at the default. `server.rs:238-245` is
-  env-overridable via `KSAV_COMPILE_TIMEOUT_MS`. Raise the server's budget and the
-  desktop app abandons at 20s while `api.ts:1588-1606` promises the compile finishes in
-  the background. No test relates the two. (High)
-- [x] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan).
-  (Critical) — six of the audit's seven no longer reproduce; the deliverable is
-  `engine/tests/note_layout.rs`, and what was left was a note sent to a
-  **destination the document never declared**, landing silently in the page foot.
-- [x] #6 audit fire-and-forget (127 void, no fence). (High) — measured **51 of 93
-  sites** had a callee with no error handling at all; 48 converted to one wrapper,
-  3 of them found to be synchronous and put back. The fence is the inventory.
-- [x] #2′ non-linear note fixtures — both branches reached and fenced: B3's sort
-  needs a reversed anchor order, B5's carry needs a bounded sheet and a page
-  break. **9 of 11 tests now fail with their fix removed.** (from #2)
-- [x] #5 parser/config/installer hardening. (High) — **16 of 50 setters** accepted a
-  typo, and the check was *inside* the `update` closure, so it fired on the next
-  note rather than on the typo. The other four sub-items have no site: `purge_ratio`
-  has no owner, the installer does not exist here, git probing is already bounded
-  and locale-free, grammar spans already carry line+column.
-- [x] #3 i18n completeness + e2e switch test. (High) — 11 keys had Hebrew and no
-  English, and `t` falls back to the **key name**, so `refreshTitle` was a panel
-  heading in English. The switch mechanism already existed and needed only a fence.
-- [x] #71 a language switch left **114 Hebrew strings** standing; now **9** — two
-  catalogue keys (`untitled`, a document's own name, which must never be tagged, and
-  `registriesFailed`, an error path) and seven composed, all of them Hebrew that
-  belongs there. What is left to argue about rather than fix: `troubleSaid`'s
-  deliberate `"he · en"` status line, which an English interface reads Hebrew-first.
-  Found by a real browser, and the browser test now fences the ceiling at 9. (from #3)
-- [x] #70 a breakable Typst box, measured. (Medium, from #5) — **the forwarded claim
-  does not reproduce.** A breakable block re-fits its background to *each page's own*
-  text (13.9 + 169.2 + 22.9 = 206.0 = the fill height, on all four pages), so there is
-  no empty border. This also removed the strongest reason to vendor `meander` in #73.
-  **The instrument could not answer the question at all until `Fill`/`Stroke` grew
-  `width`/`height`**: a fill that spans a break *starts above* the last line, so the
-  origin looks correct and is silent about the empty band that was the subject. An
-  origin is not a shape. (from #70)
-- [x] #74 an unbreakable block taller than the text area **silently loses content off
-  the sheet**. (from #70) — Reported now, and the content still goes off the sheet,
-  because the fix is to **say so**, not to silently move it. The threshold is the
-  **page**, not the text area, and that is what makes it safe: a running head and a
-  folio sit in the margins quite legally, so a text-area threshold would warn on
-  every document with a header — and **a folio cannot be below the bottom of the
-  page**. The audit also needs the writer to have asked for it, so it scans the
-  body for `breakable: false` and an ordinary document pays one pass and no more.
-  Measured: 285pt of a block reported as not printed at all, naming the line, while
-  the same content splittable and an unsplittable block that *fits* both stay
-  silent. **Latent when filed** — nothing in Ksav set `breakable: false`; #65 and #43
-  are the only things that would. (from #70)
-- [x] #76 opposing margins can consume the whole page — **a gap in my own #15 work**,
-  and a second one I did not know was there. (from #70) — Two defects, and my first
-  report on this was wrong in a way worth recording: **I set `cfg.margin_cm` directly
-  in Rust, so `from_json` never ran and I measured a path the application does not
-  have.** Through the real path `margin_cm: 11` *was* clamped and reported. The pair
-  check was still needed (`inner 20 + outer 20` on A4 → a text region 19cm wider than
-  the sheet, silently), and #15 had in fact left the **old A5 constant standing on the
-  uniform path** — 7cm is the A5 instance of `2m ≤ short_side − 1`, so A4 was refusing
-  a 9cm margin that it can hold. Both fixed: a uniform margin is bounded by the sheet,
-  and a pair is checked as a pair, with **a value the writer did not set never the one
-  moved** — reducing a default is the app un-choosing on their behalf, which is the
-  sentence #15 exists to fix. My first rule ("the second edge gives way") was wrong and
-  a pre-existing fence caught it the same day: `inner 13 + outer 0` clamped the edge
-  that was already 0. **The larger margin gives way.**
-- [x] #75 a bare hex colour is refused as *"something's off near a #"*. (from #70) —
-  Fixed, and **the `#` is the one character the writer got right**: Typst 0.15 dropped
-  the bare literal, so `#eef3ff` fails with *"the character `#` is not valid in code"* and
-  the message was answering with advice about a missing space. The **line** is now
-  consulted to tell a removed syntax from a genuine stray `#`, and it had to be the
-  line: the raw error is identical for both. A hex run is only a colour if it is
-  **delimited** — `#1234zz` is not, and *"write `rgb("#1234")`"* is advice that cannot
-  work. It also produced **two** errors, the second being the parser blaming the comma
-  around the hole it left, so one mistake is now one message. (from #70)
-- [x] #72 a sefer cannot read the disk at all, and that was never a decision. `#import
-  "helper.typ"`, `read()`, absolute paths — all refused; only bundled packages resolve.
-  The sandbox is *right* (`packages_root()` is a root a document cannot escape), but it
-  means a sefer is one file forever. Proposal: `packages_root()` a second time, per
-  sefer. **Cheap half first:** `@local` alone in the `app_data_dir()` that already holds
-  the dictionary. Decision, not a task — autosave, `git.rs` and the file tree all move. (from #15)
-  — **Shipped the cheap half, and the deferral was right first.** The blocker was not the
-  resolver but that the engine had **no way to be told where anything is**: the compile
-  channel is `(name, String)`, so a root on the request means any loopback client and the
-  browser build could point a compile at any directory. So the seam is the *first* of the
-  two versions the issue named — `set_local_packages_root`, called once from `.setup()`,
-  first `set` wins — and the sandbox property is preserved rather than traded. Two
-  measured warts closed with it: `missing_package` split on the literal `"packages/"`, so
-  a root **not** called `packages` degraded to *"a file (e.g. an image) wasn't found"*, and
-  the namespace was lost. Four fences, and the one that matters is
-  `a_local_root_does_not_open_the_disk` — a feature whose whole justification is *"still a
-  sandbox"* is not done until something says so. **A sefer is still one file**; the
-  multi-file decision is untouched and now starts from a working seam.
-  `decisions/2026-10-02-local-a-root-the-sandbox-survives.md`
-- [x] #77 parallel streams. (from #15) — **Decided (build it), and found mostly
-  already built.** `הגדרות_זרמים(פריסה: "צד")` is side-by-side, a column per stream, with
-  a per-stream `טורים` count, and measured over seven pages each stream **keeps its column
-  on every page** with its content flowing through it. #77's requirement is therefore
-  already met for notes. Split into the two gaps that remain: **#78** arbitrary content in
-  a stream (it is a *note* command, and the question said "not just notes") and **#79**
-  whether a stream can occupy the **page body** rather than the read-only footer.
-  `examples/streams.rs` proves the architecture — each stream its own band-sized document,
-  pages zipped by index — and **duplicates what `פריסה: "צד"` does**, so it is evidence
-  and must not become a second mechanism. (from #15)
-  — **Closed 2026-10-09 on a fence, not on the earlier reading.** The claim the seven-page
-  measurement established — *each stream continues in the same position on the next page* —
-  had nothing holding it, and the one-page test beside it (`parallel_streams_number_
-  independently_and_share_the_page`) cannot see a column that resets on a page break.
-  `engine/tests/parallel_streams.rs` now fences it: every stream's column **edge** on every
-  page it reaches (the edge, because the apparatus is right-aligned, so a wrapped note moves
-  a line's left edge and not the column), the two streams never sharing a band, and both
-  flows actually continuing. Mutation-checked twice: making the streams **stack** goes red
-  naming the page and both columns' coordinates, and an **empty neighbour** — the fixture
-  reaches pages where only one stream has an entry, which a fixture where both always
-  arrive together cannot see — is the shape the register's `ריק` default already refuses.
-  The drift measured at **under 0.5pt**, so the tolerance is 1 and the number is not a wish.
-- [x] #78 arbitrary content in a stream. (from #77, from #15) — **Measured, and the premise
-  was false: a stream has held arbitrary content the whole time.** The issue asked the right
-  question and correctly refused to design before measuring — *"is the constraint the
-  **command**, or the fact that streams are populated by the read-only footer apparatus?"* —
-  and the answer is **neither**. A paragraph, a `#figure` with its caption, a
-  `#דיבור_המתחיל` lemma, a `#table`, a coloured `#block`, a nested `#הערה`, and even a
-  `#כותרת2` all compile and print inside `#הערה_זרם`, and a six-column table **shrinks to
-  the column** rather than running over the text beside it. One line of the prelude says
-  why: `_sf_stream_note` (`ksav.typ:5511`) forwards to `_ap_note`, the notes apparatus, and an
-  apparatus entry is a **content block**. Being a note command constrains the **name**, not
-  the payload.
-
-  **What the apparatus really does constrain is placement**, and that is the half worth a
-  test: a stream entry is **anchored to the main flow**. It prints on the page its anchor
-  lands on and stream order is anchor order — measured, an entry anchored after a third of a
-  four-page document prints on page 2 and one anchored last prints on page 4.
-
-  So the gap was never "a stream may hold arbitrary content". It is **content with no
-  anchor** — a column filled from somewhere other than the main flow's note positions — and
-  that is **#79's** question, not this one.
-
-  `engine/tests/stream_content.rs` pins all of it, each case mutation-checked: the four
-  content kinds, the table staying inside its column, the anchoring with its page numbers
-  **in the assertions** (a change here is the moment to argue about it), and stream
-  numbering being independent of the body. The numbering test's first version asserted on
-  the text run and failed, because an apparatus entry prints its number as a **separate run
-  at a smaller size** — so it reads `Line::reading`, which is the line as a reader sees it.
-
-- [x] #79 can a stream occupy the **page body**? — **Shaul decided: build it** (*"lets build
-  the possibility. the user should be able to do it if he wants"*), and the measurement had
-  already removed the objection: the body shape is the **cheaper** one by ~4.7×, because the
-  foot rebuilds the notes apparatus per page and a band has none. Built as `engine/src/bodystream.rs`:
-  `#ערוץ("מקורות", מיקום: "גוף", רוחב: 30%)` and the engine lays the body on a page the bands are
-  already taken out of, lays each band as its own document, and **composites page `i` beside page
-  `i`** — so each flow continues in the same position because each flow *is* a position, with
-  nothing threading anything. A band is the same source read a second time with `זרם_גוף` on
-  `#מסמך`, so its numbering is the body's numbering by construction. **Thirteen fences,
-  mutation-checked twice**: removing the composite, and taking `רוחב`'s share of the paper
-  instead of the writing width, each turns eleven of them red. **Three traps, all found by
-  running it:** `hide(body)` keeps the body's *pagination*, so the band was as many pages as the
-  sefer and every entry landed on the last one (the body's **words** have to go, not its notes);
-  a band given the document's margins on both sides has a **negative** text area on a 30% band
-  and Typst panics with *bounded inline layout is incomplete*; and a `Named` node's value is its
-  **third** child, because reading the second reads the colon and a placement of `":"` matches no
-  placement — silently, in a declaration. (from #77, from #15) — **Question 2 answered
-  by measurement, and the measurement inverts the premise. Question 1 is the real work.**
-  The issue predicted *"N streams is N layouts, and the editor is 59ms from a keystroke"* —
-  i.e. that the body shape is the expensive one. Measured on identical words, **one footer
-  document with two anchored streams took ~17.0 s (median of 6) and the same words as three
-  plain layouts took ~3.5 s** — the footer shape is **~4.7× the more expensive** one. Runs were
-  **interleaved** (each run does both back to back) so a contended box inflates both; the
-  ratio is the finding and the absolutes are not. A 20-page document, 120 short notes.
-
-  **Why:** the cost is not the layout count, it is the **notes apparatus** — a foot region
-  rebuilt per page, numbering, and anchoring. A body stream drops all of it, which is a
-  stronger argument *for* the body shape than the one the issue expected to have to make.
-
-  **Question 1 — coexistence — is answered by reading `examples/streams.rs`, and the answer is
-  that the probe cannot do it:** `band_w = sheet_w / n` with `page_height_cm = sheet_h`, so the
-  bands **divide the whole sheet** and a body stream as constructed **replaces** the main flow.
-  So the capability that exists today is unusable for the purpose #79 states. Coexistence is
-  the unmeasured part and is the real feature: it needs the page's own layout decided first
-  (how much width is main text, what a band relates to, and what happens when a stream runs out
-  before the main text does). **Left open deliberately** — that is a product decision, and the
-  measurement is what makes it arguable.
-
-- [x] #80 **reledmac + reledpar** for Hebrew RTL text-critical editions — forwarded
-  research, **unverified, and a different shape from #73**. It is LaTeX, and #67's
-  resolver takes Typst packages only, so this is not "bundle a dependency" but *read it
-  for the knowledge* / *adopt a second engine* / *nothing*. The multi-stream half is
-  **already answered** — `הגדרות_זרמים(פריסה: "צד")` keeps each stream in its column across
-  pages — so the only scope worth a sprint is the text-critical half: lemmata, line
-  numbers, and **several independent footnote registers on one page** (the forwarded
-  "Bug C" is the most transferable claim in the set). The forwarded verdict, "the only
-  system capable of handling it", is a claim of exactly the kind this repository measures
-  first. (from #80)
-  — **Verified: do not adopt. Six of seven claims are false.** Checked against the CTAN
-  page, both official manuals, `reledmac.dtx` (22,852 lines), the three official examples
-  and TeX.SE. **Five of the named macros do not exist** (`\Xbeforelemma`,
-  `\Xafterlemma`, `\Xledmacinit`, `\Xfootdir`, `\RTLpair` — **0 occurrences** each), so the
-  forwarded blueprint could not have been written against this package. The engine advice
-  is **inverted**: the manual says RTL `\sameword` *requires* LuaTeX, and the official RTL
-  example opens *"In this example, we use Lua\LaTeX."* The central claim — that bidi and
-  reledmac collide at the line-measuring level — is contradicted by the manual's **own**
-  bidi integration: `\if@RTL` is consumed, the RTL lemma bracket switches *automatically*
-  (so Claim 4's "fix" is the defect), footnote direction is automatic per note, and the
-  changelog is a decade of bidi fixes. The one real TeX.SE question (#630018) was a
-  diacritic pasted onto `\edtext`. And "several independent footnote registers" is
-  **already built and fenced** (`מספור` per-stream, `endnote_streams_side_by_side`). The
-  residue is exactly **line numbers and lemmata** — and neither is a port, because both
-  follow from owning the line, which is a question about Ksav's engine. Licence is LPPL
-  1.3: fine to depend on, not to vendor. `decisions/2026-10-02-reledmac-verified-the-claims-are-false.md`
-- [x] #73 bundle real Typst libraries, starting with `meander`. #67 made it possible for
-  the first time; #70 has now **removed the main reason** (they thread cleanly). What
-  remains is the uncomfortable one: page-breaking is what a typesetting app most needs
-  to control. (from #15)
-  — **Read it, measured it, and the answer is no.** Fetched 0.4.4 and read the source:
-  **MIT**, so the licence objection is *gone*, and 26 KB, so the weight objection is moot.
-  But `reflow` threads **one ordered queue** around obstacles (`smart-fill-boxes` pops
-  `body-queue` in sequence) and the `query`/`tags` mechanism addresses a **placement**,
-  not a destination — so the **addressed routing** this issue was corrected to be about is
-  **not in the package**. What it does do, Ksav has measured and fenced: side notes,
-  named regions with per-stream numbering, content flowing across columns and pages. Both
-  named beneficiaries are settled without it (#70 for note spill; routing for the rest).
-  And the objection never answered — a third party in the page-breaking path — is the one
-  that decides it, because the overlap is *total*. **The durable output is a fence, not a
-  package**: `the_prelude_depends_on_no_third_party_package`, asserted on the *assembled*
-  document and covering `@preview` **and** `@local`, so "a Ksav without it is still a
-  complete Ksav" is now true rather than intended.
-  `decisions/2026-10-02-meander-read-measured-not-bundled.md`
-- [x] #15 two-document glue. (High) — **the seam is fixed; the premise is not.** The
-  7 cm margin clamp was *silently* refusing a 21.7 cm seam, which is the bug the app
-  already names one layer up; a margin is now bounded by the sheet and a refusal is
-  reported. And the box does not cap: 30 entries draw in 4 pages where the proposal
-  measured 5, so "why it buys what a box cannot" lists properties the box already
-  has. Reopened on a worked sheet-count, not a preference. (from #15)
-- [x] #27 all three English tables are facts values now; each with a cross-check that exits 1. (High)
-- [x] #28 the templates' collective guarantee is a predicate; it found three unreachable capabilities. (Medium)
-- [x] #29 FALSE POSITIVE, measured; the fence it was missing is `engine/tests/registry_wire.rs`. (Medium)
-
-## Phase 2 — Security Criticals
-- [x] #50 missing-chapter marker injects name into Typst unescaped. (High→Critical)
-- [x] #51 opening .ksav executes customCommands with no warning. (High)
-- [x] #53 engine SVG innerHTML + attribute passthrough. (High)
-- [x] #52 asset names unvalidated; ksav.typ shadows prelude. (High) — the shadowing was
-  already closed by resolver order; what was real is a **panic** in `typst-as-lib`'s
-  path handling, i.e. one unauthenticated request could take a worker thread down.
-
-**Phase 2 complete.** Four Highs, all fixed at the root with a fence that was shown
-to fire. Two of them (#52, and #29 before it) turned out to be mis-identified: what
-was actually there was smaller or larger than the report said, and the fix list was
-still right.
-
-## Phase 3 — Correctness Highs
-- [x] #2 note-layout hazards (CHANNEL/REGION split, unclamped heights, paren scan).
-  (Critical) — six of the audit's seven no longer reproduce; the deliverable is
-  `engine/tests/note_layout.rs`, and what was left was a note sent to a
-  **destination the document never declared**, landing silently in the page foot.
-- [x] #6 audit fire-and-forget (127 void, no fence). (High) — measured **51 of 93
-  sites** had a callee with no error handling at all; 48 converted to one wrapper,
-  3 of them found to be synchronous and put back. The fence is the inventory.
-- [x] #2′ non-linear note fixtures — both branches reached and fenced: B3's sort
-  needs a reversed anchor order, B5's carry needs a bounded sheet and a page
-  break. **9 of 11 tests now fail with their fix removed.** (from #2)
-- [x] #5 parser/config/installer hardening. (High) — **16 of 50 setters** accepted a
-  typo, and the check was *inside* the `update` closure, so it fired on the next
-  note rather than on the typo. The other four sub-items have no site: `purge_ratio`
-  has no owner, the installer does not exist here, git probing is already bounded
-  and locale-free, grammar spans already carry line+column.
-- [x] #3 i18n completeness + e2e switch test. (High) — 11 keys had Hebrew and no
-  English, and `t` falls back to the **key name**, so `refreshTitle` was a panel
-  heading in English. The switch mechanism already existed and needed only a fence.
-- [x] #71 a language switch left **114 Hebrew strings** standing; now **9** — two
-  catalogue keys (`untitled`, a document's own name, which must never be tagged, and
-  `registriesFailed`, an error path) and seven composed, all of them Hebrew that
-  belongs there. What is left to argue about rather than fix: `troubleSaid`'s
-  deliberate `"he · en"` status line, which an English interface reads Hebrew-first.
-  Found by a real browser, and the browser test now fences the ceiling at 9. (from #3)
-- [x] #15 two-document glue. (High) — **the seam is fixed; the premise is not.** The
-  7 cm margin clamp was *silently* refusing a 21.7 cm seam, which is the bug the app
-  already names one layer up; a margin is now bounded by the sheet and a refusal is
-  reported. And the box does not cap: 30 entries draw in 4 pages where the proposal
-  measured 5, so *"why it buys what a box cannot"* lists properties the box already
-  has. Reopened on a worked sheet-count, not a preference. (from #15)
-- [x] #67 Typst package resolution. (High) — **decided in August, read today.** Offline
-  bundled resolution, not vendored source and not network: a compile that reaches the
-  network can hang, and an editor 59ms after a keystroke cannot have that in its
-  path. The remaining gap was the *sentence* — a missing `@preview/…` import said
-  *"a file (e.g. an image) wasn't found"*, the very wart the issue opened with — and
-  it now names the spec as written and lists what **is** bundled. (from #67)
-
-## Phase 4 — Mediums (engine quality)
-- [ ] #178 search boxes and three settings controls (slider, select, text) have no
-  accessible name. (Low, a11y)
-- [ ] #110 four engine limits have **no override** while the engine's two sibling values
-  do — `git.rs:62` 120s (the only network timeout), `server.rs:289` the in-flight cap
-  pinned to cores (user-visible at `:319`; `worker_count()` is also the pool size, two
-  policies on one expression), `server.rs:190` 64MiB body, `assets.rs:61` 256MiB cache.
-  Vehicle is an env var beside the constant, matching `server.rs:239` — **not** a config
-  file; there is no config system here to extend. (Medium)
-- [ ] #111 the dev-server CORS allowlist (`server.rs:539-544`) is closed and
-  un-overridable, and holds **dead port 1420** — 3 hits repo-wide: two list entries and
-  the test at `:1004` that asserts the list. The real dev origin is `5173`
-  (`tauri.conf.json:8`, `vite.config.ts:217`). A stale entry kept alive by a green test
-  is proof the list rots unfenced. (Medium)
-- [ ] #112 the update-feed origin (`update.ts:18`) is the product's only outbound origin
-  with no deployer control, welded to `policy/csp.txt` whose three copies are fenced to
-  agree **with each other** — never with the origin the client calls. `policy/README.md`
-  records this coupling already breaking the feature once. `update.ts:76-78` swallows
-  every failure. (Medium)
-- [ ] #113 `tauri.conf.json:8` `devUrl` and `vite.config.ts:217` `server.port` are two
-  unlinked `5173` literals and there is **no `strictPort`**, so Vite silently slides to
-  5174 and `npm run tauri dev` opens a blank window with no error. No test links them.
-  (Medium)
-- [ ] #114 the Girsa inbox capacity (`post.rs:111`, `WAITING_ROOM = 64`) is justified by
-  an argument about **one writer** but enforced on a queue `server.rs:406` documents as
-  bindable to `0.0.0.0`. The 65th sender is refused with "editor not running" — which is
-  false; the editor is full. (Medium)
-- [x] #63 include diamond re-expansion. (from #63) — **A budget somebody chose, in two
-  limits, and it is a setting.** The exponential is real (2^depth, and the cycle guard
-  cannot see it because the first inclusion is popped before the second is looked at) but
-  **memoizing would have been the wrong fix**: the writer asked for 128 copies, so the
-  flat output has to hold 128 copies, and memoizing saves only the re-walk. What was
-  missing was that **nothing bounded the total** — one 200KB part included 128 times
-  measured **25.6M lines in 15.9s**, silently. Now `max_lines_warn` (100,000, **reports
-  and still lays out**) and `max_lines_refuse` (500,000, **stops the walk at the limit**),
-  both settable, read through `clamped` so an out-of-range value is reported like every
-  other number, and made coherent with each other. `MAX_DEPTH` stays as the shape
-  backstop and is now a *different kind of thing* from the budget.
-  **Remaining, and both small:** the settings-dialog rows for the two numbers
-  (the keys and the type are in; the two `numberRow`s and their labels are not,
-  because adding them turned `browserlang`'s residue fence red and I would not
-  land a red suite to save a dialog row). **Also fixed, and it was a real bug rather than a stale list:**
-  `browserlang`'s residue fence was red on a clean tree over `registriesGaveUp`
-  and `retrySave` — two keys that *both have English values*, so nothing about
-  them was legitimately Hebrew. The banners were built with `t("…")` at the
-  moment of failure and then lived in the DOM, so they kept the language they
-  were born in. They now carry `data-i18n` and re-render on a switch, the same
-  way `panels.ts` headings already did.
-  **Bonus, pre-existing and not small:** a depth-9 diamond produced **~300 identical**
-  "nested too deeply" messages, because the refusal was pushed once per inclusion path and
-  nothing deduplicated it. One mistake, one sentence. (from #63)
-- [x] #81 a notice raised in one language **stays** in that language. (Low) — The fix
-  was already in and works: measured in a real browser, the banner carries
-  `data-i18n="registriesGaveUp"` and `data-i18n="retrySave"`, the host is inside
-  `document.body`, and after a switch the same two elements read English.
-  Removing both attributes puts `browserlang` red on exactly those two keys,
-  **four runs out of four** — so the fence is a real fence for this fix. What the
-  red was really measuring: **`browserlang` serves `dist/`, and nothing anywhere
-  checked that the copy on disk matched `src/`.** `gate.mjs` does not build it and
-  the CI app job runs the suite *before* its `vite build`, so the gap is invisible
-  in CI and the file always skips there. A `dist/` built on the 28th was being
-  asked about a fix committed on the 29th, and the false conclusion — *"the sweep
-  does not reach the notice host"* — was written into this plan and the session
-  log as an open half. It was **not** the boot-order race the same entries
-  concluded next, and `browserlang` is green 6/6 on a correct build.
-  **Now refused rather than believed:** `assertFreshBuild()` compares
-  newest-of-`src/` against newest-of-`dist/` and goes **red** naming both
-  timestamps — not a skip, because a stale build is not a machine that cannot run
-  the test, it is a confident fictional measurement, and a skip is that same
-  silence with a nicer sign on it. Fenced from both ends by `visibility.test.mjs`,
-  beside the acceptance script's `assertFresh`, which already fences this class
-  for the server binary. Removing the guard makes a stale `dist/` pass 13/13
-  silently. (from #81)
-- [~] #82 a part included twice: click goes to the first, a **second gesture offers all
-  of them**. (Low) — **The engine half is built; the product half has no site, and
-  that is the finding.** `Expanded::lines_of` (`include.rs`) returns every place a
-  `(file, line)` landed, ascending, and `line_of` is **its first element by
-  construction** rather than by a fence: both are made of one private `matching`
-  iterator, so the predicate cannot be written twice and drift. The fence is still
-  there (`tests/includes.rs`) because a thing true by construction today can be true
-  by accident tomorrow — and the rule worth holding is *"first is reading order"*,
-  not the identity. `line_of` stays **lazy**, because it is on the reveal path and it
-  is overwhelmingly the first match that answers, so it allocates nothing.
-  The other half is blocked, and not by effort. **`BodySpot` is `{line, column}` and
-  has no `file`** (`api.ts:670`), `reveal_request` reads `file` off the request and the
-  app never sends it, so `lines_of` is reached with `file: None` — and a main-body line
-  maps to exactly one expanded line, so the list is always length one. **There is no
-  ambiguity to offer until the app can address a place inside a part at all**, which is
-  #83 (filed from here: `jump` returns the file and `readSpot` drops it), and behind
-  that #72's *"the app has no file tree and a part is not an addressable thing"*.
-  Left open deliberately; the order is #83, then #72's decision, then this. (from #63)
-- [x] #60 undecodable assets silently dropped; only base64-STANDARD tried. (Medium) —
-  **Both halves were one line each, and the line was `decode_payload(data)?`** — the
-  `?` on an `Option` in a function returning `Option<Asset>`, so a payload in any
-  other spelling, or one corrupted byte in a megabyte, produced *nothing*: the image
-  did not exist and nothing said so. Now four alphabets are tried, and every drop
-  is **named**. The four are not a ranking — `-`/`_` and `+`/`/` are disjoint
-  alphabets, and the padded/unpadded pair decodes identically, so "most canonical
-  first" costs one attempt and never changes the answer. Fenced end to end: a
-  payload encoded by hand in all four spellings must produce four **identical byte
-  strings**, one corrupted byte must produce a **warning naming the asset**, and a
-  document with one unreadable image must still render — because a refusal that
-  failed the compile would be a different bug. Also found: `name.is_empty()` in
-  that condition was unreachable, `diagnose_name` had already refused an empty
-  name eight lines earlier with the better sentence.
-- [x] #62 tokenizer quadratic,  #59 pdf_pages 0→all, #58 reserve scan hits prose, #57 quote-blind named_arg, #56 32-bit asset cache, #55 single-slot reserve cache, #54 wasm timeout kills unrelated.
-  — **Three measured, three fixed, and one of the three was not the bug it was filed as.**
-  - **#62 — the quadratic is not real.** `run_of_letters` was asked once per separator and
-    scanned to the end of its word, which reads as O(n²) and was filed on that reading. It is
-    not: the scan terminates on the next character that is **not** part of a word, and that is
-    exactly the set of characters `joins` is called *for* — so the regions do not overlap and
-    their lengths sum to at most the text. `examples/bench-tokenize.rs` measures it at five
-    sizes across five shapes, work-normalised, and every shape reads **flat**; the one that
-    read `QUADRATIC` on a first run was **the shared box**, not the code, and taking the
-    minimum of seven runs turned the same shape into a dead-flat 3.88 → 3.88 ms/MB. So the cap
-    landed anyway — it makes the bound O(1) per separator *unconditionally* rather than by
-    argument about today's rules — and `english::joins` had the identical disease and got it
-    too. The correctness fence is the boundary the cap is only allowed to be wrong past:
-    `שו"ע` and `נפק"מ` hold, `שו"עאב` splits.
-  - **#59 — a typo exported the whole sefer.** `pdf_pages` dropped every token it could not
-    read and `pdf_options` read the empty result as *"no restriction"*, so `0` exported every
-    page, `0-5` silently meant pages 1–5, and `9-2` exported **nothing**. The editor's own
-    `pagerange.ts` already had this right and kept the offcuts — the engine was the copy that
-    did not, and the two were never compared. The engine now adopts **that** grammar and
-    fails **closed**: every token refused is an error naming them, not an empty range meaning
-    everything. A *partly* good spec still exports its readable tokens — refusing the whole
-    export over one typo would be worse than the bug. The fence is **exported bytes** in
-    `tests/binding.rs`, not parser state, because a fix that taught the parser the right
-    answers while leaving `pdf_options` reading empties as "everything" would pass a unit test.
-  - **#58 — the last hand-rolled scan of its kind.** The inline reserve reader did
-    `body.find("אזור_הערות")` and took the number after the colon, so **prose, a `//` comment,
-    a string and a raw block all read as the writer fixing the page-foot reserve** — and
-    `grow_inline_reserve` *wrote over* it, silently, shortening the text block of every page.
-    `auto_notes_region_cm` had been moved onto the Typst parse long ago (*"with the parser
-    now doing the lexing"*, in its own test); the inline reserve had not, and now all three
-    readers come through one `find_writer_masmer` off the parse. `inject_reserve_into_writer_masmer`
-    had the same disease and wrote an argument into a **commented-out** `#מסמך(` — which is
-    what the editor's own "comment out" writes.
-- [x] #56 32-bit asset cache, writable by a header-less caller. The shared cache now uses
-   a full SHA-256 digest of decoded bytes, with one strict Base64 acceptance boundary in
-   Rust and TypeScript. Claimed digests are verified before insertion, the response
-   advertises the cache capability, old engines receive bytes instead of entering a retry
-   loop, and legacy `.ksav` assets/storage records normalize safely. Cross-language vectors,
-   poisoning, malformed input, capability fallback, and migration are fenced in the focused
-   asset/docfile tests; see `decisions/2026-10-11-shared-assets-earn-a-sha-256-digest.md`.
-- [x] #61 `is_command` exempted prose before a paren — the checker's best case being
-  **absent** rather than wrong.
-- [x] #57 named_arg was quote-blind while its neighbour `closing_paren` was not. Two
-  scanners disagreeing about where a string is is how an argument list whose first
-  string contained `גובה:` answered with the *string's* number, returned before the real
-  argument, and sized the foot band from a string — notes off the page, no diagnostic.
-  **`code_ranges` is now the only walk in the crate that knows how Typst quotes work**,
-  and both scanners use it. The value scan skips strings too: `"מקורות, ביאורים"` used to
-  be cut at the comma inside it.
-- [x] #55 the one-slot reserve cache, measured before it was touched.
-  `examples/bench-reserve-cache` times `parse::apparatus_shape` on real sefer-sized text:
-  a miss costs **~3.9 ms at 64 KB, ~17.5 ms at 256 KB, ~72 ms at 1 MB** — past the ~59 ms
-  keystroke budget at a megabyte. Two open windows alternate two keys and each call
-  evicts the entry the next one wants. Now eight entries, evicting **least-recently-used**,
-  because the pattern that breaks a one slot is a *cycle* and any map that drops an
-  arbitrary entry turns a 2-cycle into a 100% miss forever. **The instrument got it wrong
-  twice first** and both are written into the file: it built both alternating bodies from
-  the same template, so they hashed to one key and the "miss" row measured a *hit*
-  (3.5 µs where the truth is 72 ms) — an instrument that cannot tell a hit from a miss
-  reports the problem as solved. The fences are the only property a cache may have: **the
-  answer must not change whatever order keys arrive in**, and the entry count stays
-  bounded.
-- [x] #21 styles walkers onto `walkArgs`. — **Was already done; closed on a mutation, not a
-  reading.** `styles.ts` holds **no** hand-rolled argument walker: every parse goes through
-  `splitArgs`/`splitArgsRaw`/`topLevelColon` from `spans.ts`, and there is no `depth` counter
-  in the file. The prelude says so at `spans.ts:57` — *"There were four of them in
-  `styles.ts` alone — none of which the survey that started this work counted"*.
-  The **"diverges over time"** half is fenced too: `spans.test.mjs` §1 prohibits by name
-  (`function matchBracket|matchGroup|…`) **and by shape** (a `depth` counter within 80 lines
-  of a bracket literal, which is what all ten historical scanners looked like), in every
-  module but `spans.ts`. Confirmed by putting a walker back into `styles.ts`: it fails with
-  `no module but spans.ts counts bracket depth — got ["styles.ts:310"]`, and passes once
-  removed. **The second time in two issues that the finding was "already shipped"** — see
-  #88 — which is worth noticing about this plan.
-- [x] #20 deferred/numbering scan seam. The editor already owns the synchronous
-  source-span model, so a Rust service would create a second parser and a wire
-  contract with no editor caller. Deferred scans now consume one `spans.ts` Scan
-  and its `closes` map; numbering reuses one Scan through sequence/restarts/
-  headings, and lint repair applies one computed edit set. The focused seam test
-  proves one uncached lex and preserves deferred refs/defs and numbering results;
-  #19 remains separate because its editor-synchronous boundary has not changed.
-- [x] #7 keyed updates (5× replaceChildren). A framework-free keyed reconciler now
-  updates, removes and moves panel rows and named preview pages in place; unchanged
-  models are no-ops and the focused/selected row plus host scroll survive. See
-  `decisions/2026-10-11-keyed-dom-reconciliation.md`.
-
-## Phase 5 — Features / proposals (Info/Low, after engine is safe)
-- [x] #88 show the invisible characters. (Presentation, from #84) — **Shipped already, and
-  what was wrong with it was the explanation, not the feature.** The feature is
-  `whitespace.ts` (`whitespaceRuns`, `whitespaceMarks`), off by default, and it is a
-  `Decoration.mark` rather than a replacement — `bidi.ts` records why a replacement over an
-  overlapping range makes CodeMirror reject the set outright, and its own tests were green
-  throughout. The bug: **`showWhitespaceNote` sat fourteen rows below its
-  own checkbox**, under the *indent* dials, so it read as an explanation of the indent
-  settings — and it is the note that matters most, because a writer who cannot see a space
-  cannot see a paragraph break either. `autoPairQuotesNote` was nine rows adrift the same
-  way. **Nothing tested it, and nothing could have**: a note is a string that exists and a
-  control is a key that is reachable, and the failure mode is two correct things in the
-  wrong order. `settings.test.mjs` now counts **controls between** a note and the control it
-  names, from the `checkRow`/`numberRow` calls themselves — after a first version that
-  passed with the note in the wrong place (the key string also occurs in the settings
-  machinery) and a second that was never called at all. Also fixed `eyes.mjs`, which could
-  not launch a browser at all: its search returned `/usr/bin` as though it were an
-  executable, so the error was `spawn /usr/bin EACCES` rather than "no browser found", and
-  it did not know Playwright's versioned cache layout. The instrument that "found four
-  rendering faults no test could see" could not see anything.
-
-- [x] #88 show the invisible characters. (Presentation, from #84) — **Whitespace in Ksav
-  source is not decoration: it prints.** `main.ts:5910` — *"Typst turns a newline into a
-  **space** and a blank line into a **paragraph break**"* — so `first⏎second` prints
-  `first second`, a blank line prints two paragraphs, and runs of spaces collapse. Three
-  different things produce **different pages** and none is visible. And after #84 the whole
-  left margin is invisible characters, so it is also how the indent **shows its own work**.
-  Not new: `highlightSpecialChars` is imported at `main.ts:2` and **bidi marks are already
-  a solved instance of this exact feature** (`bidi.ts:467`) — an invisible character that
-  changes meaning, solved by rendering the character. Off by default: a sefer is full of
-  spaces. Not rendering line-break glyphs either; the *meaning* is worth marking and a `·`
-  cannot.
-- [x] #89 a minimap, **opened rather than permanent**. (Presentation, from #84) — Shaul:
-  *"a minimap you can open that basically shows everything in small"*. **Opened removes my
-  width objection entirely** — it costs nothing when unwanted, which answers it better than
-  defending a permanent strip could. `panels.ts:148`'s `PANELS` registry and
-  `overlayPanel` are the home, and `settings.panelPlacement` decides float vs pane for free.
-  **The fence, and it is real:** `visibility.test.mjs` runs `planFor(PANELS)` and
-  `tools/surfaces.mjs:36` has **deliberately no default** — *"An unclassified panel throws with
-  its own name… a fallback is the silent skip one level up."* So the gesture that opens it
-  must be declared. **RTL/ LTR needs no work:** `main.ts:678` puts `docConfig().dir` on the
-  editor via `contentAttributes`, and `bidi.ts` resolves **per line** — so a minimap that
-  inherits from the editor rather than being told a direction gets both free, and my earlier
-  RTL worry was the wrong worry. Open: where it sits (lean **pane**, it is about the editor),
-  which way it opens a target, and **marks or no marks** — leaning marks, since without them
-  it is the outline at a smaller size.
-- [x] #87 a folded tag says how long it is. (Presentation, from #84) — `#הערה[… 480
-  אותיות]`. **The only item that removes a step rather than adding a view**: it answers
-  *"is folding this worth it?"*, which you must answer *before* folding, and a 900-char note
-  and a 20-char one currently fold to the same chip. The label machinery is already there
-  (`ksav-lang.ts:1147`) and the length is `close − open` over a `Frame`. **A trap worth
-  naming:** `Frame.close` is already `text.length` when nothing closes it
-  (`spans.ts:250`), so an **unclosed** tag reports the rest of the document — correct and
-  useless, on exactly the tag that is broken. Characters or printed lines is a real choice;
-  leaning characters.
-- [x] #86 click a bracket, select the whole tag — **a setting, a modifier, and two keys.**
-  (Presentation, from #84) — *"should be a setting. and maybe there can be a click and a click
-  while holding alt or something. there could be kbd ways to select either also."* The
-  setting is **what a bare click means** (`body` = the words, `whole` = the tag), leaning
-  `whole` because moving a note has no other way while retyping is not what a click is for.
-  **`Alt`+click is the other one**, and Alt was checked rather than assumed: it is what
-  `main.ts:10810` and `:14235` deliberately let through so *"Mod-S while a hydra is up should
-  still save"*, and **`Shift` is the wrong pick** because `Shift`+click already selects a
-  range in the preview (`jump.ts:isPlainClick`) — the one modifier that already has a click
-  job. Two keys from `keybindings()`; the selection actions join `STRUCTURE_ACTIONS`
-  (`structure.ts:988`) and its `Prec.high` keymap, which returns `false` when it has nothing
-  to do — *"exactly how Enter stays Enter in ordinary prose."* **Typing over a whole-tag
-  selection restores the brackets**, because *silently losing a bracket is the single worst
-  moment this application has* (`brackets.ts:3`) happening as a feature. The fence is
-  **differential**: the same text typed into both selections must give the same document,
-  which is the only assertion that catches both a missing and a doubled bracket.
-- [x] #85 dim every line outside the tag the caret is in. (Presentation, from #84) —
-  **focus mode one level up**: `focus.ts:28` already dims outside the *paragraph* and
-  `dimDecorations` already builds over the viewport for the stated reason. The range is a
-  `Frame` instead. It answers *"which `#הערה[` am I inside?"* — which was on my list as a
-  **hover** and does not need to be one. Two things are genuinely open and are in the issue:
-  whether dimming is right for dense Hebrew (maybe de-emphasise less and emphasise more), and
-  **how this composes with focus mode**, since they are the same idea at two granularities.
-
-- [x] #84 indent nested tags in the source **view** — a toggle; the file is never
-  changed. (Proposal) — **Shaul's spec, five lines, which supersedes everything I
-  inferred:** every `][` in its own line, indented; the amount is a user-set value; the
-  point at which indenting stops is defined **either** by amount from side (**in RTL,
-  from the left** — the opposite of what `padding-inline-start` gives, and noted so
-  nobody "fixes" it) **or** by percent used; a minimum-words setting; and **paragraph
-  breaks within an indented paragraph share that indent level**.
-  **A view, not an edit — so there is nothing to save, undo, keep idempotent, or worry
-  about in `git`.** All four of my earlier concerns were about a rewrite that does not
-  happen; the last line of the spec answers the one question I was going to ask (does
-  typed text carry the indentation? — no, there is no file change at all).
-  **Line 5 is the part that is easy to get wrong and it is a rule, not a detail:** a
-  blank line inside a note has no content to hang an indent off, so indenting each line
-  by its own depth makes the block visibly fall apart at the first gap in the prose.
-  Carrying the level across the blank line is what makes a `#הערה[…]` read as one block.
-  Nesting is already computed — `scan()` gives `frames` outermost-first with
-  `{open, close, ctx, name}` (`spans.ts:247`), and `mode.ts:enclosing` /
-  `structure.ts:structureAt` both read it — so this is a view over existing state.
-  Defaults are mine: **2 spaces** (`table.ts:258`, the one place here that already
-  pretty-prints), **50 percent** (as named), and a minimum-words number to be chosen.
-  **Approved**, and the siblings split into their own issues per the one-per-session rule:
-  **#85** dim outside the innermost tag, **#86** click a bracket to select the tag, **#87**
-  length in the fold placeholder, **#88** show whitespace, **#89** a minimap. Each gets its
-  own toggle, like this one.
-  **The thing worth knowing, found while writing #88:** whitespace here is not decoration —
-  `main.ts:5910`, *"Typst turns a newline into a **space** and a blank line into a
-  **paragraph break**"*. So a line break inside a tag's body **prints as a space**, which
-  means (a) it is why #84's "paragraph breaks share an indent level" is a rule about
-  typography and not about layout — a blank line is a typographic event — and (b) it is the
-  one place where "it is only a view" is doing real work rather than expressing a
-  preference. The escape for it exists and **appears in no menu, no palette and no
-  document**, which `main.ts:5914` calls *"a feature nobody can find"*.
-  **The family, and what makes it one:** *presentation* — re-present the source without
-  changing it. "No change to the real file" is not a caveat on #84, it is the *test*, and
-  hover/diagnostics/navigation are a different tool (**analysis** — they tell you about
-  the text) which is what I kept answering with. The siblings, all over the same
-  `scan()`, and **none needs a new scan — that is the honest test for belonging**:
-  (1) **dim outside the innermost tag** — `focus.ts` already dims outside the *paragraph*,
-  and this answers "which `#הערה[` am I inside?" with no hover at all; (2) **click a bracket,
-  select the whole tag** — the reverse of #84, legible vs *grabbable*, and `bracketMatching`
-  is already wired so the range is known; (3) **tag length in the fold placeholder**
-  (`#הערה[… 480 אותיות]`, `close − open`) so you can tell whether folding is worth it;
-  (4) **whitespace rendering** — after #84 indentation *is* whitespace, and
-  `highlightSpecialChars` is already imported and used for bidi marks; (5) **a minimap**,
-  which I wrongly skipped first time — the ruler answers *where*, a minimap answers *how
-  much*, and it is the only thing showing a chapter went 3 pages to 40. **Line numbers
-  stay absent on purpose**: in a sefer the address is the *siman*, which `numbering.ts`
-  maintains, and the gutters are already hidden in page mode.
-
-- [ ] #66 smart navigation — type any sefer+location (Hebrew/English/phonetic), insert the text; parenthesized list → combined source-sheet block. Works for every sefer, shared parser with Girsa.
-- [ ] Writer tools: #48 shiurim, #47 zmanim/dates, #46 rashei-teivos/dict, #45 gematria, #44 nikud/shemos toggles.
-- [ ] #64 linked commentary ordering — sort peirush into reference order via linkers (auto/explicit, scoped, stable sort; generalises sortBodies).
-- [ ] #68 transfer source headings into sorted commentary (companion to #64) — configurable levels/scope/shift, copy+V1 with easy regenerate, live sync deferred.
-- [ ] #69 templated headings and lists — per-level קידומת/סיומת *orthogonal* to מספור/התחלה/כיוון/צעדים (e.g. דף alone, ב alone, or דף ב together; up/down) via _hd_show + _hb_num; lists per-depth same shape.
-- [ ] #43 top/bottom streams proposal, #65 commentary wrapped around central block (berech/Vilna knees via measured fitPrefix; in-flow wrap, not horizontal seam like #15/#43), #42 Rust-rewrite vision (decision only) — **see #117 for Wordcraft UI adoption plan resolving #42, #8, #9**.
-- [ ] Interop/docs: #39, #38, #37, #35, #34, #33, #32, #31.
-- [ ] Frontend: #23 i18n hoist, #22 main.ts split, #11 Leo workflow, #9/#8 LibreOffice UX — **see #117 for Wordcraft UI adoption delivering full ribbon paradigm**, #14 UAT.
-  - #22 (the split): **wave 1 closed 2026-10-21** (`2496cd8`/`0bade6a`/`33194b9`) —
-    spellcheck.ts + keyhint.ts out, `tools/moved.mjs` built, 21 moved / zero
-    drift, gates green. See `decisions/2026-10-21-main-ts-split-wave-1-spellcheck-and-keyhint.md`.
-    **Wave 2 closed 2026-10-21** (`8ef5208`/`b574007`) — the pane system out
-    into eight modules (panestate leaf + wiring object, paneview, panehost,
-    panedrag, panescroll, panemenu, panearrangements, tabstrip), gate check #10
-    (the cycle walk) landed first, 96 moved / 39 documented state-direction
-    drift, main.ts 12,721 lines. See
-    `decisions/2026-10-21-main-ts-split-wave-2-the-pane-system.md`.
-    **Wave 3 closed 2026-10-21** (`7db65c4`) — the app chrome out into
-    ribbon.ts (toolbar, menus, paragraph-style control, `ChromeWiring`
-    registered from main's boot) and contextbar.ts (the caret strip), 29
-    moved / 17 documented wiring drift, editDoc now a runtime export,
-    main.ts 11,336 lines. See
-    `decisions/2026-10-21-main-ts-split-wave-3-the-app-chrome.md`.
-    **Wave 4 closed 2026-10-21** (`57d443b`) — the palette out into
-    palette.ts (`PaletteWiring` registered from main's boot), the citation
-    plumbing out into girsa.ts (writing through the runtime's
-    onInsertSnippet hook, interim until wave 5), the series keepers into
-    numbering-lint.ts beside renumberAll (numbering.ts would have cycled the
-    pair), 21 moved / 3 documented wiring drift, main.ts 10,738 lines. See
-    `decisions/2026-10-21-main-ts-split-wave-4-palette-girsa-and-the-series.md`.
-    **Wave 5 closed 2026-10-21** (`4c1a8f3`) — the one insertion path
-    (`insertSnippet`, the snippet map, `insertCommand`, `tieredNoteHere`,
-    `docLang`/`dirLang`) moved into insert.ts beside its pure `plan`, with an
-    `InsertWiring` for the recorder and the chooser's apply; help's render
-    joined help.ts behind a `HelpWiring`; wave 4's runtime bridge retired;
-    the table bucket was recorded as overtaken (model/registry/strip moved
-    before or in wave 3), main.ts 10,471 lines. See
-    `decisions/2026-10-21-main-ts-split-wave-5-the-insertion-path.md`.
-    **Wave 6 closed 2026-10-22** (`7f9e25b`) — the settings drawer out into
-    settingsdrawer.ts (all row builders, the font picker, keys capture,
-    dictionary import/export) behind a `SettingsWiring`; the shared list
-    machinery (LOOKS, drawList, drawRow, runRow, goToOffset, the pane
-    toggles and openNoteMenu) out into rowlists.ts behind a `RowWiring` —
-    the plan's panelviews.ts split recorded as not built (the dispatch
-    reads and rerenders chrome state, so a pure view split would have been
-    a second wiring at birth); version history out into snapshots.ts
-    behind a `SnapshotsWiring`; the settings mutations stayed main-held
-    (compartment/compile machinery), 49 moved / 26 documented wiring
-    drift, main.ts 8,948 lines. See
-    `decisions/2026-10-22-main-ts-split-wave-6-the-settings-drawer-and-the-panels.md`.
-    **Wave 7 closed 2026-10-22** (`0bbabc0`) — the version-control drawer out
-    into gitui.ts (315) behind a `GitWiring` (ask, loadBody; git.ts keeps the
-    git service); the commands drawer into commandsdrawer.ts (85); the macro
-    recorder into macros.ts (361) behind a `MacrosWiring` (actionById,
-    askText, reconfigureShortcuts — runAction stays main); the hydra panel
-    half into hydra.ts (374) behind a `HydraWiring` (runStructure);
-    buildHelpPanel joined help.ts; the keys drawer's view stayed main-held
-    (registry-owned rows) with its door (openKeys) traveling to the drawers'
-    file, 47 moved / 26 wiring drift, main.ts 8,319 lines. See
-    `decisions/2026-10-22-main-ts-split-wave-7-git-macros-hydra-drawers.md`.
-    **Wave 8 closed 2026-10-22** (`2a6a767`) — the styles system out into
-    stylespanel.ts (1,676: the render, the layer model, the per-level ramps,
-    notes/bands/streams/marks sections, and the shared row family wave 9's
-    destinations borrow) and customstyles.ts (222: apply/unwrap, taken names,
-    the knob form and its two doors); the borrowings named in two wirings
-    (wireStyles, wireCustomStyles — the form modal still main until wave 9),
-    entityAct and styleActions stayed main, 58 moved / 0 drift, main.ts
-    6,540 lines. See
-    `decisions/2026-10-22-main-ts-split-wave-8-the-styles-system.md`.
-    **Wave 9 closed 2026-10-22** (`1a83d80`) — seven files, one shape: the
-    form modal out into formmodal.ts (196, settlePendingModals exported for
-    the registry's close hook, customstyles' wave-8 wiring for it retired to
-    a direct import); destinations (261, the declarations' rows — the plan's
-    panelrows.ts alternative recorded as taken the other way), review (125),
-    section setup (59), formulas (77), the notes chooser (297, errand kept
-    with its only caller), assets (139); 46 moved / 0 wiring drift (the
-    borrowings were wired at earlier waves), main.ts 5,536 lines. See
-    `decisions/2026-10-22-main-ts-split-wave-9-the-forms-doors-and-the-documents-tenants.md`.
-    **Wave 10 closed 2026-10-22** (`78d0e68`) — the switch machine out into
-    docswitch.ts (426: openDoc with its generation ticket, the switcher and
-    last-doc doors, close/create/duplicate/delete/rename, refreshBaseline,
-    updateTitleBar) behind a `DocswitchWiring` (makeState, syncGlobals); the
-    starter out into starter.ts (141: the two starter documents,
-    swapUntouchedStarter's exact-equality guard, CodeMirror's translated
-    search phrases) behind a `StarterWiring` (loadBody, setSetting);
-    syncGlobals/setEditingMode stayed main (compartment assembly, recorded
-    against the plan's move list), 15 moved / 0 drift, main.ts 5,068 lines,
-    and its header is now the map the end-state acceptance promised. The
-    refactor's ten waves are closed; §4 item 1's line number (≤ ~1,500) is
-    the one recorded gap — the contents test is met, but the assembly itself
-    plus one never-slated region (templates/exports, ~950 lines) put main at
-    5,068. See
-    `decisions/2026-10-22-main-ts-split-wave-10-the-document-lifecycle-and-the-starter.md`.
-
-    **This record amended in place, 2026-10-26.** The stay-list above held
-    syncGlobals/setEditingMode for a real reason — moving them "toward
-    docswitch" would have wired main to docswitch for main's own assembly —
-    but they were also holding the whole compartment machinery with them for
-    company. The circuit breaker is paid: the machinery (the compartments,
-    editorTheme, syncGlobals/setEditingMode, the shortcut and reconfigure
-    builders, the completers, the prose view) lives in compartments.ts (418),
-    with makeState, runAction and the structure dispatch left in main as the
-    recipe and one wiring carrying the dispatcher the keymap calls. See the
-    ledger's entry 2 and #161.
-    **Wave 11 closed 2026-10-22** (`bbc148f`) — the extra wave the end-state
-    record pointed at: templates.ts (152: the registry, the writer's own,
-    the two doors, `TemplatesWiring` for the direction write) and fileui.ts
-    (649: open/save/save-as/reload, the crash panel and recovery, the update
-    check, the importers, share, the service worker, the autosave tick);
-    loadBody/newBlankDoc/newDoc joined docswitch.ts (456); the chrome notice
-    banner moved to ribbon.ts; 28 moved / 0 drift, main.ts 4,261 lines, and
-    no feature region is left in main that any wave's census can name. See
-    `decisions/2026-10-22-main-ts-split-wave-11-the-templates-and-the-bound-file.md`.
-    **2026-10-26 — the amendment authorised by the audit's ledger (entries 2
-    and 3): the wave-10 stay decision is paid, not reversed.** The circuit
-    breaker was the cycle (moving the compartment machinery "toward
-    docswitch" wires main to docswitch for main's own assembly), so the
-    machinery went where it belongs instead — compartments.ts (418): the
-    compartments themselves, editorTheme, syncGlobals/setEditingMode, the
-    shortcut and reconfigure builders, the completers, the prose view. Main
-    keeps the recipe (makeState, runAction, the action table, the structure
-    dispatch) with one wiring carrying what the keymap calls. main.ts 3,752 →
-    3,439. The contents test is unaffected: no feature region was in scope,
-    and none was added.
-- [ ] #117 Wordcraft UI Adoption: Replace TypeScript/Tauri Frontend with Native Rust egui Ribbon UI — **Resolves #42, #8, #9**. Fork Wordcraft's `wordcraft-ui-egui` crate (Apache-2.0/MIT, 14.6k★), wire Ksav's Typst engine + Hebrew command layer. Variant toggle: Cargo features (`native-ui` vs `tauri-ui`), distinct installers (`ksav-native-*` vs `ksav-*`), `--ui=native|tauri` launch flag. RTL Hebrew: 2-day spike to de-risk Typst SVG → egui canvas; Wordcraft has RTL infrastructure, needs Hebrew i18n (~2000 keys) + chrome verification. Migration: 5 phases over ~5 weeks (Foundation → Command Registry → Dialogs/Panels → Polish/Toggle → Tauri Sunset). Detailed spec: https://github.com/SYKhayyat/ksav/issues/117
-
-## Session 2026-10-05 — what closed, what the pattern was, and what is still unverified
-
-**Closed: #21, #34, #36, #78, #88, #90, #91, #92, #93. Opened and left open: #94.**
-Commits `456f02a` … `3e60737`. Gates at the end: engine 1107, editor 8143, clippy 0,
-rustfmt 0 diffs, `tsc` clean.
-
-### The pattern, which is the finding
-
-**Four issues in a row came back "already shipped, the real defect was adjacent."** Twice the
-finding came from a survey reading a *comment* instead of the code beside it:
-
-| issue | what was asked | what was true |
-|---|---|---|
-| **#88** | show the invisible characters | the feature was complete and correct; `showWhitespaceNote` sat **fourteen rows below its own checkbox**, under the *indent* dials |
-| **#78** | may a stream hold arbitrary content | it always could — a paragraph, a figure, a lemma, a table, a nested note, a heading all print. `_sf_stream_note` forwards to `_ap_note` and an apparatus entry is a `content` block. The real constraint is **placement**: entries are anchored to the main flow |
-| **#21** | consolidate the `styles.ts` walkers | done already, and fenced — closing it needed a *mutation*, not a reading |
-| **#36** | `watch.forget` has no caller | two callers (`main.ts:749`, `main.ts:836`). Filed **twice**, because the comment read *"Nothing called it"* three lines above a live call, describing the pre-fix state in the present tense |
-
-**A note recording what used to be true is worse than no note, because it is the kind that gets
-believed.** Two of the four were a stale sentence, and in both cases the note outlived the code
-it described.
-
-**Consequence for this file:** the open list is a materially worse predictor of what is missing
-than the code is. It is written from surveys that see the *absence of a call* and report it as the
-absence of the work. Re-deriving it from the code is worth more than any single fix in it.
-
-### Bugs found, and where they were found
-
-All four were caught by CI or by refusing to accept a measurement. **None was caught by a local
-suite run.**
-
-- **#90 — `this.posAtCoords is not a function`.** CodeMirror 6's `domEventHandlers` types every
-  handler `(event, view)` and does **not** bind `this`; in an ES module `this` is `undefined`, so
-  every left-click on a `[` threw in the shipped app. It survived because `main.ts:2251` does the
-  identical call *correctly* — **a rule that is right somewhere is not a rule**, which is
-  `spans.ts`'s eleven delimiter matchers all over again. It survived locally because
-  `tagselect.ts` is deliberately split so the DOM wiring is untestable without a browser.
-- **#91 — CI built nothing.** The `editor` job ran `gate.mjs editor` **before** `npx vite build`,
-  so `dist/` (git-ignored) did not exist and the browser tests reported `0 passed — ASSERTED
-  NOTHING`. The build step was a no-op. Reordered; the staleness guard now **throws** rather than
-  `check`ing, so a stale build stays distinguishable from a gutted test file.
-- **#92 — `cargo fmt` red on 24 files, clippy on 7.** The recurrence cause is the important part:
-  **`rustfmt` is not on `PATH`**, so a session can run `tsc`, clippy and both suites green and still
-  commit unformatted Rust. `rustfmt-1.98.1` was already in the Nix store and was used directly.
-- **#93 — a stopwatch deciding whether a 600-row table was too slow.** `asking < 20` failed at
-  **20.54 ms** under load 22 and passed minutes later idle. Replaced with a **scaling ratio** — the
-  same call on a document 30× smaller, where linear is ~30 and quadratic ~900, threshold 150.
-  Measured ×15.5. The absolute figure survives only as a 2000 ms smoke guard.
-
-### Two process traps, both of which cost real time here
-
-1. **`npm run build` does not rebuild `.tmp-test`.** It is esbuild output produced by
-   `test/run.mjs`. Importing `.tmp-test/*.mjs` from a hand-rolled `node -e` measures the *previous*
-   source, so a mutation is never under test and reads as "survived". Three consecutive false
-   readings on #93 came from this, after V8 had already elided two dead-code mutations.
-   **Every mutation result must come from `node test/run.mjs` or it does not count.**
-2. **A fence that can pass a crash report is not a rule about messages.** `panicked with: X · Y`
-   satisfies every clause of the bilingual check in `diagnostics_corpus.rs` — Hebrew present, ASCII
-   present, ` · ` present — and is still wrong, because it tells a writer who mistyped a setting
-   name that the program crashed. Needed a *second* fence, not a cleverer first one.
-
-### #34 — `audit/` was 120 files that nothing ran
-
-Deleted (17,703 lines) and replaced by `audit/README.md` carrying the conclusions and a table
-mapping every fixture to the live test that covers it. `grep -rn "audit/" ksav .github` returned
-nothing — not CI, not a source file, not a test. Part of it was never about this repository:
-`tools/run-harness.sh:10` hardcoded `/mnt/c/Users/Administrator/Videos/Nexus/linix`.
-
-**The one thing in there that earned its keep was not a fixture.** Running the fuzz corpus against
-the live engine found the `panicked with:` defect above. Three categories remain unwired and are
-recorded honestly in the README rather than dropped: raw binary input, NUL bytes in a body, a
-pathologically long line.
-
-### #14 UAT — the actual release gate, and where it stands
-
-**It says "done by a human", and a checklist ticked by something that has never been confused by
-the product is the exact failure it exists to prevent.** So only its machine-runnable half was done:
-
-- **#4** (commit message survives Ctrl+S) — covered, including the drawer-rebuild path.
-- **#2** (`ערוץ:`+`אזור:` on one note; no-reserve clamping) — `note_layout.rs` B1/B2/B4, whose
-  header records each fence being *confirmed to fail with the fix removed*.
-- **#3** — the i18n half is covered. **The command-spelling half is not**, which produced **#94**.
-
-**#94 (open, deliberately).** The three note buttons pass hardcoded Hebrew snippets
-(`main.ts:6537-6553`) while `channels.ts` exports `noteLine(channel, lang)` and both
-`notes.ts:600` and `channels.ts:1093` pass a real `lang`. `styles.ts:189` already states the rule
-for the Styles panel — *"a writer's English document turning Hebrew underneath them because they
-clicked a control"* — fixed there, not here. **No fix pushed:** the recommendation is to reuse
-`styles.ts`'s "which spelling is already in this document" rule, which needs no new notion of
-language, but it changes what three buttons insert in every document and **#14 §5 currently
-specifies the defect** ("it lands as `#הערה[…]`"), so that line has to be corrected too.
-
-### The box, and why Rust felt serial
-
-Shared account: load sat at 22–38 with other sessions' `rustc` throughout, and `/tmp/opencode` is
-not exclusively ours. **Every timing in the session is suspect; only ratios and counts are
-trustworthy.** Separately, and self-inflicted: cargo takes one exclusive lock *per build profile*,
-so a `cargo build --release` blocked `cargo test --release` for **27 minutes** while debug ran
-free. Rust work is not serial here — it is serial only if one profile is used for everything.
-Written up in `CONTRIBUTING.md` §3, where the gate is documented.
-
-### The site is published, and it took four attempts and three latent bugs to do it
-
-`https://sykhayyat.github.io/ksav/` answers **200** and serves the `/ksav`-prefixed bundle
-with the wasm engine in it. Nothing about that path worked when it started:
-
-1. the gate ran **before** the bundle, so `browserlang` skipped and the job died on a file
-   that had asserted nothing;
-2. with a bundle to measure, the test could not **mount** it — `/ksav/assets/…` was answered
-   with `index.html`, the app never booted, and a **language** assertion took the blame;
-3. with the app booting, the first-run welcome overlay covered the language button — because
-   only the real wasm bundle ever reaches the state that opens it.
-
-Three red jobs, each pointing somewhere else, and the common cause is one sentence: **the two
-build pipelines build different applications and only one of them was under test.**
-`ci.yml` builds a shell; `deploy.yml` builds the product. Everything the editor gate asserts
-locally, it asserts about the shell.
-
-`every_placement_means_the_same_on_a_note_upon_a_note` is what a new placement costs. The
-loop writes every placement bare, and a bare `מיקום: "גוף"` **does not compile** — #79's
-refusal working. The fix went in the loop, not the engine: one name, `רוחב: 30%`, and the
-loop's actual claim is still tested with a band in the page. **A fence that cannot be
-satisfied without changing what it fences is telling you the design is wrong** — here the
-design was right and the fence needed one line in it, which is the better of the two.
-
-And the `engine` gate is the one that cannot be run cheaply: **79 targets, 1122 tests**, one
-shared target directory, ~50 minutes for a full run with everything else locked out behind
-it. The red `engine` results cost three CI cycles because a full suite is the only place all
-of it runs at once.
-
-### Still unverified — read this before trusting the green
-
-- **CI: 9 of 9 green** on `0e6521c` (run `37355346222`) — `formatting`, `engine`, `engine on
-  macOS`, `the assembled app`, `browser engine`, `desktop shell`, `editor`, `the Emacs package`,
-  `the Emacs package, current Emacs`. **Every job red at the start of the session is green**, and
-  the four bugs fixed under #90/#91/#92 are confirmed by the jobs that found them.
-- What it took to get here, and it is the most useful thing in this section: **four of my own
-  commits were wrong in ways only CI saw**, and three of those four were the same mistake —
-  *fixing a lint without asking what the construct means*. Recorded in full below.
-
-- **Prior CI state, for the record.** `37351532640`: **7 of 9 green** — `formatting`, `engine`,
-  `engine on macOS`, `the assembled app`, `browser engine`, `desktop shell`, `editor`. Both Emacs
-  jobs red, both on **my own** edits, both now fixed in `e66c630`:
-  - a **font-lock regexp split across two strings** to meet the 80-column rule — in
-    `font-lock-keywords`, a regexp followed by a string is *regexp and face spec*, so the rule
-    stopped matching. The constraint was never "split the line"; it was "the line is 81
-    characters". `\s-*` is two shorter and the same match.
-  - **a rewrap that ate `\"` in a docstring**, ending the string early —
-    `reference to free variable 'one'`. And **`check-parens` passed anyway**: it validates
-    parenthesis balance, not string literals, so a docstring that ends early is perfectly
-    balanced. **A green parse says nothing about whether the file is a program.**
-
-  Both were invisible to the editor suite and to `check-parens`, and both were found by CI in
-  under four minutes. **Three of my own fixes in this session were wrong in ways only CI saw.**
-
-- **The deploy had never published anything, and the first dispatch proved it.** Rebuilding
-  the site (`workflow_dispatch`, no release) failed with **every editor assertion passing,
-  0 failed** —
-  and the job red, because `browserlang.test.mjs` had asserted **nothing**. It measures the
-  **built** app; `dist/` is git-ignored, so a checkout has none, so it took its documented skip
-  and `run.mjs`'s *"a file that reports no assertions cannot go red"* fence made that a failure.
-  **Green suite, red job, over a test that checked nothing** — the fence working exactly as
-  designed, and the message pointing at the test rather than at the missing build. **#91 fixed
-  this identical ordering in `ci.yml`** (a `Build` step ahead of its gate) and the same bug was
-  still in `deploy.yml` one file over: nothing dispatches that workflow except a tag, so the
-  broken path was never taken. Fixed in `6c9ac2b` by moving the gate **after** `Bundle`, which
-  is also what the step's own comment always claimed — *test what is about to be published,
-  against these bytes* — and is now true rather than aspirational.
-
-- **And then the test turned out to be unable to measure that bundle, which was three weeks
-  old.** Moving the gate after `Bundle` gave `browserlang` a `dist/` for the first time in
-  this workflow's life, and it failed on `the app boots into Hebrew with plenty on screen` —
-  a **language** assertion, naming a language bug for what was a mount path. A project Pages
-  site lives under `/ksav/`, so the built HTML asks for `/ksav/assets/index-….js`, and
-  `serve()` mounted `dist/` at `/` and answered with **`index.html`**: the browser refused to
-  run it as a module, the app never booted, and every string on the page was the empty
-  string. **The app had no Hebrew on it because it had no application on it.**
-  - The SPA fallback answered **every** miss with `index.html`, so a missing script arrived as
-    a `200` of `text/html` and the browser complained about MIME types rather than about the
-    file that was absent. Two layers of the same silence: the first hid the path, the second
-    hid the 404.
-  - `serve()` now reads the prefix **out of the built HTML** rather than out of
-    `VITE_PUBLIC_BASE`, because the question is not what the build was *asked* for but what
-    it *asked for* — and `ci.yml`'s plain `npx vite build` wants `/`. A fence asserts every
-    absolute asset URL agrees on one prefix.
-  - **This gate had never run complete on this machine**, so the README's counts were
-    inferred rather than measured, and they were **wrong**: the assertion total was one too
-    high and the file count with it. They are now measured — the sweep in
-    `documentation.test.mjs` agrees with the run, which is the only reason to believe either.
-    The old figure was the last green run's total plus the fences #94 added, on the assumption
-    that a file which cannot run **here** runs in CI. It does run in CI; it did not run here,
-    and those are different numbers. `documentation.test.mjs` caught both — including a raw
-    count I had put in **this file**, which is the sweep refusing to let history rot in prose
-    where nothing re-checks it.
-  - Verified both shapes with a real browser: `/ksav`-prefixed **14 passed**, plain **14
-    passed**, and reverting the mount reproduces CI's failure exactly.
-
-- **Then the app booted, and the test still could not click the button.** With the mount
-  fixed, the deploy got every assertion but the browser file's past, and then died on
-  `getByLabel("שפה")` — *element is visible, enabled and stable, and
-  `<h2 data-i18n="welcomeTitle">` intercepts pointer events*, after the full 30s. The
-  first-run welcome overlay, covering the toolbar. Which is the product working: a writer
-  is welcomed once, and the language switch is pressed in a window they have been working
-  in. `ksav.onboarded` is now seeded before the first byte.
-- **And the reason all three took three weeks is the same reason, and it is the useful
-  finding here.** `ci.yml` builds the editor with `npx vite build` — **a shell with no
-  wasm engine in it**, which boots and never reaches the state that opens the overlay.
-  Only `deploy.yml` builds the real one, with `build:wasm`. So every run of `browserlang`
-  that ever reached a click measured a **degraded application**: no overlay to intercept,
-  and nothing else about the engine to be wrong about either. Two builds of one app, and
-  the one under test was not the one that ships. **My own verification of the mount fix
-  was against that shell too**, which is why the welcome dialog is worth writing down: a
-  green `browserlang` on this box measures the chrome and not the engine behind it, and
-  there is no local build that changes that — `src/wasmpkg/` holds two `.d.ts` files and
-  no `.wasm`.
-- **`זרם_גוף` had no English name**, and `english_commands.rs` said so on `engine` and
-  `engine on macOS`: *מסמך parameters with no English spelling: ["זרם_גוף"]*. Every
-  parameter of `document` is reachable in English and I added one that was not. The fence
-  reads the pairs out of Typst's own parse of the prelude, so it saw the omission without
-  being told — and it is the reason the fix is one line in `extra` beside `gershayim`.
-
-### Handoff
-
-- `main` is clean and pushed; no background work of mine is still running.
-- **The fastest way to break something here is to fix a lint without asking what the construct
-  means.** Two of the three failures above were that.
-- **Do not trust a green local suite to mean CI will be green.** `editor` was green locally for
-  the whole session while `browserlang` had never once run — no Chromium in that job, and the
-  reason was hidden behind a different failure for hours.
-- **The acceptance script had never completed here.** It does now:
-  **`09a2265` — 737 checks, 0 failed, "the assembled application works."** Getting there took
-  three fixes to probes that had never been exercised, because `minimap`'s recipe is **the only
-  one that reloads the page** and it used to throw before reaching its reload:
-  - `__ksavStatus` was installed by `page.evaluate`, so **no reload kept it** — and six readers
-    depend on it. Now `addInitScript`.
-  - the navigation was **above** the probes, so the *first* load was never instrumented either.
-    Missing that turned one broken probe into six, and the run died on check zero.
-  - at document-start there is no `document.body`, so the recorder observed `null`, `observe`
-    threw, and `settled()` waited 30 s for a compile it could not see.
-  - plus `await settled(await compiles()).catch(…)` — **the guard was on the wrong expression**,
-    so a throw from `compiles()` escaped a line written to survive anything.
-
-  **Every bug found in this session was found by this harness or by CI. None by the editor
-  suite.** The suite is excellent about parts; this is the only thing here that opens a browser.
-
-## Routing rule for new issues
-Any AI opening an issue here MUST insert it into the phase above it belongs in (foundations → security → correctness → quality → features), not append at the end. Security/foundational items go in Phase 1–2 even if filed later. See AI_ISSUE_ROUTING.md.
-
-## User-feedback priority (proposed)
-1. Make large documents feel instant (scan consumers, keyed updates) — speed.
-2. Add source-readability toggles (#88 invisible chars, #84 nested indent) — UI clarity.
-3. Run first real-user feedback pass (#14 UAT) before broader UI overhaul (#8/#9/#11) — **see #117 for Wordcraft UI adoption as unified path for #8, #9, #42**.
-Defer writer tools, commentary ordering, templated headings, and interop until feedback.
+# PLAN — ksav
+
+Work top to bottom. A milestone is done when every box in it is checked **and**
+its exit test is true. Decision gates (◆) are not code work: when the queue
+reaches one, stop and ask the owner. Don't decide a gate from inside a worker
+session.
+
+Worker loop (see `AI_ISSUE_ROUTING.md`): take the top unchecked item that is
+not behind an open gate. Fix only that issue and its resolving test, commit,
+check the box here, and stop. New issues go into the milestone where they
+block something, not at the end. The milestones are ordered from foundations
+to features, so "insert into the right phase" still applies. Each milestone is
+a phase.
+
+History: the plan before this rewrite, including the full record of the
+`main.ts` split waves, the audit sweeps and the old per-session notes, is
+archived verbatim in `decisions/2026-11-15-the-plan-before-the-milestones.md`.
+
+Targets: NixOS and Windows for the owner, then generic Linux and Windows for
+everyone else. Linux packaging stays distro-neutral, with no Nix-only paths.
+
+---
+
+## M0 — Green and honest
+
+Exit: CI on `main` is fully green, and every check that CI reports actually ran.
+
+- [ ] #171 desktop shell job is red. Layers 1 and 2 are fixed; the render check still never runs.
+- [ ] #187 gate sweeps read workflows as lines, not as a graph. The parser partly landed in 7ed8d69.
+- [ ] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh.
+- [ ] Close #140 (the audit index: every child is closed except ledger debts #163 and #164, which stay under Debt below).
+- [ ] Close #22 (all split waves are done). Record that `main.ts` is still about 3,500 lines against a target of about 1,500, and leave that as debt, not as an open issue.
+
+## ◆ D0 — Do we decide the UI and backend direction now?
+
+Recommendation: **no.** You can't judge a frontend rewrite (#117, #42) or a
+second typesetting backend (#184) until you have used the current app
+daily for a few weeks. What D0 settles now:
+
+- Freeze large changes to the current UI chrome. M2 fixes only.
+- The window model (#138) and the document model (#128) are settled in M2,
+  because any future frontend needs the same answers.
+- The real decision is D1, after M2.
+
+If the answer is "decide now", jump to D1 and come back.
+
+## M1 — Release v0.2
+
+Exit: a tagged v0.2 with installers that a clean Windows machine and a
+non-Nix Linux machine can install and launch, and the UAT fixes confirmed in
+the real app.
+
+- [ ] #133 Windows: clean build from scratch, plus a smoke test of the packaged app (launch, open, save, export).
+- [ ] #134 verify UAT items 2, 3, 4, 5, 10, 12, 16, 17 in the real app, not only in tests.
+- [ ] Generic Linux artifact from `ksav/packaging/build-linux.sh` (AppImage or tarball), tested on a non-Nix distro.
+- [ ] Windows NSIS installer built by `release.yml` and attached to the release.
+- [ ] Tag v0.2.0. Write short release notes listing what changed since v0.1.1.
+
+## M2 — Reliable for your own notes
+
+Exit: the owner has used ksav as the only tool for real notes, on both NixOS
+and Windows, for **two weeks** without losing text, and the second UAT pass
+(#14) passes.
+
+- [ ] #138 Emacs-like open/window model: `openIn` defaults to reuse, and `tabs.showing` must respect non-focused panes.
+- [ ] #128 document identity: one Documents menu instead of two (Documents and File), and labelled rows instead of icon-only rows. Keep the shape compatible with #117.
+- [ ] #127 native PDF destination picker on export.
+- [ ] #126 semantic navigation: word and paragraph motion skips Typst markup.
+- [ ] #183 `assembleScan` allocates on every keystroke. Measure on a long document and fix it if typing lags.
+- [ ] Data safety, verified on both platforms: save, autosave, crash recovery, a full disk, a read-only file, and a file changed outside ksav. File an issue for each failure here.
+- [ ] #14 second human UAT pass by the owner, on the real installed build.
+- [ ] Tag v0.2.x as the "daily driver" release.
+
+## ◆ D1 — Frontend × backend architecture
+
+When: after M2's two weeks of daily use, before anyone else is invited.
+Inputs: the M2 usage notes, plus one small spike for each serious option.
+Decide together, because the frontend and backend choices constrain each other:
+
+- Frontend: keep the current CodeMirror/Tauri app, LibreOffice-style UX (#8, #9), Wordcraft egui (#117), all-Rust rewrite (#42).
+- Workflow and views: Leo-style outline workflow (#11), prose-only view (#118).
+- Backend: Typst only, or add LuaLaTeX + reledmac / ConTeXt, and a structured editor (#184).
+
+Output: a dated record in `decisions/`. If the result is a rewrite, insert
+the rewrite as its own milestone here, before M3, and re-scope M3 to audit the new
+code instead.
+
+## M3 — Audit
+
+Exit: a fresh audit with every finding either fixed or entered in the
+accepted-debt ledger with a pay condition.
+
+- [ ] Engine (Rust/Typst) audit: correctness, panics on bad input, and export fidelity.
+- [ ] Tauri shell audit (it was not covered by the #140 sweep): IPC surface, file-system scope, updater.
+- [ ] Security: what an opened document can make the app do (links, includes, paths).
+- [ ] Data integrity: round-trip every saved format; check that nothing is silently dropped.
+- [ ] Run `lamdan` across the whole repo once and triage its findings into this plan.
+
+## ◆ D2 — Before others use it
+
+Decide: product identity and name (#39), Girsa interop (#37, #38), who the first
+users are, and how they get the app (download page, auto-update, support channel).
+
+## M4a — Closed beta (technical friends), v0.3
+
+Exit: three or more friends have each written a real document, and their reports
+are triaged into this plan.
+
+- [ ] Signed or at least checksum-verified builds, with an auto-update path.
+- [ ] A way to send feedback from inside the app (or a clear link to it).
+- [ ] A one-page "start here" guide for the first document.
+- [ ] Tag v0.3.0 and invite the friends.
+
+## M4b — Public release (non-technical Hebrew writers), v1.0
+
+Exit: someone who is not the owner completes #14 alone, from install to export.
+
+- [ ] Code-signed Windows installer (no SmartScreen wall).
+- [ ] Onboarding inside the app: an example document and the first steps, in Hebrew.
+- [ ] A help system and an error-message pass written for non-technical readers.
+- [ ] #14 run by an outside tester.
+- [ ] Tag v1.0.0 and publish.
+
+## ◆ D3 / Features — after beta feedback
+
+Order these by what beta users actually asked for. Below is the current guess.
+Decide #184 here if D1 deferred it.
+
+- [ ] #43 top/bottom streams
+- [ ] #65 Vilna-style wrap layout
+- [ ] #64 commentary ordering
+- [ ] #68 headings into commentary
+- [ ] #69 templated headings
+- [ ] #66 smart navigation
+- [ ] #44 nikud/shemos handling on export
+
+---
+
+## Debt — pay when the condition becomes true
+
+Not queued. A debt is paid when its condition becomes true, and its fix is then
+inserted into the milestone where that happens. The full ledger is in
+`decisions/2026-10-22-accepted-debts.md`.
+
+- #163 multi-preview sync. Pay when a second preview pane ships (likely M2 or D1).
+- #164 the `e.code` / `e.key` split. Pay when a non-QWERTY or Hebrew-layout keybinding bug is reported.
+- #32 trim the test and documentation tower. Pay when a test run is too slow to keep, or when D1 chooses a rewrite.
+- `main.ts` size (from #22). Pay when the next change to `main.ts` is hard to review.

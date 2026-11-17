@@ -252,8 +252,19 @@ export function scan(text: string, spans: SpanScan = scanSpans(text)): Scan {
 
     if (ch === "[") {
       // The bracket form: `#הערה_בשם[א]` — the whole group is the name.
+      //
+      // Through `unquote`, because the group is a *content* group and a name
+      // written in one may still carry the quotes a string would:
+      // `#note_named["scope of this article"]` is in a shipped template. This
+      // branch used to keep them, and the definition branch below strips them,
+      // so the two halves of one note had different names — the marker matched
+      // no body. The lint called both halves broken ("dangling" here, "orphan"
+      // there, on a perfectly well-formed note) and the export deleted the note
+      // outright, because `resolveDeferred` replaces a marker whose body it
+      // cannot find with nothing. Silent loss of the writer's prose on export,
+      // from one missing function call, in three formats.
       refs.push({
-        name: inner.trim(),
+        name: unquote(inner),
         from: start,
         to: close + 1,
         nameFrom: open + 1,

@@ -350,7 +350,35 @@ export function render(source: string, d: Dialect): string {
       const hasBody = s.bodies.length > 0;
       const bodyFrom = hasBody ? s.bodies[0].from : s.args ? s.args.from : -1;
       const bodyTo = hasBody ? s.bodies[0].to : s.args ? s.args.to : -1;
-      const inner = () => (bodyFrom >= 0 ? walk(bodyFrom, bodyTo) : "");
+      /**
+       * Everything the writer put inside the call — **every** body, not the first.
+       *
+       * This walked `bodies[0]` and stopped, which was invisible until an audit
+       * compared what a document prints against what an export contains: a call
+       * may carry more than one trailing content argument, and the second one is
+       * usually the content rather than a variant of the first.
+       *
+       * `#פסוק[דברים כ״ד, א׳][וְכָתַב לָהּ סֵפֶר כְּרִיתֻת]` is the reference and
+       * then the verse — the export printed the *reference* in italics and
+       * dropped the verse. `#הגדרה[מונח][הסבר]` is a term and its definition;
+       * the definition list of every shipped template exported as bare terms,
+       * forty words at a time, in all three formats.
+       *
+       * The bodies are joined with one space: the formats here have no notion of
+       * a second content argument, and a space is the smallest thing that keeps
+       * both halves readable. Rendering them *structurally* — Org's description
+       * lists, a bold term over markdown — is a formatting question and is filed
+       * separately; losing them was a data question.
+       */
+      const inner = () =>
+        hasBody
+          ? s.bodies
+              .map((b) => walk(b.from, b.to).trim())
+              .filter((t) => t !== "")
+              .join(" ")
+          : bodyFrom >= 0
+            ? walk(bodyFrom, bodyTo)
+            : "";
 
       if (DROPPED.has(s.name)) {
         // drop the whole call

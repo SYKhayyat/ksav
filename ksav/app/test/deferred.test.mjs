@@ -74,6 +74,29 @@ export async function run() {
   check("scan: the two forms pair up", problems(t).length, 0);
 }
 
+// 3b. the bracket form, quoted — the shape the shipped templates write
+{
+  // `#note_named["scope of this article"]` is in `engine/templates/article-en.ksav`,
+  // and `unquote` ran on the definition side and not on the marker side: the
+  // two halves of one note had different names, every exported format deleted
+  // the note (a marker whose body is not found is replaced with nothing), and
+  // the lint called both halves broken. Same missing call, three surfaces.
+  const t = `#note_named["scope of this article"]
+#note_bodies[
+#note_body["scope of this article"][What is discussed here.]
+]`;
+  const s = scan(t);
+  check("scan: quoted bracket marker unquotes", s.refs[0].name, "scope of this article");
+  check("scan: quoted bracket body unquotes", s.defs[0].name, "scope of this article");
+  check("scan: the quoted pair is not broken", problems(t).length, 0);
+  const resolved = resolveDeferred(t);
+  ok("resolve: the quoted marker is replaced, not deleted", resolved.includes("What is discussed here."), resolved);
+  // The definition is gone — the prose now lives at the marker. The empty
+  // `#note_bodies[…]` wrapper stays where the writer put it, which prints
+  // nothing and is not this file's business to tidy.
+  ok("resolve: and the definition is gone", !resolved.includes("note_body["), resolved);
+}
+
 // 4. English aliases
 {
   const s = scan(`Start#note_named("a", kind: endnote) end.\n#note_body("a")[the gloss]`);

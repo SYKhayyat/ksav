@@ -130,7 +130,7 @@ section at the top of this plan.
   *panicking* compile was reported to the writer as a slow compile still running in the
   background, and it left its slot charged forever, so a few bad documents turned every
   later keystroke into "the server is busy" (`e70ca9f`). Correctness and export fidelity:
-  `tests/integrity.test.mjs` (#199), the measured SVG vocabulary in `svg_output.rs`, the
+  `ksav/app/test/integrity.test.mjs` (#199), the measured SVG vocabulary in `svg_output.rs`, the
   deferred-note resolver tests. Nesting depth on pathological input is stated in
   `hostile.rs` as an open question rather than run — a stack overflow is an abort no test
   can catch.

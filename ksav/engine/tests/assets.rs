@@ -619,6 +619,60 @@ fn html_export_is_real_web_content_not_page_pictures() {
     );
 }
 
+/// Every body a document has reaches the Word/HTML export.
+///
+/// The two engine-authored text formats — the HTML export and the Word handoff
+/// that is the same HTML under another extension — go through Typst's own HTML
+/// backend, so "nothing is silently dropped" is not this repository's code only:
+/// it is whatever the prelude's commands *become* in that backend. A command
+/// that draws its second argument on the page but not in the HTML is a body lost
+/// to Word, and the writer would find out after sending the file.
+///
+/// That is not hypothetical: `#כותרת_תא` was built inside a `context`, which
+/// silently stopped it being a cell — the shipped header fill was invisible for
+/// as long as the command existed. So each multi-body command is asked here for
+/// its *last* body, the one a shape that only keeps the first would lose, and
+/// every one of those words has to be in the text.
+#[test]
+fn every_body_of_a_multi_body_command_reaches_the_word_export() {
+    let doc = "#כותרת1[פרק]\n\n\
+        #פסוק[דברים כ״ד][שלושת השבועות]\n\n\
+        #רשימת_הגדרות(\n  הגדרה[מונח][ההסבר המלא],\n)\n\n\
+        #טבלה(עמודות: 2)[#כותרת_תא[ראש] #כותרת_תא[שני] #תא[גוף] #תא[סוף]]\n\n\
+        טקסט עם הערה#הערה[גוף ההערה].\n";
+    let html = ksav_engine::compile_html(doc, &DocConfig::default(), &Assets::default())
+        .unwrap_or_else(|d| panic!("html export failed: {d:?}"));
+    // The text, with tags off: a word split by markup is still the same word for
+    // a reader, and an export that only carries it inside an attribute is not.
+    let mut text = String::new();
+    let mut in_tag = false;
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => text.push(c),
+            _ => {}
+        }
+    }
+    for word in [
+        "שלושת", // a verse's second body
+        "ההסבר", // a definition's second body
+        "ראש",   // a header cell
+        "שני",   // …and the second one
+        "סוף",   // the last cell
+        "גוף",   // a footnote's body
+    ] {
+        assert!(
+            text.contains(word),
+            "{word} did not reach the export; the text was:\n{text}"
+        );
+    }
+    assert!(
+        !html.contains("<svg"),
+        "the Word handoff fell back to page pictures"
+    );
+}
+
 /// The opening `<html …>` tag of an exported document, which is where its
 /// direction belongs. A helper because the doctype ahead of it also ends in `>`.
 fn root_element(html: &str) -> &str {

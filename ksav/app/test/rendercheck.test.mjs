@@ -18,10 +18,40 @@
 // the label the probe asked for — and this file asserts all three answers,
 // because each answer is a claim about which half of the program to open.
 
-import { ok } from "./harness.mjs";
-import { whyNoAnswer } from "../tools/render-check.mjs";
+import { ok, check } from "./harness.mjs";
+import { whyNoAnswer, whyNoWindow } from "../tools/render-check.mjs";
 
 export async function run() {
+  // --- a clean exit is not a webview fault (#196) ---------------------------
+  //
+  // `tauri-plugin-single-instance` hands a second launch to the first and exits
+  // **0**. The check read that exit as "the webview did not start" — the sentence
+  // #189 is an open investigation into — so a developer who hit it locally
+  // believed they had reproduced a runner failure. Three states, three answers,
+  // and the difference between them is the exit status alone.
+  {
+    const handover = whyNoWindow({ status: 0, signal: null, timedOut: false });
+    check("a clean exit 0 without a window is a handover", handover.kind, "handover");
+    ok("…and it says so instead of blaming the webview", !handover.sentence.includes("webview did not start"), handover.sentence);
+    ok("…and it names the plugin's behaviour as the cause", handover.advice.includes("single-instance"));
+    ok("…and it says what to do about it", handover.advice.includes("Close the running Ksav"));
+
+    // A webview that never starts does not exit successfully, and this is the
+    // only place the two are told apart.
+    const dead = whyNoWindow({ status: 1, signal: null, timedOut: false });
+    check("a non-zero exit is still a dead webview", dead.kind, "no-webview");
+    ok("…and keeps the old sentence for the case it is right about", dead.sentence.includes("webview did not start"));
+    const killed = whyNoWindow({ status: null, signal: "SIGSEGV", timedOut: false });
+    check("a signal is a dead webview too", killed.kind, "no-webview");
+
+    // Neither of those. Alive, and never reached setup: the app's own start
+    // stalled, which is a third place to look.
+    const stalled = whyNoWindow({ status: null, signal: null, timedOut: false });
+    check("alive and windowless is its own answer", stalled.kind, "hung");
+    ok("…and it does not send the reader to the webview", !stalled.sentence.includes("webview did not start"));
+    check("a timeout is not a handover", whyNoWindow({ status: null, signal: null, timedOut: true }).kind, "no-webview");
+  }
+
   // --- the shell never got as far as a window -------------------------------
 
   {

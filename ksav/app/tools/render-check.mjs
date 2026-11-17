@@ -196,8 +196,63 @@ function askedOf(booted) {
 }
 
 /**
- * Which side of the window a silent run points at, in a sentence.
+ * Why a silent run has no window record, in the smallest number of words.
  *
+ * Three answers, because they send a reader to three different places and the
+ * check used to have one (#196): a `dpr-probe` build that exited **0** without
+ * reaching `setup` handed its command line to a Ksav that was already running
+ * and quit — the single-instance plugin's whole job, and nothing whatever to do
+ * with a webview. Read as one answer, it printed "the webview did not start",
+ * which is the sentence #189 is an open investigation into, so a developer who
+ * hit it locally believed they had reproduced a CI failure.
+ *
+ * Exported so `test/rendercheck.test.mjs` can fence all three without starting a
+ * process.
+ *
+ * @param {{status: number|null, signal: string|null, timedOut: boolean}|null} child
+ *   how the application ended, from `spawnSync`
+ * @returns {{kind: "handover"|"no-webview"|"hung", sentence: string, advice: string}}
+ */
+export function whyNoWindow(child) {
+  // `spawnSync` leaves `status` null when it kills on the deadline and puts the
+  // signal there instead, so `status === 0` is the whole test: a probe that was
+  // killed cannot look like a handover.
+  const exitedCleanly = !!child && child.status === 0 && !child.signal;
+  if (exitedCleanly) {
+    return {
+      kind: "handover",
+      sentence:
+        "never created — the shell exited 0 without reaching setup, which is what a\n" +
+        "             window handover looks like: another Ksav is already running",
+      advice:
+        "  A clean exit is not a webview fault. `tauri-plugin-single-instance` hands a\n" +
+        "  second launch to the first one and exits 0, so the probe never drew anything.\n" +
+        "  Close the running Ksav (nothing here is wrong with the build) and run this\n" +
+        "  again. A `dpr-probe` build no longer registers the plugin at all (#196), so\n" +
+        "  meeting this line means an older shell was built — `cargo clean -p app`, or\n" +
+        "  rebuild, and it goes away.\n",
+    };
+  }
+  if (child && child.status === null && !child.timedOut && !child.signal) {
+    return {
+      kind: "hung",
+      sentence: "never created — the shell is still running and reached no window",
+      advice:
+        "  The application is alive and never got as far as `setup`. That is not a\n" +
+        "  handover and not a dead webview: it is a start that stalled, so look at what\n" +
+        "  `setup` does first (the app's own output above is the record).\n",
+    };
+  }
+  return {
+    kind: "no-webview",
+    sentence: "never created — the webview did not start",
+    advice: "",
+  };
+}
+
+/**
+ * Which side of the window a silent run points at, in a sentence.
+ * *
  * Three states and three different fixes, and the check used to name one of
  * them — "the page loaded and did not run the probe" — whichever had happened,
  * which sends a reader to the frontend for a window the shell never had (#188).
@@ -318,7 +373,7 @@ if (invokedDirectly) {
     `  window:    ${
       existsSync(boot)
         ? `created; present ${JSON.stringify(labelsOf(readJson(boot)))}, probe asks for ${JSON.stringify(askedOf(readJson(boot)))}`
-        : "never created — the webview did not start"
+        : whyNoWindow(child).sentence
     }`,
       `  exit:      ${child.status === null ? "still running when the deadline passed" : `status ${child.status}`}, ` +
         `signal ${child.signal ?? "none"}`,
@@ -385,15 +440,22 @@ if (invokedDirectly) {
     }
 
     if (!existsSync(answer)) {
+      // `whyNoAnswer` names which half of the program to open next, and it is the
+      // right paragraph for two of the three no-window states. In the third the
+      // shell never should have quit, so its paragraph would contradict the line
+      // above it (#196).
+      const noWindow = whyNoWindow(child);
       fail(
         `the application ran and the page never answered (${ANSWER_BY_MS}ms).\n\n` +
           "  Nothing was written to the measurement file. What the run looked like:\n\n" +
           whySilent(child) +
             "\n\n" +
-          whyNoAnswer(
-            labelsOf(existsSync(boot) ? readJson(boot) : null),
-            askedOf(existsSync(boot) ? readJson(boot) : null),
-          ),
+          (noWindow.kind === "handover"
+            ? noWindow.advice
+            : whyNoAnswer(
+                labelsOf(existsSync(boot) ? readJson(boot) : null),
+                askedOf(existsSync(boot) ? readJson(boot) : null),
+              )),
       );
     }
 

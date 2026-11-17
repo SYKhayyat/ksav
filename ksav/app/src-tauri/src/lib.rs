@@ -912,7 +912,16 @@ pub fn run() {
     //
     // With the plugin's `deep-link` feature the forwarded argv reaches the
     // listener wired below, so there is one delivery path and not two.
-    #[cfg(any(windows, target_os = "linux"))]
+    //
+    // Not in a probe build (#196). `dpr-probe` builds are started by
+    // `tools/render-check.mjs` and by nothing else, they run for a few seconds
+    // and are killed; the plugin buys them nothing, and it costs the check its
+    // answer: with a real Ksav already running, the probe hands over and exits
+    // **0** before it ever reaches `setup`, and the check reported that as "the
+    // webview did not start" — the same sentence #189 is open about. A clean
+    // exit 0 is not a webview fault, and the cheapest way to stop saying so is
+    // to stop the handover happening.
+    #[cfg(all(any(windows, target_os = "linux"), not(feature = "dpr-probe")))]
     let built = built.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
         // The URL routes itself. What is left is the part a writer notices: the
         // window they already had may be behind the document they were reading

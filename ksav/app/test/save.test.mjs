@@ -38,6 +38,7 @@ import { canWriteBack, supportsRealFiles, fileStamp, saveTo, saveAs } from "../.
 import { troubleSaid } from "../.tmp-test/diagnostics.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
 import * as docs from "../.tmp-test/docs.mjs";
+import * as watch from "../.tmp-test/watch.mjs";
 
 const TAURI = { kind: "tauri", name: "kuntres.ksav", path: "/tmp/kuntres.ksav" };
 const DOWNLOAD = { kind: "download", name: "kuntres.ksav" };
@@ -401,6 +402,76 @@ export async function run() {
         check("both refusals were asked of the shell", asked.length, 2);
       } finally {
         delete globalThis.window.__TAURI_INTERNALS__;
+      }
+    }
+
+    // ------------------------ the autosave stands down on a file somebody else changed
+    //
+    // This is the guard the module was missing, and it is the quietest data loss
+    // there is: a thirty-second timer overwriting a file that another program
+    // changed — no error, no prompt, nothing in the log, the other copy simply
+    // gone. Its comment said so and nothing asserted it, so the *next* refactor of
+    // `autosaveToFile` could have dropped the check and the suite would have stayed
+    // green.
+    //
+    // The conflict is set through `watch.markConflicted`, which is the same state
+    // the watcher records when it sees the file move: a manual Save asks the
+    // writer, an automatic one must not decide for them.
+    {
+      const asked = [];
+      // Two commands, and each answer matters: `ksav_path_allowed` is the shell's
+      // allow-list (the desktop build asks it *before* every automatic write, and a
+      // `false` there stops the timer for a reason that has nothing to do with
+      // conflicts), and `ksav_write_file` is the write itself.
+      globalThis.window.__TAURI_INTERNALS__ = {
+        invoke: async (cmd) => {
+          asked.push(cmd);
+          if (cmd === "ksav_path_allowed") return true;
+          // A real stamp, because `checkFile` answers `changed` only when there
+          // are two stamps to compare: with `null` here a conflicted document
+          // reads as `unknown`, which the callers treat as safe.
+          if (cmd === "ksav_file_stamp") return { mtime: 1_700_000_000, size: 42 };
+          return null;
+        },
+      };
+      try {
+        runtime.setCurrentDoc({ id: "autosave-conflict", title: "kuntres", text: "טקסט" });
+        runtime.setCurrentBinding(TAURI);
+        watch.markInSync("autosave-conflict", TAURI);
+
+        // First the positive half, because "it refused" means nothing if the timer
+        // was not going to write anything anyway: a document in sync and dirty is
+        // written by the timer.
+        markFileDirty();
+        check(
+          "a document in sync and dirty is written by the timer",
+          await autosaveToFile(true, async () => "טקסט"),
+          true,
+        );
+        check(
+          "…once",
+          asked.filter((c) => c === "ksav_write_file").length,
+          1,
+        );
+
+        // Now a file somebody else has changed, and the same timer.
+        markFileDirty();
+        watch.markConflicted("autosave-conflict");
+        check(
+          "an autosave refuses a file that changed outside",
+          await autosaveToFile(true, async () => "טקסט"),
+          false,
+        );
+        check(
+          "…and writes nothing more",
+          asked.filter((c) => c === "ksav_write_file").length,
+          1,
+        );
+
+      } finally {
+        delete globalThis.window.__TAURI_INTERNALS__;
+        watch.forget("autosave-conflict");
+        runtime.setCurrentBinding(null);
       }
     }
 

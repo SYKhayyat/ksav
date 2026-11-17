@@ -18,6 +18,7 @@ import * as structure from "./structure";
 import * as heads from "./headings";
 import * as styles from "./styles";
 import * as menus from "./menus";
+import * as header from "./header";
 import * as macros from "./macros";
 import { ALIGN_ORDER, settings } from "./settings";
 import { edgeAt } from "./alignment";
@@ -681,6 +682,59 @@ export function buildDocsMenu(): HTMLElement {
 }
 
 /**
+ * The Documents menu's actions, as data (#128).
+ *
+ * A table rather than five `el(…)` calls, for the same reason `fileItems()` is
+ * one: the *taxonomy* is then a value a test can read, and the deduplication
+ * UAT 25 asked for — one canonical home per action, aliases marked — is
+ * assertable instead of being a comment beside a button. `ACTION_HOME` in
+ * `header.ts` says which menu owns what; `header.aliasDesc` produces the
+ * "Also in File" line for the entries that live here and are owned there.
+ */
+export type DocsActionId = "new" | "new-tab" | "rename" | "saveAs" | "duplicate";
+
+export function docsActions(): { id: DocsActionId; label: string; desc?: string }[] {
+  return [
+    { id: "new", label: t("newDoc") },
+    // **Here**, and not in the arrangement panel, because this is where a writer
+    // asks for a new anything. The arrangement panel is where somebody who
+    // already knows what an arrangement is goes to change one; the report
+    // *"I don't see how to make a new tab"* came from a writer who did not, and
+    // who had — correctly — looked under Documents first.
+    { id: "new-tab", label: `${t("newDocTab")} · ${hintFor("newDocTab")}` },
+    { id: "rename", label: t("rename") },
+    // "Save as" already existed, in the File menu, and File still owns it —
+    // *where the file lives* is that menu's subject. This is the second door, at
+    // the place a writer asks the question: the margin comment *"do we have a
+    // save as something else.ksav option?"* was written by somebody looking at
+    // the title and the filename side by side. Marked, since #128, with the menu
+    // that owns it.
+    { id: "saveAs", label: t("saveAs"), desc: header.aliasDesc("saveAs", "documents") },
+    { id: "duplicate", label: t("duplicate") },
+  ];
+}
+
+/**
+ * The three row controls, spelled out.
+ *
+ * A function rather than three `title=` attributes, so a test can hold the
+ * sentence to the glyphs it claims to explain (#128) — and so the words travel
+ * through `t` like every other sentence rather than being assembled in the menu
+ * builder.
+ */
+export function docsLegend(): string {
+  return t("rowGlyphLegend");
+}
+
+const DOCS_RUN: Record<DocsActionId, () => void> = {
+  new: () => voidAction("save_file", () => newNamedDoc()),
+  "new-tab": () => voidAction("save_file", () => tabstrip.newDocTab()),
+  rename: () => renameDoc(),
+  saveAs: () => voidAction("save_file", () => chromeWiring().saveFileAs()),
+  duplicate: () => voidAction("save_file", () => duplicateDoc(runtime.currentDoc.id)),
+};
+
+/**
  * Rebuilt on every open, so it never shows a stale library.
  *
  * **Two lists, and they are two different facts.** *Open* is what this session
@@ -695,37 +749,20 @@ export function buildDocsMenu(): HTMLElement {
  * strips is not survivable"* — so the close control is a `⌄` labelled "close",
  * and `×` continues to mean delete and only delete.
  */
-function docsMenuItems(): (Node | string)[] {
-  const items: (Node | string)[] = [
-    el("button", {
-      class: "menu-item",
-      // Named for the same reason the rows below carry `data-doc`: the label is
-      // translated, and the acceptance run has to be able to say *this* item.
-      "data-doc-action": "new",
-      onClick: () => voidAction("save_file", () => newNamedDoc()),
-    }, [t("newDoc")]),
-    // **Here**, and not in the arrangement panel, because this is where a writer
-    // asks for a new anything. The arrangement panel is where somebody who
-    // already knows what an arrangement is goes to change one; the report
-    // *"I don't see how to make a new tab"* came from a writer who did not, and
-    // who had — correctly — looked under Documents first.
-    el("button", {
-      class: "menu-item",
-      "data-doc-action": "new-tab",
-      onClick: () => voidAction("save_file", () => tabstrip.newDocTab()),
-    }, [`${t("newDocTab")} · ${hintFor("newDocTab")}`]),
-    el("button", { class: "menu-item", onClick: () => renameDoc() }, [t("rename")]),
-    // "Save as" already existed, in the File menu. The margin comment asking
-    // *"do we have a save as something else.ksav option?"* was written by
-    // somebody looking at the document's name and its filename side by side and
-    // wondering how to change the second — which is here, not under File. The
-    // command is the same one; this is a second door onto it, at the place the
-    // question gets asked.
-    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => chromeWiring().saveFileAs()) }, [t("saveAs")]),
-    el("button", { class: "menu-item", onClick: () => voidAction("save_file", () => duplicateDoc(runtime.currentDoc.id)) }, [
-      t("duplicate"),
-    ]),
-  ];
+export function docsMenuItems(): (Node | string)[] {
+  const items: (Node | string)[] = docsActions().map((row) =>
+    el(
+      "button",
+      {
+        class: "menu-item",
+        // Named for the same reason the rows below carry `data-doc`: the label is
+        // translated, and the acceptance run has to be able to say *this* item.
+        "data-doc-action": row.id,
+        onClick: DOCS_RUN[row.id as DocsActionId],
+      },
+      [row.label, ...(row.desc ? [el("span", { class: "menu-desc" }, [row.desc])] : [])],
+    ),
+  );
 
   // The open set, most recently focused first — the order the switcher uses, so
   // the two surfaces agree about what "the last document" means.
@@ -786,6 +823,13 @@ function docsMenuItems(): (Node | string)[] {
       );
     }
   }
+
+  // The row controls are glyphs because a row is narrow, and they mean three
+  // different amounts of destruction. Their meaning used to be in three
+  // `title=` tooltips — a hover, and nothing on a touchscreen — which is exactly
+  // what UAT 26 could not read. So the legend is drawn with the rows, always, in
+  // the interface's language (#128).
+  items.push(el("div", { class: "menu-legend", "data-glyph-legend": "docs" }, [docsLegend()]));
 
   items.push(el("div", { class: "menu-sep" }));
   items.push(el("div", { class: "menu-cat" }, [t("library")]));

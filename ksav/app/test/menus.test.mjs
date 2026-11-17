@@ -11,6 +11,8 @@ import { MENU_OF, categoriesIn, menuOf } from "../.tmp-test/menus.mjs";
 import { ACTION_COMMAND, PLACED_COMMANDS, actionForCommand } from "../.tmp-test/actions.mjs";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
 import { commands } from "../tools/commands.mjs";
+import { docsActions, docsLegend } from "../.tmp-test/ribbon.mjs";
+import { setLang } from "../.tmp-test/i18n.mjs";
 
 export async function run() {
 
@@ -119,4 +121,46 @@ export async function run() {
   );
 }
 
+
+  // ------------------------------- one canonical home per action (#128)
+  //
+  // UAT 25/26 found *New document* and *Save as* in both Documents and File with
+  // nothing to say which was the real one. The report's rule — one canonical
+  // home, aliases clearly marked — is only checkable if the taxonomy is data, so
+  // `docsActions()` is a table and this compares it with `fileItems()`.
+  {
+    // The taxonomy is asserted in English: the engine's own labels are English
+    // and an earlier block in this file legitimately switches to Hebrew.
+    setLang("en");
+    const docs = docsActions();
+    check(
+      "the Documents menu has no repeated action",
+      docs.map((r) => r.id).filter((id, i) => docs.findIndex((x) => x.id === id) !== i),
+      [],
+    );
+    // Every action that appears in both menus is marked on exactly one side, and
+    // the mark names the other menu. An action in one menu needs no mark.
+    const both = docs.filter((r) => r.desc);
+    check(
+      "the aliases are exactly the two-menu actions",
+      both.map((r) => r.id).sort(),
+      ["saveAs"],
+    );
+    const alias = both[0];
+    ok("and the mark names the owning menu", alias.desc.includes("File"), alias.desc);
+    // The label and the mark are different sentences: a row that repeated its own
+    // label as a description would satisfy "has a desc" and say nothing.
+    ok("…and is not a repeat of the label", alias.desc !== alias.label);
+
+    // The row glyphs, in words. UAT 26 read three glyph-only controls; the
+    // legend is persistent, and this holds it to the three it claims.
+    setLang("en");
+    const legend = docsLegend();
+    for (const glyph of ["⧉", "⌄", "×"]) {
+      ok(`the legend explains ${glyph}`, legend.includes(glyph), legend);
+    }
+    setLang("he");
+    ok("and it is translated, not English with Hebrew around it", docsLegend() !== legend, docsLegend());
+    setLang("en");
+  }
 }

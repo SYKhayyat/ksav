@@ -21,9 +21,16 @@
 
 import { check, ok } from "./harness.mjs";
 import { GIRSA, KSAV, withPrefix } from "../.tmp-test/names.mjs";
-import { t } from "../.tmp-test/i18n.mjs";
+import { setLang, t } from "../.tmp-test/i18n.mjs";
 
 export async function run() {
+  // The subject is the **Hebrew** shelf, so the file asks for it. It used to
+  // inherit whatever the previous file left behind, which stayed Hebrew until a
+  // menu test began switching languages for its own assertions (#128) — and then
+  // three assertions here failed against English strings while this file was
+  // still green alone. A test that reads translated strings has to name its
+  // language.
+  setLang("he");
   check("this application is כְּתָב", KSAV, "כְּתָב");
   check("the sibling is גִּרְסָא", GIRSA, "גִּרְסָא");
 
@@ -50,4 +57,5 @@ export async function run() {
     const history = t("history");
     ok("the version history still says גרסאות", history.includes("גרסאות"), history);
   }
+  setLang("en");
 }

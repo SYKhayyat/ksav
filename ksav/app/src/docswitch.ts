@@ -31,6 +31,7 @@ import { forgetGit } from "./gitui";
 import { scheduleCompile } from "./compile";
 import { setBaseline } from "./changes";
 import { voidAction } from "./asyncaction";
+import * as header from "./header";
 import { el } from "./dom";
 import { t, tf } from "./i18n";
 import { ask, askText } from "./formmodal";
@@ -387,37 +388,45 @@ export async function renameDoc() {
   rerenderChrome();
 }
 
-/** The document title shown in the header, with the bound file beside it. */
+/**
+ * The document title shown in the header, with what it is bound to and whether
+ * that is current.
+ *
+ * The **sentence** is `header.docTitle`'s, and this function asks for it rather
+ * than building a second one (#128). It used to build its own — `"● " +
+ * name` — while `buildHeader` drew the bare name, so the header said one thing
+ * after a rename and another after a rerender. The dot survives as a state word
+ * (`not saved`), which is the difference between *an affordance that needs a
+ * hover to explain itself* and *a sentence*.
+ */
 export function updateTitleBar() {
   const el0 = document.getElementById("doc-title");
   if (!el0 || !runtime.currentDoc) return;
-  el0.textContent = runtime.currentDoc.title;
+  const binding = runtime.currentBinding;
+  const name = header.docTitle(
+    runtime.currentDoc.title,
+    binding?.name,
+    !binding ? "none" : files.canWriteBack(binding) ? (hasUnsavedFileChanges() ? "unsaved" : "saved") : "copy",
+  );
+  el0.textContent = name.title;
   const sub0 = document.getElementById("doc-file");
   if (sub0) {
-    // A dot when the bound file on disk is behind the editor. The writer used to
-    // first hear of unsaved changes only in the browser's leave-page dialog,
-    // though the save layer already knew — this surfaces it where the file is
-    // named. Only shown when there is a file to be behind.
-    //
-    // **And only when there is a file at all.** A download-tier binding is the
-    // *name* of a copy that left the browser once; there is nothing on the
-    // other end of it to be behind, nothing any Save can bring up to date, and
-    // a dot that can never be cleared is a warning the writer learns to ignore.
-    // So the name still shows — it is how they know which copy they downloaded
-    // — and the hover says what kind of thing it is.
-    const real = files.canWriteBack(runtime.currentBinding);
+    sub0.textContent = name.line;
+    // The class stays, because the stylesheet colours the unsaved line with it,
+    // and the tooltip keeps the *machine's* own reason (the full path, or why a
+    // copy cannot be written back). Both are detail; neither is the only place
+    // the state is said any more.
+    const real = files.canWriteBack(binding);
     const dirty = real && hasUnsavedFileChanges();
-    sub0.textContent = runtime.currentBinding ? (dirty ? "● " : "") + runtime.currentBinding.name : "";
     sub0.classList.toggle("dirty", dirty);
-    sub0.title = runtime.currentBinding
+    sub0.title = binding
       ? real
-        ? (dirty ? t("unsavedChanges") + " · " : "") +
-          (runtime.currentBinding.path || runtime.currentBinding.name)
+        ? (dirty ? t("unsavedChanges") + " · " : "") + (binding.path || binding.name)
         : t("copyOnly")
       : t("noFileBound");
   }
   document.title =
-    (files.canWriteBack(runtime.currentBinding) && hasUnsavedFileChanges() ? "● " : "") +
+    (files.canWriteBack(binding) && hasUnsavedFileChanges() ? "● " : "") +
     runtime.currentDoc.title +
     " · Ksav";
 }

@@ -283,6 +283,16 @@ header {
   font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted);
   padding: 8px 9px 3px; font-weight: 700;
 }
+/* The glyph legend under the Documents rows (#128). It sits where the glyphs are
+   rather than in a tooltip, because a row is narrow enough that the glyph stays
+   and the tooltip is a hover a touchscreen does not have — UAT 26 read three
+   controls as three mysteries. Quiet, but always there: same weight as a
+   `.menu-desc`, not a `.menu-cat`, because it names controls rather than
+   starting a section. */
+.menu-legend {
+  padding: 3px 9px 6px; color: var(--muted); font-size: 10px; line-height: 1.5;
+  border-top: 1px dashed var(--line); margin-top: 3px;
+}
 /* The page range at the head of the Export menu — one control the whole menu
    reads, rather than a route with a prompt in front of it. Laid out as a block
    rather than a `.menu-item` because it is not a thing you press: the label sits

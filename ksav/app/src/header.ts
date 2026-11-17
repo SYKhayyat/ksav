@@ -33,7 +33,7 @@
 // left to the caller is a decision left in the god-file. `i18n.ts` is a pure
 // module; a test sets the language and reads the string a writer would see.
 
-import { t, getLang } from "./i18n";
+import { t, tf, getLang } from "./i18n";
 import type { Settings } from "./settings";
 
 /**
@@ -291,7 +291,12 @@ export type FileItemId =
 
 export function fileItems(realFiles: boolean): (({ id: FileItemId } & MenuRow) | { sep: true })[] {
   return [
-    { id: "newDoc", label: t("newDoc") },
+    // Reachable here because *File ▸ New* is the muscle memory (Word, LibreOffice,
+    // every editor), and owned by Documents because that is what it makes: an
+    // entry in the library, not a file. The description says where it lives, so
+    // the second door is marked rather than being the duplicate UAT 25 found
+    // (#128).
+    { id: "newDoc", label: t("newDoc"), desc: aliasDesc("newDoc", "file") },
     { id: "open", label: t("open") },
     { id: "save", label: t("save") },
     { id: "saveAs", label: realFiles ? t("saveAs") : t("saveCopy") },
@@ -399,17 +404,85 @@ export function templateItems(
 }
 
 /**
- * The open document's name, and what a screen reader is told the button does.
+ * The open document's name: **what it is called**, and what it is bound to.
  *
- * A writing tool with a library has to say, at all times, which document you are
- * in — and the button renames it, so its accessible name has to be the action
- * *and* the subject. `aria-label` of "rename" alone announces twenty controls
- * that all say "rename".
+ * UAT 19 read the header and could not say which of the two values was the
+ * document and which the file — they sat side by side, unlabeled, one above the
+ * other, and only the button's tooltip ("Rename") spoke. UAT 25 found the same
+ * seam from the other end: nothing said whether a document was bound to a file
+ * at all, or whether the file was behind the editor.
+ *
+ * So the second line is a **sentence, in the interface's language**, and this
+ * function is its one home: `buildHeader` draws it at build time and
+ * `docswitch.updateTitleBar` re-draws it after a rename or a save, and both ask
+ * here rather than composing their own version (which is what they used to do —
+ * one of them said `● kuntres.ksav`, the other the bare name).
+ *
+ * The state is passed in rather than read here, because half of it lives in the
+ * save layer and a header that imported the save layer would be the second
+ * opinion about *unsaved* this project keeps having to delete.
+ */
+export type DocFileState = "saved" | "unsaved" | "copy" | "none";
+
+export interface DocName {
+  title: string;
+  /** The bound filename, or `""`. Kept for callers that want the value alone. */
+  file: string;
+  /** The visible second line — the label, the name, and the state, in words. */
+  line: string;
+  /** The accessible name of the button: the action and its subject. */
+  label: string;
+}
+
+/**
+ * @param title the library title
+ * @param file the bound filename, if any
+ * @param state `none` for an unbound document, `copy` for a download-tier
+ *   binding (a name with nothing behind it), and otherwise whether the file on
+ *   disk is current
  */
 export function docTitle(
   title: string | undefined,
   file: string | undefined,
-): { title: string; file: string; label: string } {
+  state: DocFileState = file ? "saved" : "none",
+): DocName {
   const name = title ?? "";
-  return { title: name, file: file ?? "", label: `${t("rename")}: ${name}` };
+  const fileName = file ?? "";
+  // A state that names a file when there is none is a caller bug, and drawing a
+  // label around an empty value is the "two unlabeled values" complaint again.
+  // So it degrades to `none` rather than rendering `File: `.
+  const kind: DocFileState = fileName ? state : "none";
+  const line =
+    kind === "none"
+      ? t("stateNoFile")
+      : `${t("fileNameLabel")}: ${fileName}` +
+        (kind === "saved" ? "" : ` · ${kind === "copy" ? t("stateCopy") : t("stateUnsaved")}`);
+  return { title: name, file: fileName, line, label: `${t("rename")}: ${name}` };
+}
+
+/**
+ * Which menu owns each action that could reasonably appear in two (#128).
+ *
+ * UAT 25/26 found *New document* and *Save as* in both **Documents** and
+ * **File**, with nothing to say which was the real one. The report's own rule is
+ * the one applied here: *one canonical home, and a deliberate alias clearly
+ * marked*. So the split follows the two things the menus are actually about —
+ * **Documents** is the library (what exists, what is open, what it is called)
+ * and **File** is the disk (where it is, in what format, and out) — and an entry
+ * that lives in the wrong one for reachability's sake says so, using
+ * [`aliasDesc`] and the `alsoIn` string.
+ */
+export const ACTION_HOME: Record<string, "file" | "documents"> = {
+  newDoc: "documents",
+  saveAs: "file",
+};
+
+/** The "Also in …" line for an alias row, or `undefined` for the canonical one. */
+export function aliasDesc(
+  id: string,
+  here: "file" | "documents",
+): string | undefined {
+  const home = ACTION_HOME[id];
+  if (!home || home === here) return undefined;
+  return tf("alsoIn", t(home === "file" ? "file" : "documents"));
 }

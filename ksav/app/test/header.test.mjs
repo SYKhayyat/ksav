@@ -1,6 +1,8 @@
 import { check, ok } from "./harness.mjs";
 import {
+  ACTION_HOME,
   EXPORTS,
+  aliasDesc,
   chips,
   docTitle,
   exportItems,
@@ -280,5 +282,70 @@ export async function run() {
     ok("…and the button says what it renames", n.label.includes("קונטרס"), n.label);
     const none = docTitle(undefined, undefined);
     check("an unnamed document is empty, not `undefined`", [none.title, none.file], ["", ""]);
+
+    // ---- the second line is a sentence, and it says what it is (#128) ------
+    //
+    // UAT 19 read the header and could not say which value was the document and
+    // which the file; both were bare, unlabeled, one above the other. So the line
+    // carries a *word* in front of the name, and the availability of the line is
+    // asserted per state rather than only for the happy one.
+    ok(
+      "the file line is labelled, not a bare value",
+      n.line.startsWith(t("fileNameLabel") + ": "),
+      n.line,
+    );
+    ok("…and a saved file says nothing more", !n.line.includes(t("stateUnsaved")), n.line);
+    const dirty = docTitle("קונטרס", "kuntres.ksav", "unsaved");
+    ok(
+      "…an unsaved one says so in words, not with a dot",
+      dirty.line.includes(t("stateUnsaved")) && !dirty.line.includes("●"),
+      dirty.line,
+    );
+    const copy = docTitle("קונטרס", "kuntres.ksav", "copy");
+    ok(
+      "…a downloaded copy says what it is, and is not called unsaved",
+      copy.line.includes(t("stateCopy")) && !copy.line.includes(t("stateUnsaved")),
+      copy.line,
+    );
+    const unbound = docTitle("קונטרס", undefined, "none");
+    ok(
+      "…and an unbound document says there is no file at all",
+      unbound.line === t("stateNoFile"),
+      unbound.line,
+    );
+    // A state that names a file when there is none would draw `File: ` with
+    // nothing after it — the two unlabeled values again, one of them empty.
+    check(
+      "a file state with no file degrades to 'no file yet'",
+      docTitle("קונטרס", undefined, "saved").line,
+      t("stateNoFile"),
+    );
+    // In the writer's language, not only in English.
+    setLang("he");
+    ok(
+      "the line follows the interface language",
+      docTitle("קונטרס", "kuntres.ksav").line.startsWith("קובץ"),
+      docTitle("קונטרס", "kuntres.ksav").line,
+    );
+    setLang("en");
+  }
+
+  // ------------------------------------- one home per action, marked (#128)
+  //
+  // UAT 25/26 found New and Save-as in both menus with nothing to say which was
+  // the real one. The report's rule is *one canonical home, and a deliberate
+  // alias clearly marked*, so both halves are asserted: the table exists, the
+  // File menu's alias of the Documents-owned action carries a description, and
+  // that description names the owning menu rather than being empty or a repeat
+  // of the label.
+  {
+    check("New document is the library's, not the disk's", ACTION_HOME.newDoc, "documents");
+    check("Save as is the disk's, not the library's", ACTION_HOME.saveAs, "file");
+    check("the owning menu's row is not marked as an alias", aliasDesc("saveAs", "file"), undefined);
+    const marked = aliasDesc("newDoc", "file");
+    ok("the second door says where the first one is", !!marked && marked.includes("Documents"), marked);
+    const row = fileItems(true).find((e) => !isSep(e) && e.id === "newDoc");
+    check("and the File menu's row carries it", row?.desc, marked);
+    check("Save as carries nothing — File owns it", fileItems(true).find((e) => !isSep(e) && e.id === "saveAs")?.desc, undefined);
   }
 }

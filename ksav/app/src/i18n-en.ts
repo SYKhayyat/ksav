@@ -27,6 +27,22 @@ export const EN: Dict = {
   duplicate: "Duplicate",
   confirmDeleteDoc: "Delete \"{0}\"? This cannot be undone.",
   noFileBound: "This document isn't bound to a file yet \u2014 \"Save as\" will bind it.",
+  // --- the header's name line, in words (#128) -----------------------------
+  //
+  // These four say what the second line of the title is and what state it is in.
+  // It used to be the bare filename beside the bare title, with unsaved work
+  // marked by a `\u25cf` that only spoke on hover, so a writer reading UAT 19
+  // could not say which of the two values was the document and which the file.
+  fileNameLabel: "File",
+  stateNoFile: "no file yet",
+  stateCopy: "a downloaded copy",
+  stateUnsaved: "not saved",
+  // A second entry onto an action the other menu owns is allowed, and says which
+  // menu owns it (#128). Silence would be the duplicate the report found.
+  alsoIn: "Also in {0}",
+  // The three glyphs on a document row, spelled out where they are rather than
+  // in a tooltip that exists only on hover (#128).
+  rowGlyphLegend: "\u29c9 new arrangement \u00b7 \u2304 close \u00b7 \u00d7 delete",
   unsavedChanges: "Unsaved changes to the file",
   savedTo: "Saved to {0}",
   savedToLibrary: "Saved to the library",

@@ -49,6 +49,7 @@ import {
 import { renameDoc, newDoc } from "./docswitch";
 import * as files from "./files";
 import { voidAction } from "./asyncaction";
+import { hasUnsavedFileChanges } from "./save";
 import { currentPages } from "./preview";
 import { openStyles } from "./stylespanel";
 import { toggleOutline, toggleNotesPane, toggleMarksPane } from "./rowlists";
@@ -205,8 +206,14 @@ function exportItem(row: header.MenuRow, run: () => void): HTMLElement {
 }
 
 export function buildHeader(): HTMLElement {
+  // The second line is drawn when a row has one. Until #128 nothing did: the
+  // interface had a `desc` field its own type declared, a menu builder that
+  // dropped it, and templates that built their rows by hand to get one.
   const menuItem = (row: header.MenuRow, run: () => void, extra: Record<string, string> = {}) =>
-    el("button", { class: "menu-item", ...extra, onClick: run }, [row.label]);
+    el("button", { class: "menu-item", ...extra, onClick: run }, [
+      row.label,
+      ...(row.desc ? [el("span", { class: "menu-desc" }, [row.desc])] : []),
+    ]);
 
   const templatesByMenu = new Map(templatesForMenu().map((tpl) => [tpl.he, tpl]));
   const users = userTemplates();
@@ -323,7 +330,22 @@ export function buildHeader(): HTMLElement {
     ),
   ]);
 
-  const name = header.docTitle(runtime.currentDoc?.title, runtime.currentBinding?.name);
+  // The state comes from the save layer, not from a guess here: `hasUnsavedFileChanges`
+  // answers *is the file behind the editor*, and `canWriteBack` answers *is there a
+  // file behind the editor at all* — the copy tier is a name with nothing behind
+  // it, which is why it gets its own words rather than the unsaved one.
+  const binding = runtime.currentBinding;
+  const name = header.docTitle(
+    runtime.currentDoc?.title,
+    binding?.name,
+    !binding
+      ? "none"
+      : files.canWriteBack(binding)
+        ? hasUnsavedFileChanges()
+          ? "unsaved"
+          : "saved"
+        : "copy",
+  );
 
   return el("header", { role: "banner" }, [
     el("div", { class: "brand" }, [
@@ -343,7 +365,7 @@ export function buildHeader(): HTMLElement {
       },
       [
         el("span", { class: "doc-title", id: "doc-title" }, [name.title]),
-        el("small", { class: "doc-file", id: "doc-file" }, [name.file]),
+        el("small", { class: "doc-file", id: "doc-file" }, [name.line]),
       ],
     ),
     buildToolbar(),

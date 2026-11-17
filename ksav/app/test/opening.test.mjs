@@ -44,6 +44,8 @@ const SRC = path.join(dirOf(import.meta.url), "..", "src");
 const MAIN = readFileSync(path.join(SRC, "main.ts"), "utf8");
 const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 const TAB = readFileSync(path.join(SRC, "tabstrip.ts"), "utf8");
+// The setting's own doc comment is where the contract lives (#138).
+const SETTINGS_SRC = readFileSync(path.join(SRC, "settings.ts"), "utf8");
 const DOCSWITCH = readFileSync(path.join(SRC, "docswitch.ts"), "utf8");
 // Wave 11: the templates and the file doors call the funnel from their own files.
 const FILEUI = readFileSync(path.join(SRC, "fileui.ts"), "utf8");
@@ -115,18 +117,70 @@ export async function run() {
     const leaf = panes.leaf("source", "alef");
     tabs.add(leaf, "a-pane-that-is-gone");
     check("a stale focused pane does not hide the document", tabs.showing("alef"), 0);
+
+    // And the question #138 asked: does a document named by a pane that is *not*
+    // focused count as shown? No — and the assertion is that this is deliberate,
+    // because a pane does not hold a document of its own (the window renders one
+    // at a time; `panes.ts` says so). Counting it would send `reuse` to a tab
+    // that does not have the writer's sefer in it, which is worse than the new
+    // arrangement it would have made.
+    tabs.reset();
+    const alef = panes.leaf("source", "alef");
+    const pinned = panes.leaf("source", "beis");
+    const tree = { kind: "row", a: alef, b: pinned, fraction: 0.5 };
+    tabs.add(tree, alef.id);
+    check("a tab is named by its focused pane's document", tabs.showing("alef"), 0);
+    check(
+      "...and a document merely pinned in a sibling pane is not a tab's answer",
+      tabs.showing("beis"),
+      -1,
+    );
+    ok(
+      "...which `tabs.ts` states rather than leaving as a reader's guess",
+      /a pane does not hold a document of its own/.test(
+        readFileSync(path.join(SRC, "tabs.ts"), "utf8"),
+      ),
+    );
   }
 
   // ------------------------------------------------------------- the setting
 
   {
     const shipped = settings.DEFAULTS ?? {};
-    check("openIn ships as reuse", shipped.openIn, "reuse");
+    // The default is UAT item 34's answer, and the reason it moved is written
+    // down in `Settings.openIn`: two reports about the same act, disagreeing.
+    // *"Opening a document replaces the one I had open"* is answered by the
+    // choice existing, not by the default being the choice; the writer's stated
+    // model — Emacs — is `C-x b`, which opens here. What the first report needed
+    // was `newTab` and `⧉` to exist, and both do.
+    check("openIn ships as current, the Emacs answer (C-x b)", shipped.openIn, "current");
     ok(
       "...and the three answers are all offered in the drawer",
       SETTINGS_DRAWER.includes('["reuse", t("openIn.reuse")]') &&
         SETTINGS_DRAWER.includes('["newTab", t("openIn.newTab")]') &&
         SETTINGS_DRAWER.includes('["current", t("openIn.current")]'),
+    );
+    // The list reads as "this, unless". A default in the middle of a menu is
+    // the same information with the recommendation hidden.
+    const offered = [...SETTINGS_DRAWER.matchAll(/\["(current|reuse|newTab)", t\("openIn\./g)].map(
+      (m) => m[1],
+    );
+    check("the drawer lists the default first", offered, ["current", "reuse", "newTab"]);
+
+    // And the fallback in the funnel is that same value. Two readers — one of
+    // `DEFAULTS`, one of `enterDoc` — must not be able to disagree about what
+    // happens to somebody who never opened the settings drawer.
+    const fallback = /settings\.openIn \?\? "(current|reuse|newTab)"/.exec(TAB)?.[1];
+    check("the funnel's fallback is the shipped default", fallback, shipped.openIn);
+
+    // The contract names the commands it is a contract with. Prose that says
+    // "Emacs-like" without naming which command is prose a reader cannot check.
+    const spec = SETTINGS_SRC;
+    ok("the setting's own doc states the C-x b mapping", /`C-x b`/.test(spec));
+    ok("...and the C-x 4 f one", /`C-x 4 f`/.test(spec));
+    ok(
+      "...and says the arrangement survives the open, which is the whole claim",
+      /keeps the arrangement/.test(spec),
     );
   }
 
@@ -181,7 +235,7 @@ export async function run() {
       0,
     );
     ok("...and there is a funnel to call instead", /async function enterDoc\(/.test(TAB));
-    ok("...which reads the setting", /settings\.openIn \?\? "reuse"/.test(TAB));
+    ok("...which reads the setting", /settings\.openIn \?\? "current"/.test(TAB));
     ok("...and there are routes coming through it", callsTo("enterDoc").length >= 10);
   }
 

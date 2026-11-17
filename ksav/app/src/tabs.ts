@@ -276,6 +276,24 @@ export function moveAcross(
  * means *take me back to it*, not *give me a second window onto it*. The active
  * tab's own tree lives in the caller until it is stashed, so a caller asking
  * this must stash first or it is asking about the arrangement before last.
+ *
+ * # Why the *focused* pane is the whole answer (#138)
+ *
+ * The question was whether a document sitting in a pane that is not focused
+ * should count as "already shown". It should not, and the reason is not a
+ * shortcut: **a pane does not hold a document of its own.** The window renders
+ * one document at a time — one `EditorState` handed to every source pane
+ * (`panestate.showInEveryPane`) — so a tab's panes are views of *its* document
+ * and the focused pane is how a tab names it. `pane.docId` is bookkeeping: what
+ * a moved pane is allowed to arrive as (`canMoveInto` above), not a second text
+ * living in the pane.
+ *
+ * Counting a stale `docId` would therefore answer *"yes, that arrangement shows
+ * it"* about an arrangement that shows somebody else — and reuse would switch
+ * the writer to a tab that does not have their sefer in it, which is worse than
+ * the new tab it would have made. A window that really does need a pane holding
+ * a different document from its neighbour is #139's territory, and this becomes
+ * a different question on the day that exists.
  */
 export function showing(docId: string): number {
   return tabs.findIndex((tab) => focusedDoc(tab) === docId);

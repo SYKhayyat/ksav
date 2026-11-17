@@ -343,28 +343,57 @@ export interface Settings {
    * What happens to the arrangement you are standing in when you open a
    * document.
    *
-   * The report was *"opening a document replaces the one I had open"*, and it
-   * was true of every route into a document — the switcher, the Documents menu,
-   * the library, opening a file, an import, a share link, a rescued draft. Each
-   * one called `openDoc`, which puts the arriving sefer into the panes the
-   * writer was already using. Nothing was lost from disk; what was lost was the
-   * arrangement, which for somebody comparing two seforim side by side is the
-   * work.
+   * # The model, stated against Emacs
    *
-   * The `⧉` control existed on two rows and opened a second arrangement, so the
-   * capability was there and the default was the other way round. This makes the
-   * default the choice:
+   * `panes.ts` takes Emacs as its reference point, and this setting is the
+   * question that model asks first: *which window does the buffer appear in?*
+   * The three answers are Emacs's three, named by the commands a writer already
+   * knows from there:
    *
-   * · `reuse` — go to the arrangement already showing that document, and make a
-   *   new one only if there is none. What an editor does, and the default.
-   * · `newTab` — always a new arrangement, even onto a sefer already on screen.
-   * · `current` — open it here, over what you were reading. The old behaviour,
-   *   kept because a writer working in one document at a time wants exactly it.
+   * · `current` — **`C-x b` / `C-x C-f`.** The document arrives in the window
+   *   you are in, replacing what that window showed. The arrangement is
+   *   untouched: splits, pane sizes, roles and caret positions stay exactly as
+   *   they were, because they belong to the arrangement and not to the document.
+   *   This is the Emacs answer to "open a document", and it is the default.
+   * · `reuse` — **the `xref`/occur jump.** If an arrangement is already showing
+   *   that document, go to it rather than opening it a second time; make a new
+   *   arrangement only when none is. Reading a sefer in one tab and wanting the
+   *   other tab you left it in, this is the one that takes you back.
+   * · `newTab` — **`C-x 4 f` / `C-x 5 f`.** Always an arrangement of its own, even
+   *   onto a sefer already on screen. Two views of one document with independent
+   *   scroll and caret, which is a thing `panes.ts` supports on purpose.
    *
-   * It governs *opening*, never *switching*: closing a document, deleting one,
+   * # Why the default moved twice, and what settled it
+   *
+   * The first report was *"opening a document replaces the one I had open"*, and
+   * it was true of every route into a document — the switcher, the Documents
+   * menu, the library, opening a file, an import, a share link, a rescued draft.
+   * Each called `openDoc` directly, which put the arriving sefer into the panes
+   * the writer was already using. Nothing was lost from disk; what was lost was
+   * the arrangement, which for somebody comparing two seforim side by side is
+   * the work. The answer then was `reuse`, and the `⧉` control already opened a
+   * second arrangement, so the capability had been there and the default was the
+   * other way round.
+   *
+   * The second report is UAT item 34: *"opening a new or different document
+   * within a tab is not intuitive; the desired mental model is Emacs-like."*
+   * Both reports are about the same act, and they disagree — which is why this
+   * is now `current`: the writer's stated model is the one the rest of this file
+   * is built on, and "replaces what I had open" is only half of that complaint.
+   * What the first report needed was not a different default but a *choice*, and
+   * a visible one; `newTab`, `⧉` on the rows, and this setting are what it gets.
+   *
+   * The line each default draws in the sand is the same either way: a document
+   * opened into an arrangement **keeps the arrangement**.
+   *
+   * # What it does not govern
+   *
+   * *Switching*, never *opening*: closing a document, deleting one,
    * `goToLastDoc` and the session restore all pick a document to show in the
    * arrangement that is already there, and a new tab for any of them would be a
-   * tab nobody asked for.
+   * tab nobody asked for. `openDoc` is the switch; `enterDoc` in `tabstrip.ts`
+   * is the one door an *opening* comes through, and it is the only reader of
+   * this value.
    */
   openIn?: "reuse" | "newTab" | "current";
   /**
@@ -668,7 +697,7 @@ export const DEFAULTS: Settings = {
   // bug. `reuse` costs a writer who works in one document nothing — the sefer
   // they open is not already in a tab, so they get the one tab they had — and
   // gives the writer with two seforim their arrangement back.
-  openIn: "reuse",
+  openIn: "current",
   // `direction`, and not `middle`, which is what it shipped as. The report is
   // about reading rather than about preference: a fixed anchor is wrong in one
   // of the two directions and the writer notices it every time they scroll back.

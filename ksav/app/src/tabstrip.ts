@@ -286,8 +286,10 @@ export async function openInNewTab(docId: string) {
  * the wrong way round.
  *
  * `openIn` is the setting; see `Settings.openIn` for what the three answers
- * mean. This function is the only place that reads it, so a nineteenth route
- * into a document joins by calling this rather than by being remembered.
+ * mean and which Emacs command each one is (`current` is `C-x b`, and it is the
+ * default since UAT item 34). This function is the only place that reads it, so
+ * a nineteenth route into a document joins by calling this rather than by being
+ * remembered.
  *
  * What deliberately does **not** come through here: closing a document,
  * deleting one, `goToLastDoc`, and the session restore. Those pick a document
@@ -295,7 +297,10 @@ export async function openInNewTab(docId: string) {
  * tab nobody asked for.
  */
 export async function enterDoc(docId: string) {
-  const how = settings.openIn ?? "reuse";
+  // The fallback is the shipped default, and a test holds the two together: a
+  // reader of this line and a reader of `DEFAULTS` must not be able to disagree
+  // about what happens to somebody who never opened the settings drawer.
+  const how = settings.openIn ?? "current";
   // Already the document on screen: nothing to open, whatever the setting says.
   // Without this, `newTab` makes a second arrangement onto the sefer you are
   // already reading every time you click its own row in the switcher.

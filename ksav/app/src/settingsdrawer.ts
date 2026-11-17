@@ -856,10 +856,12 @@ export function buildSettingsDrawer(): HTMLElement {
       ["both", t("outlineJump.both")],
     ]),
     el("div", { class: "set-note" }, [t("outlineJumpNote")]),
+    // The default first, so the list reads as "this, unless you want one of the
+    // other two" rather than as a menu whose recommended item is in the middle.
     selectRow("openInLabel", "openIn", [
+      ["current", t("openIn.current")],
       ["reuse", t("openIn.reuse")],
       ["newTab", t("openIn.newTab")],
-      ["current", t("openIn.current")],
     ]),
     el("div", { class: "set-note" }, [t("openInNote")]),
     // One section for all of it, which the report asks for by name. The four

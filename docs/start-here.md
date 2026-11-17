@@ -322,6 +322,15 @@ switching between the two is switching desks rather than switching files. That i
 why moving a pane to another tab moves a view and never a file — and why nothing
 is closed by it.
 
+**Opening a document never takes the arrangement away.** A sefer arrives *here,
+over what is open* — Emacs's `C-x b`: the window you are in shows the new
+document, and the split, its sizes, its panes and their carets stay exactly as
+you left them, because those belong to the arrangement and not to the document.
+Two other answers are in *Settings → Where a document opens*: go to the
+arrangement already showing that sefer rather than opening it twice, or always
+make a new arrangement (`C-x 4 f`), which is how you get two views of one sefer
+with independent scroll and caret.
+
 **`Ctrl+Alt+,` locks the pane you are in to the section your cursor is in**, and
 `Ctrl+Alt+.` gives the rest of the sefer back. The strip at the top of the pane
 names the siman it is holding, so a pane showing four paragraphs is never

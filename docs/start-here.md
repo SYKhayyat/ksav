@@ -11,6 +11,9 @@ them. This page is Ksav on its own.
 
 ---
 
+In a hurry? [Your first document](first-document.md) is one page: open it, type,
+save, export a PDF. This page is the whole product.
+
 ## Getting it in front of you
 
 Three doors, and they are the same Ksav: one engine, one command vocabulary, one

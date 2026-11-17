@@ -6,12 +6,13 @@ It is aimed at Hebrew writers, with a first-class Torah/yeshiva path (siddur, be
 
 Your documents stay on your machine. Ksav has no account, no server, and uploads nothing.
 
-> **New here and not a Rust or TypeScript developer?** You do not need either language to use Ksav. Download an installer or open the browser editor, then begin with [`docs/start-here.md`](docs/start-here.md). The Rust engine and TypeScript editor are implementation details for contributors. You can report problems with screenshots and the document text, improve translations and documentation, or add templates without learning the internals. If you are contributing code, [`CONTRIBUTING.md`](CONTRIBUTING.md) gives the toolchain setup and the smallest verification command; [`docs/your-first-change.md`](docs/your-first-change.md) walks through one change from start to finish.
+> **New here and not a Rust or TypeScript developer?** You do not need either language to use Ksav. Download an installer or open the browser editor, then begin with [`docs/first-document.md`](docs/first-document.md) and then [`docs/start-here.md`](docs/start-here.md). The Rust engine and TypeScript editor are implementation details for contributors. You can report problems with screenshots and the document text, improve translations and documentation, or add templates without learning the internals. If you are contributing code, [`CONTRIBUTING.md`](CONTRIBUTING.md) gives the toolchain setup and the smallest verification command; [`docs/your-first-change.md`](docs/your-first-change.md) walks through one change from start to finish.
 
 ### Where to go
 
 | You are here to… | Go to |
 |---|---|
+| **write your first document** | [`docs/first-document.md`](docs/first-document.md) — one page, five minutes |
 | **use it** | [`docs/start-here.md`](docs/start-here.md) |
 | **switch from Word** | [`docs/from-word.md`](docs/from-word.md) |
 | **fix something that went wrong** | [`docs/troubleshooting.md`](docs/troubleshooting.md) |

@@ -193,7 +193,13 @@ are triaged into this plan.
   the shell's handling of an external address is #202's open half), and the version
   directly under it. Both languages. Fenced in `ksav/app/test/settings.test.mjs`, including
   that the note's "no telemetry" is true of the code. See the commit `5c364ff`.
-- [ ] A one-page "start here" guide for the first document.
+- [x] A one-page "start here" guide for the first document.
+  `docs/first-document.md`: open, type, save, export, and what to look at when the page
+  does not change. Linked from the README's "Where to go" table and from the top of
+  `docs/start-here.md`, which is the whole product rather than the first five minutes.
+  Every claim in it is checked against the code: the starter document, `Ctrl+S`, the
+  thirty-second autosave that stands down on a file changed elsewhere, the title-bar dot,
+  the File menu's export and print routes, `F1`.
 - [ ] Tag v0.3.0 and invite the friends.
 
 ## M4b — Public release (non-technical Hebrew writers), v1.0

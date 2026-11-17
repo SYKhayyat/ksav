@@ -84,7 +84,7 @@ jobs:
         id: pages
         uses: actions/configure-pages@v6
 
-      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: dtolnay/rust-toolchain@1.120.0
         with:
           targets: wasm32-unknown-unknown
       - uses: swatinem/rust-cache@v2

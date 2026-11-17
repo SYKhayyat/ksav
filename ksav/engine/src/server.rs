@@ -398,6 +398,16 @@ static IN_FLIGHT: AtomicUsize = AtomicUsize::new(0);
 /// Which services are layouts is [`Cost`] on the service, not a list here.
 /// Three of these wrappers used to exist, one per bounded route, and a fourth
 /// bounded route would have needed a fourth — written by whoever remembered.
+/// One compile slot, given back when the compile ends — by returning or by
+/// unwinding.
+struct Slot;
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 fn run_service(svc: &'static Service, body: String) -> String {
     match svc.cost {
         Cost::Layout => run_bounded(body, compile_deadline(), compile_slots(), |b| {
@@ -439,15 +449,38 @@ where
 
     let (tx, rx) = std::sync::mpsc::sync_channel::<String>(1);
     std::thread::spawn(move || {
+        // **The slot is released by a guard, not by the line after the work.**
+        //
+        // It was the line after: `IN_FLIGHT.fetch_sub` at the end of the thread.
+        // A compile that *panics* never reaches it, so the slot stayed charged
+        // forever — the cap is small (the pool size), so a handful of panicking
+        // documents would have left the writer with "the server is busy,
+        // {max}/{max} compiles in flight" on every later keystroke, with nothing
+        // running and no way to clear it short of a restart. A guard runs on
+        // unwind too, which is the only difference that matters here.
+        let slot = Slot;
         let out = work(body);
         // The buffer of one means this send succeeds even after the waiter has
         // given up, so the slot is released exactly when the work truly ends.
         let _ = tx.send(out);
-        IN_FLIGHT.fetch_sub(1, Ordering::SeqCst);
+        drop(slot);
     });
 
     match rx.recv_timeout(deadline) {
         Ok(json) => json,
+        // **A panic is not a timeout**, and the sender is what tells them apart:
+        // a detached compile that overran leaves its `tx` alive and the wait
+        // times out, while a compile that panicked drops `tx` on the way out and
+        // the receiver is *disconnected* — immediately, however long the deadline
+        // was. Reporting the second as the first said "the compile ran longer
+        // than thirty seconds and was abandoned" about a document that failed in
+        // two milliseconds, which is a sentence no investigation can start from.
+        //
+        // The document is not lost either way — the sources are the client's —
+        // so what a writer needs is: it was us, here is what to send.
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => error_json(
+            "ההידור נכשל בשל תקלה פנימית ולא בגלל המסמך — שמרו את הקובץ ופתחו תקלה,              וצרפו את המסמך אם אפשר · the compile failed with an internal error rather              than because of the document — save the file and open an issue, attaching              the document if you can",
+        ),
         // *Abandoned*, not stopped. Typst offers no interruption, so the compute
         // is still running on the detached thread above, still holding one of
         // `max` slots and still burning a core until it finishes on its own. The
@@ -1069,6 +1102,64 @@ mod tests {
         // Wait for the abandoned thread, so the slot count is not left charged
         // against the next test in this process.
         std::thread::sleep(Duration::from_millis(450));
+    }
+
+    /// A compile that **panics** is not a compile that was slow.
+    ///
+    /// Both used to arrive at the same `Err(_)` arm: the wait failed, so the
+    /// writer was told *"the compile ran longer than thirty seconds and was
+    /// abandoned — it will finish in the background"* about a document that
+    /// failed in two milliseconds. The sender is what tells them apart — an
+    /// overran compile leaves its `tx` alive and the wait times out, while a
+    /// panicking one drops it on the way out and the receiver is disconnected —
+    /// and the two sentences have to differ, because one is "wait" and the other
+    /// is "we have a bug, send it to us".
+    #[test]
+    fn a_compile_that_panics_is_not_reported_as_a_timeout() {
+        let started = std::time::Instant::now();
+        let json = run_bounded("x".into(), Duration::from_secs(30), 16, |_| {
+            panic!("a panic in the compile path")
+        });
+        let took = started.elapsed();
+        assert!(
+            json.contains("internal error") && json.contains("תקלה פנימית"),
+            "say that it was us, in both languages: {json}"
+        );
+        assert!(
+            !json.contains("abandoned") && !json.contains("ננטש"),
+            "and do not describe a panic as a slow compile: {json}"
+        );
+        assert!(
+            took < Duration::from_secs(5),
+            "the disconnect is immediate; waiting for the deadline would mean              the two cases are still being told apart by the clock: {took:?}"
+        );
+    }
+
+    /// And it gives its slot back.
+    ///
+    /// `IN_FLIGHT.fetch_sub` used to be the line after the work, so a panicking
+    /// compile left its slot charged for the life of the process. The cap is the
+    /// pool size, so a handful of bad documents left every later keystroke
+    /// answered with *"the server is busy — 16/16 compiles in flight"* with
+    /// nothing running and no way to clear it but a restart.
+    #[test]
+    fn a_panicking_compile_gives_its_slot_back() {
+        let before = super::IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst);
+        run_bounded("x".into(), Duration::from_secs(30), 16, |_| {
+            panic!("a panic that must not leak a slot")
+        });
+        // The guard runs as the panicking thread unwinds, which is on another
+        // thread: give it a moment rather than assuming the ordering.
+        for _ in 0..200 {
+            if super::IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) == before {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!(
+            "the slot leaked: {before} before, {} after",
+            super::IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst)
+        );
     }
 
     /// The sentence the **desktop** shows agrees with this one (#54).

@@ -2615,8 +2615,8 @@ fn grow_inline_reserve(body: &str, need_cm: f64) -> String {
     // — so the two operations that can be catastrophic here (a slice off the end,
     // a splice at a shifted offset) are the ones that must be unable to happen
     // even if that invariant is ever broken. Returning the body unchanged is
-    // always a legal answer; a panic during a keystroke is not, and there is no
-    // `catch_unwind` anywhere in this crate.
+    // always a legal answer; a panic during a keystroke is not, and nothing
+    // here guards a rewrite.
     let Some(token) = body.get(start..end) else {
         return body.to_string();
     };
@@ -2808,8 +2808,9 @@ pub(crate) fn engine_for(
     // `compile_with` is `pub`. A request and a `.ksav` are both gated on the way
     // in, but a library caller can hand `Assets` straight to this — and
     // `typst-as-lib` builds a `VirtualPath` from each name and `.expect()`s it,
-    // so a name with `..` in it is a **panic**, not a refused compile. There is no
-    // `catch_unwind` in this crate or in `server.rs`.
+    // so a name with `..` in it is a **panic**, not a refused compile. A compile
+    // panic is answered by `run_bounded` in `server.rs` now — a net, not a reason
+    // to rely on one.
     //
     // So the two gates answer two different questions and neither substitutes for
     // the other: the reader's gate is what lets a *writer* be told their file was

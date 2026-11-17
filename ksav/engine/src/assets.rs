@@ -204,12 +204,14 @@ impl Assets {
 ///
 /// 1. **`..` and a backslash** — these make `typst-as-lib`'s `VirtualPath::new`
 ///    **panic** (`conversions.rs`: `valid virtual path: Escapes` / `: Backslash`).
-///    There is no `catch_unwind` anywhere in this crate and in `server.rs`, so a
-///    compile request carrying an asset named `../x.png` or `C:\x.png` takes the
-///    worker thread down with it. That is the reason this function exists at all:
-///    a single unauthenticated request to `ksav serve` is a denial of service,
-///    and it is measured rather than argued — the names were run through
-///    `compile_with` and the process died.
+///    `server.rs`'s `run_bounded` now answers a panicking compile — the detached
+///    thread drops its sender and the writer is told it was an internal error
+///    rather than a slow document — but nothing outside that net is covered, and
+///    a panic is still the worst available answer. That is the reason this
+///    function exists at all: a single unauthenticated request to `ksav serve`
+///    must not be a denial of service, and it is measured rather than argued —
+///    the names were run through `compile_with` and, before this gate, the
+///    process died.
 /// 2. **An absolute path**, and **the prelude's own name** — the second is the one
 ///    the issue was about, and measuring it is how the impact turned out to be
 ///    *not* what the issue said. `main_source` does `#import "ksav.typ"`, and the

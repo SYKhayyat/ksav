@@ -86,6 +86,22 @@ export async function run() {
       check("the run says how it ended", run.verdict, "failed");
       check("…and which platform it was on", run.platform, "linux");
       ok("…and lists what it kept", run.kept.includes("measurement.json") && run.kept.includes("run.json"), JSON.stringify(run.kept));
+
+      // The milestone file is the one record that exists precisely when
+      // `boot.json` does not — a shell that stopped before `setup` (#189) — so
+      // leaving it out of this list is losing the only evidence of the failure
+      // that needs it. Measured: it was, on its first real run.
+      writeFileSync(path.join(scratch, "boot.phases"), "run\nbuilt\n");
+      keepEvidence({ scratch, keep, facts: { verdict: "failed" } });
+      check(
+        "how far the shell got is kept too",
+        readFileSync(path.join(keep, "boot.phases"), "utf8"),
+        "run\nbuilt\n",
+      );
+      ok(
+        "…and it is named in the run's own list",
+        JSON.parse(readFileSync(path.join(keep, "run.json"), "utf8")).kept.includes("boot.phases"),
+      );
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }

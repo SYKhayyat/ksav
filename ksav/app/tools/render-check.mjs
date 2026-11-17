@@ -115,7 +115,11 @@ export function keepEvidence({ scratch, keep, facts = {}, streams = {} }) {
   if (!keep) return null;
   mkdirSync(keep, { recursive: true });
   const kept = [];
-  for (const name of ["measurement.json", "boot.json"]) {
+  // Enumerated, so a file nobody added here is not kept — which is how
+  // `boot.phases` would have vanished on its first real run. It is the record
+  // of how far the shell got before it stopped (#189), and the reason it is
+  // worth having is that it exists in the case where `boot.json` does not.
+  for (const name of ["measurement.json", "boot.json", "boot.phases"]) {
     const from = scratch ? path.join(scratch, name) : null;
     if (from && existsSync(from)) {
       copyFileSync(from, path.join(keep, name));
@@ -385,6 +389,20 @@ if (invokedDirectly) {
   const childEnv = { ...process.env, ...env, KSAV_DPR_OUT: answer, KSAV_DPR_BOOT: boot };
   for (const key of cleared) delete childEnv[key];
 
+  /** How far the shell got, from the milestones it appends as it goes (#189). */
+  function phasesSaid() {
+    const file = boot.replace(/(^|\/)boot\.json$/, "$1boot.phases");
+    if (!existsSync(file)) return "no milestone was recorded — not even `run`";
+    const lines = readFileSync(file, "utf8")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (!lines.length) return "the milestone file exists and is empty";
+    // The last line is the answer: it is the call the process never came back
+    // from. Listed rather than reduced to one word so a reordering is visible.
+    return `reached ${lines.join(" → ")}, and no further`;
+  }
+
   /** What a timeout means here, in the runner's own terms. */
   function whySilent(child) {
     const facts = [
@@ -392,6 +410,7 @@ if (invokedDirectly) {
         `WAYLAND_DISPLAY=${cleared.includes("WAYLAND_DISPLAY") ? "(pinned to X11)" : (process.env.WAYLAND_DISPLAY ?? "(unset)")}`,
       `  rendering: ${nodes.length ? nodes.join(", ") : "no DRM render node — software path"}` +
         (Object.keys(env).length ? ` (${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(" ")})` : ""),
+      `  phases:    ${phasesSaid()}`,
     `  window:    ${
       existsSync(boot)
         ? `created; present ${JSON.stringify(labelsOf(readJson(boot)))}, probe asks for ${JSON.stringify(askedOf(readJson(boot)))}`

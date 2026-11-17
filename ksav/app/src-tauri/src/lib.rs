@@ -745,6 +745,31 @@ mod render_probe {
         std::env::var_os("KSAV_DPR_BOOT").map(std::path::PathBuf::from)
     }
 
+    /// How far towards a window this process got, in a file that outlives it.
+    ///
+    /// `report_boot` answers *did `setup` run*, and it can only answer once the
+    /// answer is yes. What the runner's `desktop shell` failure needs is the
+    /// other half: **which call it is sitting in**, because the whole run is
+    /// silent for 25 seconds with GTK up and not one line from WebKit. Measured
+    /// from the artifact of run 44127249182: 629 bytes, all of them
+    /// GTK/GLib/session-manager, none of them the webview.
+    ///
+    /// So each milestone appends a line to `<boot>.phases`, beside the record it
+    /// belongs to and carried off by the same upload. A missing line names the
+    /// interval, which is the thing six local reproductions could not do.
+    pub fn note_phase(phase: &str) {
+        let Some(path) = boot_path() else { return };
+        let path = path.with_extension("phases");
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            let _ = writeln!(file, "{phase}");
+            let _ = file.flush();
+        }
+    }
+
     /// Writes down that `setup` ran — and **which** windows exist, versus the
     /// one the probe asks for.
     ///
@@ -765,6 +790,7 @@ mod render_probe {
     fn report_boot(handle: &tauri::AppHandle) {
         use tauri::Manager as _;
         let Some(path) = boot_path() else { return };
+        note_phase("setup");
         let labels: Vec<String> = handle.webview_windows().keys().cloned().collect();
         let labels = serde_json::to_string(&labels).unwrap_or_else(|_| "[]".to_string());
         let record = format!("{{\"setup\":true,\"labels\":{labels},\"asked\":\"{WINDOW_LABEL}\"}}");
@@ -956,6 +982,22 @@ mod render_probe {
     }
 }
 
+/// A milestone on the way to a window, for the check that measures it (#189).
+///
+/// Two definitions rather than a `#[cfg]` at each call site: the milestones live
+/// in `run()`, which is the shipped entry point, and a shipped build has no
+/// `dpr-probe` module to call. Making the *fact* conditional keeps the sequence
+/// readable in the one function that has it, and it means a release build cannot
+/// be told apart from a probe build by its structure.
+#[cfg(feature = "dpr-probe")]
+fn note_phase(phase: &str) {
+    render_probe::note_phase(phase);
+}
+
+/// Nothing, in a build nobody measures.
+#[cfg(not(feature = "dpr-probe"))]
+fn note_phase(_phase: &str) {}
+
 /// The shell's command list, written once.
 ///
 /// The render check needs one command the page can call to report what it thinks
@@ -985,6 +1027,7 @@ macro_rules! ksav_commands {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    note_phase("run");
     let built = tauri::Builder::default();
 
     // **First**, before every other plugin, because this is the one that decides
@@ -1251,6 +1294,10 @@ pub fn run() {
         // Here is that moment.
         .build(tauri::generate_context!());
 
+    // The app object exists: Tauri has read its config and built every window it
+    // declares, so a stall from here on is inside the event loop rather than in
+    // startup (#189). This is the boundary the runner's silence could not name.
+    note_phase("built");
     match built {
         Ok(app) => app.run(|handle, event| {
             if matches!(event, tauri::RunEvent::Exit) {

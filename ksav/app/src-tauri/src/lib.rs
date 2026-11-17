@@ -186,7 +186,7 @@ async fn ksav_read_file(
     let p = PathBuf::from(&path);
     if !allowed.permits(&p) {
         return Err(format!(
-            "refusing to read a path that was not chosen in a dialog: {path}"
+            "{REFUSED}: refusing to read a path that was not chosen in a dialog: {path}"
         ));
     }
     std::fs::read_to_string(&p).map_err(|e| e.to_string())
@@ -206,6 +206,27 @@ async fn ksav_read_file(
 // pasted document or a future plugin would have turned it into arbitrary file
 // write. The dialogs now record what the user picked, and writes are checked
 // against that list at the Rust boundary.
+
+/// The prefix on a refusal this shell made **on purpose**, as opposed to one the
+/// operating system made.
+///
+/// Both arrive in the webview as the same kind of rejection, and the frontend has
+/// to tell them apart, because the answers are opposite:
+///
+///   · *This path was never chosen in a dialog* is not a fault. The session lost
+///     its allow-list (the app restarted) and the write needs a new dialog — so
+///     `files.saveTo` reports `false` and the caller offers Save-As.
+///   · *No space left on device*, *Access is denied*, *Read-only file system* are
+///     the disk refusing, and the only correct answer is to **say so**. Save-As
+///     puts the words nowhere and hides the reason.
+///
+/// Before this prefix, `files.saveTo` caught both and returned `false`, so a full
+/// disk produced a Save-As dialog, then another, and never a sentence naming the
+/// cause — while the `catch` in `fileui.saveFile` that names it was unreachable
+/// on the desktop, because the desktop route never threw. Matching our own
+/// sentence in the webview would have been the second copy of one string; a code
+/// in front of it is a fact both sides share.
+const REFUSED: &str = "path-not-allowed";
 
 /// Paths the user has chosen in a native dialog this session.
 #[derive(Default)]
@@ -421,10 +442,20 @@ async fn ksav_write_file(
     path: String,
     contents: String,
 ) -> Result<(), String> {
-    let p = PathBuf::from(&path);
+    write_allowed(&allowed, &path, &contents)
+}
+
+/// The rule, in a function a test can call without a `tauri::State`.
+///
+/// Two answers with two different meanings travel out of here, and the split is
+/// the point: `REFUSED` when the path was never chosen (a Save-As, not a fault),
+/// and the operating system's own sentence when the disk said no (space, access,
+/// read-only). See `REFUSED` above.
+fn write_allowed(allowed: &AllowedPaths, path: &str, contents: &str) -> Result<(), String> {
+    let p = PathBuf::from(path);
     if !allowed.permits(&p) {
         return Err(format!(
-            "refusing to write to a path that was not chosen in a dialog: {path}"
+            "{REFUSED}: refusing to write to a path that was not chosen in a dialog: {path}"
         ));
     }
     std::fs::write(&p, contents).map_err(|e| e.to_string())
@@ -1390,6 +1421,48 @@ mod tests {
             err.contains("not valid base64"),
             "the message names the problem: {err}"
         );
+    }
+
+    #[test]
+    fn a_write_says_which_of_the_two_refusals_it_is() {
+        // The frontend's whole answer depends on this distinction: `REFUSED`
+        // means "offer a dialog", anything else means "tell the writer what the
+        // disk said". `files.saveTo` matches the prefix, so the prefix is the
+        // contract — asserted here, where the string is produced.
+        let dir = std::env::temp_dir().join("ksav-refused-vs-disk");
+        std::fs::create_dir_all(&dir).unwrap();
+        let chosen = dir.join("chosen.ksav");
+        std::fs::write(&chosen, "").unwrap();
+
+        let allowed = AllowedPaths::default();
+        let err = write_allowed(&allowed, chosen.to_str().unwrap(), "טקסט")
+            .expect_err("a path that was never chosen is refused");
+        assert!(
+            err.starts_with(REFUSED),
+            "our own refusal carries the code, so the webview can tell it apart: {err}"
+        );
+
+        allowed.allow(&chosen);
+        write_allowed(&allowed, chosen.to_str().unwrap(), "טקסט")
+            .expect("a chosen path is written");
+        assert_eq!(std::fs::read_to_string(&chosen).unwrap(), "טקסט");
+
+        // …and the disk's refusal does *not* carry it, even for a path we allowed.
+        let mut perms = std::fs::metadata(&chosen).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&chosen, perms.clone()).unwrap();
+        match write_allowed(&allowed, chosen.to_str().unwrap(), "עוד") {
+            // Root on a POSIX box ignores the mode; there is nothing to assert.
+            Ok(()) => {}
+            Err(e) => assert!(
+                !e.starts_with(REFUSED),
+                "the disk's own words reach the writer, unserialized: {e}"
+            ),
+        }
+        // Restore by removing the file rather than by clearing the flag: clippy
+        // is right that `set_readonly(false)` means "world writable" on a Unix
+        // box, and the file is about to be deleted anyway.
+        let _ = std::fs::remove_file(&chosen);
     }
 
     #[test]

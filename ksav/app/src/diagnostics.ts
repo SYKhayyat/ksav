@@ -110,6 +110,29 @@ const TROUBLES: { match: RegExp; he: (d: { he: string }) => string; en: (d: { en
     en: (d) => `${d.en} never reached the server — check the engine is running`,
   },
   {
+    // **The disk is full**, in each operating system's own words.
+    //
+    // Nothing matched this, and the fact is the one a writer is most likely to
+    // meet: a sefer with its images, a PDF export, a full C:. There are two
+    // spellings on Windows (`os error 112`, "not enough space on the disk") and
+    // two on Linux (`os error 28`, "no space left on device"), and Tauri passes
+    // the operating system's sentence through verbatim, so these are the words to
+    // match — somebody else's prose, which is what `TROUBLES` is for.
+    match: /no space left|not enough space|enospc|disk (?:is )?full|os error 28\b|os error 112\b/i,
+    he: (d) => `${d.he} נכשלה — אין מקום פנוי בכונן`,
+    en: (d) => `${d.en} failed — there is no room left on the disk`,
+  },
+  {
+    // Read-only, rather than "no permission": the file or the volume is mounted
+    // read-only, and telling the writer to check permissions sends them to look
+    // at the wrong thing. Linux says it in those words (`os error 30`); Windows
+    // reports a read-only file as "Access is denied. (os error 5)", which the
+    // permission family below covers honestly enough.
+    match: /read-only file system|os error 30\b/i,
+    he: (d) => `${d.he} נכשלה — הקובץ או הכונן לקריאה בלבד`,
+    en: (d) => `${d.en} failed — the file or the volume is read-only`,
+  },
+  {
     match: /notallowederror|permission denied|access is denied/i,
     he: (d) => `${d.he} נמנעה — אין הרשאה לקובץ`,
     en: (d) => `${d.en} was blocked — no permission for the file`,

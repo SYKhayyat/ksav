@@ -16,6 +16,7 @@
 // that will not happen.
 
 import * as store from "./store";
+import { rawOf } from "./diagnostics";
 import * as docs from "./docs";
 
 export interface FileBinding {
@@ -164,6 +165,15 @@ function openViaInput(): Promise<OpenedFile | null> {
   });
 }
 
+/**
+ * The prefix `ksav_write_file` puts on its own refusals.
+ *
+ * See `REFUSED` in `src-tauri/src/lib.rs`: our refusal means "ask where to put
+ * it", the operating system's means "tell the writer what the disk said". One
+ * string, both sides, no prose-matching of our own sentence.
+ */
+const PATH_REFUSED = "path-not-allowed";
+
 // ---------------------------------------------------------------- save
 
 /** Write to the bound file. Returns false if this binding cannot be written to. */
@@ -172,12 +182,29 @@ export async function saveTo(binding: FileBinding, text: string): Promise<boolea
     try {
       await tauriInvoke("ksav_write_file", { path: binding.path, contents: text });
       return true;
-    } catch {
+    } catch (e) {
+      // **Two refusals arrive here and they need opposite answers.**
+      //
       // The desktop shell only permits writes to paths chosen in a dialog this
       // session, so a binding recalled from a previous run is refused. That is
       // not an error to report — it is a Save-As, exactly as a browser handle
-      // whose permission has lapsed becomes one.
-      return false;
+      // whose permission has lapsed becomes one. `ksav_write_file` names it with
+      // `path-not-allowed`.
+      //
+      // Everything else is the *disk* refusing: no space left, access denied, a
+      // read-only file system. This used to catch those too and return `false`,
+      // so a full disk put a Save-As dialog in front of the writer, then another
+      // when that failed, and never a sentence naming the cause — while
+      // `fileui.saveFile`'s `catch`, which does name it, was unreachable on the
+      // desktop because `saveTo` never threw. The words stayed in memory and in
+      // the library either way, which is why the loss was of *information* only;
+      // but a writer told "choose a place" while the real answer is "this disk is
+      // full" will keep choosing places.
+      //
+      // A browser handle's write failure already throws through the other branch,
+      // so this makes the two tiers behave the same way.
+      if (rawOf(e).includes(PATH_REFUSED)) return false;
+      throw e;
     }
   }
   if (binding.kind === "handle" && binding.handle) {
@@ -224,19 +251,28 @@ export async function saveAs(suggestedName: string, text: string): Promise<FileB
     return { kind: "tauri", name: baseName(path), path };
   }
   if (hasFsAccess()) {
+    let handle: FileSystemFileHandle | null = null;
     try {
-      const handle = await (window as never as {
+      handle = await (window as never as {
         showSaveFilePicker(o: unknown): Promise<FileSystemFileHandle>;
       }).showSaveFilePicker({
         suggestedName: name,
         types: [{ description: "Ksav document", accept: { "text/plain": [".ksav"] } }],
       });
-      const binding: FileBinding = { kind: "handle", name: handle.name, handle };
-      await saveTo(binding, text);
-      return binding;
     } catch {
-      return null; // dismissed
+      return null; // dismissed, which is not a failure
     }
+    const binding: FileBinding = { kind: "handle", name: handle.name, handle };
+    // **The write is outside the `catch` that means "dismissed".**
+    //
+    // It was inside it, so a destination the writer *did* choose and the disk
+    // then refused — a full disk, a read-only folder — came back as `null` and
+    // the caller read that as "they closed the dialog": no sentence, no entry in
+    // the library, nothing said, and a Save-As that did not happen looks exactly
+    // like one that was called off. The picker's own rejection is the cancelled
+    // dialog; the write's is a fault.
+    await saveTo(binding, text);
+    return binding;
   }
   download(name, text);
   return { kind: "download", name };

@@ -23,6 +23,17 @@ export async function run() {
     ["NotAllowedError: The request is not allowed", "save_file", "הרשאה"],
     ["NotFoundError: A requested file could not be found", "save_file", "אינו נמצא"],
     ["QuotaExceededError: quota exceeded", "save_file", "אחסון"],
+    // The disk's own two answers, in the words the operating systems use.
+    // Nothing matched either of them, so a full disk on the desktop produced
+    // "failed · details on hover" — and, before `saveTo` stopped swallowing it,
+    // not even that: a Save-As dialog and no sentence at all.
+    ["No space left on device (os error 28)", "save_file", "אין מקום פנוי"],
+    ["There is not enough space on the disk. (os error 112)", "save_file", "אין מקום פנוי"],
+    ["Read-only file system (os error 30)", "save_file", "לקריאה בלבד"],
+    // Windows spells a read-only *file* as access-denied, which the permission
+    // family already answers — asserted so a future reader can see the gap is
+    // deliberate rather than missed.
+    ["Access is denied. (os error 5)", "save_file", "הרשאה"],
   ];
   for (const [message, doing, wanted] of cases) {
     const t = troubleSaid(message, doing);

@@ -34,7 +34,8 @@ import {
   saveRoute,
   FILE_AUTOSAVE_MS,
 } from "../.tmp-test/save.mjs";
-import { canWriteBack, supportsRealFiles, fileStamp } from "../.tmp-test/files.mjs";
+import { canWriteBack, supportsRealFiles, fileStamp, saveTo, saveAs } from "../.tmp-test/files.mjs";
+import { troubleSaid } from "../.tmp-test/diagnostics.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
 import * as docs from "../.tmp-test/docs.mjs";
 
@@ -351,6 +352,95 @@ export async function run() {
       runtime.setSwitching(false);
       await saveNow();
       ok("and it is written once the switch is done", !!(await docs.getDoc("d2")));
+    }
+
+    // ------------------------------- the two refusals a desktop save can meet
+    //
+    // `ksav_write_file` answers one of two ways and the answers are opposite:
+    // *this path was never chosen in a dialog* is a Save-As, and *the disk
+    // refused* is a sentence for the writer. `saveTo` caught both and returned
+    // `false`, so a full disk produced a Save-As dialog, then another, and never
+    // a word about the disk — while `fileui.saveFile`'s `catch`, which does name
+    // it, was unreachable on the desktop because this function never threw.
+    //
+    // The stub is `@tauri-apps/api`'s real `invoke`, which reads
+    // `window.__TAURI_INTERNALS__.invoke` — so what is asserted below is the
+    // route that ships, not a mock of it.
+    {
+      let answer = async () => null;
+      const asked = [];
+      globalThis.window.__TAURI_INTERNALS__ = {
+        invoke: async (cmd) => {
+          asked.push(cmd);
+          return answer();
+        },
+      };
+      try {
+        ok("the stub is a desktop window", supportsRealFiles(), "no __TAURI_INTERNALS__");
+        answer = async () => {
+          throw "path-not-allowed: refusing to write to a path that was not chosen in a dialog: /tmp/kuntres.ksav";
+        };
+        check("a path this session never chose is not a fault", await saveTo(TAURI, "טקסט"), false);
+
+        const disk = "No space left on device (os error 28)";
+        answer = async () => {
+          throw disk;
+        };
+        let caught = null;
+        try {
+          await saveTo(TAURI, "טקסט");
+        } catch (e) {
+          caught = e;
+        }
+        check("the disk's refusal is thrown, not turned into a false", caught, disk);
+        ok(
+          "…and it reaches the writer as a sentence about the disk",
+          troubleSaid(caught, "save_file").said.includes("no room left on the disk"),
+          troubleSaid(caught, "save_file").said,
+        );
+        check("both refusals were asked of the shell", asked.length, 2);
+      } finally {
+        delete globalThis.window.__TAURI_INTERNALS__;
+      }
+    }
+
+    // --------------- and the browser tier: a dismissed dialog is not a refusal
+    //
+    // `saveAs` had one `try` around both the picker and the write, so a
+    // destination the writer chose and the disk then refused came back as
+    // `null` — indistinguishable from "they closed the dialog", and nothing was
+    // said. A Save-As that did not happen looked exactly like one called off.
+    {
+      globalThis.window.showSaveFilePicker = async () => ({
+        name: "kuntres.ksav",
+        createWritable: async () => ({
+          write: async () => {
+            throw "QuotaExceededError: quota exceeded";
+          },
+          close: async () => {},
+        }),
+      });
+      try {
+        let caught = null;
+        try {
+          await saveAs("kuntres", "טקסט");
+        } catch (e) {
+          caught = e;
+        }
+        ok(
+          "a chosen destination the disk refuses is a fault, not a dismissal",
+          caught !== null,
+          "saveAs returned as if the dialog had been closed",
+        );
+        check("…and null still means dismissed", await (async () => {
+          globalThis.window.showSaveFilePicker = async () => {
+            throw new DOMException("cancelled", "AbortError");
+          };
+          return saveAs("kuntres", "טקסט");
+        })(), null);
+      } finally {
+        delete globalThis.window.showSaveFilePicker;
+      }
     }
   } finally {
     runtime.setSwitching(false);

@@ -436,7 +436,18 @@ export function confirmWriteWords(): files.ConfirmWords {
 export async function saveFileAs() {
   closeMenus();
   const text = await fileText();
-  const binding = await files.saveAs(runtime.currentDoc.title || "document", text);
+  // A dismissed dialog and a refused disk are different answers, and `saveAs`
+  // now throws for the second one — the browser tier the same way the desktop
+  // tier does. This was the only door to a file on disk in the browser, so a full
+  // disk here used to end in silence: no save, no idea why.
+  let binding: files.FileBinding | null = null;
+  try {
+    binding = await files.saveAs(runtime.currentDoc.title || "document", text);
+  } catch (e) {
+    const bad = troubleSaid(e, "save_file");
+    setStatus(`${t("saveFailed")} — ${bad.said}`, "err", bad.detail);
+    return;
+  }
   if (!binding) return;
   runtime.setCurrentBinding(binding);
   await docs.setFileName(runtime.currentDoc.id, binding.name);

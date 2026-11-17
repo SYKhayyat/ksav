@@ -18,8 +18,12 @@
 // the label the probe asked for — and this file asserts all three answers,
 // because each answer is a claim about which half of the program to open.
 
+import { readFileSync } from "node:fs";
 import { ok, check } from "./harness.mjs";
 import { whyNoAnswer, whyNoWindow } from "../tools/render-check.mjs";
+
+/** A source file this test reads as text, relative to `app/`. */
+const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
 export async function run() {
   // --- a clean exit is not a webview fault (#196) ---------------------------
@@ -118,6 +122,38 @@ export async function run() {
     ok(
       "one matching label among several is still the page's problem",
       said.includes("the page is the\n  side to look at"),
+    );
+  }
+
+  // --- the failing run collects what the passing run never needed -----------
+  //
+  // WebKitGTK is silent at its default verbosity. Every attempt at #189 came
+  // back with one AT-SPI warning line and no more information than "the window
+  // was never created", and the reason is measurable: on a forced timeout
+  // `app.err.log` is 0 bytes and the same run with the webview's logging on is
+  // 2,525. So the check asks for that itself, on the failure path, because the
+  // environment has to be decided before the child starts.
+  {
+    const source = read("tools/render-check.mjs");
+    ok(
+      "a run that never answers re-runs the child with WebKit's logging on",
+      /WEBKIT_DEBUG:\s*"all"/.test(source) && /G_MESSAGES_DEBUG:\s*"all"/.test(source),
+    );
+    ok(
+      "…and keeps that output beside the rest of the evidence",
+      source.includes('"app.err.debug.log"'),
+    );
+    // The order is the assertion: asking for the log before the run fails would
+    // pay a second 25 seconds on every green pass.
+    const failedAt = source.indexOf("if (!existsSync(answer)) {");
+    const retryAt = source.indexOf("WEBKIT_DEBUG:");
+    ok(
+      "…only after the first run has been found to have failed",
+      failedAt > 0 && retryAt > failedAt,
+    );
+    ok(
+      "…and the failure message says how much it collected",
+      source.includes("WebKit was asked to explain itself and said"),
     );
   }
 

@@ -429,18 +429,19 @@ if (invokedDirectly) {
     // investigation was written against. Windows has no `bash` on a plain
     // machine, and the wrapper buys nothing there — `exec` is what a direct
     // spawn already is — so the binary is started directly (#193).
-    const child =
-      process.platform === "win32"
-        ? spawnSync(binary, [], {
-            stdio: ["ignore", "pipe", "pipe"],
-            timeout: ANSWER_BY_MS,
-            env: childEnv,
-          })
-        : spawnSync("bash", ["-c", `exec ${JSON.stringify(binary)}`], {
-            stdio: ["ignore", "pipe", "pipe"],
-            timeout: ANSWER_BY_MS,
-            env: childEnv,
-          });
+    // The spawn in one place, so the retry below starts the same program the run
+    // started rather than a second description of it.
+    const startChild = (extra = {}) => {
+      const options = {
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: ANSWER_BY_MS,
+        env: { ...childEnv, ...extra },
+      };
+      return process.platform === "win32"
+        ? spawnSync(binary, [], options)
+        : spawnSync("bash", ["-c", `exec ${JSON.stringify(binary)}`], options);
+    };
+    const child = startChild();
     // The whole of what the app said, kept rather than tail-ed. The message below
     // still shows the last lines, because a message has to stay readable; this is
     // the record (#190).
@@ -462,11 +463,35 @@ if (invokedDirectly) {
     }
 
     if (!existsSync(answer)) {
+      // The webview's own words, collected by the run that failed rather than by
+      // the person reading it later.
+      //
+      // WebKitGTK says nothing at its default verbosity — which is why every
+      // attempt at #189 came back with one AT-SPI warning line and no more
+      // information than "the window was never created". Turning its logging on
+      // has to happen in the child's environment, so it cannot be decided after
+      // the fact; the honest place is here, on the failure path.
+      //
+      // The cost is one more ANSWER_BY_MS on a run that has already failed, and
+      // it is not paid on a pass. Against that: a push-and-read round trip is the
+      // alternative, and that is what this replaces.
+      console.log("→ the page never answered; asking the webview what it thinks");
+      const verbose = startChild({ WEBKIT_DEBUG: "all", G_MESSAGES_DEBUG: "all" });
+      const debugLog = `${verbose.stdout ?? ""}${verbose.stderr ?? ""}`;
+      recorded.streams["app.err.debug.log"] = debugLog;
+      recorded.facts.child.debug = {
+        status: verbose.status,
+        signal: verbose.signal ?? null,
+        bytes: debugLog.length,
+        answered: existsSync(answer),
+      };
+
       // `whyNoAnswer` names which half of the program to open next, and it is the
       // right paragraph for two of the three no-window states. In the third the
       // shell never should have quit, so its paragraph would contradict the line
       // above it (#196).
       const noWindow = whyNoWindow(child);
+      const said = recorded.facts.child.debug;
       fail(
         `the application ran and the page never answered (${ANSWER_BY_MS}ms).\n\n` +
           "  Nothing was written to the measurement file. What the run looked like:\n\n" +
@@ -477,7 +502,13 @@ if (invokedDirectly) {
                 labelsOf(existsSync(boot) ? readJson(boot) : null),
                 askedOf(existsSync(boot) ? readJson(boot) : null),
               )
-            : noWindow.advice),
+            : noWindow.advice) +
+            "\n\n" +
+            (said
+              ? `  WebKit was asked to explain itself and said ${said.bytes} bytes ` +
+                `(status ${said.status ?? "none"}${said.answered ? ", and the page answered on the retry" : ""}).\n` +
+                "  That output is `app.err.debug.log` beside this run's evidence."
+              : "  WebKit's own log was not collected."),
       );
     }
 

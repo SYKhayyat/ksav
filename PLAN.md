@@ -38,7 +38,7 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
 Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 
-- [ ] #189 desktop shell job is red: the webview never reaches `setup` on the runner. #171's layers 1–2 and its reporting are done (`37cd10f`), which is how this was narrowed to the webview rather than the page.
+- [ ] #189 desktop shell job is red: the webview never reaches `setup` on the runner. #171's layers 1–2 and its reporting are done (`37cd10f`), which is how this was narrowed to the webview rather than the page. The failing run now collects WebKit's own log by itself — a forced timeout measures `app.err.log` at 0 bytes against 2,525 with the webview's logging on, so the next red run answers a question that six local reproductions could not.
 - [ ] #171 the umbrella #189 was carved out of. Its remaining scope is #189, so it closes when that does.
 - [x] #193 the measurement layer assumes Linux three ways: the gate skips `shell-clippy`/`shell-tests` on Windows although both pass there (measured), the render check refuses to start where a display always exists, and it looks for `app` rather than `app.exe`. Together: no shell check at all on the owner's main platform.
 - [x] #190 the render check deletes its evidence and the CI job uploads none. Fix this before #189 is chased any further, or every attempt costs a push and returns one warning line.

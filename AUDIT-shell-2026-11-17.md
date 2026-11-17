@@ -58,8 +58,10 @@ disables terminal prompts, and never passes a shell. So the worst a name-and-JSO
 caller achieves is *a fixed git operation in a directory the process can reach* —
 a real capability, and not a command injection.
 
-The loopback desk, the other network edge, binds `127.0.0.1:0`
-(`girsa-post/src/desk.rs:102`) with a token written beside the endpoint file, and
+The loopback desk, the other network edge, binds `127.0.0.1:0` — in
+`Desk::open` of the pinned `girsa-post` dependency, which is the one piece of this
+boundary that does not live in this repository, so it is quoted rather than linked
+— with a token written beside the endpoint file, and
 `Drop` closes the listener (`Server::unblock` then join) rather than leaking a
 bound port. Verified in the dependency's source, since it is the one piece of
 this boundary that lives outside the repository.

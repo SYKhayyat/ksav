@@ -46,7 +46,7 @@ import {
   importOrg,
   copyShareLink,
 } from "./fileui";
-import { renameDoc, newDoc } from "./docswitch";
+import { renameDoc } from "./docswitch";
 import * as files from "./files";
 import { voidAction } from "./asyncaction";
 import { hasUnsavedFileChanges } from "./save";
@@ -273,12 +273,11 @@ export function buildHeader(): HTMLElement {
   // does not wait, and reports a failure as a status line. A cancelled picker
   // throws `CANCELLED` and says nothing, which is why cancelling is quiet.
   //
-  // The four that are not wrapped do not return promises: `newDoc`,
-  // `save`→`saveFile`, and `saveAsTemplate` are `async` and therefore *are*
-  // wrapped; what is left is nothing — every entry below is a `voidAction` call,
-  // and `asyncaction.test.mjs` reads this table and fails if one is not.
+  // Nothing here is a bare function reference: every entry is a `voidAction`
+  // call, and `asyncaction.test.mjs` reads this table and fails if one is not.
+  // `newDoc` is no longer among them — *File ▸ New document* was removed in
+  // #128, and Documents is its one home.
   const FILE_RUN: Record<header.FileItemId, () => void> = {
-    newDoc,
     open: () => voidAction("save_file", () => openFile()),
     save: () => voidAction("save_file", () => saveFile()),
     saveAs: () => voidAction("save_file", () => saveFileAs()),

@@ -279,7 +279,6 @@ export function isSep(e: MenuEntry): e is { sep: true } {
  * as…" would promise a binding that is not going to exist.
  */
 export type FileItemId =
-  | "newDoc"
   | "open"
   | "save"
   | "saveAs"
@@ -291,12 +290,17 @@ export type FileItemId =
 
 export function fileItems(realFiles: boolean): (({ id: FileItemId } & MenuRow) | { sep: true })[] {
   return [
-    // Reachable here because *File ▸ New* is the muscle memory (Word, LibreOffice,
-    // every editor), and owned by Documents because that is what it makes: an
-    // entry in the library, not a file. The description says where it lives, so
-    // the second door is marked rather than being the duplicate UAT 25 found
-    // (#128).
-    { id: "newDoc", label: t("newDoc"), desc: aliasDesc("newDoc", "file") },
+    // **No New document here, deliberately** (#128).
+    //
+    // It lived in both menus: *File ▸ New document* for the muscle memory every
+    // editor has, and *Documents ▸ New document* because that is where a writer
+    // looks for their own documents — and UAT 25 read the pair as one more thing
+    // it could not tell apart. Marking the duplicate ("Also in Documents") was
+    // the conservative first step; the owner's call was to remove it, and he is
+    // right that there is nothing to be compatible with yet. One action, one
+    // home: **Documents**, which is what a new document is — an entry in the
+    // library, not a file. `ACTION_HOME` still records that, so a second door
+    // cannot be added back without a test noticing.
     { id: "open", label: t("open") },
     { id: "save", label: t("save") },
     { id: "saveAs", label: realFiles ? t("saveAs") : t("saveCopy") },
@@ -473,6 +477,12 @@ export function docTitle(
  * [`aliasDesc`] and the `alsoIn` string.
  */
 export const ACTION_HOME: Record<string, "file" | "documents"> = {
+  // Documents owns it, and **only** Documents carries it: the File menu's copy
+  // was removed on 2026-11-17 rather than marked (#128). The entry stays in the
+  // table because it is the fact a reader wants (*where does a new document
+  // live*) and because `aliasDesc` reads it: an entry added back under File
+  // would immediately be marked — or, with this comment removed, immediately
+  // noticed by `header.test.mjs`.
   newDoc: "documents",
   saveAs: "file",
 };

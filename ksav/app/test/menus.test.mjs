@@ -12,6 +12,7 @@ import { ACTION_COMMAND, PLACED_COMMANDS, actionForCommand } from "../.tmp-test/
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
 import { commands } from "../tools/commands.mjs";
 import { docsActions, docsLegend } from "../.tmp-test/ribbon.mjs";
+import { fileItems, isSep } from "../.tmp-test/header.mjs";
 import { setLang } from "../.tmp-test/i18n.mjs";
 
 export async function run() {
@@ -140,6 +141,14 @@ export async function run() {
     );
     // Every action that appears in both menus is marked on exactly one side, and
     // the mark names the other menu. An action in one menu needs no mark.
+    // The deduplication itself (#128): every action lives in exactly one menu,
+    // and only the ones the owner chose to keep twice are marked. `newDoc` was
+    // removed from File rather than aliased, so it must not be in the File list
+    // at all — asserted here as well as in `header.test.mjs`, from the menu side.
+    ok(
+      "New document is not in the File menu",
+      !fileItems(true).some((e) => !e.sep && e.id === "newDoc"),
+    );
     const both = docs.filter((r) => r.desc);
     check(
       "the aliases are exactly the two-menu actions",

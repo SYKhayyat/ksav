@@ -342,10 +342,21 @@ export async function run() {
     check("New document is the library's, not the disk's", ACTION_HOME.newDoc, "documents");
     check("Save as is the disk's, not the library's", ACTION_HOME.saveAs, "file");
     check("the owning menu's row is not marked as an alias", aliasDesc("saveAs", "file"), undefined);
-    const marked = aliasDesc("newDoc", "file");
-    ok("the second door says where the first one is", !!marked && marked.includes("Documents"), marked);
-    const row = fileItems(true).find((e) => !isSep(e) && e.id === "newDoc");
-    check("and the File menu's row carries it", row?.desc, marked);
-    check("Save as carries nothing — File owns it", fileItems(true).find((e) => !isSep(e) && e.id === "saveAs")?.desc, undefined);
+    // Save-as keeps its second door and marks it; New document does not — the
+    // owner's call on 2026-11-17 was to remove the duplicate rather than mark
+    // it, since there is nothing to be compatible with yet. So the assertion is
+    // an absence, which is the stronger form: a row added back to File fails
+    // here before it can ship as the duplicate UAT 25 found.
+    check(
+      "File has no New document — Documents is its one home",
+      fileItems(true).filter((e) => !isSep(e) && e.id === "newDoc").map((e) => e.id),
+      [],
+    );
+    ok(
+      "…and an entry under File would be marked if one ever came back",
+      (aliasDesc("newDoc", "file") ?? "").includes("Documents"),
+      aliasDesc("newDoc", "file"),
+    );
+    check("Save as is owned here and carries nothing", fileItems(true).find((e) => !isSep(e) && e.id === "saveAs")?.desc, undefined);
   }
 }

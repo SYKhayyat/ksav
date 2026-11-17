@@ -1301,3 +1301,34 @@ export function setSetting<K extends Field>(key: K, value: ValueOf<K>): void {
 export function setPageSetup(change: PageSetup): void {
   wiring().setPageSetup(change);
 }
+
+/**
+ * What a setting reads as **now** (B26).
+ *
+ * A page field is the document's, full stop — see the note at the top of this
+ * file about `Settings` no longer extending `DocConfig`. There is no fallback to
+ * an app preference and there must not be: `docConfig()` already lays the
+ * document out over the shipped defaults, so `undefined` means the document has
+ * genuinely not said, which for the four per-edge margins and the note region is
+ * their ordinary state and a real instruction.
+ *
+ * This was `main.ts`'s. It moved here because every name it reads — `settings`,
+ * `docConfig`, `isPageField` — is this file's, and it is the one reader that
+ * decides which of those two a page field comes from.
+ */
+export function now<K extends Field>(key: K): ValueOf<K> {
+  // A page field is the **document's**, full stop. There is no fallback to an
+  // app preference and there must not be: `docConfig()` already lays the
+  // document out over the shipped defaults, so `undefined` here means the
+  // document has genuinely not said — which for the four per-edge margins and
+  // the note region is their ordinary state and a real instruction ("follow the
+  // one margin", "decide from the document").
+  //
+  // It used to fall through to `settings[key]` in exactly that case, so the
+  // panel could print a top margin the page was not laid out on, with nothing
+  // to tell the writer which of the two numbers had been used.
+  if (isPageField(key)) {
+    return (docConfig() as unknown as Record<string, unknown>)[key] as ValueOf<K>;
+  }
+  return settings[key as keyof Settings] as ValueOf<K>;
+}

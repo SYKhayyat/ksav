@@ -27,7 +27,7 @@ import { el, glyphBtn } from "./dom";
 import * as runtime from "./runtime";
 import { jumpTo } from "./runtime";
 import { contextBar } from "./contextbar";
-import { openPanel, togglePanel, panelHead, panelLede, overlayPanel } from "./panels";
+import { openPanel, togglePanel, panelHead, panelLede, overlayPanel, isPanelOpen, localise, rebuildOpenPanels } from "./panels";
 import { docTextOf, plainText } from "./spans";
 import { settings, saveSettings } from "./settings";
 import * as save from "./save";
@@ -389,4 +389,25 @@ export function render() {
   togglePanel("outline-drawer", settings.outline);
   togglePanel("notes-drawer", !!settings.notesPane);
   togglePanel("marks-drawer", !!settings.marksPane);
+}
+
+export function rerenderChrome() {
+  applyUiDir();
+  nameGutterMarks();
+  const app = document.getElementById("app")!;
+  app.querySelector("header")?.replaceWith(buildHeader());
+  // settings drawer keeps open state
+  const drawerOpen = isPanelOpen("settings-drawer");
+  document.getElementById("settings-drawer")!.replaceWith(buildSettingsDrawer());
+  if (drawerOpen) openPanel("settings-drawer");
+  // Every label built once at boot and marked with its key — the panel heads,
+  // the drawer names, the palette's placeholder. `panels.localise` is the one
+  // that knows how each kind of label is set; this used to be four lines here
+  // that swept for `[data-i18n]` and found nothing, because nothing produced
+  // one. See `panelHead`.
+  localise();
+  // …and every open surface with a pure renderer re-renders. The flip used to
+  // stop here, and a git drawer or a notes pane stayed in the old language
+  // until its next interaction.
+  rebuildOpenPanels();
 }

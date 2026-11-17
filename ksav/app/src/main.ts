@@ -1,8 +1,8 @@
 import "./styles.css";
 import { EditorView } from "@codemirror/view";
 import { buildExtensions } from "./editorstate";
-import { applyTheme, applySourceZoom, applyUiDir, nameGutterMarks, updateCounts } from "./layout";
-import { buildHeader, wireHeader } from "./appheader";
+import { applyTheme, applySourceZoom, updateCounts, rerenderChrome } from "./layout";
+import { wireHeader } from "./appheader";
 import { EditorState } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { undo, redo } from "@codemirror/commands";
@@ -72,20 +72,19 @@ import * as runtime from "./runtime";
 import { setStatus, closeMenus, editDoc } from "./runtime";
 import { docTextNow, wireChrome } from "./ribbon";
 import { updateContextBar } from "./contextbar";
-import { openPanel, closePanel, togglePanel, isPanelOpen, wirePanel, closeOnEscape, handleEscape, closeOnOutsideClick, localise, rebuildOpenPanels } from "./panels";
+import { openPanel, closePanel, togglePanel, isPanelOpen, wirePanel, closeOnEscape, handleEscape, closeOnOutsideClick } from "./panels";
 import { docTextOf } from "./spans";
 import {
   settings,
   saveSettings,
   applyPreset,
   undoPreset,
-  isPageField,
   docConfig,
   setSetting,
   setPageSetup,
+  now,
   wireSettingsWrite,
 } from "./settings";
-import type { Field, Settings, ValueOf } from "./settings";
 // The alignment pair is read and written as a unit rather than field by field —
 // see `alignRow` — so it comes in under a namespace instead of as four more
 // names in the list above.
@@ -111,7 +110,7 @@ import * as heads from "./headings";
 import * as macros from "./macros";
 import { openHelp, renderHelp } from "./help";
 import { renderOutline, renderNotesPane, renderMarksPane, renderFindPane, drawList, LOOKS, wireRows } from "./rowlists";
-import { buildSettingsDrawer, captureShortcut, resetShortcuts, wireSettings } from "./settingsdrawer";
+import { captureShortcut, resetShortcuts, wireSettings } from "./settingsdrawer";
 import { applyCustomStyle, unwrapCustomStyle, openNewStyle, openStyleEditor } from "./customstyles";
 import { openStylesFor, renderStylesPanel, wireStyles } from "./stylespanel";
 import { destinationRows, wireDestinations } from "./destinations";
@@ -1101,22 +1100,6 @@ let inAction = 0;
  * One reader, because a panel that writes to the document and reads from the app
  * is a panel whose numbers jump back the moment you reopen it.
  */
-function now<K extends Field>(key: K): ValueOf<K> {
-  // A page field is the **document's**, full stop. There is no fallback to an
-  // app preference and there must not be: `docConfig()` already lays the
-  // document out over the shipped defaults, so `undefined` here means the
-  // document has genuinely not said — which for the four per-edge margins and
-  // the note region is their ordinary state and a real instruction ("follow the
-  // one margin", "decide from the document").
-  //
-  // It used to fall through to `settings[key]` in exactly that case, so the
-  // panel could print a top margin the page was not laid out on, with nothing
-  // to tell the writer which of the two numbers had been used.
-  if (isPageField(key)) {
-    return (docConfig() as unknown as Record<string, unknown>)[key] as ValueOf<K>;
-  }
-  return settings[key as keyof Settings] as ValueOf<K>;
-}
 /**
  * Change a setting — of the document, or of the application (B26).
  *
@@ -1215,26 +1198,6 @@ function stepZoom(by: number): boolean {
  * the margin and the line in the help say the same sentence — a legend and a
  * tooltip that are two hand-written lists are two lists that disagree.
  */
-function rerenderChrome() {
-  applyUiDir();
-  nameGutterMarks();
-  const app = document.getElementById("app")!;
-  app.querySelector("header")?.replaceWith(buildHeader());
-  // settings drawer keeps open state
-  const drawerOpen = isPanelOpen("settings-drawer");
-  document.getElementById("settings-drawer")!.replaceWith(buildSettingsDrawer());
-  if (drawerOpen) openPanel("settings-drawer");
-  // Every label built once at boot and marked with its key — the panel heads,
-  // the drawer names, the palette's placeholder. `panels.localise` is the one
-  // that knows how each kind of label is set; this used to be four lines here
-  // that swept for `[data-i18n]` and found nothing, because nothing produced
-  // one. See `panelHead`.
-  localise();
-  // …and every open surface with a pure renderer re-renders. The flip used to
-  // stop here, and a git drawer or a notes pane stayed in the old language
-  // until its next interaction.
-  rebuildOpenPanels();
-}
 // ---------------------------------------------------------------- boot
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
 /**
@@ -1245,7 +1208,7 @@ function rerenderChrome() {
  * subsystem — `settings.ts` is imported by nearly all of them and importing them
  * back closed 28 cycles.
  */
-function applySettingChange(key: Field, value: unknown): void {
+function applySettingChange(key: import("./settings").Field, value: unknown): void {
   if (key === "lang") {
     setLang(value as Lang);
     swapUntouchedStarter();

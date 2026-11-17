@@ -194,6 +194,38 @@ export async function run() {
     check("and the app field beside it is untouched", s.theme, "dark");
   }
 
+  // ---------------------------------- a page field is the document's, full stop
+  //
+  // `now()` is the one reader that chooses between the document and the app
+  // preference, and it was `main.ts`'s until wave 7 of #188. The bug it carries
+  // the scar of: page fields used to exist on both, `now()` fell through to the
+  // app copy whenever the document had not said, and the settings panel could
+  // print a top margin the page was not laid out on. So the assertion that
+  // matters is not that it reads the document — it is that the app copy beside it
+  // is *ignored* even when it is loudly wrong.
+  {
+    const mod = await import("../.tmp-test/settings.mjs");
+    const rt = await import("../.tmp-test/runtime.mjs");
+    rt.setCurrentDoc({
+      id: "fence", title: "t", body: "", assets: [], updated: 0,
+      config: { margin_cm: 1.5 },
+    });
+    ok("a page field is a page field", mod.isPageField("margin_cm"));
+    check("the reader takes it from the document", mod.now("margin_cm"), 1.5);
+
+    // The important half. `margin_top_cm` is a per-edge margin, and *absent* is
+    // its ordinary state — it means "follow the one margin". That absence is
+    // exactly where the old reader fell through to the app copy.
+    mod.settings.margin_top_cm = 9.9;
+    check(
+      "a page field the document has not said reads as unset, not as the app copy",
+      mod.now("margin_top_cm"),
+      undefined,
+    );
+
+    check("a non-page field is read from the app settings", mod.now("theme"), mod.settings.theme);
+  }
+
   {
     // The old `layout: "one"` value, migrated. Same argument: this line is above
     // the throw, so it did run — but it is the only part of the loader that did,

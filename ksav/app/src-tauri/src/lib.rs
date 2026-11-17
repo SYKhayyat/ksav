@@ -695,6 +695,26 @@ mod render_probe {
         }
     }
 
+    /// What this run was asked to do, decided in one place.
+    ///
+    /// Two independent records, and they were dependent (#191). `spawn` returned
+    /// early unless `KSAV_DPR_OUT` was set, so `KSAV_DPR_BOOT` alone produced
+    /// nothing — even though the boot record is precisely the answer that needs
+    /// no page, no JavaScript and no working webview: *did a window ever open*.
+    /// It is the fallback for the case where nothing else works, and it was
+    /// reachable only after something else had already worked.
+    ///
+    /// The consequence was practical: asking "does this shell open a window on
+    /// this machine" — the whole question behind #189 — meant also naming a
+    /// measurement path you did not care about, and accepting twenty seconds of
+    /// `eval` attempts afterwards.
+    ///
+    /// Returns `(report_boot, poll_page)`. Pure, so the four combinations can be
+    /// asked without a display.
+    fn what_to_do(out: Option<&std::path::Path>, boot: Option<&std::path::Path>) -> (bool, bool) {
+        (boot.is_some(), out.is_some())
+    }
+
     /// Asks the page what it thinks the display is, repeatedly.
     ///
     /// Repeatedly because the answer is read at a moment we do not control: a
@@ -705,10 +725,22 @@ mod render_probe {
     pub fn spawn(handle: tauri::AppHandle) {
         use tauri::Manager as _;
 
-        if output_path().is_none() {
+        let (report, poll) = {
+            let out = output_path();
+            let boot = boot_path();
+            what_to_do(out.as_deref(), boot.as_deref())
+        };
+        if !report && !poll {
             return;
         }
-        report_boot(&handle);
+        if report {
+            report_boot(&handle);
+        }
+        if !poll {
+            // Asked for the window record and nothing else: write it and do not
+            // spend twenty seconds asking a page nobody will read.
+            return;
+        }
         std::thread::spawn(move || {
             for _ in 0..40 {
                 if let Some(window) = handle.get_webview_window(WINDOW_LABEL) {
@@ -794,6 +826,42 @@ mod render_probe {
     href: location.href
   }) });
 })();"#;
+
+    /// The two records are independent, and the one that needs no page is the
+    /// one that has to survive on its own (#191).
+    #[cfg(test)]
+    mod answers_alone {
+        use super::what_to_do;
+        use std::path::Path;
+
+        #[test]
+        fn a_measurement_path_asks_for_both() {
+            let p = Path::new("x.json");
+            assert_eq!(what_to_do(Some(p), Some(p)), (true, true));
+        }
+
+        #[test]
+        fn a_boot_path_alone_asks_for_the_window_record_and_nothing_else() {
+            // The case that was unreachable: "did a window open", asked without
+            // naming a measurement nobody wants.
+            let p = Path::new("boot.json");
+            assert_eq!(what_to_do(None, Some(p)), (true, false));
+        }
+
+        #[test]
+        fn a_measurement_path_alone_still_asks_for_the_boot_record() {
+            // The page cannot answer before `setup` has run, so a run that wants
+            // the measurement wants the record too — it is what says whether a
+            // silence was the webview or the page.
+            let p = Path::new("m.json");
+            assert_eq!(what_to_do(Some(p), None), (false, true));
+        }
+
+        #[test]
+        fn neither_path_is_not_a_probe() {
+            assert_eq!(what_to_do(None, None), (false, false));
+        }
+    }
 }
 
 /// The shell's command list, written once.

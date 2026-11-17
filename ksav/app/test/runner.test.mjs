@@ -125,6 +125,19 @@ export async function run() {
   }
 
   {
+    // #188's acceptance, as a fence rather than a promise. `main.ts` was 3,536
+    // lines with five functions holding it up; the target was ~1,500. It reached
+    // 1,457 at wave 8, and the thing worth guarding is not the exact number but
+    // that it does not climb back — which it did once already, by accretion, into
+    // a file no test could import.
+    //
+    // Two lines of headroom, not a hundred: if this fails, something was added to
+    // the shell that belongs in a module, and the fix is the module.
+    const n = readFileSync(path.join(SRC, "main.ts"), "utf8").split("\n").length;
+    ok(`main.ts is still a file that assembles (${n} lines, target 1,500)`, n <= 1500);
+  }
+
+  {
     // And the other direction: a module declared un-importable must not be
     // imported. `main.ts` boots the application at module scope; importing it
     // in a test takes the runner down, and the reason it is still *built* is

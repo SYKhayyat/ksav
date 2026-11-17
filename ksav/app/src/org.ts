@@ -167,7 +167,12 @@ const markup = (s: string) => M + s + M;
  * dialect. What is here takes the common case and refuses the ambiguous one,
  * which is why each pattern insists on a non-space at both ends.
  */
-function textToKsav(line: string, footnotes: Map<string, string>, dropped: Set<string>): string {
+function textToKsav(
+  line: string,
+  footnotes: Map<string, string>,
+  dropped: Set<string>,
+  cited: Set<string>,
+): string {
   // Footnotes first, and unmarked in the middle, so the body travels through
   // every pass below exactly as the sentence around it does.
   let out = line
@@ -181,6 +186,9 @@ function textToKsav(line: string, footnotes: Map<string, string>, dropped: Set<s
         dropped.add("footnote references with no definition");
         return "";
       }
+      // Remember that this definition was *used*, so the ones that were not can
+      // be answered for at the end of the document (see `fromOrg`).
+      cited.add(label);
       return `${markup("#הערה[")}${body}${markup("]")}`;
     });
 
@@ -252,11 +260,13 @@ export function fromOrg(text: string): ImportResult {
   // where it is defined — the reference is a label, not a position — and a
   // one-pass reader would resolve the early ones to nothing.
   const footnotes = new Map<string, string>();
+  /** The labels a citation actually reached. */
+  const cited = new Set<string>();
   for (const line of lines) {
     const m = /^\[fn:([^\]:]+)\]\s*(.*)$/.exec(line);
     if (m) footnotes.set(m[1], m[2]);
   }
-  const say = (line: string) => textToKsav(line, footnotes, dropped);
+  const say = (line: string) => textToKsav(line, footnotes, dropped, cited);
 
   let list: { items: string[]; ordered: boolean; indent: number } =
     { items: [], ordered: false, indent: 0 };
@@ -440,6 +450,26 @@ export function fromOrg(text: string): ImportResult {
     flush();
     out.push(say(line));
   }
+  flush();
+
+  // # A definition nobody cites is still the writer's prose
+  //
+  // Org keeps a footnote body whether or not anything points at it: deleting the
+  // citation does not delete the paragraph, and writing a note ahead of its
+  // reference is an ordinary way to work. This reader gathered definitions in a
+  // first pass and emitted them only where a `[fn:label]` was found, so an
+  // uncited note **disappeared** — silently, because it was never listed in
+  // `dropped` either. Found by round-tripping the engine's own templates through
+  // `toOrg` and back: every apparatus note in `sefer.ksav` went missing, about
+  // forty words of a real sefer, with nothing said.
+  //
+  // They are appended at the end as notes rather than reported as dropped,
+  // because nothing was dropped — the words are here, and a document whose last
+  // page carries an uncited note is honest about what the file held.
+  for (const label of footnotes.keys()) {
+    if (!cited.has(label)) out.push(`#הערה[${footnotes.get(label) ?? ""}]`);
+  }
+
   flush();
 
   const body = out.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();

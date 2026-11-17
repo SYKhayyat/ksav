@@ -36,7 +36,7 @@ import { DROPPED } from "../.tmp-test/interchange.mjs";
 import { scan, plainText } from "../.tmp-test/spans.mjs";
 import { scan as scanDeferred } from "../.tmp-test/deferred.mjs";
 import { HEBREW } from "../.tmp-test/engine.gen.mjs";
-import { toOrg } from "../.tmp-test/org.mjs";
+import { fromOrg, toOrg } from "../.tmp-test/org.mjs";
 import { toMarkdown, toPlainText } from "../.tmp-test/markdown.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -174,5 +174,69 @@ export async function run() {
     for (const [name, convert] of formats) {
       ok(`a quoted named note survives ${name}`, lost(named, convert(named)).length === 0, lost(named, convert(named)).join(" "));
     }
+  }
+
+  // The smallest reproduction of what the round trip found, named so the corpus
+  // check above cannot be satisfied by the templates changing. An Org footnote
+  // definition whose citation was deleted is still a paragraph in the file.
+  {
+    const org = "טקסט\n[fn:1] גוף ההערה שלא הוזכרה.\n";
+    ok(
+      "an uncited Org note keeps its body",
+      fromOrg(org).body.includes("גוף ההערה"),
+      fromOrg(org).body,
+    );
+  }
+
+  // ---------------------------------------------------------- out and back
+  //
+  // A **round trip**, which is the claim the plan's item actually makes and the
+  // export checks above do not: not "the words are in the file", but "the file can
+  // be read back and still has them". Org is the format that can answer it — Ksav
+  // exports Org and imports Org, so the pair is testable in one process — and it
+  // is the honest place to look for a *lossy* pair, because a converter that drops
+  // a body on the way out and a reader that drops it on the way in both look fine
+  // on their own.
+  //
+  // What is compared is the imported document's own words against the exported
+  // one's, through the same comparator, so markup the reader adds is not counted
+  // as prose. Nothing is masked here: `toOrg` has already flattened the apparatus
+  // config that `DROPPED` exists for.
+  {
+    const failures = [];
+    for (const file of corpus) {
+      // The comparison is over prose, so the file's own *markup* is masked:
+      // `[fn:1]` is a label, `#+begin_quote` is a block marker, `#+title:` is a
+      // keyword. None of them is a word anybody reads, and demanding that an
+      // import carry a label forward would ask it to keep the notation instead of
+      // the sentence. What is *not* masked is any note body: that is prose, and a
+      // note whose citation was deleted must not take its paragraph with it.
+      // The import gets the file **unmasked** — masking is a statement about what
+      // to look for, and changing the input would change the thing being
+      // measured. It did, for one draft of this: blanking `[fn:1]` turned every
+      // note definition into an ordinary paragraph, the importer kept them all as
+      // prose, and the assertion passed while the defect it exists for was live.
+      const org = toOrg(readFileSync(file, "utf8"));
+      const expectation = org
+        .replace(/\[fn:[^\]]*\]/g, " ")
+        .replace(/^\s*#\+\w[\w-]*:.*$/gm, " ")
+        .replace(/^\s*#\+(begin|end)_\w+.*$/gim, " ");
+      let back;
+      try {
+        back = fromOrg(org).body;
+      } catch (e) {
+        failures.push(`${file.split(/[\/]/).pop()}: import threw ${e.message}`);
+        continue;
+      }
+      const missing = lost(expectation, back);
+      if (missing.length) {
+        failures.push(`${file.split(/[\/]/).pop()}: ${missing.slice(0, 6).join(", ")}`);
+      }
+    }
+    ok(
+      "an Org export can be imported and keeps its words",
+      failures.length === 0,
+      failures.slice(0, 3).join(" | "),
+    );
   }
 }

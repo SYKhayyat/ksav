@@ -446,6 +446,48 @@ async function main() {
   const since = () => problems.length;
   const newProblems = (mark) => problems.slice(mark);
 
+  /**
+   * A stand-in for the desktop's save dialog, for the export steps only.
+   *
+   * #127 made every export ask where the file should go — `saveExportAs` calls
+   * `ksav_save_export` on the desktop and the browser's own picker or a plain
+   * download elsewhere. This run drives the **desktop** route, because that is
+   * the one the product ships, and it can only do that by owning the dialog:
+   * `isTauri()` is true exactly while `__TAURI_INTERNALS__` exists, so the stub is
+   * installed for these steps and scoped to them rather than to the whole run,
+   * which would quietly change every other file step's route.
+   *
+   * What it records is the **arguments** — suggested name, filter, extensions
+   * and the base64 body — so the checks can decode the bytes and ask whether
+   * they are a PDF, instead of trusting a status line that says "saved".
+   */
+  async function desktopSaveDialog() {
+    await page.evaluate(() => {
+      const w = /** @type {any} */ (window);
+      w.__ksavSaved = [];
+      w.__TAURI_INTERNALS__ = {
+        invoke: async (cmd, args) => {
+          if (cmd !== "ksav_save_export") throw new Error(`unexpected command: ${cmd}`);
+          w.__ksavSaved.push(args);
+          // A path, because that is what the app reads as "the writer chose one".
+          return `/tmp/${args.suggested}`;
+        },
+      };
+    });
+  }
+
+  /** The export the dialog was asked to save, once it has been asked. */
+  async function takeSavedExport() {
+    await page.waitForFunction(() => (window.__ksavSaved ?? []).length > 0, { timeout: 60_000 });
+    const saved = await page.evaluate(() => window.__ksavSaved[0]);
+    // Emptied, so the next step's export is this step's own and a missing one
+    // cannot be answered by the previous click's leftovers.
+    await page.evaluate(() => {
+      window.__ksavSaved = [];
+    });
+    return saved;
+  }
+
   // **The navigation used to be here, above the probes below** — which meant the
   // very first load never ran them, and `window.__ksavStatus` was undefined from
   // the moment the run began. Changing the install from `evaluate` to
@@ -1221,21 +1263,21 @@ async function main() {
   step(7, "export a PDF");
   current = "export";
   const mark = since();
+  await desktopSaveDialog();
   await clickVisible("the Export menu", '[data-menu="export"] .menu-btn');
   await page.waitForSelector('[data-export="exportPdf"]', { timeout: 5_000 });
-  const wait = page.waitForEvent("download", { timeout: 60_000 });
   await clickVisible("the Export → PDF item", '[data-export="exportPdf"]');
   let bytes = null;
   try {
-    const download = await wait;
-    const to = path.join(os.tmpdir(), `ksav-acceptance-${process.pid}.pdf`);
-    await download.saveAs(to);
-    bytes = fs.readFileSync(to);
-    fs.rmSync(to, { force: true });
-    check("the PDF is named after the document", download.suggestedFilename().endsWith(".pdf"),
-      download.suggestedFilename());
+    const saved = await takeSavedExport();
+    bytes = Buffer.from(saved.base64, "base64");
+    check("Export → PDF asks the desktop's save dialog", true);
+    check("the dialog is filtered to PDFs", /pdf/i.test(saved.filter ?? ""), String(saved.filter));
+    check("the PDF is named after the document", String(saved.suggested).endsWith(".pdf"), String(saved.suggested));
+    check("and it offers the pdf extension", (saved.extensions ?? []).includes("pdf"),
+      JSON.stringify(saved.extensions));
   } catch (e) {
-    check("Export → PDF downloads a file", false, String(e.message).split("\n")[0]);
+    check("Export → PDF asks where to save it", false, String(e.message).split("\n")[0]);
   }
   if (bytes) {
     // The one assertion here that is about bytes rather than about the app's
@@ -1267,16 +1309,12 @@ async function main() {
   current = "org";
   await clickVisible("the Export menu", '[data-menu="export"] .menu-btn');
   await page.waitForSelector('[data-export="exportOrg"]', { timeout: 5_000 });
-  const orgWait = page.waitForEvent("download", { timeout: 60_000 });
   await clickVisible("the Export → Org item", '[data-export="exportOrg"]');
   try {
-    const download = await orgWait;
-    const to = path.join(os.tmpdir(), `ksav-acceptance-${process.pid}.org`);
-    await download.saveAs(to);
-    const org = fs.readFileSync(to, "utf8");
-    fs.rmSync(to, { force: true });
-    check("the Org file is named after the document", download.suggestedFilename().endsWith(".org"),
-      download.suggestedFilename());
+    const saved = await takeSavedExport();
+    const org = Buffer.from(saved.base64, "base64").toString("utf8");
+    check("the Org file is named after the document", String(saved.suggested).endsWith(".org"),
+      String(saved.suggested));
     check("it has the heading in it", /^\*+ /m.test(org), org.slice(0, 120));
     check("it has the footnote in it", org.includes("[fn:1]"), org.slice(0, 200));
     check(
@@ -1285,8 +1323,15 @@ async function main() {
       (/#[֐-׿\w_]+\[/.exec(org) ?? [""])[0],
     );
   } catch (e) {
-    check("Export → Org downloads a file", false, String(e.message).split("\n")[0]);
+    check("Export → Org asks where to save it", false, String(e.message).split("\n")[0]);
   }
+
+  // The dialog goes away with the export steps: every later step is a browser
+  // again, which is the state the run started in.
+  await page.evaluate(() => {
+    delete window.__TAURI_INTERNALS__;
+    delete window.__ksavSaved;
+  });
 
   // ------------------------------------------- 7c. Emacs mode takes the keyboard
   //

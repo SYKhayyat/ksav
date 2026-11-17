@@ -46,6 +46,7 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 - [x] #192 `renderEnv`'s `platform` defaults to the caller's machine, so a test that omits it asserts about the runner and stays green there.
 - [x] #187 gate sweeps read workflows as lines, not as a graph. The parser landed in 7ed8d69; it now reads both matrix spellings and reports what it could not understand (`ad52d40`).
 - [x] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh. Anchored on `$GITHUB_WORKSPACE`, the Windows leg runs it under `pwsh`, and the gate refuses a bare relative path (`818d4e5`).
+- [ ] #198 the assembled app's two export checks still wait for a Playwright download, which #127 removed. Fixed in `.github/scripts/acceptance.mjs`: the export steps install a `ksav_save_export` stand-in (so the *desktop* route runs, which is the one that ships), decode the base64 body and assert a PDF, the filename and the dialog's filter — then remove the stand-in so later steps are a browser again.
 - [ ] Check #140 (the audit index) and close it if nothing is left open. As of 2026-11-15 every child was closed except ledger debts #163 and #164, which are in the Debt section above. Ask the owner before closing.
 - [ ] Check #22 (the `main.ts` split) and close it if every split wave is done. As of 2026-11-15 they were, but `main.ts` was still about 3,500 lines against a target of about 1,500. That gap is in the Debt section above. Ask the owner before closing.
 
@@ -71,7 +72,7 @@ the real app.
 - [x] #133 Windows: clean build from scratch, plus a smoke test of the packaged app (launch, open, save, export).
   Done for a clean clone on 2026-11-17: `tauri build` → NSIS → silent install → Start-menu shortcut → a window with a bound desk. Two findings filed on the way: #194 (the installer cannot be driven from Git Bash) and #195 (a stale shortcut is silent, which is UAT 28's symptom). The owner's own machine still needs the last acceptance line.
 - [ ] #134 verify UAT items 2, 3, 4, 5, 10, 12, 16, 17 in the real app, not only in tests.
-- [ ] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Blocks any installer smoke test a workflow step would try to write.
+- [x] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Fixed (`67b165e`): `gate.test.mjs` refuses a bare invocation and `docs/troubleshooting.md` says what to run instead.
 - [x] #196 the render check calls a single-instance handover "the webview did not start": a clean exit 0 is read as a webview fault, and that is the same sentence #189 is open about.
 - [x] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".
 - [ ] Generic Linux artifact from `ksav/packaging/build-linux.sh` (AppImage or tarball), tested on a non-Nix distro.
@@ -85,9 +86,9 @@ and Windows, for **two weeks** without losing text, and the second UAT pass
 (#14) passes.
 
 - [x] #138 Emacs-like open/window model: `openIn` now defaults to `current` (`C-x b`), the three answers are stated as Emacs commands at the setting, the funnel and `docs/start-here.md`, and `tabs.showing`'s focused-pane rule is written down and asserted. Hands-on confirmation of the felt behaviour rides with #134.
-- [ ] #128 document identity: one Documents menu instead of two (Documents and File), and labelled rows instead of icon-only rows. Keep the shape compatible with #117.
+- [ ] #128 document identity: one Documents menu instead of two (Documents and File), and labelled rows instead of icon-only rows. Keep the shape compatible with #117. **Code done** (`84b11be`, `eea216b`): one `docTitle()` for the name line, `docFileState` for its honest suffixes, the Documents taxonomy as data with a persistent `⧉ / ⌄ / ×` legend, and *File ▸ New document* removed rather than marked, on the owner's call. Open for the owner's reading pass — the last acceptance line is a judgement about reading on screen, which no tool here can make.
 - [x] #127 native PDF destination picker on export — every export asks `saveExportAs` (#127), desktop dialog + browser fallback, cancel silent.
-- [ ] #126 semantic navigation: word and paragraph motion skips Typst markup.
+- [ ] #126 semantic navigation: word and paragraph motion skips Typst markup. **Code done** (`4283990`, `6cb2029`): `motion.ts` (the boundary function, fenced row by row from the spec) and `sourcemotion.ts` (the `sourceMotions` setting, `Ctrl`+arrows, `Alt`+arrows as the raw escape, `Shift` on the same stops). Shipped as `"raw"` on purpose — flipping the default is a felt judgement, and it is one line once the owner has arrowed around a document with it on.
 - [x] #183 `assembleScan` allocates on every keystroke. Measured 2026-11-17: 3.3 ms per keystroke at a 235-page sefer and 18 ms at 993 pages, and removing the report's top line (`byStart.set`, 15,390 insertions) moves the scan by less than the noise in either direction — so the cost is allocation across the whole scan and `lexCore`, not the assembly's structures. No lag at any realistic size; not rewritten.
 - [ ] Data safety, verified on both platforms: save, autosave, crash recovery, a full disk, a read-only file, and a file changed outside ksav. File an issue for each failure here.
 - [ ] #14 second human UAT pass by the owner, on the real installed build.

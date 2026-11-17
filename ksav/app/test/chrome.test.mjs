@@ -543,6 +543,36 @@ check(
     .filter((sel) => !declared(sel));
   check("every selector the acceptance run drives by is declared in src/", missing, []);
 
+  // ------------------------------------------------- 9b. the checks on the checks
+  //
+  // Two properties of the acceptance run itself, both of which were true and are
+  // now asserted rather than remembered:
+  //
+  // **It may not wait for a download.** #127 removed the browser's direct
+  // download from every export — the file now goes to the desktop's save dialog
+  // — and the two export checks went on waiting for a Playwright `download`
+  // event, which no longer fires. The result was two red checks on `main`, 60
+  // seconds of waiting each, and a message about a timeout rather than about a
+  // route that no longer exists (#198). A `waitForEvent("download")` in this
+  // file is that bug's shape, so it is refused here.
+  //
+  // **And the route it drives has to be the route that ships.** The export steps
+  // install a stand-in for the desktop dialog, so the name they answer must be
+  // the name `files.ts` calls: a rename would otherwise leave the stub waiting
+  // for a command the app no longer sends, which reads as a timeout in CI and as
+  // nothing at all locally.
+  {
+    const driving = readFileSync(
+      path.join(HERE, "..", "..", "..", ".github", "scripts", "acceptance.mjs"),
+      "utf8",
+    );
+    notOk("the acceptance run does not wait for a download the app stopped making", /waitForEvent\(\s*["'`]download/.test(driving));
+    const command = /"(ksav_save_export)"/.exec(src("files.ts"))?.[1];
+    ok("the export command has a name to look for", !!command);
+    ok("the acceptance run answers that command", driving.includes(`"${command}"`), String(command));
+    ok("and it decodes the bytes rather than trusting the answer", /saved\.base64/.test(driving));
+  }
+
   // ---------------------------------------------------------- 10. the way out
   //
   // "Settings and other drawers cannot be closed without scrolling back up to

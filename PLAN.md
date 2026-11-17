@@ -121,7 +121,19 @@ code instead.
 Exit: a fresh audit with every finding either fixed or filed in the Debt
 section at the top of this plan.
 
-- [ ] Engine (Rust/Typst) audit: correctness, panics on bad input, and export fidelity.
+- [x] Engine (Rust/Typst) audit: correctness, panics on bad input, and export fidelity.
+  Panics: `engine/tests/hostile.rs` — 33 malformed documents, each required to come back
+  as a verdict (a compiled page or a non-empty diagnostic), with the input printed if one
+  panics. It found two real defects. **#205** — `#טבלה(עמודות: 999999999)` asked for 34 GB
+  and aborted the process, one click away from a share fragment; the prelude refuses 0 and
+  anything over 256 now, with a diagnostic that names the limit (`5cfaef7`). **#204** — a
+  *panicking* compile was reported to the writer as a slow compile still running in the
+  background, and it left its slot charged forever, so a few bad documents turned every
+  later keystroke into "the server is busy" (`e70ca9f`). Correctness and export fidelity:
+  `tests/integrity.test.mjs` (#199), the measured SVG vocabulary in `svg_output.rs`, the
+  deferred-note resolver tests. Nesting depth on pathological input is stated in
+  `hostile.rs` as an open question rather than run — a stack overflow is an abort no test
+  can catch.
 - [x] Tauri shell audit (it was not covered by the #140 sweep): IPC surface, file-system scope, updater. `AUDIT-shell-2026-11-17.md` — capability grant is `core:default` only, every file op keyed on a dialog-picked path (normalized, traversal tested), `ksav_call` reaches the seven Native services but bounded by fixed git args and `protocol.ext.allow=never`, preview SVG sanitized by allow-list, prose tables escape per character, one CSP file fenced by build.rs with `https://api.github.com` as the only egress. Remaining work in it is #131 (signed builds).
 - [x] Security: what an opened document can make the app do (links, includes, paths).
   `AUDIT-documents-2026-11-17.md`. No filesystem: the compiler is built with static

@@ -25,6 +25,41 @@ operating system stops the first launch. The four ways past it are in the
 [README](../README.md#download) and in the body of every release, which is the
 page somebody who clicked *Download* is actually looking at.
 
+### I press the shortcut and nothing happens at all
+
+A shortcut can outlive the program it points at. Install Ksav, later delete or
+move the folder it was installed into — or run a build out of a source checkout
+and delete `target/` — and the shortcut stays exactly where it was, pointing at
+something that is no longer there. Windows then opens nothing, and says nothing:
+there is no program left to report the problem.
+
+Check it in ten seconds, on Windows:
+
+1. Right-click the shortcut → **Properties**.
+2. Read **Target**. If it names a path that no longer exists, that is the whole
+   problem.
+
+On a release install the target is the folder the installer chose, and the
+program is `app.exe` inside it. On a build from source it is
+`ksav/app/src-tauri/target/release/app.exe`, and `target/` is build output — a
+`cargo clean` or a deleted checkout leaves the shortcut pointing into nothing.
+
+**The fix is to install the current release again**; the installer rewrites the
+Start-menu and desktop shortcuts it owns. Uninstalling removes both, which is
+worth knowing if you are about to install somewhere else.
+
+One more symptom of the same family: the protocol registration (`ksav://`, which
+is how Girsa sends a source to Ksav) can name a build that is gone. Ksav notices
+that itself and takes the registration back the next time it starts, and says so
+in `%LOCALAPPDATA%\org.ksav.app\logs\Ksav.log`:
+
+```
+ksav:// was registered to …\release\app.exe, which is gone — taking it back
+```
+
+A shortcut is the one case Ksav cannot repair, because it is the thing that was
+supposed to start Ksav (#195).
+
 ### The window opens and stays blank for a long time
 
 **The first compile of a document builds the prelude.** `ksav.typ` is over ten

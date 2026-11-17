@@ -1071,7 +1071,91 @@ jobs:
       ["a PowerShell environment variable", "$env:GITHUB_WORKSPACE\\ksav\\engine\\target\\t\\release\\ksav.exe"],
     ]) {
       const m = RELATIVE_EXEC.exec(anchored) ?? RELATIVE_EXEC.exec(anchored.replace(/^\$env:/, ""));
-      ok(`an anchored path is accepted (${why})`, !m || ANCHORED.test(m[2]) || !m);
+      // The backslash case cannot match `RELATIVE_EXEC` at all, so asserting
+      // `ANCHORED` on it asserts nothing — say which of the two happened.
+      ok(
+        `an anchored path is accepted (${why})`,
+        m === null || ANCHORED.test(m[2]),
+        m ? m[2] : "not seen as a relative path at all",
+      );
+    }
+  }
+
+  // ------------------------------- an installer is not a POSIX command (#194)
+  //
+  // Running the NSIS artefact by hand on this machine: from Git Bash it hung and
+  // installed nothing (killed at 90 s and again at 120 s, nothing on disk, no
+  // output); through `cmd /c` and through `powershell -Command Start-Process` the
+  // identical command line exited 0 in seconds. Git Bash rewrites arguments that
+  // look like paths, so `/S` never arrives as a switch and NSIS opens its
+  // interactive wizard instead — an artefact that then waits for a human nobody
+  // is there to send.
+  //
+  // The next follow-up to #133 is a step that installs the artefact the job just
+  // built. Written the obvious way, on a bash step, it would not fail: it would
+  // hang until the job's timeout and say nothing. The rule is therefore about the
+  // *invocation* — an installer is started through `cmd`, `pwsh`/`powershell`, or
+  // `Start-Process`, never as a bare first token.
+  {
+    // Only installers: running `ksav.exe --version` is a different guarantee,
+    // and #186's fence above already owns the path spelling of it.
+    const INSTALLER = /^["']?[^"'\s]*(?:\.(?:msi|msix|msixbundle)|\.exe)$/iu;
+    const LOOKS_LIKE_INSTALLER = /(?:setup|install|bundle)/iu;
+    // The first token of each command line, and only that token: the trap is the
+    // installer standing where a command goes. `cmd /c "… /S"` and
+    // `Start-Process x.msi` put `cmd` or `powershell` there instead, which is
+    // exactly why they work — so a wrapped invocation needs no exemption here.
+    const installerOffenders = (jobs) => {
+      const out = [];
+      for (const job of jobs) {
+        for (const step of job.stepFields) {
+          if (!step.run) continue;
+          for (const command of step.run.split(/&&|\|\||;|\n/)) {
+            const first = command.trim().split(/\s+/u)[0] ?? "";
+            if (!INSTALLER.test(first) || !LOOKS_LIKE_INSTALLER.test(first)) continue;
+            out.push(`${job.id}: ${first} (shell: ${step.shell || "default"})`);
+          }
+        }
+      }
+      return out;
+    };
+    const installerOffendersHere = [];
+    for (const file of files) {
+      const jobs = workflowJobs(readFileSync(path.join(ROOT, file), "utf8"));
+      installerOffendersHere.push(...installerOffenders(jobs).map((o) => `${file}: ${o}`));
+    }
+    ok(
+      "no workflow step runs an installer without cmd, pwsh or Start-Process" +
+        (installerOffendersHere.length
+          ? `\n    ${installerOffendersHere.join("\n    ")}\n A "/S" handed to NSIS through Git Bash arrives as a path, so the\n` +
+            " installer opens its wizard and waits: the step hangs instead of failing (#194)."
+          : ""),
+      installerOffendersHere.length === 0,
+    );
+
+    // …and it can fail. Both spellings of the same intent, in one workflow.
+    const installStep = (line, shell = "bash") => `name: f
+on: [push]
+jobs:
+  pack:
+    name: pack
+    runs-on: windows-latest
+    steps:
+      - name: install it
+        shell: ${shell}
+        run: |
+          ${line}
+`;
+    check(
+      "a bare installer invocation is what this refuses",
+      installerOffenders(workflowJobs(installStep("./bundle/nsis/Ksav_0.1.1_x64-setup.exe /S /D=C:\\Ksav"))),
+      ["pack: ./bundle/nsis/Ksav_0.1.1_x64-setup.exe (shell: bash)"],
+    );
+    for (const [why, line] of [
+      ["cmd /c", 'cmd /c "bundle/nsis/Ksav_0.1.1_x64-setup.exe /S"'],
+      ["Start-Process", "powershell -Command \"Start-Process -FilePath 'x.msi' -ArgumentList '/quiet' -Wait\""],
+    ]) {
+      check(`an installer started through ${why} is accepted`, installerOffenders(workflowJobs(installStep(line))), []);
     }
   }
 

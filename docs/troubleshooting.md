@@ -255,6 +255,38 @@ at a fifteen-minute release rebuild apiece; the profiler answered it in one run.
 Measure before theorising. And measure on a **release** build — debug timings
 here are worth ±100% and have got the *sign* of a change wrong.
 
+### An installer I ran from Git Bash hung and installed nothing
+
+Run it through `cmd` or PowerShell. The artefact is the same one that takes
+seconds the other way:
+
+```sh
+# works — seconds, exit 0
+cmd //c "Ksav_0.1.1_x64-setup.exe /S /D=C:\\Ksav"
+```
+
+```powershell
+# also works
+Start-Process -FilePath .\Ksav_0.1.1_x64-setup.exe `
+  -ArgumentList '/S','/D=C:\Ksav' -PassThru -Wait
+```
+
+```sh
+# hangs, installs nothing, prints nothing, no error
+./Ksav_0.1.1_x64-setup.exe /S /D=C:\\Ksav
+```
+
+Git Bash rewrites arguments that look like paths, so `/S` does not arrive at
+NSIS as a switch. Without it the installer opens its **interactive** wizard,
+which then waits for a person nobody is there to send — so the command sits
+there instead of failing, and `timeout 90` kills it with nothing on disk. The
+same applies to any Windows artefact that takes `/switch` arguments.
+
+Measured on the v0.1.1 NSIS artefact: exit 124 at both 90 and 120 seconds with
+no `app.exe` running, and exit 0 through `cmd` and through `Start-Process` in
+the same shell session (#194). `app/test/gate.test.mjs` now refuses a workflow
+step that puts an installer where a command goes.
+
 ### The suite is green and the application is broken
 
 The oldest bug family here, and the reason for most of the conventions: the

@@ -91,6 +91,14 @@ and Windows, for **two weeks** without losing text, and the second UAT pass
 - [ ] #126 semantic navigation: word and paragraph motion skips Typst markup. **Code done** (`4283990`, `6cb2029`): `motion.ts` (the boundary function, fenced row by row from the spec) and `sourcemotion.ts` (the `sourceMotions` setting, `Ctrl`+arrows, `Alt`+arrows as the raw escape, `Shift` on the same stops). Shipped as `"raw"` on purpose — flipping the default is a felt judgement, and it is one line once the owner has arrowed around a document with it on.
 - [x] #183 `assembleScan` allocates on every keystroke. Measured 2026-11-17: 3.3 ms per keystroke at a 235-page sefer and 18 ms at 993 pages, and removing the report's top line (`byStart.set`, 15,390 insertions) moves the scan by less than the noise in either direction — so the cost is allocation across the whole scan and `lexCore`, not the assembly's structures. No lag at any realistic size; not rewritten.
 - [ ] Data safety, verified on both platforms: save, autosave, crash recovery, a full disk, a read-only file, and a file changed outside ksav. File an issue for each failure here.
+  **Windows pass, first half done** (`ced99ae`, #201): a save the disk refused reported
+  itself as "the dialog was closed" on both tiers — `saveTo` swallowed the shell's
+  `path-not-allowed` refusal and the disk's `os error 28`/`5`/`30` alike, and `saveAs`
+  put its write inside the `catch` that means "dismissed". Both now name the cause,
+  with sentences for a full disk and a read-only volume that did not exist. Fenced at
+  the seam with the real `invoke` and a real read-only file. Still needs the owner's
+  machine: a crash under `taskkill`, a genuinely full volume, and the outside-change
+  prompt seen by a person. The Linux half is untouched.
 - [ ] #14 second human UAT pass by the owner, on the real installed build.
 - [ ] Tag v0.2.x as the "daily driver" release.
 

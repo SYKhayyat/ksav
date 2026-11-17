@@ -387,6 +387,58 @@ export async function run() {
   // a function, added to the file, and never invoked — so it asserted nothing and
   // the suite was green. That is the same shape as `lines_of`: the code is right
   // and nothing asks it anything.
+  // ------------------------------------------------- where a problem goes
+
+  // The plan's last product item: "a way to send feedback from inside the app, or
+  // a clear link to it". There is no crash reporter and no telemetry, so the link
+  // *is* the way, and three things make it a clear one rather than a gesture:
+  //
+  //   · the address is the anchor's own text, so it can be typed or copied when a
+  //     click does nothing — which is exactly what a webview may do with a link
+  //     (#202's open half is when the shell hands a URL to the system);
+  //   · it carries `target`/`rel` like the licence notices, because this is an
+  //     external address in an application whose whole security posture is that a
+  //     document may not navigate it;
+  //   · the version sits directly under it, because a bug report without one is a
+  //     conversation rather than a report.
+  //
+  // Read from the source: the suite has no `document`, and the drawer's drawing is
+  // `tools/eyes.mjs`'s business, not this file's.
+  {
+    const src = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
+    const at = src.indexOf("const ISSUES_URL");
+    const end = src.indexOf("function buildAboutSection", at);
+    ok("the About section has a feedback block", at > 0 && end > at, `${at}..${end}`);
+    const block = at > 0 && end > at ? src.slice(at, end) : "";
+    ok(
+      "…naming the issue tracker",
+      block.includes("https://github.com/SYKhayyat/ksav/issues"),
+      block.slice(0, 120),
+    );
+    ok(
+      "…with the address as the link's visible text, not just its target",
+      /ISSUES_URL\.replace\(/.test(block),
+      block.slice(0, 200),
+    );
+    ok(
+      "…opened away from this window, with no referrer",
+      block.includes('target: "_blank"') && block.includes("noopener noreferrer"),
+      "",
+    );
+    ok(
+      "…and the version printed beside it",
+      block.includes("CURRENT_VERSION"),
+      "",
+    );
+    // The sentence has to be true: nothing about this product sends anything.
+    const en = readFileSync(path.join(SRC, "i18n-en.ts"), "utf8");
+    ok(
+      "the note promises no telemetry, and the code does none",
+      /feedbackNote/.test(en) && !/fetch\(.*issues/.test(src),
+      "",
+    );
+  }
+
   everyNoteSitsBesideItsOwnControl();
 }
 

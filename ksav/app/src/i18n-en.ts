@@ -1208,6 +1208,13 @@ export const EN: Dict = {
   autosaveFileLabel: "Auto-save to the bound file",
   // about / licences
   aboutTitle: "About & licences",
+  feedbackTitle: "Something wrong, or something missing?",
+  feedbackNote:
+    "There is no crash reporter and no telemetry in Ksav — nothing leaves this machine "
+    + "unless you send it. So a problem is reported by writing it down at the address "
+    + "below. What helps most: what you did, what you expected, and the version number "
+    + "under it. If the document itself is the trigger, attach it.",
+
   aboutLicence: "Ksav is distributed under the MIT licence or Apache-2.0, at your option.",
   aboutFonts: "The bundled fonts are separately licensed, and their licences require this notice to accompany any redistribution:",
   aboutLexicons: "The English spelling dictionary is built on an outside database whose licence also requires this notice to accompany any redistribution. The Hebrew one is built from Public Domain sources only.",

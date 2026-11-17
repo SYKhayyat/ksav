@@ -1005,8 +1005,44 @@ const BUNDLED_FONT_NOTICES = BUNDLED_NOTICES.filter((n) => n.kind === "font");
  */
 const BUNDLED_LEXICON_NOTICES = BUNDLED_NOTICES.filter((n) => n.kind === "lexicon");
 
+/**
+ * Where a problem is reported, and why it is a *link with the address showing*.
+ *
+ * The plan's last product item asks for "a way to send feedback from inside the
+ * app, or a clear link to it", and a link is what this application can honestly
+ * offer: there is no crash reporter, no telemetry, and nothing that sends a
+ * document anywhere. What a report needs — what happened, what was expected, the
+ * version, and the document when the document is the trigger — is all in the
+ * writer's hands and none of it is here.
+ *
+ * The address is the anchor's *text*, not the word "here". Two reasons, and the
+ * second is the one that decided it: a URL that is visible can be typed or copied
+ * when clicking does nothing, and a webview is exactly where a click may do
+ * nothing (#202's open half is when the shell hands a URL to the system). A
+ * sentence pointing at "the address below" is a promise the file keeps on paper
+ * and on screen.
+ */
+const ISSUES_URL = "https://github.com/SYKhayyat/ksav/issues";
+
+function buildFeedbackRows(): Node[] {
+  return [
+    el("h3", { style: "margin-top:18px" }, [t("feedbackTitle")]),
+    el("div", { class: "set-note" }, [t("feedbackNote")]),
+    el("div", { class: "font-notice" }, [
+      // The same attributes as the licence notices below it, for the same
+      // reason: a document that cannot navigate the app must not be able to, and
+      // this one is ours.
+      el("a", { href: ISSUES_URL, target: "_blank", rel: "noopener noreferrer" }, [
+        ISSUES_URL.replace(/^https:\/\//, ""),
+      ]),
+    ]),
+    el("div", { class: "set-note" }, [`${t("version")} ${update.CURRENT_VERSION}`]),
+  ];
+}
+
 function buildAboutSection(): Node[] {
   return [
+    ...buildFeedbackRows(),
     el("h3", { style: "margin-top:18px" }, [t("aboutTitle")]),
     el("div", { class: "set-note" }, [t("aboutLicence")]),
     el("div", { class: "set-note" }, [t("aboutFonts")]),

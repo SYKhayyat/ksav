@@ -147,7 +147,19 @@ section at the top of this plan.
   share link) let the input decide how much memory to allocate, now bounded as chunks
   arrive (`e4e5b88`). Unverified and recorded there: where a link goes in the installed
   build, and the runtime CSP header.
-- [ ] Data integrity: round-trip every saved format; check that nothing is silently dropped.
+- [x] Data integrity: round-trip every saved format; check that nothing is silently dropped.
+  The seven formats, and which code owns each. **Org, Markdown, plain text** are
+  `ksav/app/src/interchange.ts`'s: `ksav/app/test/integrity.test.mjs` compares every word
+  of the engine's own 14 documents against a *masked* oracle, and found two silent losses
+  (#199: `inner()` read `bodies[0]` only; a quoted note name never matched its body).
+  **HTML and Word** are Typst's HTML backend under two extensions: the structural claims
+  are in `engine/tests/assets.rs` (`<h1>`, `<strong>`, `lang`, `dir`, no `<svg` fallback)
+  and `every_body_of_a_multi_body_command_reaches_the_word_export` asks each multi-body
+  command for its *last* body — a verse, a definition, a second header cell, a note — in
+  one document, which is the shape that would lose a body if the prelude's rendering
+  drifted. **PDF** is Typst's own and needs no fidelity test. **`.ksav` itself** round-trips
+  through `engine/tests/docfile_oracle.rs`, and the `.docx` import route is fenced in
+  `ksav/app/test/docx.test.mjs`.
   Started from the export side (`3662bb4`, #199): a comparison of every prose word a
   document prints against the words an export contains, over the engine's own 14
   documents, found two silent-loss defects — `#פסוק[ref][verse]` and

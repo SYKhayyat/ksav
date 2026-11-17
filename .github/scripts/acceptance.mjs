@@ -2757,6 +2757,90 @@ async function main() {
     await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
     await page.waitForTimeout(400);
 
+    // ------------------------------------------------- 7d. two previews, one follow
+    //
+    // #197. `twoPreviews` ships, and it has two `.preview-host` elements — so
+    // `followCaretInPreview`, which used to collect those hosts and return unless
+    // there was exactly one, returned on every caret move in this arrangement.
+    // The linked preview stopped following and nothing said so, because a preview
+    // that does not scroll looks exactly like one already where it should be.
+    //
+    // The assertion is an **asymmetry**, which is what makes it meaningful: the
+    // linked preview moves and the unlinked one does not. A fix that simply
+    // dropped the guard would scroll both and fail here, which is why the check
+    // is written this way rather than as "the preview moved".
+    {
+      step("7d", "the linked preview follows the caret when there are two previews");
+      // The setting is forced on rather than assumed: an earlier recipe may have
+      // turned it off, and this is a check about the follow, not about the switch.
+      await clickVisible("the settings chip", '[data-chip="settings"]');
+      await page.waitForSelector('[data-setting="followCaret"]', { timeout: 10_000 });
+      await page.check('[data-setting="followCaret"]');
+      await press("Escape");
+      await page.waitForTimeout(200);
+
+      await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+      await page.waitForSelector('[data-arrangement="twoPreviews"]', { timeout: 10_000 });
+      await clickVisible("the two-previews arrangement", '[data-arrangement="twoPreviews"]');
+      await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
+      await page.waitForTimeout(600);
+
+      // Which host is linked is read off the pane head's own link button — the
+      // same marker the writer sees — rather than off the order the previews
+      // happen to be rendered in.
+      const readPreviews = () =>
+        page.evaluate(() =>
+          Array.from(document.querySelectorAll(".preview-host")).map((h) => ({
+            id: h.id,
+            linked:
+              h.closest("[data-pane]")?.querySelector('[data-i18n-both="scrollLinked"]') !== null,
+            top: Math.round(h.scrollTop),
+          })),
+        );
+
+      const before = await readPreviews();
+      check("the two-previews arrangement is on screen", before.length === 2, JSON.stringify(before));
+      check("exactly one of them is linked", before.filter((p) => p.linked).length === 1,
+        JSON.stringify(before));
+
+      // A caret far down the document, in the source pane. `Control+End` is the
+      // cheapest way to ask for a follow: it moves the caret and nothing else.
+      await clickVisible("the source pane", ".source-pane .cm-content");
+      await press("Control+End");
+      await page.waitForTimeout(1200);
+
+      const after = await readPreviews();
+      const linkedBefore = before.find((p) => p.linked);
+      const linkedAfter = after.find((p) => p.id === linkedBefore?.id);
+      const unlinkedBefore = before.find((p) => !p.linked);
+      const unlinkedAfter = after.find((p) => p.id === unlinkedBefore?.id);
+      check(
+        "the linked preview followed the caret to the end of the document",
+        (linkedAfter?.top ?? 0) > (linkedBefore?.top ?? 0) + 40,
+        `${linkedBefore?.top} → ${linkedAfter?.top}`,
+      );
+      check(
+        "and the unlinked preview stayed where its reader left it",
+        (unlinkedAfter?.top ?? -1) === (unlinkedBefore?.top ?? 0),
+        `${unlinkedBefore?.top} → ${unlinkedAfter?.top}`,
+      );
+
+      // The caret back to the top *before* the arrangement goes back, and this
+      // line is not tidiness: the next step measures the scroll pairing by
+      // nudging each source down by 240px, and a source already parked at the
+      // bottom cannot be nudged — the first version of this step ended with
+      // `Control+End` and made the pairing measure report that no source moved a
+      // preview. Measured, on the run below this one.
+      await press("Control+Home");
+      await page.waitForTimeout(800);
+
+      // Back to the arrangement the rest of this section measures.
+      await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+      await clickVisible("the source-and-preview arrangement", '[data-arrangement="sourceAndPreview"]');
+      await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
+      await page.waitForTimeout(400);
+    }
+
     // **Which source follows which preview is not a fact about the window.**
     // A run arrives here in whatever arrangement the steps before it left, and
     // naming the pairing after a layout this file would then have to police is a

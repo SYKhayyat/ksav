@@ -135,6 +135,12 @@ export function openArrangements() {
         "button",
         {
           class: "pal-item" + (a.id === here && !settings.pageView ? " active" : ""),
+          // The arrangement's own name, so a harness — or a writer reading the
+          // DOM in a bug report — can name the row without localising it. The
+          // same reason `data-setting` and `data-action` exist; this list was the
+          // one surface in the drawer whose rows could only be found by their
+          // translated text, which is how a run ends up driving Hebrew labels.
+          "data-arrangement": a.id,
           onClick: () => {
             closePanel("arrangement");
             settings.pageView = false;

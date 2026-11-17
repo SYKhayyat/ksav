@@ -440,6 +440,37 @@ export const clampScroll = (y: number, el: HTMLElement) =>
  */
 let caretFollowTimer = 0;
 
+/**
+ * The preview the caret is followed in, or `null` when there is not exactly one.
+ *
+ * This used to be `document.querySelectorAll(".preview-host")` and a `length !== 1`
+ * guard, which read as caution and was a bug: the **shipped** `twoPreviews`
+ * arrangement has two preview hosts, so the guard returned on every caret move
+ * and the linked preview — the one the preset exists to make follow — silently
+ * stopped following. Nothing reported it, because a preview that does not scroll
+ * looks exactly like a preview that is already where it should be (#197).
+ *
+ * The answer comes from the pane tree, not the DOM: a preview is *linked* or it
+ * is not, and `panes` states that per leaf. Exactly one linked preview is the
+ * arrangement this follow is written for; none means nothing to follow, and more
+ * than one is #163's open question — two linked previews, each following its own
+ * source — which this must not guess at. Returning nothing in that case keeps
+ * today's behaviour rather than inventing a second one, and the guard is now
+ * about the *tree's* shape instead of about how many boxes happen to be painted.
+ *
+ * The host is then looked up by pane id, which is the same pairing
+ * `panehost.ts` writes when it renders the leaf (`pane-host-${pane.id}`).
+ */
+export function followedPreview(tree: panes.PaneNode): panes.Leaf | null {
+  const linked = panes.leaves(tree).filter((l) => l.role === "preview" && l.linked);
+  return linked.length === 1 ? linked[0] : null;
+}
+
+function followedPreviewHost(): HTMLElement | null {
+  const pane = followedPreview(panestate.paneTree);
+  return pane ? document.getElementById(`pane-host-${pane.id}`) : null;
+}
+
 export function followCaretInPreview() {
   if (settings.followCaret === false) return;
   clearTimeout(caretFollowTimer);
@@ -448,9 +479,8 @@ export function followCaretInPreview() {
     // somewhere the caret is not, and yanking the preview back is the opposite
     // of help.
     if (scrollFloor && performance.now() < scrollFloor.until) return;
-    const hosts = document.querySelectorAll<HTMLElement>(".preview-host");
-    if (hosts.length !== 1) return;
-    const host = hosts[0];
+    const host = followedPreviewHost();
+    if (!host) return;
     const view = runtime.view;
     if (!view) return;
     const head = view.state.selection.main.head;

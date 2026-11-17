@@ -113,7 +113,7 @@ Exit: a fresh audit with every finding either fixed or filed in the Debt
 section at the top of this plan.
 
 - [ ] Engine (Rust/Typst) audit: correctness, panics on bad input, and export fidelity.
-- [ ] Tauri shell audit (it was not covered by the #140 sweep): IPC surface, file-system scope, updater.
+- [x] Tauri shell audit (it was not covered by the #140 sweep): IPC surface, file-system scope, updater. `AUDIT-shell-2026-11-17.md` — capability grant is `core:default` only, every file op keyed on a dialog-picked path (normalized, traversal tested), `ksav_call` reaches the seven Native services but bounded by fixed git args and `protocol.ext.allow=never`, preview SVG sanitized by allow-list, prose tables escape per character, one CSP file fenced by build.rs with `https://api.github.com` as the only egress. Remaining work in it is #131 (signed builds).
 - [ ] Security: what an opened document can make the app do (links, includes, paths).
 - [ ] Data integrity: round-trip every saved format; check that nothing is silently dropped.
 - [ ] Run `lamdan` across the whole repo once and triage its findings into this plan.

@@ -699,4 +699,24 @@ jobs:
         # without a display. Xvfb is X11, which is the backend that already worked;
         # a developer on native Wayland gets the stronger check by running the gate
         # by hand. See #101 and the header of app/tools/render-check.mjs.
+        #
+        # `KSAV_RENDER_KEEP` is where the render check puts its evidence, and the
+        # upload below is what carries it off the runner (#190). Without the pair,
+        # a failure here leaves one AT-SPI warning line as the whole record of 25
+        # seconds — which is why every attempt at #189's webview cost a push and
+        # came back with nothing new.
+        env:
+          KSAV_RENDER_KEEP: ${{ runner.temp }}/ksav-render-evidence
         run: xvfb-run -a node tools/gate.mjs shell --require
+      # The whole record of the render check, kept only when it mattered. Its
+      # failure mode is "the webview did not start", which no amount of reading
+      # this repository can explain — the answer is in the app's own output on the
+      # runner, and that output dies with the job unless it is carried off.
+      - name: Keep the render check's evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-render-evidence
+          path: ${{ runner.temp }}/ksav-render-evidence
+          if-no-files-found: warn
+          retention-days: 7

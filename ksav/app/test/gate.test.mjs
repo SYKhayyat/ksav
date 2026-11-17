@@ -1002,6 +1002,44 @@ export async function run() {
       offenders.length === 0,
     );
 
+    // ------------------------------- the render check keeps its evidence (#190)
+    //
+    // The render check is the one check here that can fail for a reason the tree
+    // cannot explain, and until #190 it deleted its own record: the two JSON files
+    // went into a `mkdtemp` and a `finally` removed them, and the app's output was
+    // tail-ed into a message. A runner failure's whole record was one AT-SPI line.
+    //
+    // The knob is `KSAV_RENDER_KEEP`, and it is worth nothing unless the job that
+    // runs the check sets it *and* something carries the directory off the runner.
+    // Both halves, or the reader gets nothing — which is the state this was filed
+    // against.
+    {
+      const ciThere = workflowJobs(readFileSync(path.join(ROOT, WORKFLOW), "utf8"));
+      const desktop = ciThere.find((j) => /^desktop shell$/u.test(j.name));
+      ok("the workflow has a desktop shell job to sweep", !!desktop);
+      const step = desktop?.stepFields.find((s) => s.run?.includes("gate.mjs shell"));
+      ok("and a step that runs the shell gate", !!step);
+      ok(
+        "the step that renders a window says where to keep the evidence",
+        !!step && step.text.includes("KSAV_RENDER_KEEP"),
+        step?.text.split("\n").slice(0, 3).join(" "),
+      );
+      ok(
+        "and some step carries that directory off the runner",
+        !!desktop &&
+          desktop.stepFields.some(
+            (s) => s.text.includes("upload-artifact") && s.text.includes("ksav-render-evidence"),
+          ),
+      );
+      ok(
+        "…only when the run failed, because a green one has nothing to explain",
+        !!desktop &&
+          desktop.stepFields.some(
+            (s) => s.text.includes("upload-artifact") && /if:\s*failure\(\)/.test(s.text),
+          ),
+      );
+    }
+
     // …and the fence can fail. The step that broke, as it was written.
     const broke = `name: f
 on: [push]

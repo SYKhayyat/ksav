@@ -43,7 +43,15 @@
 // on native Wayland running the gate by hand gets the stronger check for free.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,9 +75,98 @@ const WANTED_WINDOW = "main";
 /** How long the page gets to answer, in milliseconds. */
 const ANSWER_BY_MS = 25_000;
 
+/**
+ * The variable that asks for the evidence to be kept, and where CI points it.
+ *
+ * A directory rather than a flag, so the runner decides where artefacts go and
+ * the check does not have to know what a runner is. Unset means keep nothing,
+ * which is what a reader on their own machine wants.
+ */
+export const KEEP_ENV = "KSAV_RENDER_KEEP";
+
+/**
+ * What this run knows, collected as it goes rather than reconstructed after.
+ *
+ * A failure path is a `fail()` in eight places, and every one of them has to
+ * leave the same record behind; a record assembled at the end would be missing
+ * from exactly the runs that needed it.
+ */
+const recorded = { facts: {}, streams: {}, scratch: null };
+
+/**
+ * Copies everything a finished run knows into a directory that outlives it.
+ *
+ * # Why (#190)
+ *
+ * This check is the only one here that can fail for a reason the tree cannot
+ * explain, and it used to delete its own evidence: both records went into a
+ * `mkdtemp` and a `finally` removed it, the app's stdout and stderr were
+ * captured and only `tail`-ed into the message, and no job in the repository
+ * uploaded an artefact. A 25-second failure's entire record was one AT-SPI
+ * warning line — so every attempt at the defect behind #189 cost a push and
+ * returned no more than the attempt before it.
+ *
+ * `streams` are written whole. The tail in the message stays, because a message
+ * has to stay readable, but a tail is not a record.
+ *
+ * Exported so the behaviour can be tested without opening a window.
+ */
+export function keepEvidence({ scratch, keep, facts = {}, streams = {} }) {
+  if (!keep) return null;
+  mkdirSync(keep, { recursive: true });
+  const kept = [];
+  for (const name of ["measurement.json", "boot.json"]) {
+    const from = scratch ? path.join(scratch, name) : null;
+    if (from && existsSync(from)) {
+      copyFileSync(from, path.join(keep, name));
+      kept.push(name);
+    }
+  }
+  for (const [name, text] of Object.entries(streams)) {
+    writeFileSync(path.join(keep, name), String(text ?? ""), "utf8");
+    kept.push(name);
+  }
+  // `run.json` names itself in its own list, so a reader who finds the directory
+  // can see it is complete rather than inferring it from the file names.
+  kept.push("run.json");
+  writeFileSync(
+    path.join(keep, "run.json"),
+    `${JSON.stringify({ ...facts, kept }, null, 2)}\n`,
+    "utf8",
+  );
+  return keep;
+}
+
+/** Keep what this run has, if it was asked to. Returns where, or `null`. */
+function saveEvidence(verdict) {
+  const keep = process.env[KEEP_ENV];
+  if (!keep) return null;
+  try {
+    return keepEvidence({
+      scratch: recorded.scratch,
+      keep,
+      facts: { ...recorded.facts, verdict },
+      streams: recorded.streams,
+    });
+  } catch (e) {
+    // A failure to keep the evidence must not hide the failure that caused it.
+    console.error(`  could not keep evidence in ${keep}: ${e.message}`);
+    return null;
+  }
+}
+
 /** Fail with this rather than a stack trace: it is the whole point of the file. */
 function fail(message) {
+  const kept = saveEvidence("failed");
   console.error(`\n✗ desktop render check\n\n${message}\n`);
+  if (kept) {
+    console.error(`  The whole record of this run is in ${kept}\n`);
+  } else {
+    console.error(
+      "  Set KSAV_RENDER_KEEP=<dir> to keep the records, the page's own answer and\n" +
+        "  the application's whole output, when this happens again.\n",
+    );
+  }
   process.exit(1);
 }
 
@@ -184,6 +281,19 @@ if (invokedDirectly) {
   const dir = mkdtempSync(path.join(tmpdir(), "ksav-render-"));
   const answer = path.join(dir, "measurement.json");
   const boot = path.join(dir, "boot.json");
+  // Named before the first thing that can fail, so a `fail()` at any point below
+  // has a record to keep (#190). The render decisions are added once they are
+  // made, four lines down.
+  recorded.scratch = dir;
+  recorded.facts = {
+    at: new Date().toISOString(),
+    platform: process.platform,
+    display: process.env.DISPLAY ?? null,
+    waylandDisplay: process.env.WAYLAND_DISPLAY ?? null,
+    binary: null,
+    child: null,
+    answerMs: ANSWER_BY_MS,
+  };
 
   // What this machine can render with, decided before the window is asked.
   const nodes = renderNodes();
@@ -194,6 +304,7 @@ if (invokedDirectly) {
     platform: process.platform,
   });
   for (const note of notes) console.log(`→ ${note}`);
+  recorded.facts = { ...recorded.facts, renderNodes: nodes, env, cleared, notes };
   const childEnv = { ...process.env, ...env, KSAV_DPR_OUT: answer, KSAV_DPR_BOOT: boot };
   for (const key of cleared) delete childEnv[key];
 
@@ -253,6 +364,20 @@ if (invokedDirectly) {
             timeout: ANSWER_BY_MS,
             env: childEnv,
           });
+    // The whole of what the app said, kept rather than tail-ed. The message below
+    // still shows the last lines, because a message has to stay readable; this is
+    // the record (#190).
+    recorded.streams = {
+      "app.out.log": child.stdout ?? "",
+      "app.err.log": child.stderr ?? "",
+    };
+    recorded.facts.binary = binary;
+    recorded.facts.child = {
+      status: child.status,
+      signal: child.signal ?? null,
+      timedOut: child.error?.code === "ETIMEDOUT",
+    };
+
     // A timeout is the expected end: the application is an editor, and nothing
     // asks it to quit. `SIGTERM` from `timeout` is a pass, not a crash.
     if (child.error && child.error.code !== "ETIMEDOUT") {
@@ -334,6 +459,13 @@ if (invokedDirectly) {
           problems.map((p) => `  - ${p}`).join("\n\n"),
       );
     }
+
+    // The measurement is part of the record even on a pass: the numbers are what
+    // a later run is compared against, and "it was 1.25 last week" is the only
+    // way to know a scale regression from a scale that was always like that.
+    recorded.facts.measurement = m;
+    const keptOnPass = saveEvidence("passed");
+    if (keptOnPass) console.log(`→ the record of this run was kept in ${keptOnPass}`);
 
     console.log(
       `\n✓ the page reports dPR ${m.devicePixelRatio}, ` +

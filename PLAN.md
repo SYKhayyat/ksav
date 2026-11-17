@@ -68,8 +68,11 @@ Exit: a tagged v0.2 with installers that a clean Windows machine and a
 non-Nix Linux machine can install and launch, and the UAT fixes confirmed in
 the real app.
 
-- [ ] #133 Windows: clean build from scratch, plus a smoke test of the packaged app (launch, open, save, export).
+- [x] #133 Windows: clean build from scratch, plus a smoke test of the packaged app (launch, open, save, export).
+  Done for a clean clone on 2026-11-17: `tauri build` → NSIS → silent install → Start-menu shortcut → a window with a bound desk. Two findings filed on the way: #194 (the installer cannot be driven from Git Bash) and #195 (a stale shortcut is silent, which is UAT 28's symptom). The owner's own machine still needs the last acceptance line.
 - [ ] #134 verify UAT items 2, 3, 4, 5, 10, 12, 16, 17 in the real app, not only in tests.
+- [ ] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Blocks any installer smoke test a workflow step would try to write.
+- [ ] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".
 - [ ] Generic Linux artifact from `ksav/packaging/build-linux.sh` (AppImage or tarball), tested on a non-Nix distro.
 - [ ] Windows NSIS installer built by `release.yml` and attached to the release.
 - [ ] Tag v0.2.0. Write short release notes listing what changed since v0.1.1.

@@ -18,7 +18,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { notOk, ok } from "./harness.mjs";
-import { renderEnv, renderNodes } from "../tools/renderenv.mjs";
+import { displayPresent, renderEnv, renderNodes, shellBinary } from "../tools/renderenv.mjs";
 
 export async function run() {
   const NODE = ["/dev/dri/renderD128"];
@@ -79,6 +79,35 @@ export async function run() {
     ok("the WebKitGTK knobs stay on Linux", Object.keys(r.env).length === 0);
     ok("a Mac is never described as software-rendering", r.software === false);
   }
+
+  // --- is there a display to open a window on (#193) -------------------------
+  //
+  // The check asked for `DISPLAY` or `WAYLAND_DISPLAY` and refused to start when
+  // neither was set. That is a question only Linux can be asked: Windows and
+  // macOS have a display and no variable naming it, and the check as written
+  // would not run on either — so the shipped window had no measurement on two of
+  // the three platforms it ships to. These four cases are the whole decision.
+  {
+    ok("Windows has a display and no DISPLAY variable", displayPresent({ platform: "win32", env: {} }));
+    ok("macOS has one too", displayPresent({ platform: "darwin", env: {} }));
+    notOk("Linux with neither variable has none", displayPresent({ platform: "linux", env: {} }));
+    ok("…and with DISPLAY it has one", displayPresent({ platform: "linux", env: { DISPLAY: ":99" } }));
+    ok(
+      "…or with WAYLAND_DISPLAY alone",
+      displayPresent({ platform: "linux", env: { WAYLAND_DISPLAY: "wayland-0" } }),
+    );
+  }
+
+  // --- what the built shell is called (#193) --------------------------------
+  //
+  // The check required `target/debug/app` after building the shell. On Windows
+  // cargo writes `app.exe`, and the check reported "expected a binary at …\app
+  // and there is none" about a binary it had just compiled.
+  ok("Linux and macOS build `app`", [shellBinary({ platform: "linux" }), shellBinary({ platform: "darwin" })], [
+    "app",
+    "app",
+  ]);
+  ok("Windows builds `app.exe`", shellBinary({ platform: "win32" }), "app.exe");
 
   // --- reading /dev/dri -----------------------------------------------------
 

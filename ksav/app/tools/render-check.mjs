@@ -47,7 +47,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderEnv, renderNodes } from "./renderenv.mjs";
+import { displayPresent, renderEnv, renderNodes, shellBinary } from "./renderenv.mjs";
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SHELL = path.join(APP, "src-tauri");
@@ -150,8 +150,13 @@ if (invokedDirectly) {
   // A display is the whole premise. Failing loudly is deliberate: a check that
   // quietly reports success without one is worse than no check, and this file
   // exists because nothing measured any of this.
-  const hasDisplay = Boolean(process.env.WAYLAND_DISPLAY || process.env.DISPLAY);
-  if (!hasDisplay) {
+  //
+  // What counts as a display is `displayPresent`'s decision rather than this
+  // file's, because it is wrong in one direction that is easy to write and hard
+  // to notice: Windows and macOS have a display and no `DISPLAY` variable, and
+  // this test refused to start there for want of a name those systems do not
+  // use (#193).
+  if (!displayPresent({ env: process.env })) {
     fail(
       "no display. `DISPLAY` and `WAYLAND_DISPLAY` are both unset, so there is no\n" +
         "  window to render and nothing to measure.\n\n" +
@@ -221,18 +226,30 @@ if (invokedDirectly) {
     console.log("→ building the shell with the render probe");
     run(["cargo", "build", "--features", "dpr-probe,tauri/custom-protocol"], SHELL);
 
-    const binary = path.join(SHELL, "target", "debug", "app");
+    const binary = path.join(SHELL, "target", "debug", shellBinary());
     if (!existsSync(binary)) fail(`expected a binary at ${binary} and there is none`);
 
     console.log("→ asking the page what it thinks the display is");
     // Output is captured rather than inherited so a failure can quote the app.
     // On a pass there is nothing here worth showing; on a timeout it is the only
     // evidence in the run about what the webview did.
-    const child = spawnSync("bash", ["-c", `exec ${JSON.stringify(binary)}`], {
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: ANSWER_BY_MS,
-      env: childEnv,
-    });
+    //
+    // X11 and Wayland get a `bash -c exec` wrapper, which is what the Linux
+    // investigation was written against. Windows has no `bash` on a plain
+    // machine, and the wrapper buys nothing there — `exec` is what a direct
+    // spawn already is — so the binary is started directly (#193).
+    const child =
+      process.platform === "win32"
+        ? spawnSync(binary, [], {
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: ANSWER_BY_MS,
+            env: childEnv,
+          })
+        : spawnSync("bash", ["-c", `exec ${JSON.stringify(binary)}`], {
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: ANSWER_BY_MS,
+            env: childEnv,
+          });
     // A timeout is the expected end: the application is an editor, and nothing
     // asks it to quit. `SIGTERM` from `timeout` is a pass, not a crash.
     if (child.error && child.error.code !== "ETIMEDOUT") {

@@ -469,20 +469,58 @@ export async function run() {
     );
 
     const lints = CHECKS.find((c) => c.id === "shell-clippy");
-    ok("a library that is here is not a reason to skip", missingNeed(lints, () => true) === null);
-    const gone = missingNeed(lints, () => false);
+    // `"linux"` said out loud, because these are assertions about what a Linux
+    // desk can build. Left to the default they would read this machine instead —
+    // which is #192's fault in a different function, and it is why `missingNeed`
+    // and `howToRun` take a platform at all (#193).
+    ok("a library that is here is not a reason to skip", missingNeed(lints, () => true, "linux") === null);
+    const gone = missingNeed(lints, () => false, "linux");
     ok("…and one that is not is", !!gone && gone.pkg === "gdk-3.0");
     ok("…and it knows which shell has it", gone.shell === "desktop");
-    ok("a check with no needs is never skipped", missingNeed(CHECKS[0], () => false) === null);
+    ok("a check with no needs is never skipped", missingNeed(CHECKS[0], () => false, "linux") === null);
     ok(
       "the way to measure it names the desktop shell and a gate group",
-      howToRun(lints).includes("nix develop .#desktop") && howToRun(lints).includes("tools/gate.mjs shell"),
-      howToRun(lints),
+      howToRun(lints, undefined, "linux").includes("nix develop .#desktop") &&
+        howToRun(lints, undefined, "linux").includes("tools/gate.mjs shell"),
+      howToRun(lints, undefined, "linux"),
     );
     ok(
       "…and the command it replaces, when nothing is missing",
-      howToRun(CHECKS[0]) === `cd ksav/${CHECKS[0].cwd} && ${CHECKS[0].command.join(" ")}`,
-      howToRun(CHECKS[0]),
+      howToRun(CHECKS[0], undefined, "linux") ===
+        `cd ksav/${CHECKS[0].cwd} && ${CHECKS[0].command.join(" ")}`,
+      howToRun(CHECKS[0], undefined, "linux"),
+    );
+
+    // ------------------------------------------------ one need, one platform (#193)
+    //
+    // `gdk-3.0` is what the *Linux* build links. Windows links WebView2 and has no
+    // `pkg-config`, so asking the question there got "no" and the gate reported
+    // `shell-clippy` and `shell-tests` as unmeasured — while both built and passed
+    // on that machine, measured. A need that is about one platform's linker has to
+    // say so, and the three that are must all say it.
+    check(
+      "every shell need says which platform its library is about",
+      ["shell-clippy", "shell-tests", "shell-render"].filter((id) =>
+        [].concat(CHECKS.find((c) => c.id === id)?.needs?.appliesTo ?? []).includes("linux"),
+      ),
+      ["shell-clippy", "shell-tests", "shell-render"],
+    );
+    ok(
+      "off Linux the same check is not skipped, and its result is a verdict",
+      ["win32", "darwin"].every(
+        (platform) => missingNeed(lints, () => false, platform) === null,
+      ),
+      ["win32", "darwin"].map((p) => `${p}: ${missingNeed(lints, () => false, p) === null}`).join(", "),
+    );
+    ok(
+      "…and no `nix develop` is offered where that command cannot exist",
+      !howToRun(lints, undefined, "win32").includes("nix develop"),
+      howToRun(lints, undefined, "win32"),
+    );
+    ok(
+      "…but the plain command is, so the reader still knows what runs",
+      howToRun(lints, undefined, "win32") === `cd ksav/${lints.cwd} && ${lints.command.join(" ")}`,
+      howToRun(lints, undefined, "win32"),
     );
 
     // The summary, with one of the three in it: the mark, the sentence, the way

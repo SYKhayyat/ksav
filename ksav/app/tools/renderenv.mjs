@@ -97,3 +97,41 @@ export function renderEnv({ display, waylandDisplay, renderNodes: nodes, platfor
 export function hasRenderNode(dri = "/dev/dri") {
   return existsSync(dri) && renderNodes(dri).length > 0;
 }
+
+/**
+ * Whether this platform has a display to open a window on at all.
+ *
+ * `DISPLAY` and `WAYLAND_DISPLAY` are X11's and Wayland's names for a display.
+ * They are not the only ones: Windows and macOS always have one and call it
+ * nothing, so asking for either name there answers "no" about a machine that
+ * can always say yes (#193). The check refused to start on the platform most of
+ * this product's readers open it on, for want of a variable their system does
+ * not have.
+ *
+ * `env` carries only the two names, so this stays pure and testable without a
+ * machine of each kind.
+ *
+ * @param {object} facts
+ * @param {string} [facts.platform] `process.platform`
+ * @param {object} [facts.env]      the two display variables, if set
+ */
+export function displayPresent({ platform = process.platform, env = {} } = {}) {
+  if (platform === "win32" || platform === "darwin") {
+    // A desktop session is not optional here; there is no headless spelling of
+    // a window on these platforms that `xvfb-run` would stand in for.
+    return true;
+  }
+  return Boolean(env.DISPLAY || env.WAYLAND_DISPLAY);
+}
+
+/**
+ * What the built shell is called on this platform.
+ *
+ * The check built the shell and then required `target/debug/app`, which is the
+ * artefact everywhere except on Windows — where cargo appends the executable
+ * suffix and the check reported `expected a binary at …\app and there is none`
+ * about a binary it had just compiled (#193).
+ */
+export function shellBinary({ platform = process.platform } = {}) {
+  return platform === "win32" ? "app.exe" : "app";
+}

@@ -189,7 +189,7 @@ export const CHECKS = [
     // Asked before it runs rather than discovered in a pkg-config transcript
     // (#181). The shell links WebKitGTK, which only the `desktop` dev shell
     // carries — see NEED_FIELD below.
-    needs: { pkg: "gdk-3.0", shell: "desktop" },
+    needs: { pkg: "gdk-3.0", shell: "desktop", appliesTo: "linux" },
     // `dpr-probe` so the render check's command is linted somewhere. A check
     // that is compiled only by the check that runs it is a check whose code can
     // rot unobserved, and the next person to run it gets a clippy error on code
@@ -206,7 +206,7 @@ export const CHECKS = [
     tree: "shell",
     name: "desktop shell tests",
     cwd: "app/src-tauri",
-    needs: { pkg: "gdk-3.0", shell: "desktop" },
+    needs: { pkg: "gdk-3.0", shell: "desktop", appliesTo: "linux" },
     command: ["cargo", "test", "--features", "dpr-probe"],
     why: "The path allowlist, the deep link and the Girsa desk.",
   },
@@ -215,7 +215,7 @@ export const CHECKS = [
     group: "shell",
     tree: "shell",
     name: "desktop render scale",
-    needs: { pkg: "gdk-3.0", shell: "desktop" },
+    needs: { pkg: "gdk-3.0", shell: "desktop", appliesTo: "linux" },
     // `app/src-tauri`, not `app`: a check belongs in the cwd of the tree it is
     // about, and the editor checks already own `app`. The script sits in
     // `app/tools` with the app's other tooling and resolves its own paths, so it
@@ -253,6 +253,16 @@ export const CHECKS = [
  * when the run is asked to require it (`--require`, which is what CI passes), so
  * a local reader gets an honest "not measured" instead of a red about their
  * machine.
+ *
+ * #193: `pkg` is a question only Linux can be asked. `gdk-3.0` is what the
+ * *Linux* build of the shell links; Windows links WebView2 and macOS links
+ * WebKit, and neither has `pkg-config` at all. So the three `shell` checks were
+ * reported unmeasured on Windows — with the remedy `nix develop .#desktop`, a
+ * command that cannot exist there — while `cargo test --features dpr-probe` and
+ * `cargo clippy … -D warnings` both build and pass on that machine, measured.
+ * A need therefore carries the platforms it is about: `appliesTo: "linux"`.
+ * Everywhere else the check runs and its result is a verdict about the tree,
+ * which is what it was always meant to be.
  */
 export const NEED_FIELD = "needs";
 
@@ -284,9 +294,16 @@ export function select(names) {
  * WebKitGTK. In a real run it is `pkg-config --exists`, which is the same
  * question the cargo build will ask four minutes later — asked in a millisecond,
  * before the reader has started waiting.
+ *
+ * `platform` is injected for the same reason and a better one: a need is often
+ * about one platform's linker, and the default `process.platform` made this
+ * answer about the reader's machine rather than about the check (#193).
  */
-export function missingNeed(check, has = pkgConfigHas) {
+export function missingNeed(check, has = pkgConfigHas, platform = process.platform) {
   if (!check.needs) return null;
+  const scope = check.needs.appliesTo;
+  const scoped = !scope || [].concat(scope).includes(platform);
+  if (!scoped) return null;
   if (has(check.needs.pkg)) return null;
   return check.needs;
 }
@@ -301,10 +318,15 @@ function pkgConfigHas(name) {
  *
  * Printed instead of the check's own command, because the check's own command is
  * what the reader already has and what just failed to make sense.
+ *
+ * The `nix develop` half is advice about a Linux desk. Printed on Windows it is
+ * a command the reader cannot run, pointing at a shell that does not exist there
+ * (#193), so the plain command is what they get.
  */
-export function howToRun(check, names) {
+export function howToRun(check, names, platform = process.platform) {
   const inner = `cd ksav/${check.cwd} && ${check.command.join(" ")}`;
   if (!check.needs) return inner;
+  if (platform !== "linux") return inner;
   const group = names?.length ? names.join(" ") : check.group;
   return (
     `nix develop .#${check.needs.shell} --command bash -c ` +

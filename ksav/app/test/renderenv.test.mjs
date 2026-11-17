@@ -17,7 +17,7 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { notOk, ok } from "./harness.mjs";
+import { check, notOk, ok } from "./harness.mjs";
 import { displayPresent, renderEnv, renderNodes, shellBinary } from "../tools/renderenv.mjs";
 
 export async function run() {
@@ -108,6 +108,50 @@ export async function run() {
     "app",
   ]);
   ok("Windows builds `app.exe`", shellBinary({ platform: "win32" }), "app.exe");
+
+  // --- the platform is named or the question is not asked (#192) -------------
+  //
+  // Every function in `renderenv.mjs` defaulted `platform` to
+  // `process.platform`. That is the machine the *caller* is on, so a test that
+  // left the argument out asserted about the runner: eight assertions about
+  // WebKitGTK were green on Linux and red on every Windows checkout of the same
+  // commit. A default that silently means "wherever this is running" is worse
+  // than a required argument, because `undefined !== "linux"` is a considered
+  // answer that happens to be about the wrong machine.
+  {
+    const threw = (fn) => {
+      try {
+        fn();
+        return false;
+      } catch (e) {
+        return e instanceof TypeError && e.message.includes("name the platform");
+      }
+    };
+    // `check`, not `ok`: this compares three answers to three expectations, and
+    // `ok` is truthiness-only — so the first version of this assertion passed on
+    // `[true, true, true]` *and* on `[false, false, false]`, which is a fence
+    // that cannot go red. Found by running the mutation rather than by reading it.
+    check(
+      "omitting the platform is an error, not a quiet default",
+      [
+        threw(() => renderEnv({ display: ":99", waylandDisplay: undefined, renderNodes: [] })),
+        threw(() => displayPresent({ env: {} })),
+        threw(() => shellBinary()),
+      ],
+      [true, true, true],
+    );
+    ok(
+      "…and the message says why, and what to pass instead",
+      (() => {
+        try {
+          shellBinary();
+          return "did not throw";
+        } catch (e) {
+          return e.message.includes("process.platform") && e.message.includes("#192");
+        }
+      })(),
+    );
+  }
 
   // --- reading /dev/dri -----------------------------------------------------
 

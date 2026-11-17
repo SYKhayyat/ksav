@@ -156,7 +156,9 @@ if (invokedDirectly) {
   // to notice: Windows and macOS have a display and no `DISPLAY` variable, and
   // this test refused to start there for want of a name those systems do not
   // use (#193).
-  if (!displayPresent({ env: process.env })) {
+  // This is the one caller that means *this* machine on purpose: the check
+  // measures the webview it is running on (#192).
+  if (!displayPresent({ env: process.env, platform: process.platform })) {
     fail(
       "no display. `DISPLAY` and `WAYLAND_DISPLAY` are both unset, so there is no\n" +
         "  window to render and nothing to measure.\n\n" +
@@ -189,6 +191,7 @@ if (invokedDirectly) {
     display: process.env.DISPLAY,
     waylandDisplay: process.env.WAYLAND_DISPLAY,
     renderNodes: nodes,
+    platform: process.platform,
   });
   for (const note of notes) console.log(`→ ${note}`);
   const childEnv = { ...process.env, ...env, KSAV_DPR_OUT: answer, KSAV_DPR_BOOT: boot };
@@ -226,7 +229,7 @@ if (invokedDirectly) {
     console.log("→ building the shell with the render probe");
     run(["cargo", "build", "--features", "dpr-probe,tauri/custom-protocol"], SHELL);
 
-    const binary = path.join(SHELL, "target", "debug", shellBinary());
+    const binary = path.join(SHELL, "target", "debug", shellBinary({ platform: process.platform }));
     if (!existsSync(binary)) fail(`expected a binary at ${binary} and there is none`);
 
     console.log("→ asking the page what it thinks the display is");

@@ -30,6 +30,35 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
+/**
+ * The platform a question is about, said out loud or not asked at all.
+ *
+ * Every function here used to default this to `process.platform`, which is the
+ * machine the *caller* happens to be on — and a test that omitted the argument
+ * therefore asserted about the runner rather than about the code. It passed on
+ * the Linux machine it was written on and was red on every Windows checkout of
+ * the same commit, which is how eight assertions about WebKitGTK spent a day
+ * saying the module was broken (#192).
+ *
+ * A default here is a default that can be wrong without a sound: `undefined` is
+ * not `"linux"`, so a forgotten argument silently produces the "not my platform"
+ * answer and looks like a considered result. So the argument is required, and
+ * missing it is an error rather than a quiet branch.
+ */
+function platformOf(facts) {
+  const platform = facts?.platform;
+  if (!platform) {
+    throw new TypeError(
+      "renderenv: name the platform. There is no default on purpose — a default " +
+        "reads the machine this code is running on, which is how a fence about " +
+        "WebKitGTK went green on Linux and red on Windows (#192). The check itself " +
+        "passes `process.platform`; a test names the one it is asking about.",
+    );
+  }
+  return platform;
+}
+
+
 /** The DRM render nodes this machine has, if any. `/dev/dri` need not exist. */
 export function renderNodes(dri = "/dev/dri") {
   let entries;
@@ -60,9 +89,11 @@ export function renderNodes(dri = "/dev/dri") {
  * @param {string|undefined} facts.display        `DISPLAY`, if set
  * @param {string|undefined} facts.waylandDisplay `WAYLAND_DISPLAY`, if set
  * @param {string[]} facts.renderNodes            character devices under /dev/dri
- * @param {string} [facts.platform]               `process.platform`
+ * @param {string} facts.platform                 the platform being asked about
+ *                                                — required, see `platformOf`
  */
-export function renderEnv({ display, waylandDisplay, renderNodes: nodes, platform = process.platform }) {
+export function renderEnv({ display, waylandDisplay, renderNodes: nodes, ...facts }) {
+  const platform = platformOf(facts);
   const env = {};
   const cleared = [];
   const notes = [];
@@ -115,7 +146,8 @@ export function hasRenderNode(dri = "/dev/dri") {
  * @param {string} [facts.platform] `process.platform`
  * @param {object} [facts.env]      the two display variables, if set
  */
-export function displayPresent({ platform = process.platform, env = {} } = {}) {
+export function displayPresent({ env = {}, ...facts } = {}) {
+  const platform = platformOf(facts);
   if (platform === "win32" || platform === "darwin") {
     // A desktop session is not optional here; there is no headless spelling of
     // a window on these platforms that `xvfb-run` would stand in for.
@@ -132,6 +164,7 @@ export function displayPresent({ platform = process.platform, env = {} } = {}) {
  * suffix and the check reported `expected a binary at …\app and there is none`
  * about a binary it had just compiled (#193).
  */
-export function shellBinary({ platform = process.platform } = {}) {
+export function shellBinary(facts = {}) {
+  const platform = platformOf(facts);
   return platform === "win32" ? "app.exe" : "app";
 }

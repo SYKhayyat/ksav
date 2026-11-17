@@ -22,7 +22,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The build's one spelling, imported rather than re-typed (#115).
-const { COMMAND } = await import(path.resolve(here, "../../ksav/tools/wasmbuild.mjs"));
+// `pathToFileURL`, not `path.resolve`: on Windows the loader accepts only a
+// `file://` URL, and this file is checked in on GitHub (ubuntu) and run locally
+// on Windows — the same class of hole that Windows-only runs exist to find.
+const { COMMAND } = await import(pathToFileURL(path.resolve(here, "../../ksav/tools/wasmbuild.mjs")).href);
 const pkg = path.resolve(here, "../../ksav/wasm/pkg");
 
 const glue = path.join(pkg, "ksav_wasm.js");

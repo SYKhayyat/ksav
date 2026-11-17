@@ -113,6 +113,26 @@ function strip(s) {
  */
 const RULES = [
   {
+    // **A dynamic `import()` of a filesystem path is a Windows bug waiting.**
+    //
+    // `wasm-smoke.mjs` did `await import(path.resolve(...))`. On GitHub the runner
+    // is ubuntu and a POSIX path is a legal specifier, so it worked for every run
+    // that ever happened — and on Windows the loader rejects it outright:
+    // *"Only URLs with a scheme in: file, data, and node are supported … Received
+    // protocol 'c:'"*. The browser engine's smoke check had therefore never been
+    // run on the one platform most of this product's writers use, and it could not
+    // have been.
+    //
+    // The rule is about the *shape*, because the shape is what is wrong: a path
+    // that came from `path.resolve`/`join` is a filesystem path, and the ESM loader
+    // wants a URL. `pathToFileURL(...).href` is the one spelling that works in both
+    // places. A string literal specifier (`import("./x.mjs")`) is untouched — it is
+    // resolved relative to the importing file, which is already a URL.
+    what: "a dynamic import is given a URL, not a filesystem path",
+    where: /\.(mjs|ts|js)$/u,
+    contains: [String.raw`import(path.resolve(`, String.raw`import(path.join(`],
+  },
+  {
     // G6, relayed from Girsa — the class: **a test that asserts the size of a
     // registry instead of the property the registry must have.**
     //

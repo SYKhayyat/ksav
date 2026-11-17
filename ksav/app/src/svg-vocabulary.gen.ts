@@ -41,6 +41,7 @@ export const SVG_ATTRIBUTES: readonly string[] = [
   "fill",
   "fill-rule",
   "height",
+  "href",
   "id",
   "overflow",
   "preserveAspectRatio",

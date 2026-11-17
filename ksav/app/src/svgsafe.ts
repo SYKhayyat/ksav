@@ -84,10 +84,13 @@ export const SAFE_SVG_ELEMENTS: ReadonlySet<string> = new Set([
 /** Attributes the engine emits — **measured**; see `SVG_ELEMENTS` for why. */
 export const SAFE_SVG_ATTRIBUTES: ReadonlySet<string> = new Set([
   ...SVG_ATTRIBUTES,
-  // The text attributes Typst writes alongside `text`/`tspan`, and the
-  // unprefixed `href` it uses in some builds rather than `xlink:href`. Same
-  // standing as the text primitives in `SAFE_SVG_ELEMENTS`: forward
-  // compatibility, not a measurement, because nothing in the corpus selects text.
+  // The text attributes Typst writes alongside `text`/`tspan`. Same standing as
+  // the text primitives in `SAFE_SVG_ELEMENTS`: forward compatibility, not a
+  // measurement, because nothing in the corpus selects text.
+  //
+  // `href` used to be on this list for the same reason, and it is above it now:
+  // `svg_output.rs` measures a document carrying a `#link`, so the attribute is
+  // a fact about Typst's exporter rather than a guess about it.
   "dx",
   "dy",
   "fill-opacity",
@@ -104,7 +107,10 @@ export const SAFE_SVG_ATTRIBUTES: ReadonlySet<string> = new Set([
   "pathLength",
   "offset",
   "class",
-  "href",
+  // Written by this module, never by the engine: a document's link leaves the
+  // page it is drawn on, which is the whole of the next two comments.
+  "target",
+  "rel",
 ]);
 
 /**
@@ -135,6 +141,38 @@ export const DENIED_SVG_ELEMENTS: ReadonlySet<string> = new Set([
 
 /** A URL that runs code when a browser follows it. */
 const DANGEROUS_URL = /^\s*(?:javascript|vbscript|data:text\/html)/iu;
+
+/**
+ * The destinations a **link** in a document may point at.
+ *
+ * A `#link("…")` reaches the preview as an `<a>` around the transparent hit-area
+ * `<rect>`, and an `<a>` in a webview is a navigation. Everything that is not a
+ * page on the web — `file:`, `blob:`, `data:` — is refused, and the reason is the
+ * one place in this product where a *document* chooses something the application
+ * then does:
+ *
+ *   · `file:///C:/…` navigates the webview to a local file. On Windows the IPC
+ *     bridge is injected into every document the webview loads, so a local file
+ *     rendered in the app's own window is not "a file shown to the writer": it is
+ *     a document with the application's authority. (Whether Tauri's bridge
+ *     survives that navigation is the open half of #202 — the sanitizer refusing
+ *     the scheme does not depend on the answer.)
+ *   · Nothing a *document* carries needs `blob:` or `data:` to be a link. Images
+ *     and fonts arrive as bytes and are addressed by name, so those schemes have
+ *     no honest use here and an obvious dishonest one.
+ *
+ * `javascript:` and `vbscript:` are caught by `DANGEROUS_URL` above, before this;
+ * that check applies to **every** URL-carrying attribute, this one only to `<a>`.
+ */
+const LINK_SCHEME = /^(?:https?|mailto|tel):/iu;
+
+/** Does this `<a>` href's scheme, if it has one, belong on the open web? */
+function linkable(href: string): boolean {
+  const t = href.trim();
+  const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(t);
+  if (!scheme) return true; // relative, or a `#` fragment
+  return LINK_SCHEME.test(t);
+}
 
 /** What was dropped, so a caller can say so rather than pretend nothing happened. */
 export interface SanitizeReport {
@@ -303,7 +341,21 @@ export function sanitizeSvg(svg: string): { safe: string; report: SanitizeReport
           dropped.push(`${name}@${a.name}`);
           continue;
         }
+        // The hit area stays, the destination does not: a link the writer cannot
+        // click is a missing underline, and a link that navigates the application
+        // away is the window gone.
+        if ((a.name === "href" || a.name === "xlink:href") && name === "a" && !linkable(a.value)) {
+          dropped.push(`${name}@${a.name}`);
+          continue;
+        }
         kept.push(`${a.name}="${attrValue(a.value)}"`);
+      }
+      // A link leaves the page it is drawn on. Without this the click replaces
+      // the application with somebody's website — and in the browser tier, with
+      // no back button and no way to get the open documents on screen again.
+      if (name === "a" && kept.some((k) => k.startsWith("href=") || k.startsWith("xlink:href="))) {
+        if (!kept.some((k) => k.startsWith("target="))) kept.push('target="_blank"');
+        if (!kept.some((k) => k.startsWith("rel="))) kept.push('rel="noopener noreferrer"');
       }
       out.push(`<${name}${kept.length ? ` ${kept.join(" ")}` : ""}${selfClosing ? "/" : ""}>`);
     }

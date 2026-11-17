@@ -93,6 +93,15 @@ fn corpus() -> Vec<(&'static str, String)> {
         "text",
         "#שער[דוגמה]\n\n#פסוק[בראשית א׳, א׳][בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ].\n".to_string(),
     ));
+    // A **link**, because that is the one construct where a document chooses
+    // something the application then does: an `<a>` in the preview is a
+    // navigation. `svgsafe.ts` decides which schemes may survive it, and that is
+    // only a decision about real output if the exporter is measured emitting the
+    // attribute — so it is measured here rather than assumed.
+    out.push((
+        "a link",
+        "#שער[דוגמה]\n\n#link(\"https://example.com/sefer\")[קישור].\n".to_string(),
+    ));
     out
 }
 

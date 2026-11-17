@@ -130,6 +130,58 @@ export function run() {
     }
   }
 
+  // --------------------------------------- 2. an `<a>` is a navigation, not a link
+  //
+  // A document's `#link("…")` arrives as an `<a>` around a transparent rect, and
+  // an `<a>` in a webview is a *navigation*. The destination's scheme decides
+  // whether that is fine (a page on the web, opened in a new tab, the app
+  // untouched) or a fault (a local file rendered inside the application's own
+  // window, where the IPC bridge lives — or the application itself replaced by
+  // somebody's website, with the open documents gone from the screen).
+  {
+    const web = sanitizeSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
+        '<a href="https://example.com/sefer"><rect width="1" height="1"/></a>' +
+        "</svg>",
+    );
+    ok("a web link keeps its destination", web.safe.includes('href="https://example.com/sefer"'));
+    ok("…and opens in a new tab, the app untouched", web.safe.includes('target="_blank"'));
+    ok("…with the referrer cut", web.safe.includes('rel="noopener noreferrer"'));
+
+    const mail = sanitizeSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
+        '<a href="mailto:rebbe@yeshiva.edu"><rect width="1" height="1"/></a>' +
+        "</svg>",
+    );
+    ok("mailto survives", mail.safe.includes('href="mailto:rebbe@yeshiva.edu"'));
+
+    for (const bad of [
+      "file:///C:/Windows/System32/drivers/etc/hosts",
+      "file:///etc/passwd",
+      "blob:https://example.com/uuid",
+      "data:text/html,<script>x</script>",
+      "vbscript:msgbox(1)",
+    ]) {
+      const { safe, report } = sanitizeSvg(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
+          `<a href="${bad}"><rect width="1" height="1"/></a>` +
+          "</svg>",
+      );
+      notOk(`a ${bad.slice(0, 14)}… link does not survive`, safe.includes("href="));
+      ok(`…and is reported: ${bad.slice(0, 20)}`, report.dropped.some((d) => d.startsWith("a@href")));
+      ok("the hit area stays, so the page still lays out", safe.includes("<rect"));
+    }
+
+    // The hit area with no href (the shape Typst actually emits for an internal
+    // citation jump) must not pick up target/rel — there is nothing to open.
+    const bare = sanitizeSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
+        '<a transform="translate(511 741)"><rect width="2.89" height="11.5" fill="transparent" stroke="none"/></a>' +
+        "</svg>",
+    );
+    ok("a hit-area without a destination stays exactly as it was", !bare.safe.includes("target="), bare.safe);
+  }
+
   // The `data:image/svg+xml;base64,` case is the one that must **not** be
   // refused, and the reason is a measurement rather than a preference: it is how
   // Typst emits every SVG image a sefer contains. Refusing it would blank every

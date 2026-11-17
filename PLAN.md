@@ -43,7 +43,7 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 - [x] #193 the measurement layer assumes Linux three ways: the gate skips `shell-clippy`/`shell-tests` on Windows although both pass there (measured), the render check refuses to start where a display always exists, and it looks for `app` rather than `app.exe`. Together: no shell check at all on the owner's main platform.
 - [ ] #190 the render check deletes its evidence and the CI job uploads none. Fix this before #189 is chased any further, or every attempt costs a push and returns one warning line.
 - [x] #191 `render_probe` writes the boot record only when the measurement path is set, so "did a window ever open" is the one question it cannot answer alone.
-- [ ] #192 `renderEnv`'s `platform` defaults to the caller's machine, so a test that omits it asserts about the runner and stays green there.
+- [x] #192 `renderEnv`'s `platform` defaults to the caller's machine, so a test that omits it asserts about the runner and stays green there.
 - [x] #187 gate sweeps read workflows as lines, not as a graph. The parser landed in 7ed8d69; it now reads both matrix spellings and reports what it could not understand (`ad52d40`).
 - [x] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh. Anchored on `$GITHUB_WORKSPACE`, the Windows leg runs it under `pwsh`, and the gate refuses a bare relative path (`818d4e5`).
 - [ ] Check #140 (the audit index) and close it if nothing is left open. As of 2026-11-15 every child was closed except ledger debts #163 and #164, which are in the Debt section above. Ask the owner before closing.

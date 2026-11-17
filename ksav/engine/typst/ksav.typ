@@ -9345,6 +9345,37 @@
   // handed anything. Bracketing the table in the state is what lets a per-table
   // `צבע_כותרת` reach the cells of that table and of no other.
   if own.len() > 0 { _tb_own.update(own) }
+  // # A column count is a size the *document* chooses and the layout allocates
+  //
+  // `#טבלה(עמודות: 999999999)` killed the process. Not a diagnostic, not a page
+  // that overflowed: Typst asks for a track vector of a thousand million columns
+  // and the allocation fails — 34 GB, measured — which on Windows is an abort and
+  // on Linux would be an OOM kill. Nothing in this repository catches it, because
+  // there is nothing left running to catch it with.
+  //
+  // It is reachable from a share fragment, `#ksav=…`, which is the one input in
+  // this product that arrives from a stranger: a single click on a link someone
+  // sent would close the editor with the writer's own unsaved work in it.
+  //
+  // The limit is 256 because a page is finite: at any body size a table wider than
+  // that cannot be drawn on any paper Ksav offers, so the number refuses only what
+  // was never going to print. It is checked here rather than in the Rust assembler
+  // because the *argument* is the thing that is wrong, and a panic inside the
+  // command is the one shape a diagnostic points at the writer's own line.
+  let _tb_max_columns = 256
+  if type(עמודות) == int and (עמודות < 1 or עמודות > _tb_max_columns) {
+    panic(
+      "טבלה: עמודות מקבל בין 1 ל־" + str(_tb_max_columns)
+        + " · table: עמודות takes 1 to " + str(_tb_max_columns)
+        + " — a wider table cannot be drawn on any page"
+    )
+  }
+  if type(עמודות) == array and (עמודות.len() < 1 or עמודות.len() > _tb_max_columns) {
+    panic(
+      "טבלה: רשימת העמודות מקבלת בין 1 ל־" + str(_tb_max_columns) + " רשומות"
+        + " · table: the column track list takes 1 to " + str(_tb_max_columns) + " entries"
+    )
+  }
   context {
     let c = _cfg_with(_tb_cfg.get(), own)
     let stripe = c.at("פסים", default: false)

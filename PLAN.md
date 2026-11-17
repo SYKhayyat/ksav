@@ -168,9 +168,11 @@ section at the top of this plan.
   was deleted on export and called broken by the lint. Both fixed, fenced in
   `ksav/app/test/integrity.test.mjs`. The **import** half is fenced command by
   command — `docx.test.mjs` and `org.test.mjs` over constructed XML and Org, not a
-  file saved by Word — so what is still unmeasured is a document-level word-loss
-  check on that side; `odt` is not an import this application offers, and the
-  plan's earlier "docx/odt" named a format that does not exist. #200 holds the
+  file saved by Word. The document-level check on that side now exists as an
+  **out-and-back**: every engine document exported to Org and re-imported, word for
+  word. It found **#206** — an uncited Org note was deleted with its paragraph, and
+  `dropped` said nothing (`acbf61b`). `odt` is not an import this application
+  offers; the plan's earlier "docx/odt" named a format that does not exist. #200 holds the
   formatting follow-up the export fix surfaced.
 - [ ] Run `lamdan` across the whole repo once and triage its findings into this plan.
 

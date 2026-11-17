@@ -166,8 +166,12 @@ section at the top of this plan.
   `#הגדרה[term][definition]` exported only their first body, and a quoted
   `#note_named["…"]` kept its quotes where its `#note_body["…"]` did not, so the note
   was deleted on export and called broken by the lint. Both fixed, fenced in
-  `app/test/integrity.test.mjs`. The import half (docx/odt → Ksav → export) is still
-  open, and #200 holds the formatting follow-up the fix surfaced.
+  `ksav/app/test/integrity.test.mjs`. The **import** half is fenced command by
+  command — `docx.test.mjs` and `org.test.mjs` over constructed XML and Org, not a
+  file saved by Word — so what is still unmeasured is a document-level word-loss
+  check on that side; `odt` is not an import this application offers, and the
+  plan's earlier "docx/odt" named a format that does not exist. #200 holds the
+  formatting follow-up the export fix surfaced.
 - [ ] Run `lamdan` across the whole repo once and triage its findings into this plan.
 
 ## ◆ D2 — Before others use it

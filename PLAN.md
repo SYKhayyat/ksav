@@ -84,7 +84,7 @@ Exit: the owner has used ksav as the only tool for real notes, on both NixOS
 and Windows, for **two weeks** without losing text, and the second UAT pass
 (#14) passes.
 
-- [ ] #138 Emacs-like open/window model: `openIn` defaults to reuse, and `tabs.showing` must respect non-focused panes.
+- [x] #138 Emacs-like open/window model: `openIn` now defaults to `current` (`C-x b`), the three answers are stated as Emacs commands at the setting, the funnel and `docs/start-here.md`, and `tabs.showing`'s focused-pane rule is written down and asserted. Hands-on confirmation of the felt behaviour rides with #134.
 - [ ] #128 document identity: one Documents menu instead of two (Documents and File), and labelled rows instead of icon-only rows. Keep the shape compatible with #117.
 - [ ] #127 native PDF destination picker on export.
 - [ ] #126 semantic navigation: word and paragraph motion skips Typst markup.

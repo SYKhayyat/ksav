@@ -187,7 +187,12 @@ Exit: three or more friends have each written a real document, and their reports
 are triaged into this plan.
 
 - [ ] Signed or at least checksum-verified builds, with an auto-update path.
-- [ ] A way to send feedback from inside the app (or a clear link to it).
+- [x] A way to send feedback from inside the app (or a clear link to it).
+  A clear link: the About section of the settings drawer opens with what helps in a
+  report, the issue tracker as its own visible text (copyable when a click does nothing —
+  the shell's handling of an external address is #202's open half), and the version
+  directly under it. Both languages. Fenced in `ksav/app/test/settings.test.mjs`, including
+  that the note's "no telemetry" is true of the code. See the commit `5c364ff`.
 - [ ] A one-page "start here" guide for the first document.
 - [ ] Tag v0.3.0 and invite the friends.
 

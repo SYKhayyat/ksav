@@ -45,6 +45,26 @@ commit → push → close with a real comment). Closed so far, this sitting:
 #121, #122, #124, #125, #127–#132 (exports/menus), #126, #133,
 #135–#139, then **#134 last** (the 8-item verification pass).
 
+### Two sessions are working this repo at once (2026-11-17)
+
+Both agents push as `SYKhayyat`, so a comment's author says nothing. The
+protocol that kept them apart on 2026-11-17:
+
+- **Claim on the issue, in a comment, before starting** — the issue itself is the
+  lock. Say what you are changing and which files; a claim nobody made is a
+  merge conflict later.
+- **Sign comments.** One session signs `— B`; unsigned means the other. It is a
+  crude channel and it beats inferring an author from a voice.
+- **`git fetch` and sweep issue comments at least hourly**, and always before a
+  push. Committing on top of a stale `origin/main` that another session just
+  moved is the one mistake that costs a revert.
+- **An issue you are not taking is still an issue you read.** The 11-17 sessions
+  found the same defect from two directions twice (#189's evidence sentence,
+  #164's mechanism) because each was reading the other's comments.
+- Leave research on an issue you are *not* holding, and say so explicitly in the
+  first line ("not taking this — it is yours"). That is what stopped two
+  sessions from both rewriting `render-check.mjs`.
+
 ### Working rules (unchanged, see the 10-22 handoff below)
 
 - Environment: `nix develop /home/shaul/ksav [--command ...]`; full gate

@@ -22,6 +22,8 @@ import { typstContent } from "./typst-escape";
 
 // ---------------------------------------------------------------- the zip
 
+import { Ceiling, DOCX_CEILING, inflateBounded, tooBig } from "./decompress";
+
 const EOCD_SIG = 0x06054b50;
 const CDIR_SIG = 0x02014b50;
 
@@ -33,7 +35,14 @@ const CDIR_SIG = 0x02014b50;
  * deflate, which every target platform now has natively. A dependency here
  * would be 8 KB in every bundle to read a file most writers never import.
  */
-export async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+export async function unzip(
+  bytes: Uint8Array,
+  opts: { only?: readonly string[]; limits?: Ceiling } = {},
+): Promise<Map<string, Uint8Array>> {
+  return unzipAll(bytes, opts.only ?? null, opts.limits ?? DOCX_CEILING);
+}
+
+async function unzipAll(bytes: Uint8Array, only: readonly string[] | null, limits: Ceiling): Promise<Map<string, Uint8Array>> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   // The end-of-central-directory record is at the end, after a comment of up to
   // 64 KB — so it is found by scanning backwards for its signature rather than
@@ -50,10 +59,12 @@ export async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>>
   let at = view.getUint32(eocd + 16, true);
 
   const out = new Map<string, Uint8Array>();
+  let total = 0;
   for (let n = 0; n < count; n++) {
     if (view.getUint32(at, true) !== CDIR_SIG) break;
     const method = view.getUint16(at + 10, true);
     const compressedSize = view.getUint32(at + 20, true);
+    const declared = view.getUint32(at + 24, true);
     const nameLen = view.getUint16(at + 28, true);
     const extraLen = view.getUint16(at + 30, true);
     const commentLen = view.getUint16(at + 32, true);
@@ -61,20 +72,31 @@ export async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>>
     const name = new TextDecoder().decode(bytes.subarray(at + 46, at + 46 + nameLen));
     at += 46 + nameLen + extraLen + commentLen;
 
+    if (only && !only.includes(name)) continue; // never inflated, never read
+
     // The local header repeats the name and extra field, and its *own* lengths
     // are the ones that count: Word writes a different extra field there.
     const localNameLen = view.getUint16(localAt + 26, true);
     const localExtraLen = view.getUint16(localAt + 28, true);
     const dataAt = localAt + 30 + localNameLen + localExtraLen;
+
+    // The **declared** size is not the control — an archive may lie — but
+    // refusing a bomb before inflating it is cheaper and reads better. See
+    // `inflateBounded` for the control that actually counts bytes.
+    if (declared > limits.entry) {
+      throw new Error(tooBig(`“${name}”`, declared, limits.entry));
+    }
     const raw = bytes.subarray(dataAt, dataAt + compressedSize);
-    out.set(name, method === 0 ? raw : await inflateRaw(raw));
+    // Stored entries are already in memory, so their size is a fact rather than a
+    // promise; deflated ones are counted as they arrive.
+    const entry = method === 0 ? raw : await inflateBounded(raw, { entry: limits.entry }, `“${name}”`);
+    total += entry.length;
+    if (total > limits.total) {
+      throw new Error(tooBig("the archive", total, limits.total) + " across its entries");
+    }
+    out.set(name, entry);
   }
   return out;
-}
-
-async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 // ---------------------------------------------------------------- the XML
@@ -443,7 +465,11 @@ function convertTable(tbl: XmlNode, footnotes: Map<string, string>): string {
 
 /** Read a `.docx` file into Ksav markup. */
 export async function importDocx(bytes: Uint8Array): Promise<ImportResult> {
-  const files = await unzip(bytes);
+  // **Only what the importer reads.** A `.docx` also carries every image, theme
+  // and font in the sefer, and this used to inflate all of them — into a map that
+  // only ever answered three questions. Inflating an entry nobody reads is also
+  // how a bomb in `word/media/` became the application's problem.
+  const files = await unzip(bytes, { only: ["word/document.xml", "word/footnotes.xml", "word/numbering.xml"] });
   const read = (name: string) => {
     const raw = files.get(name);
     return raw ? new TextDecoder().decode(raw) : "";

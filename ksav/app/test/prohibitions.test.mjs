@@ -211,6 +211,29 @@ const RULES = [
     allow: [],
   },
   {
+    // **The class: decompression with no ceiling.** Two routes in this
+    // application inflate bytes that came from somebody else — a `.docx` the
+    // writer imported, and the `#ksav=…` fragment of a link a stranger sent — and
+    // both took `DecompressionStream` straight into `new Response(stream)`, which
+    // reads to the end and buffers whatever came out. Deflate's ratio is bounded
+    // only by its window, so the *input* decided how much memory the application
+    // allocated: a tab that dies with no message, or a desktop process that
+    // disappears, and nothing in either trace to connect it to "I opened the file
+    // my colleague sent".
+    //
+    // `decompress.ts` is the one door now, and it counts bytes as they arrive. A
+    // new call site is not forbidden — a second unbounded one is, which is what
+    // `contains` says: the shapes that mean "read all of it" and "ask the platform
+    // for a decompressor yourself".
+    what: "nothing decompresses without a ceiling",
+    where: /\.(ts|mjs)$/u,
+    contains: [
+      String.raw`new Response(stream).text()`,
+      String.raw`new DecompressionStream(`,
+    ],
+    allow: ["ksav/app/src/decompress.ts"],
+  },
+  {
     // §1 #9 — a prohibition this repository already wrote, scoped to two
     // directories. `.pathname` on a `file://` URL is still percent-encoded, so
     // a checkout under `C:\Users\Some One\` resolves to `Some%20One` and the

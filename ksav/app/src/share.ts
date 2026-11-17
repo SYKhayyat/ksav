@@ -16,6 +16,8 @@
 // The cost is a length limit, and it is stated rather than discovered: see
 // `TOO_LONG`.
 
+import { SHARE_CEILING, inflateOrNull } from "./decompress";
+
 /**
  * How long a link may get before it stops being one.
  *
@@ -83,10 +85,15 @@ async function deflate(text: string): Promise<Uint8Array> {
 }
 
 async function inflate(bytes: Uint8Array): Promise<string> {
-  const stream = new Blob([bytes as BlobPart])
-    .stream()
-    .pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Response(stream).text();
+  // **Bounded**, because the input is a stranger's link. Deflate's ratio is
+  // bounded only by its window, so an unmeasured `new Response(stream).text()`
+  // lets a fragment decide how much memory this application allocates — and a
+  // tab that dies with no message is not a failure anybody can report. A link
+  // past the ceiling is not a document, which `decodeShare` already has an
+  // answer for: null.
+  const out = await inflateOrNull(bytes, SHARE_CEILING, "this link's document");
+  if (!out) throw new Error("the document in this link is too large to open");
+  return new TextDecoder().decode(out);
 }
 
 /**

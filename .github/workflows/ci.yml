@@ -707,7 +707,17 @@ jobs:
         # came back with nothing new.
         env:
           KSAV_RENDER_KEEP: ${{ runner.temp }}/ksav-render-evidence
-        run: xvfb-run -a node tools/gate.mjs shell --require
+        # `dbus-run-session` because a desktop application expects a *session
+        # bus*, and a bare runner has none — the AT-SPI warning every failing run
+        # printed was the only sign of it. Measured with the milestone record
+        # (#189, run 44154833573): `run` twice and `built` never, so the shell was
+        # sitting inside `tauri::Builder::build()`, where the very first plugin is
+        # `single_instance` and its whole job is to reach that bus. Local
+        # reproductions all passed because a desktop session already has one.
+        #
+        # It wraps `xvfb-run` rather than the other way round so the X server and
+        # the application both inherit the bus the session exported.
+        run: dbus-run-session -- xvfb-run -a node tools/gate.mjs shell --require
       # The whole record of the render check, kept only when it mattered. Its
       # failure mode is "the webview did not start", which no amount of reading
       # this repository can explain — the answer is in the app's own output on the

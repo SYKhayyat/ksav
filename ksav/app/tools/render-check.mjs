@@ -385,7 +385,19 @@ if (invokedDirectly) {
     platform: process.platform,
   });
   for (const note of notes) console.log(`→ ${note}`);
-  recorded.facts = { ...recorded.facts, renderNodes: nodes, env, cleared, notes };
+  // The bus is recorded because its absence is invisible in every other way
+  // (#189): a runner without `DBUS_SESSION_BUS_ADDRESS` looks exactly like a
+  // session one from inside GTK, and the first plugin the shell registers is
+  // `single_instance`, whose job is to reach that bus. The failing run's only
+  // sign of it was an AT-SPI warning nobody had connected to anything.
+  recorded.facts = {
+    ...recorded.facts,
+    renderNodes: nodes,
+    env,
+    cleared,
+    notes,
+    sessionBus: process.env.DBUS_SESSION_BUS_ADDRESS ? "set" : "absent",
+  };
   const childEnv = { ...process.env, ...env, KSAV_DPR_OUT: answer, KSAV_DPR_BOOT: boot };
   for (const key of cleared) delete childEnv[key];
 
@@ -406,6 +418,7 @@ if (invokedDirectly) {
   /** What a timeout means here, in the runner's own terms. */
   function whySilent(child) {
     const facts = [
+      `  session:   DBUS_SESSION_BUS_ADDRESS=${process.env.DBUS_SESSION_BUS_ADDRESS ?? "(unset)"}`,
       `  display:   DISPLAY=${process.env.DISPLAY ?? "(unset)"}, ` +
         `WAYLAND_DISPLAY=${cleared.includes("WAYLAND_DISPLAY") ? "(pinned to X11)" : (process.env.WAYLAND_DISPLAY ?? "(unset)")}`,
       `  rendering: ${nodes.length ? nodes.join(", ") : "no DRM render node — software path"}` +

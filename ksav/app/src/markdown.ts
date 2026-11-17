@@ -87,6 +87,13 @@ export const MARKDOWN: Dialect = {
     return [line(head), "|" + " --- |".repeat(cols), ...rows.map(line)].join("\n");
   },
   quote: (text) => `\n\n${text.split("\n").map((l) => "> " + l).join("\n")}\n\n`,
+  // CommonMark has no description list, so the term is emphasised over its
+  // definition — the cheapest thing that keeps the two distinguishable and
+  // cannot be mistaken for the sentence they used to be joined into (#200).
+  pair: (kind, first, second) =>
+    kind === "definition"
+      ? `\n\n**${first}** — ${second}\n\n`
+      : `\n\n${second.split("\n").map((l) => "> " + l).join("\n")}\n>\n> — ${first}\n\n`,
   // TeX-ish maths, which is what every Markdown flavour that renders maths at
   // all expects.
   formula: (math, display) => (display ? `\n\n$$${math}$$\n\n` : `$${math}$`),
@@ -131,6 +138,11 @@ export const PLAIN: Dialect = {
   notes: () => "",
   table: (rows) => rows.map((r) => r.join("\t")).join("\n"),
   quote: (text) => `\n\n${text}\n\n`,
+  // Plain text has no marking at all, so the dash carries the relation: term
+  // first, then what it means. An indent for the verse, so the reference reads
+  // as an attribution rather than as the next sentence (#200).
+  pair: (kind, first, second) =>
+    kind === "definition" ? `\n${first} — ${second}\n` : `\n${second}\n    — ${first}\n`,
   formula: (math) => math,
   image: (name) => name,
   xref: () => "(§)",

@@ -99,6 +99,13 @@ export const ORG: Dialect = {
     return out.join("\n");
   },
   quote: (text) => `\n\n#+begin_quote\n${text}\n#+end_quote\n\n`,
+  // Org is the one format here that *has* both shapes, so nothing degrades.
+  // A description list item is `- term :: definition`, and it is the reason a
+  // definition list was worth separating from prose in the first place (#200).
+  pair: (kind, first, second) =>
+    kind === "definition"
+      ? `- ${first} :: ${second}\n`
+      : `\n\n#+begin_quote\n${second}\n#+end_quote\n\n${first}\n`,
   // `\[…\]` and `$…$` are Org's LaTeX fragments, which is what its exporters and
   // its own preview both read.
   formula: (math, display) => (display ? `\n\n\\[${math}\\]\n\n` : `$${math}$`),

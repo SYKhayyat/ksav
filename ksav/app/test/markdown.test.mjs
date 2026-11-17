@@ -239,4 +239,31 @@ export async function run() {
   );
 }
 
+
+  // ------------------------------------------------- two bodies, two meanings
+  //
+  // #200: `#הגדרה[מונח][הסבר]` and `#פסוק[הפניה][פסוק]` joined both halves with
+  // one space, so a definition list exported as forty words of prose and a verse
+  // exported as its reference wearing italics that were meant for the verse.
+  // Each format answers for itself, because only Org has both shapes.
+  {
+    const definition = "#רשימת_הגדרות(\n  הגדרה[מונח][ההסבר],\n  הגדרה[מונח ב׳][ההסבר השני],\n)";
+    ok("org: a definition is a description list item", toOrg(definition).includes("- מונח :: ההסבר"), toOrg(definition));
+    ok("org: …and the second row is a row too", toOrg(definition).includes("- מונח ב׳ :: ההסבר השני"), toOrg(definition));
+    ok("markdown: the term is emphasised over its definition", toMarkdown(definition).includes("**מונח**"), toMarkdown(definition));
+    ok("plain: a dash says which half is which", toPlainText(definition).includes("מונח — ההסבר"), toPlainText(definition));
+
+    const verse = "#פסוק[דברים כ״ד, א׳][וְכָתַב לָהּ סֵפֶר כְּרִיתֻת]";
+    const orgVerse = toOrg(verse);
+    ok("org: a verse is a quote block", orgVerse.includes("#+begin_quote"), orgVerse);
+    ok("org: …with the text inside it", orgVerse.includes("וְכָתַב לָהּ סֵפֶר כְּרִיתֻת"), orgVerse);
+    ok("org: …and the reference outside, as an attribution", orgVerse.includes("דברים כ״ד, א׳"), orgVerse);
+    // The regression this guards: `פסוק` is in `EMPHASIS` as italic, from when
+    // the reference was the only body reaching the export. Structure has to win,
+    // or the italics land on the reference again.
+    ok("markdown: the reference is not italicised as emphasis", !toMarkdown(verse).includes("*דברים"), toMarkdown(verse));
+    ok("markdown: …the verse is the block quote", toMarkdown(verse).includes("> וְכָתַב"), toMarkdown(verse));
+    ok("plain: the reference reads as an attribution", toPlainText(verse).includes("    — דברים"), toPlainText(verse));
+  }
+
 }

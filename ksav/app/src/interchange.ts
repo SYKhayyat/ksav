@@ -92,6 +92,27 @@ export const EMPHASIS: Record<string, EmphasisKind> = withAliases<EmphasisKind>(
 });
 
 /**
+ * A command whose two bodies are **not** one sentence (#200).
+ *
+ * Every other multi-body call here joins its bodies with a space, and that is
+ * right for the ones that continue each other. These two do not continue each
+ * other: `#הגדרה[מונח][הסבר]` is a term and what it means, `#פסוק[הפניה][פסוק]`
+ * is a reference and the text it points at. Joined with a space they read as one
+ * run of prose — a definition list exported as forty words of terms and
+ * explanations with a comma between rows as the only structure left, and a verse
+ * as its reference wearing italics meant for the verse.
+ *
+ * The distinction is in the shape of the call, not in a guess about the words,
+ * which is why it can be a table here instead of a heuristic later.
+ */
+export type PairKind = "definition" | "verse";
+
+export const PAIRS: Record<string, PairKind> = withAliases<PairKind>({
+  הגדרה: "definition",
+  פסוק: "verse",
+});
+
+/**
  * Body-less commands, by what they do to the flow of the text.
  *
  * `pagebreak` and `colbreak` are the interesting pair. Neither has any meaning
@@ -246,6 +267,15 @@ export interface Dialect {
   /** `header` is whether any cell in the table declared itself one. */
   table(rows: string[][], cols: number, header: boolean): string;
   quote(text: string): string;
+  /**
+   * Two bodies that mean different things, each format answering for itself.
+   *
+   * Not one shared rendering: Org has description lists and the other two have
+   * no such thing, and pretending otherwise is exactly the welding that
+   * `EMPHASIS` used to do with asterisks. A format that cannot be structural
+   * degrades to something a reader can still tell apart.
+   */
+  pair(kind: PairKind, first: string, second: string): string;
   formula(math: string, display: boolean): string;
   image(name: string): string;
   /** A cross-reference, whose target is a label this format cannot carry. */
@@ -450,6 +480,13 @@ export function render(source: string, d: Dialect): string {
         out += d.listItem(itemIndex, listKind, inner().trim());
       } else if (NOTES.has(s.name)) {
         out += d.note(inner().trim(), collect);
+      } else if (PAIRS[s.name] && s.bodies.length >= 2) {
+        // Before `EMPHASIS`, deliberately: `פסוק` is in that table as `italic`,
+        // and it got there when the reference was the only body reaching the
+        // export. A structural reading of the pair has to win, or the italics
+        // that were meant for the verse land on the reference (#200).
+        const halves = s.bodies.map((b) => walk(b.from, b.to).trim());
+        out += d.pair(PAIRS[s.name], halves[0], halves.slice(1).join(" "));
       } else if (EMPHASIS[s.name]) {
         const text = inner();
         // Emphasis around nothing is just noise.

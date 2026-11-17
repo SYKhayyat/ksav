@@ -111,9 +111,13 @@ import { resetHydra, wireHydra } from "./hydra";
 import { revealCursor, renderPlaces } from "./reveal";
 import { docLang, wireInsert } from "./insert";
 import { renderPaletteList, wirePalette } from "./palette";
-import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
+import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, motionCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
 import { focusCompartment, focusExtension } from "./focus";
 import { wireCompartments } from "./compartments";
+// The source's movement keys (#126) are read at keypress time, so the shell
+// asks the module for them rather than holding a copy — the same reason the
+// structure keys are a function and not an array.
+import * as P from "./sourcemotion";
 // ---- configurable keyboard shortcuts ----
 // Each action has an id (localized in Settings) and a runner. Keys are CM key
 // strings ("Mod-b" etc.; Mod = Ctrl on Win/Linux, Cmd on macOS) and are user-
@@ -297,7 +301,7 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
     // about what the editor *is* can be imported and tested. What stays here is
     // the listener below, because it is behaviour: it schedules, marks dirty and
     // renumbers, and every one of those is a `main.ts` function.
-    extensions: [...buildExtensions(prose, { structureKeymap }),
+    extensions: [...buildExtensions(prose, { structureKeymap, motionKeymap: P.motionKeymap }),
     EditorView.updateListener.of((u) => {
       if (u.docChanged || u.selectionSet) updateContextBar();
       // The caret moved and the text did not — an arrow key, a click, a jump.
@@ -791,6 +795,11 @@ function applySettingChange(key: import("./settings").Field, value: unknown): vo
     // (`lang`, `prose`, `layout`, `editingMode`) all rerender; this one was the
     // odd one out, and it is the toggle a writer presses first.
     rerenderChrome();
+  } else if (key === "sourceMotions") {
+    // The keys, not the text: a writer who flips this mid-document keeps the
+    // caret where it is, and every pane hears the change — the rule the
+    // shortcut rebinding is written to, applied to the arrows.
+    toEveryPane(motionCompartment.reconfigure(P.motionExtension()));
   } else if (key === "prose") {
     toEveryPane(proseCompartment.reconfigure(proseOrRaw()));
     rerenderChrome();
@@ -1258,6 +1267,7 @@ function installHooks() {
     runAction,
     actionsForKeys: () => actions(),
     structureKeymap,
+    motionExtension: P.motionExtension,
   });
   // The rows' wiring: the dispatch verbs the list-shaped surfaces share.
   wireRows({

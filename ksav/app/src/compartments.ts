@@ -15,7 +15,7 @@
 // dependency is deliberate and one-directional.
 
 import { EditorView, keymap, type KeyBinding } from "@codemirror/view";
-import { Compartment, Prec, EditorState } from "@codemirror/state";
+import { Compartment, Extension, Prec, EditorState } from "@codemirror/state";
 import { autocompletion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import * as runtime from "./runtime";
 import { rerenderChrome } from "./runtime";
@@ -44,6 +44,14 @@ import { makeWiring } from "./wiring";
 
 // the declarations the region below carries are the machinery's exports
 export const structureCompartment = new Compartment();
+/**
+ * The source's movement keys (#126) — built by `sourcemotion.ts` and empty while
+ * the `sourceMotions` setting is `"raw"`. A compartment because it is an
+ * application preference read at keypress time, like the shortcut keymap: the
+ * editor's own `Mod-Arrow`/`Alt-Arrow` behaviours are what remains when it is
+ * empty, which is why the setting can be turned on and off inside one session.
+ */
+export const motionCompartment = new Compartment();
 
 
 /**
@@ -103,6 +111,7 @@ export function syncGlobals() {
     shortcutCompartment.reconfigure(Prec.highest(keymap.of(buildShortcutKeymap()))),
     autoCompartment.reconfigure(autoExtension()),
     structureCompartment.reconfigure(Prec.high(keymap.of(compartmentsWiring().structureKeymap()))),
+    motionCompartment.reconfigure(compartmentsWiring().motionExtension()),
     // The document's own, and it has to be re-read rather than inherited:
     // this is the incoming document's direction, not the outgoing one's.
     dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })),
@@ -161,6 +170,8 @@ export interface CompartmentsWiring {
   actionsForKeys(): { id: string }[];
   /** The structure keys: one keymap main builds from the structure registry. */
   structureKeymap(): KeyBinding[];
+  /** The movement keys (#126), above the editor's own arrow behaviour. */
+  motionExtension(): Extension;
 }
 
 const W = makeWiring<CompartmentsWiring>("wireCompartments");

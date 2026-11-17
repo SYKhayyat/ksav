@@ -31,6 +31,7 @@ export async function run() {
     runAction: () => true,
     actionsForKeys: () => [],
     structureKeymap: () => [{ key: "Mod-Shift-z", run: () => true }],
+    motionExtension: () => [],
   });
 
   const { buildExtensions } = await import("../.tmp-test/editorstate.mjs");
@@ -43,6 +44,9 @@ export async function run() {
       asked += 1;
       return [{ key: "Mod-Shift-z", run: () => true }];
     },
+    // The movement keys (#126) come from the caller for the same reason the
+    // structure keys do: they read a setting, and this file is about the seam.
+    motionKeymap: () => [],
   };
 
   const prose = buildExtensions(true, deps);

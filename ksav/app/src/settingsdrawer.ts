@@ -864,6 +864,14 @@ export function buildSettingsDrawer(): HTMLElement {
       ["newTab", t("openIn.newTab")],
     ]),
     el("div", { class: "set-note" }, [t("openInNote")]),
+    // UAT 14's switch, next to the other question about how the source behaves
+    // under the hands. `"raw"` first because that is what the box does today and
+    // a list should open with the thing a writer already has.
+    selectRow("sourceMotionsLabel", "sourceMotions", [
+      ["raw", t("sourceMotions.raw")],
+      ["semantic", t("sourceMotions.semantic")],
+    ]),
+    el("div", { class: "set-note" }, [t("sourceMotionsNote")]),
     // One section for all of it, which the report asks for by name. The four
     // rows are one question — *how does the other pane follow this one* — and
     // they were spread between a checkbox here and two constants in the source.

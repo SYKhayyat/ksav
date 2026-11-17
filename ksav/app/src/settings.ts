@@ -397,6 +397,25 @@ export interface Settings {
    */
   openIn?: "reuse" | "newTab" | "current";
   /**
+   * What the caret steps over in the source: `"semantic"` or `"raw"`.
+   *
+   * UAT item 14, and the contract is `decisions/2026-11-17-source-navigation-spec.md`.
+   * `"semantic"` makes word movement stop at prose boundaries and skip typst
+   * scaffolding — `#`, command names, argument parentheses and their commas,
+   * body brackets, string literals, comments — while the *bodies* the brackets
+   * carry stay reachable, because a body is where the writer edits the words.
+   * `Alt+Arrow` is the escape hatch inside a semantic setup: one character at a
+   * time, exactly as before. `"raw"` is today's movement everywhere.
+   *
+   * **Shipped as `"raw"` on purpose.** The spec names `"semantic"` as the
+   * destination, and the last thing standing between this and that is a felt
+   * judgement — whether the stops are in the right places under a writer's
+   * fingers — which no test in this repository can make. Until that judgement
+   * exists, the default changes nothing, and the setting is how a writer who
+   * wants to try it turns it on.
+   */
+  sourceMotions?: "semantic" | "raw";
+  /**
    * Where the two panes line up: the top, middle or bottom of the viewport. The
    * line at that point of the source is put at the same point of the preview —
    * and when the caret is on screen it is the caret's line that is matched, so
@@ -698,6 +717,9 @@ export const DEFAULTS: Settings = {
   // they open is not already in a tab, so they get the one tab they had — and
   // gives the writer with two seforim their arrangement back.
   openIn: "current",
+  // The destination per the spec, held back to the old behaviour until the
+  // stops have been felt. See the field's own note.
+  sourceMotions: "raw",
   // `direction`, and not `middle`, which is what it shipped as. The report is
   // about reading rather than about preference: a fixed anchor is wrong in one
   // of the two directions and the writer notices it every time they scroll back.

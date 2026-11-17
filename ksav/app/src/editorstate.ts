@@ -78,11 +78,18 @@ import { openSpellMenu } from "./spellcheck";
 import { searchPhrases } from "./starter";
 import { tagDim } from "./tagdim";
 import { tagSelectExtension } from "./tagselect";
+import { motionCompartment } from "./compartments";
 
 /** The one `main.ts` member an extension stack cannot import. */
 export interface StateDeps {
   /** The structure keymap; it resolves keys through `runStructureAction`. */
   structureKeymap: () => KeyBinding[];
+  /**
+   * The source's movement keys (#126). Empty while the setting is `"raw"`, so
+   * the editor's own arrow behaviours are exactly what remains — which is the
+   * promise the setting makes.
+   */
+  motionKeymap: () => KeyBinding[];
 }
 
 /**
@@ -191,6 +198,11 @@ export function buildExtensions(prose: boolean, deps: StateDeps): Extension[] {
     // fall through untouched everywhere else, so Enter is still Enter in
     // ordinary prose.
     structureCompartment.of(Prec.high(keymap.of(deps.structureKeymap()))),
+    // Above the defaults, because `defaultKeymap` owns `Mod-ArrowLeft` and the
+    // arrow keys have to be this mode's while it is on. The compartment is the
+    // application's (`compartments.ts`), not this state's, so a setting change
+    // reaches every pane without rebuilding a document.
+    motionCompartment.of(Prec.high(keymap.of(deps.motionKeymap()))),
     keymap.of([
       ...closeBracketsKeymap,
       ...defaultKeymap,

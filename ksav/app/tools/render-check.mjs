@@ -206,18 +206,26 @@ function askedOf(booted) {
  * which is the sentence #189 is an open investigation into, so a developer who
  * hit it locally believed they had reproduced a CI failure.
  *
- * Exported so `test/rendercheck.test.mjs` can fence all three without starting a
- * process.
+ * Exported so `test/rendercheck.test.mjs` can fence all of them without starting
+ * a process.
  *
  * @param {{status: number|null, signal: string|null, timedOut: boolean}|null} child
  *   how the application ended, from `spawnSync`
- * @returns {{kind: "handover"|"no-webview"|"hung", sentence: string, advice: string}}
+ * @returns {{kind: "handover"|"no-webview"|"stalled", sentence: string, advice: string}}
  */
 export function whyNoWindow(child) {
   // `spawnSync` leaves `status` null when it kills on the deadline and puts the
   // signal there instead, so `status === 0` is the whole test: a probe that was
   // killed cannot look like a handover.
   const exitedCleanly = !!child && child.status === 0 && !child.signal;
+  // And the deadline itself is not a field. `spawnSync` reports its own timeout
+  // as `error.code === "ETIMEDOUT"`, with `status: null` and `signal: "SIGTERM"` —
+  // the same shape a *passing* run has, because the deadline kills the editor as
+  // designed. Reading a `timedOut` property that nothing sets is how this branch
+  // first shipped and never fired, which the end-to-end run caught and the unit
+  // tests could not: they were handing it the field they believed in.
+  const timedOut =
+    !!child && (child.timedOut === true || child.error?.code === "ETIMEDOUT");
   if (exitedCleanly) {
     return {
       kind: "handover",
@@ -233,14 +241,28 @@ export function whyNoWindow(child) {
         "  rebuild, and it goes away.\n",
     };
   }
-  if (child && child.status === null && !child.timedOut && !child.signal) {
+  // The deadline case, and it is the one this check meets most often — a run that
+  // is still alive when the answer is missing. `timedOut` is the fact to read:
+  // `status` is null in every timed-out run *and* in every passing one, because
+  // the deadline kills the editor as designed, so `status: null` alone says
+  // nothing.
+  //
+  // What is known here is only that the shell did not record a window in the time
+  // it had. "The webview did not start" is a further claim — a cause named from an
+  // absence — and #189 is what that sentence cost: three rounds of investigation
+  // went looking for a webview fault in a process that was still alive. So this
+  // says what was measured, and the advice says where to look next.
+  if (timedOut) {
     return {
-      kind: "hung",
-      sentence: "never created — the shell is still running and reached no window",
+      kind: "stalled",
+      sentence:
+        "never created — the shell was still running at the deadline and never\n" +
+        "             reached setup, so no window record was written",
       advice:
-        "  The application is alive and never got as far as `setup`. That is not a\n" +
-        "  handover and not a dead webview: it is a start that stalled, so look at what\n" +
-        "  `setup` does first (the app's own output above is the record).\n",
+        "  The process is alive, so this is neither a crash nor a handover: either the\n" +
+        "  webview never started, or it started and the shell stalled before recording\n" +
+        "  it. Nothing in this run tells those apart — the app's own output above is the\n" +
+        "  record, and `KSAV_RENDER_KEEP=<dir>` keeps it when this happens again.\n",
     };
   }
   return {
@@ -450,12 +472,12 @@ if (invokedDirectly) {
           "  Nothing was written to the measurement file. What the run looked like:\n\n" +
           whySilent(child) +
             "\n\n" +
-          (noWindow.kind === "handover"
-            ? noWindow.advice
-            : whyNoAnswer(
+          (noWindow.kind === "no-webview"
+            ? whyNoAnswer(
                 labelsOf(existsSync(boot) ? readJson(boot) : null),
                 askedOf(existsSync(boot) ? readJson(boot) : null),
-              )),
+              )
+            : noWindow.advice),
       );
     }
 

@@ -44,12 +44,35 @@ export async function run() {
     const killed = whyNoWindow({ status: null, signal: "SIGSEGV", timedOut: false });
     check("a signal is a dead webview too", killed.kind, "no-webview");
 
-    // Neither of those. Alive, and never reached setup: the app's own start
-    // stalled, which is a third place to look.
-    const stalled = whyNoWindow({ status: null, signal: null, timedOut: false });
-    check("alive and windowless is its own answer", stalled.kind, "hung");
-    ok("…and it does not send the reader to the webview", !stalled.sentence.includes("webview did not start"));
-    check("a timeout is not a handover", whyNoWindow({ status: null, signal: null, timedOut: true }).kind, "no-webview");
+    // Neither of those. Still running at the deadline with no window record — the
+    // measured state in CI, and the one that used to be reported as "the webview
+    // did not start": a cause named from an absence, which is the sentence #189
+    // has been open about for three rounds of investigation.
+    const stalled = whyNoWindow({ status: null, signal: "SIGTERM", timedOut: true });
+    check("still alive at the deadline is its own answer", stalled.kind, "stalled");
+    ok(
+      "…which says what was measured, not what caused it",
+      stalled.sentence.includes("still running at the deadline") &&
+        !stalled.sentence.includes("webview did not start"),
+      stalled.sentence,
+    );
+    ok(
+      "…and its advice names both possibilities rather than choosing one",
+      stalled.advice.includes("webview never started") && stalled.advice.includes("stalled"),
+    );
+    ok("…and points at the evidence knob", stalled.advice.includes("KSAV_RENDER_KEEP"));
+    // A timeout with no signal recorded is the same state; a handover cannot be
+    // faked by one, because `status` is null and never 0.
+    check("a bare timeout is a stall too", whyNoWindow({ status: null, signal: null, timedOut: true }).kind, "stalled");
+    // **The shape `spawnSync` actually returns**, which is what the first version
+    // of this branch got wrong: no `timedOut` field at all, the deadline reported
+    // as `error.code`. The assertion above handed the function the property it
+    // wanted and stayed green while the real run printed the old sentence.
+    check(
+      "and spawnSync's own shape is recognised, not a property nothing sets",
+      whyNoWindow({ status: null, signal: "SIGTERM", error: { code: "ETIMEDOUT" } }).kind,
+      "stalled",
+    );
   }
 
   // --- the shell never got as far as a window -------------------------------

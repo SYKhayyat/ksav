@@ -123,7 +123,18 @@ section at the top of this plan.
 
 - [ ] Engine (Rust/Typst) audit: correctness, panics on bad input, and export fidelity.
 - [x] Tauri shell audit (it was not covered by the #140 sweep): IPC surface, file-system scope, updater. `AUDIT-shell-2026-11-17.md` — capability grant is `core:default` only, every file op keyed on a dialog-picked path (normalized, traversal tested), `ksav_call` reaches the seven Native services but bounded by fixed git args and `protocol.ext.allow=never`, preview SVG sanitized by allow-list, prose tables escape per character, one CSP file fenced by build.rs with `https://api.github.com` as the only egress. Remaining work in it is #131 (signed builds).
-- [ ] Security: what an opened document can make the app do (links, includes, paths).
+- [x] Security: what an opened document can make the app do (links, includes, paths).
+  `AUDIT-documents-2026-11-17.md`. No filesystem: the compiler is built with static
+  resolvers only and the four escape routes (`#import` by path, a sibling import,
+  `#read()`, `../../../` out of the package root) are already refused by test. Assets
+  arrive as bytes behind `diagnose_name`, and the preview's SVG goes through an
+  allow-list generated from a measured vocabulary. Two findings: **#202** — a
+  document's `#link` was a navigation with the scheme of its choice, now restricted to
+  the web and opened in a new tab (`81c8d5e`), with the desktop's navigation policy
+  left open; **#203** — two decompression routes (`unzip` for a `.docx`, inflate for a
+  share link) let the input decide how much memory to allocate, now bounded as chunks
+  arrive (`e4e5b88`). Unverified and recorded there: where a link goes in the installed
+  build, and the runtime CSP header.
 - [ ] Data integrity: round-trip every saved format; check that nothing is silently dropped.
   Started from the export side (`3662bb4`, #199): a comparison of every prose word a
   document prints against the words an export contains, over the engine's own 14

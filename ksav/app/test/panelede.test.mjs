@@ -28,9 +28,12 @@ import { dirOf } from "../tools/paths.mjs";
 const SRC = path.join(dirOf(import.meta.url), "..", "src");
 // The panels' markup is drawn by the layout composition (wave 5 of #188), so
 // the lede may be stated in either file.
+// The fold-by-depth commands moved to `editorcommands.ts` (wave 6 of #188), so
+// the composing surfaces are read across all three.
 const MAIN =
   readFileSync(path.join(SRC, "main.ts"), "utf8") +
-  readFileSync(path.join(SRC, "layout.ts"), "utf8");
+  readFileSync(path.join(SRC, "layout.ts"), "utf8") +
+  readFileSync(path.join(SRC, "editorcommands.ts"), "utf8");
 const RIBBON = readFileSync(path.join(SRC, "ribbon.ts"), "utf8");
 const I18N = ["i18n-he.ts", "i18n-en.ts"]
   .map((file) => readFileSync(path.join(SRC, file), "utf8"))

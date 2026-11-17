@@ -7,7 +7,7 @@ import { EditorState } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { undo, redo } from "@codemirror/commands";
 import { openSearchPanel } from "@codemirror/search";
-import { foldAll, unfoldAll, foldEffect, foldService } from "@codemirror/language";
+import { foldAll, unfoldAll } from "@codemirror/language";
 import { setRevealAll } from "./ksav-lang";
 import { tagContaining, selectTag, type TagSelection } from "./tagselect";
 import { type Placement } from "./minimap";
@@ -34,7 +34,6 @@ import * as sefarim from "./sefarim";
 import * as spell from "./spell";
 import { clearSpellCheck, forceFullSpellCheck, markSpellDirty, openSpellMenu, scheduleSpellCheck } from "./spellcheck";
 import { keybindings } from "./keyhint";
-import * as entity from "./entity";
 import * as styles from "./styles";
 // The modules `main.ts` was split into, wave by wave, and what each one took —
 // the map the refactor's end-state acceptance promised would live here:
@@ -74,7 +73,7 @@ import { setStatus, closeMenus, editDoc } from "./runtime";
 import { docTextNow, wireChrome } from "./ribbon";
 import { updateContextBar } from "./contextbar";
 import { openPanel, closePanel, togglePanel, isPanelOpen, wirePanel, closeOnEscape, handleEscape, closeOnOutsideClick, localise, rebuildOpenPanels } from "./panels";
-import { docTextOf, scanDoc } from "./spans";
+import { docTextOf } from "./spans";
 import {
   settings,
   saveSettings,
@@ -82,12 +81,11 @@ import {
   undoPreset,
   isPageField,
   docConfig,
-  ownPageSetup,
   setSetting,
   setPageSetup,
   wireSettingsWrite,
 } from "./settings";
-import type { Field, Settings, PageSetup, ValueOf } from "./settings";
+import type { Field, Settings, ValueOf } from "./settings";
 // The alignment pair is read and written as a unit rather than field by field —
 // see `alignRow` — so it comes in under a namespace instead of as four more
 // names in the list above.
@@ -124,6 +122,7 @@ import { addFont, removeAsset } from "./assets";
 import { searchPhrases, swapUntouchedStarter, wireStarter, maybeOnboard } from "./starter";
 import { wireTemplates } from "./templates";
 import { boot, scheduleAutoSnapshots, wireBoot } from "./boot";
+import { insertFold, hideBlockHere, hideLineHere, hiddenBreak, makeListHere, addContentsHere, replaceAll, foldToLevel, foldListsToDepth, runStructureAction, entityAct, adoptPageSetupAsDefault } from "./editorcommands";
 import { openFile, saveFile, saveFileAs } from "./fileui";
 import { showChromeNotice, clearChromeNotice } from "./ribbon";
 import { openDoc, openSwitcher, goToLastDoc, closeOpenDoc, refreshBaseline, updateTitleBar, loadBody, newDoc, wireDocswitch } from "./docswitch";
@@ -144,9 +143,7 @@ import {
 import { openHydra, resetHydra, wireHydra } from "./hydra";
 import { revealCursor, revealPlaces, renderPlaces } from "./reveal";
 import { insertSnippet, insertCommand, tieredNoteHere, docLang, wireInsert } from "./insert";
-import * as hiding from "./hiding";
 import { LIST_DEPTHS } from "./lists";
-import * as lists from "./lists";
 import { linkifySelection, refreshSources, askForMekor } from "./girsa";
 import { openPalette, renderPaletteList, wirePalette } from "./palette";
 import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
@@ -803,14 +800,6 @@ function moveOutOfBracket(v: EditorView, toNextLine: boolean, all = false): bool
  * is the point — the padding rules, the toggle-back and the "the mark must
  * start its own line" rule are testable there and were not testable here.
  */
-function applyHiding(edit: hiding.Edit) {
-  runtime.view.dispatch({
-    changes: { from: edit.from, to: edit.to, insert: edit.text },
-    selection: { anchor: edit.select[0], head: edit.select[1] },
-  });
-  runtime.view.focus();
-  scheduleCompile();
-}
 /**
  * Make what is written here a real list.
  *
@@ -820,19 +809,6 @@ function applyHiding(edit: hiding.Edit) {
  * items are typed numbers in bold. Refuses out loud rather than doing nothing,
  * because "nothing happened" is what the greyed controls were already saying.
  */
-function makeListHere(): boolean {
-  if (!runtime.view) return false;
-  const sel = runtime.view.state.selection.main;
-  const doc = docTextOf(runtime.view.state.doc);
-  const made = lists.makeList(doc, sel.from, sel.to, "auto", docLang());
-  if (!made) {
-    setStatus(t(lists.listAt(doc, sel.from) ? "why.alreadyAList" : "why.nothingToList"), "warn");
-    return true;
-  }
-  editDoc(made.text, made.caret);
-  runtime.view.focus();
-  return true;
-}
 /**
  * A table of contents, after the title block, once.
  *
@@ -847,18 +823,6 @@ function makeListHere(): boolean {
  * character zero, which put the contents above the document's own title. See
  * `headings.afterTitleBlock`.
  */
-function addContentsHere(): boolean {
-  if (!runtime.view) return false;
-  const doc = docTextNow();
-  const made = heads.addContents(doc, docLang());
-  if (!made) {
-    setStatus(t("why.contentsAlready"), "warn");
-    return true;
-  }
-  editDoc(made.text, made.caret);
-  runtime.view.focus();
-  return true;
-}
 /**
  * Take a running head out of the settings drawer and put it in the document.
  *
@@ -896,20 +860,8 @@ function moveRunningIntoDoc(which: "header" | "footer") {
   runtime.view.focus();
 }
 /** A fold: collapsible while writing, and every word of it prints. */
-function insertFold() {
-  const sel = runtime.view.state.selection.main;
-  applyHiding(hiding.foldAround(docTextOf(runtime.view.state.doc), sel.from, sel.to, t("foldName")));
-}
 /** Hide a passage from the page with `/* … *\/`, or reveal the one we are in. */
-function hideBlockHere() {
-  const sel = runtime.view.state.selection.main;
-  applyHiding(hiding.hideBlock(docTextOf(runtime.view.state.doc), sel.from, sel.to, t("hiddenName")));
-}
 /** Hide these lines from the page with `//`, or bring them back. */
-function hideLineHere() {
-  const sel = runtime.view.state.selection.main;
-  applyHiding(hiding.hideLines(docTextOf(runtime.view.state.doc), sel.from, sel.to));
-}
 /**
  * Collapse the outline to a depth: chapters only, or chapters and simanim.
  *
@@ -925,53 +877,6 @@ function hideLineHere() {
  * A second reckoning of where a list item ends is the thing that eventually
  * disagrees with the arrow beside it.
  */
-function foldListsToDepth(view: EditorView, depth: number) {
-  unfoldAll(view);
-  const sc = scanDoc(view.state.doc);
-  const effects = [];
-  const seen = new Set<number>();
-  for (const n of sc.nodes) {
-    if (n.role !== "item" && n.role !== "list") continue;
-    // Depth among *lists*, not among all calls: a list inside a footnote inside
-    // a heading is still a top-level list to the reader, and counting the
-    // wrappers would fold it as though it were three deep.
-    let d = 0;
-    for (let p = n.parent; p; p = p.parent) if (p.role === "list") d += 1;
-    if (d < depth) continue;
-    const line = view.state.doc.lineAt(n.from);
-    if (seen.has(line.from)) continue;
-    seen.add(line.from);
-    for (const service of view.state.facet(foldService)) {
-      const range = service(view.state, line.from, line.to);
-      if (range) {
-        effects.push(foldEffect.of(range));
-        break;
-      }
-    }
-  }
-  if (effects.length) view.dispatch({ effects });
-  setStatus(
-    effects.length ? tf("foldListDepth", String(depth)) : t("noListsToFold"),
-    effects.length ? "ok" : "",
-  );
-}
-function foldToLevel(view: EditorView, level: number) {
-  unfoldAll(view);
-  const doc = docTextOf(view.state.doc);
-  const effects = [];
-  for (const h of heads.sectionsToFold(doc, level)) {
-    const line = view.state.doc.lineAt(h.from);
-    for (const service of view.state.facet(foldService)) {
-      const range = service(view.state, line.from, line.to);
-      if (range) {
-        effects.push(foldEffect.of(range));
-        break;
-      }
-    }
-  }
-  if (effects.length) view.dispatch({ effects });
-  setStatus(effects.length ? tf("foldLevel", String(level)) : t("noHeadings"), effects.length ? "ok" : "");
-}
 /**
  * A line break in the source that prints nothing.
  *
@@ -994,19 +899,6 @@ function foldToLevel(view: EditorView, level: number) {
  * With a selection this *is* [`hideBlockHere`] — "make this not print" is one
  * idea, and two implementations of it would eventually disagree about the padding.
  */
-function hiddenBreak() {
-  const sel = runtime.view.state.selection.main;
-  if (!sel.empty) return hideBlockHere();
-  const text = "/*\n*/";
-  runtime.view.dispatch({
-    changes: { from: sel.from, insert: text },
-    // After the closer, on the new line: the caret is where the writing
-    // continues, and what is typed there joins the word before the break.
-    selection: { anchor: sel.from + text.length },
-  });
-  runtime.view.focus();
-  scheduleCompile();
-}
 function applySkin(name: string) {
   applyPreset(name, setPageSetup);
   closeMenus();
@@ -1055,11 +947,6 @@ function startFind(view: EditorView): boolean {
   return true;
 }
 /** Swap the whole document and put the caret somewhere sensible. */
-function replaceAll(text: string, caret: number) {
-  editDoc(text, caret);
-  scheduleCompile();
-  runtime.view.focus();
-}
 /** What the keys drawer's search box holds. Lives here because the view is a
  *  pure function of it and the drawer is rebuilt on every keystroke. */
 let keysQuery = "";
@@ -1194,24 +1081,6 @@ let inAction = 0;
  * was typing the paragraph after the list — the ribbon lingering is a
  * convenience, a key that acts on something the caret has left is a bug.
  */
-function runStructureAction(action: structure.StructureAction, sticky = false): boolean {
-  if (!runtime.view) return false;
-  noteAction(action.id);
-  const doc = docTextOf(runtime.view.state.doc);
-  const caret = runtime.view.state.selection.main.head;
-  const pos = sticky ? (structure.structureNear(doc, caret)?.pos ?? caret) : caret;
-  const edit = action.run(doc, pos);
-  if (!edit) return false;
-  // An operation can apply and still produce the same source — swapping two
-  // identical rows is a real edit with no visible result. Dispatching the
-  // document over itself would push an empty step onto the undo stack and
-  // recompile for nothing, so only the caret moves.
-  const changed = edit.text !== doc;
-  editDoc(edit.text, edit.caret, { scrollIntoView: true });
-  if (changed) scheduleCompile();
-  requestAnimationFrame(updateContextBar);
-  return true;
-}
 /**
  * Select, unwrap or remove the construct the caret is in.
  *
@@ -1224,38 +1093,6 @@ function runStructureAction(action: structure.StructureAction, sticky = false): 
  * that does nothing and says nothing is why a writer goes back to deleting
  * brackets by hand.
  */
-function entityAct(what: "select" | "unwrap" | "remove"): boolean {
-  const view = runtime.view;
-  const doc = docTextOf(view.state.doc);
-  const sel = view.state.selection.main;
-  const node = entity.entityAt(doc, sel.from, sel.to);
-  if (!node) {
-    setStatus(t("noEntityHere"), "warn");
-    return true;
-  }
-  if (what === "select") {
-    view.dispatch({ selection: { anchor: node.from, head: node.to }, scrollIntoView: true });
-    setStatus(tf("entitySelected", node.name), "");
-    return true;
-  }
-  const edit = what === "unwrap" ? entity.unwrap(doc, node) : entity.remove(doc, node);
-  if (!edit) {
-    // The construct whose text is not all in its body — `#סימן("א", […])`
-    // carries the siman number as an argument. Unwrapping to the body alone
-    // would drop it, which is the writer's text going missing quietly, so the
-    // offer is the one that says what it does.
-    setStatus(tf("entityKeepsNothing", node.name), "warn");
-    return true;
-  }
-  editDoc(edit.text, edit.caret);
-  if (edit.to !== undefined) {
-    runtime.view.dispatch({ selection: { anchor: edit.caret, head: edit.to } });
-  }
-  scheduleCompile();
-  setStatus(tf(what === "unwrap" ? "entityUnwrapped" : "entityRemoved", node.name), "ok");
-  runtime.view.focus();
-  return true;
-}
 // ---------------------------------------------------------------- setting mutations
 /**
  * What a setting reads as **now** (B26).
@@ -1309,16 +1146,6 @@ function now<K extends Field>(key: K): ValueOf<K> {
  * there, and without this they would have to set fourteen fields again. Word
  * calls it *set as default*; so does this.
  */
-function adoptPageSetupAsDefault(): void {
-  // One field, holding the same subtraction a document stores: only what
-  // differs from the shipped defaults. This used to copy all thirty page fields
-  // onto `settings` itself — which is how the app came to hold a second opinion
-  // about every one of them, and how the panel came to print a margin the open
-  // document was not laid out on.
-  settings.newDocument = ownPageSetup(docConfig() as unknown as PageSetup);
-  saveSettings();
-  showChromeNotice("setupIsDefault");
-}
 // ---------------------------------------------------------------- layout / theme / chrome
 /**
  * The source's zoom, as a number the stylesheet multiplies by.

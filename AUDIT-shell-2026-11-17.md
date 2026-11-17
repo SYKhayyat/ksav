@@ -112,3 +112,17 @@ Tauri. Properties read off the delivered policy:
 - **Nothing was found at the level of "issue".** The audit closes PLAN line 116's
   reading; the remaining work in it is `#131`, which is already filed, and the
   packaged-build verification that belongs with #134.
+
+## The assembled application, run on Windows
+
+`npm run accept` — `.github/scripts/acceptance.mjs`, which boots `ksav serve` with
+the real SPA embedded in it and drives installed Chrome through the first ten
+minutes of use — **passes on this box**: 868 checks, no console error, no compile
+diagnostic it did not expect. CI runs that job on `ubuntu-22.04` only, so this is
+the first time the assembled product has been driven anywhere else, and the parts
+that only Windows can break (paths, the NSIS-uninstallable install, CRLF in a
+pasted document) are now known rather than assumed.
+
+Reproduced with: `cd ksav/app && npm run build`, `cd ksav/engine && cargo build
+--release --features embed-ui`, then `cd ksav/app && npm run accept` (Chrome found
+by channel name; `HEADED=1` watches it).

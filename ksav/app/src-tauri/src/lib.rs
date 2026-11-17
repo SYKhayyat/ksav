@@ -348,6 +348,67 @@ async fn ksav_save_file(
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
+/// Show a Save dialog for something that is **not** a document, and write bytes
+/// there (#127).
+///
+/// The export routes used to hand every file to the webview's downloader, so a
+/// writer asking for a PDF got it wherever the webview happened to put downloads
+/// and had no say in it — while *Save As*, one menu away, asked properly. This
+/// is the same question asked for exports: the filter and the extension come
+/// from the caller, because a `.pdf`, a `.docx` and a `.org` are not documents
+/// and the fixed `ksav` filter on `ksav_save_file` would offer the wrong name.
+///
+/// Bytes arrive base64-encoded because that is the shape the engine already
+/// produces a PDF in (`render`→`pdf_base64`); sending a few million JSON numbers
+/// through the IPC instead would be slower than the compile.
+#[tauri::command]
+async fn ksav_save_export(
+    app: tauri::AppHandle,
+    allowed: tauri::State<'_, AllowedPaths>,
+    suggested: String,
+    filter: String,
+    extensions: Vec<String>,
+    base64: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let exts: Vec<&str> = extensions.iter().map(String::as_str).collect();
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog()
+        .file()
+        .add_filter(&filter, &exts)
+        .set_file_name(&suggested)
+        .save_file(move |f| {
+            let _ = tx.send(f);
+        });
+    let Some(path) = tauri::async_runtime::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?
+    else {
+        // Cancelled. The document is untouched and the frontend says nothing —
+        // a cancelled save is not an event worth a status line.
+        return Ok(None);
+    };
+    let path = path.into_path().map_err(|e| e.to_string())?;
+    let bytes = decode_base64(&base64)?;
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    allowed.allow(&path);
+    Ok(Some(path.to_string_lossy().to_string()))
+}
+
+/// The decoder for the one place bytes cross the IPC boundary.
+///
+/// `base64` 0.22 is already in this build through the engine, which encodes
+/// every rendered PDF; declaring it here keeps the version the same rather than
+/// hand-rolling a decoder that would have to be right about padding and
+/// whitespace on the first try.
+fn decode_base64(text: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD
+        .decode(text.as_bytes())
+        .map_err(|e| format!("the export's bytes were not valid base64: {e}"))
+}
+
 /// Overwrite an already-chosen file — this is what plain Save does.
 ///
 /// Refuses any path the user has not picked in a dialog this session. A writer
@@ -879,6 +940,7 @@ macro_rules! ksav_commands {
             ksav_read_file,
             ksav_open_file,
             ksav_save_file,
+            ksav_save_export,
             ksav_write_file,
             ksav_path_allowed,
             ksav_confirm_write,
@@ -1303,6 +1365,32 @@ mod window_geometry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_export_writes_the_bytes_it_was_given() {
+        // The one thing on the shell side of #127 that is a claim rather than a
+        // dialog: what arrives as base64 is what lands on disk, byte for byte,
+        // including the bytes a text path would mangle — a PDF's signature, a
+        // lone CR, and a NUL. `std::fs::write` of a `String` cannot produce
+        // these, which is why the command takes bytes at all.
+        let bytes: Vec<u8> = vec![
+            0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x00, 0x0d, 0xff,
+        ];
+        use base64::Engine as _;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let decoded = decode_base64(&encoded).expect("our own encoding decodes");
+        assert_eq!(decoded, bytes);
+    }
+
+    #[test]
+    fn bytes_that_are_not_base64_are_refused_with_a_sentence() {
+        // Not silently empty: an empty export would look like a successful one.
+        let err = decode_base64("not base64 !!").expect_err("garbage is refused");
+        assert!(
+            err.contains("not valid base64"),
+            "the message names the problem: {err}"
+        );
+    }
 
     #[test]
     fn a_path_the_user_never_chose_is_refused() {

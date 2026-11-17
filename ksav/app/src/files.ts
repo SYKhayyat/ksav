@@ -242,6 +242,100 @@ export async function saveAs(suggestedName: string, text: string): Promise<FileB
   return { kind: "download", name };
 }
 
+/**
+ * Where an export goes (#127).
+ *
+ * Three answers, and the order is the point: a desktop build asks with the
+ * system's own dialog, a browser with the File System Access API asks with its
+ * own, and a browser without either downloads — which is the only thing it can
+ * do, and is what every export did *everywhere* until this week. The writer
+ * could not choose, on the one platform where choosing is normal.
+ *
+ * `bytes` and not `text`: a PDF is not text, and routing it through a string is
+ * how an export becomes a corrupt file that opens to nothing.
+ */
+export interface ExportFile {
+  /** What the dialog suggests — the document's stem and the right extension. */
+  name: string;
+  bytes: Uint8Array;
+  /** The type the download fallback labels the blob with. */
+  mime: string;
+  /** The filter's name in the dialog: "PDF", "Typst document", … */
+  filter: string;
+  /** Extensions without dots. The first one is the one the name carries. */
+  extensions: string[];
+}
+
+export type SaveOutcome = "saved" | "downloaded" | "cancelled";
+
+/**
+ * Ask for a destination and write the file there.
+ *
+ * `cancelled` is a real answer rather than an error: the writer changed their
+ * mind, nothing was written, and the caller must not announce an export. It is
+ * the third state the old one-way download could not have, and the reason the
+ * caller's status line cannot simply be written before this resolves.
+ */
+export async function saveExportAs(file: ExportFile): Promise<SaveOutcome> {
+  if (isTauri()) {
+    const path = await tauriInvoke<string | null>("ksav_save_export", {
+      suggested: file.name,
+      filter: file.filter,
+      extensions: file.extensions,
+      base64: toBase64(file.bytes),
+    });
+    return path ? "saved" : "cancelled";
+  }
+  if (hasFsAccess()) {
+    try {
+      const handle = await (window as never as {
+        showSaveFilePicker(o: unknown): Promise<FileSystemFileHandle>;
+      }).showSaveFilePicker({
+        suggestedName: file.name,
+        types: [
+          {
+            description: file.filter,
+            accept: { [file.mime]: file.extensions.map((e) => "." + e) },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(file.bytes as unknown as BufferSource);
+      await writable.close();
+      return "saved";
+    } catch {
+      // The picker throws on dismissal, and it is the only throw that means
+      // "no" — so a real failure is indistinguishable from a cancel here. Both
+      // leave nothing written and nothing said, which is the safe reading.
+      return "cancelled";
+    }
+  }
+  const a = document.createElement("a");
+  const url = URL.createObjectURL(new Blob([file.bytes as unknown as BlobPart], { type: file.mime }));
+  a.href = url;
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  return "downloaded";
+}
+
+/**
+ * Bytes to base64, in chunks.
+ *
+ * `String.fromCharCode(...bytes)` on a whole PDF throws *Maximum call stack size
+ * exceeded* — it is a spread of two million arguments — and it would throw
+ * **after** the writer had picked their destination. Chunking is the difference
+ * between an export and an exception.
+ */
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 export function download(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
   const a = document.createElement("a");

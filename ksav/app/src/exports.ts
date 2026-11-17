@@ -16,8 +16,9 @@ import {
   type DestinationId,
 } from "./channels";
 import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
-import { download, escapeAttr } from "./dom";
+import { escapeAttr } from "./dom";
 import { PAPERS, paperName } from "./engine.gen";
+import { saveExportAs } from "./files";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
 import { toOrg } from "./org";
@@ -110,14 +111,49 @@ async function warnIfHealed() {
  * A warning after this one wins, deliberately: both sentences are true, and *a
  * file went out but read this first* is the more useful of the two.
  */
-function handOver(
+async function handOver(
   name: string,
   blob: Blob,
   said = tf("exported", name),
   kind: "ok" | "warn" = "ok",
 ) {
-  download(name, blob);
+  const outcome = await saveExportAs({
+    name,
+    bytes: new Uint8Array(await blob.arrayBuffer()),
+    mime: blob.type || "application/octet-stream",
+    ...fileKind(name),
+  });
+  // Cancelled: nothing was written and nothing is announced. The status is
+  // cleared rather than left alone, because the line it would otherwise leave is
+  // the route's own *rendering…* — which is how #127's sibling bug read for
+  // eleven seconds, and would here read forever.
+  if (outcome === "cancelled") {
+    runtime.setStatus("", "");
+    return;
+  }
   runtime.setStatus(`✓ ${said}`, kind);
+}
+
+/**
+ * What an export is, for the dialog's filter and the download's label (#127).
+ *
+ * From the extension and not from the blob's mime type: `text/plain` is five of
+ * these formats, so a dialog driven by the type would offer "Plain text" for a
+ * `.typ` and a `.org`. The type still labels the download fallback, where the
+ * extension is what the browser actually uses.
+ */
+function fileKind(name: string): { filter: string; extensions: string[] } {
+  const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+  const labels: Record<string, string> = {
+    pdf: "PDF",
+    typ: "Typst source",
+    html: "HTML page",
+    doc: "Word document",
+    md: "Markdown",
+    org: "Org",
+    txt: "Plain text",
+  };
+  return { filter: labels[ext] ?? ext.toUpperCase(), extensions: [ext] };
 }
 
 /**
@@ -136,10 +172,33 @@ function handOver(
  * file that was never saved, which is the failure this whole option exists to
  * not have.
  */
-function handOverPair(first: BlobFile, second: BlobFile, said: string) {
+async function handOverPair(first: BlobFile, second: BlobFile, said: string) {
   const text = { type: "text/plain" };
-  download(first.name, new Blob([first.text], text));
-  download(second.name, new Blob([second.text], text));
+  // Two files, so two dialogs — and the first one's cancel cancels the pair,
+  // because the prelude without the document is the orphan this order exists to
+  // avoid (#130). Asking twice is the honest price of a pair on desktop; a
+  // browser without the picker downloads both and asks nothing.
+  const encoder = new TextEncoder();
+  const one = await saveExportAs({
+    name: first.name,
+    bytes: encoder.encode(first.text),
+    mime: text.type,
+    ...fileKind(first.name),
+  });
+  if (one === "cancelled") {
+    runtime.setStatus("", "");
+    return;
+  }
+  const two = await saveExportAs({
+    name: second.name,
+    bytes: encoder.encode(second.text),
+    mime: text.type,
+    ...fileKind(second.name),
+  });
+  if (two === "cancelled") {
+    runtime.setStatus("", "");
+    return;
+  }
   runtime.setStatus(`✓ ${said}`, "ok");
 }
 
@@ -197,7 +256,7 @@ export async function exportPdf() {
   const bin = atob(res.pdf_base64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  handOver(runtime.fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
+  await handOver(runtime.fileStem() + ".pdf", new Blob([bytes], { type: "application/pdf" }));
   // Dropped tags on a page-range export, and anything else the export chose to
   // do rather than fail over — worth a line, since the file is already on disk.
   const note = res.diagnostics?.find((d) => d.severity === "warning")?.message;
@@ -241,7 +300,7 @@ export async function exportTypst() {
     return;
   }
   const name = runtime.fileStem() + ".typ";
-  handOver(
+  await handOver(
     name,
     new Blob([res.typst_source], { type: "text/plain" }),
     tf("typstSelfContained", name, sizeOf(res.typst_source)),
@@ -282,7 +341,7 @@ export async function exportTypstCompact() {
     return;
   }
   const name = runtime.fileStem() + ".typ";
-  handOverPair(
+  await handOverPair(
     { name: preludeName, text: prelude },
     { name, text: res.typst_source },
     tf("typstCompactPair", name, preludeName, sizeOf(res.typst_source)),
@@ -342,7 +401,7 @@ function healedCount(): number {
 export async function exportHtml() {
   runtime.closeMenus();
   const { html, why } = await reflowableHtml();
-  handOver(
+  await handOver(
     runtime.fileStem() + ".html",
     new Blob([html ?? pageImageHtml()], { type: "text/html;charset=utf-8" }),
   );
@@ -518,7 +577,7 @@ export async function exportWord() {
   // Word will convert, and where the conversion happens.
   const name = runtime.fileStem() + ".doc";
   const cost = wordCost(runtime.docText());
-  handOver(
+  await handOver(
     name,
     new Blob([wordEnvelope(inner, styles)], { type: "application/msword;charset=utf-8" }),
     `${tf("wordIsHtml", name)} ${cost.said}`,
@@ -555,9 +614,9 @@ export async function copyForWord() {
 
 // ---------------------------------------------------------------- plain formats
 
-export function exportMarkdown() {
+export async function exportMarkdown() {
   runtime.closeMenus();
-  handOver(
+  await handOver(
     runtime.fileStem() + ".md",
     new Blob([toMarkdown(runtime.docText())], { type: "text/markdown;charset=utf-8" }),
   );
@@ -569,17 +628,17 @@ export function exportMarkdown() {
  * `text/org` is not a registered media type and `text/plain` is what every tool
  * that opens one actually wants; the extension is what Emacs reads.
  */
-export function exportOrg() {
+export async function exportOrg() {
   runtime.closeMenus();
-  handOver(
+  await handOver(
     runtime.fileStem() + ".org",
     new Blob([toOrg(runtime.docText())], { type: "text/plain;charset=utf-8" }),
   );
 }
 
-export function exportText() {
+export async function exportText() {
   runtime.closeMenus();
-  handOver(
+  await handOver(
     runtime.fileStem() + ".txt",
     new Blob([toPlainText(runtime.docText())], { type: "text/plain;charset=utf-8" }),
   );

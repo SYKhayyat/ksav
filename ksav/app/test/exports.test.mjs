@@ -515,8 +515,10 @@ export async function run() {
     {
       withDoc("#כותרת1[פרק א]\nטקסט עם #הדגשה[הדגשה].\n");
       captured.downloads.length = 0;
-      exports_.exportMarkdown();
-      exports_.exportText();
+      // Awaited because the destination is a question now (#127): the route
+      // resolves when the writer has answered it, not when the blob exists.
+      await exports_.exportMarkdown();
+      await exports_.exportText();
       check("markdown and plain text both come out", captured.downloads.length, 2);
       check(
         "with the right extensions",
@@ -568,19 +570,26 @@ export async function run() {
       // announce what they wrote — `handOver` for one file, `handOverPair` for
       // the compact export's two (#130) — and each of those calls sits beside a
       // `setStatus`.
-      const pairs = [
-        "download(name, blob);",
-        'download(first.name, new Blob([first.text], text));',
-        'download(second.name, new Blob([second.text], text));',
-      ];
+      //
+      // Since #127 the answer is stronger than "both of them are accounted for":
+      // **no route in this module reaches the downloader at all.** Every export
+      // asks `saveExportAs` where the file should go, and the downloader is one
+      // of the three answers it may come back with. A route that called
+      // `download` directly would skip the question silently, which is exactly
+      // the bug #127 is about — so the sweep is a prohibition now, not an
+      // allow-list.
       const bare = EXPORTS_TS.split("\n")
         .map((l, i) => [i + 1, l])
         .filter(([, l]) => /(?<![\w.])download\(/u.test(l))
-        .filter(([, l]) => !l.trim().startsWith("import "))
-        .filter(([, l]) => !pairs.includes(l.trim()));
+        .filter(([, l]) => !l.trim().startsWith("import "));
       check(
-        "and every handover goes through the two functions that announce it",
+        "and no route reaches the downloader itself — the destination is a question (#127)",
         bare.map(([n, l]) => `${n}: ${l.trim()}`),
+        [],
+      );
+      check(
+        "…and the module cannot even see it: the import is gone",
+        EXPORTS_TS.split("\n").filter((l) => /^import .*\bdownload\b/u.test(l)),
         [],
       );
       // …and both of those functions do announce. A `download` call added to
@@ -599,6 +608,14 @@ export async function run() {
       const pairBody = bodyOf("handOverPair");
       ok("the one-file handover says what it wrote", handOverBody.includes("setStatus"));
       ok("and the two-file one says both names", pairBody.includes("setStatus"));
+      ok(
+        "both ask where the file goes before they say anything (#127)",
+        handOverBody.includes("saveExportAs(") && pairBody.includes("saveExportAs("),
+      );
+      ok(
+        "…and a cancelled one says nothing about a file that was never written",
+        handOverBody.includes('"cancelled"') && pairBody.includes('"cancelled"'),
+      );
     }
 
     // ------------------------------------------------ 5. the .typ, uncompiled
@@ -786,6 +803,95 @@ export async function run() {
       check("nothing is downloaded", captured.downloads.length, 0);
       ok("and the reason names the chapter", statusText().includes("פרק ג"));
       check("as an error", statusClass(), "err");
+    }
+
+    // ------------------------- 12. the destination is a question (#127)
+
+    {
+      // The desktop has a save dialog, and until #127 no export ever reached
+      // it: every format went to `dom.download`, which is the *browser's*
+      // downloads folder and the one place a writer cannot choose. So this
+      // block is the desktop, stood up by putting the one global `files.ts`
+      // looks for in place, and what it asserts is what the shell would be
+      // asked to do — not what a dialog would look like, which no test can
+      // see.
+      const asked = [];
+      let answer = "/home/natan/מסמך.md";
+      globalThis.window.__TAURI_INTERNALS__ = {
+        invoke: async (cmd, args) => {
+          asked.push({ cmd, args });
+          return answer;
+        },
+      };
+      try {
+        withDoc("#כותרת1[פרק א]\nטקסט.\n");
+        captured.downloads.length = 0;
+        await exports_.exportMarkdown();
+        check(
+          "the desktop is asked, and the answer is the shell's to write",
+          asked.map((a) => a.cmd),
+          ["ksav_save_export"],
+        );
+        check("with the extension the dialog should filter on", asked[0].args.extensions, ["md"]);
+        check(
+          "and a filter that is not the document's — a .md is not a .ksav",
+          asked[0].args.filter,
+          "Markdown",
+        );
+        ok(
+          "the suggested name carries the extension, so the file is not saved as 'sefer'",
+          asked[0].args.suggested.endsWith(".md"),
+          asked[0].args.suggested,
+        );
+        // The bytes, decoded: what crosses the IPC has to be the file itself,
+        // and base64 is a place where a NUL, a lone CR or a high byte can be
+        // lost without anything looking wrong on this side.
+        const arrived = Buffer.from(asked[0].args.base64, "base64").toString("utf8");
+        // The Hebrew is the point: base64 carries every byte, and a conversion
+        // that went through `btoa` on a UTF-8 string would mangle exactly these.
+        ok(
+          "the document itself crosses the IPC, Hebrew and all",
+          arrived.includes("פרק א"),
+          arrived.slice(0, 40),
+        );
+        check(
+          "and nothing is downloaded behind the writer's back",
+          captured.downloads.map((d) => d.name),
+          [],
+        );
+        ok("and the status names the file it wrote", statusText().includes(".md"), statusText());
+
+        // Cancelled: the writer said no. Nothing written, nothing claimed — and
+        // not an error either, because they are allowed to change their mind.
+        asked.length = 0;
+        answer = null;
+        captured.downloads.length = 0;
+        runtime.setStatus("מעבד…", "");
+        await exports_.exportText();
+        check("a cancelled dialog writes nothing", captured.downloads.length, 0);
+        check("and announces nothing", statusText(), "");
+        check("…and is not dressed up as a failure", statusClass(), "");
+        ok(
+          "…and does not leave the route's own progress line behind",
+          !statusText().includes("מעבד"),
+          statusText(),
+        );
+
+        // The browser keeps the fallback, because it has no dialog to offer and
+        // a download is the only way a file reaches the writer there. This is
+        // the state the whole application was in on every platform until #127,
+        // and it still has to work.
+        delete globalThis.window.__TAURI_INTERNALS__;
+        captured.downloads.length = 0;
+        await exports_.exportOrg();
+        check(
+          "without a shell the browser still downloads, named for the document",
+          captured.downloads.map((d) => d.name.slice(d.name.lastIndexOf("."))),
+          [".org"],
+        );
+      } finally {
+        delete globalThis.window.__TAURI_INTERNALS__;
+      }
     }
   } finally {
     restore();

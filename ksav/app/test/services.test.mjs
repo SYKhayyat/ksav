@@ -747,4 +747,5 @@ export async function run() {
     );
     ok("the interfaces were really read", declared.size > 10);
   }
+
 }

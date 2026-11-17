@@ -408,6 +408,14 @@ ten years. Export to PDF for reading and `.docx` for somebody who needs Word —
 the caveat that the `.docx` is Typst's HTML in a Word envelope and the footnote
 apparatus flattens, which the app tells you when you do it.
 
+**Every export asks where the file should go**, in the desktop app: the same save
+dialog a document gets, with the right extension and a name taken from the sefer.
+Cancelling writes nothing and says nothing — no file, no "exported" line, and your
+document stays exactly as it was. Until recently the exports went straight to the
+browser's downloads folder, which on the desktop is the one place you cannot choose.
+In a browser without the file-picker API there is nothing to ask with, so it
+downloads, which is the honest fallback rather than a button that does nothing.
+
 ## Page setup belongs to the document
 
 Font, paper, margins, direction, columns, spacing, header, footer — all of it is a

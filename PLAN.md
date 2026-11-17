@@ -86,7 +86,7 @@ and Windows, for **two weeks** without losing text, and the second UAT pass
 
 - [x] #138 Emacs-like open/window model: `openIn` now defaults to `current` (`C-x b`), the three answers are stated as Emacs commands at the setting, the funnel and `docs/start-here.md`, and `tabs.showing`'s focused-pane rule is written down and asserted. Hands-on confirmation of the felt behaviour rides with #134.
 - [ ] #128 document identity: one Documents menu instead of two (Documents and File), and labelled rows instead of icon-only rows. Keep the shape compatible with #117.
-- [ ] #127 native PDF destination picker on export.
+- [x] #127 native PDF destination picker on export — every export asks `saveExportAs` (#127), desktop dialog + browser fallback, cancel silent.
 - [ ] #126 semantic navigation: word and paragraph motion skips Typst markup.
 - [x] #183 `assembleScan` allocates on every keystroke. Measured 2026-11-17: 3.3 ms per keystroke at a 235-page sefer and 18 ms at 993 pages, and removing the report's top line (`byStart.set`, 15,390 insertions) moves the scan by less than the noise in either direction — so the cost is allocation across the whole scan and `lexCore`, not the assembly's structures. No lag at any realistic size; not rewritten.
 - [ ] Data safety, verified on both platforms: save, autosave, crash recovery, a full disk, a read-only file, and a file changed outside ksav. File an issue for each failure here.

@@ -40,7 +40,7 @@
 // turns out to be sent after all.
 
 import { check, ok } from "./harness.mjs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 
@@ -384,4 +384,43 @@ export async function run() {
     /activeMode\(\) !== "default" \?\s*\[\] :/.test(KEYMAP) ||
       KEYMAP.includes('if (keymodes.activeMode() !== "default") return [];'),
   );
+
+  // --------------------------------------- the shell's command registry (#127)
+  //
+  // The same seam, one layer down, and the one place where a *name* is the
+  // whole contract. A `#[tauri::command]` becomes callable by **being listed in
+  // `generate_handler!`** — the attribute alone registers nothing — and a name
+  // that the frontend invokes and the list does not carry is rejected at
+  // *runtime*, in the writer's hands, as "Command ksav_save_export not found".
+  // No compiler sees it and no Rust test can: both halves are strings, which is
+  // this file's entire subject.
+  //
+  // #127 put a new command across this boundary, so the pairing is asserted:
+  // every `ksav_…` name the frontend names must be one the shell registered. The
+  // other direction is not a fault — `ksav_dpr_probe` and `ksav_engine` are
+  // reached from Rust itself — so the check runs one way only.
+  {
+    const SHELL = await readFile(path.join(HERE, "..", "src-tauri", "src", "lib.rs"), "utf8");
+    // The **list**, not the file. Scanning all of `lib.rs` would find the name in
+    // the `///` comment above the command and stay green with it unregistered,
+    // which is the failure this exists to catch — the first version of this check
+    // did exactly that.
+    const list = /generate_handler!\s*\[([\s\S]*?)\]/u.exec(SHELL)?.[1] ?? "";
+    const registered = new Set(list.match(/ksav_[a-z0-9_]+/gu) ?? []);
+    const invoked = new Map();
+    for (const file of await readdir(path.join(HERE, "..", "src"))) {
+      if (!file.endsWith(".ts")) continue;
+      const text = await readFile(path.join(HERE, "..", "src", file), "utf8");
+      for (const m of text.matchAll(/"(ksav_[a-z0-9_]+)"/gu)) {
+        if (!invoked.has(m[1])) invoked.set(m[1], file);
+      }
+    }
+    ok("the frontend really was scanned for command names", invoked.size >= 8);
+    check(
+      "every command the frontend invokes is registered in the shell's handler list",
+      [...invoked].filter(([name]) => !registered.has(name)).map(([n, f]) => `${n} (src/${f})`),
+      [],
+    );
+    ok("and the handler list really was read", registered.has("ksav_save_export"));
+  }
 }

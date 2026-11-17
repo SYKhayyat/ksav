@@ -298,16 +298,18 @@ export function buildHeader(): HTMLElement {
   // Every asynchronous route, through `voidAction` for the same reason as the
   // File menu above (#125): `exportPdf` awaits a compile and a decode, and
   // `void exports.exportPdf()` on a rejection is a crash panel rather than a
-  // sentence. The three synchronous ones — Markdown, Org and text — return a
-  // string and a file, and have nothing to reject.
+  // sentence. All seven are asynchronous now — Markdown, Org and text used to
+  // return a string and a file with nothing to reject, and since #127 each one
+  // awaits the writer's answer to *where should this go*, which can reject. The
+  // fence in `asyncaction.test.mjs` caught them the moment they changed.
   const EXPORT_RUN: Record<header.ExportId, () => void> = {
     exportPdf: () => voidAction("general", () => exports.exportPdf()),
     exportWord: () => voidAction("general", () => exports.exportWord()),
     copyForWord: () => voidAction("general", () => exports.copyForWord()),
     exportHtml: () => voidAction("general", () => exports.exportHtml()),
-    exportMarkdown: exports.exportMarkdown,
-    exportOrg: exports.exportOrg,
-    exportText: exports.exportText,
+    exportMarkdown: () => voidAction("general", () => exports.exportMarkdown()),
+    exportOrg: () => voidAction("general", () => exports.exportOrg()),
+    exportText: () => voidAction("general", () => exports.exportText()),
     exportTypst: () => voidAction("general", () => exports.exportTypst()),
     exportTypstCompact: () => voidAction("general", () => exports.exportTypstCompact()),
     print: exports.doPrint,

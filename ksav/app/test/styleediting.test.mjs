@@ -43,7 +43,11 @@ import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 
 const HERE = dirOf(import.meta.url);
-const MAIN = readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8");
+// The action table moved to `actionsurface.ts` (wave 8 of #188), so the
+// surface half is read there as well as in `main.ts`.
+const MAIN =
+  readFileSync(path.join(HERE, "..", "src", "main.ts"), "utf8") +
+  readFileSync(path.join(HERE, "..", "src", "actionsurface.ts"), "utf8");
 const MACROS_SRC = readFileSync(path.join(HERE, "..", "src", "macros.ts"), "utf8");
 const ACTIONS_SRC = readFileSync(path.join(HERE, "..", "src", "actions.ts"), "utf8");
 const STYLES_PANEL = readFileSync(path.join(HERE, "..", "src", "stylespanel.ts"), "utf8");

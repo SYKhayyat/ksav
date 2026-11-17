@@ -32,6 +32,7 @@ const SRC = path.join(dirOf(import.meta.url), "..", "src");
 // the composing surfaces are read across all three.
 const MAIN =
   readFileSync(path.join(SRC, "main.ts"), "utf8") +
+  readFileSync(path.join(SRC, "actionsurface.ts"), "utf8") +
   readFileSync(path.join(SRC, "layout.ts"), "utf8") +
   readFileSync(path.join(SRC, "editorcommands.ts"), "utf8");
 const RIBBON = readFileSync(path.join(SRC, "ribbon.ts"), "utf8");

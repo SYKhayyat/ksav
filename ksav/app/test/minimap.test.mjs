@@ -57,7 +57,8 @@ export async function run() {
   {
     const main =
       readFileSync(new URL("../src/editorstate.ts", import.meta.url), "utf8") +
-      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8") +
+      readFileSync(new URL("../src/actionsurface.ts", import.meta.url), "utf8");
     ok("the minimap is in the editor's extension list", /minimapExtension\(/u.test(main),
       "without this every assertion above still passes");
     ok("and both settings reach it", /settings\.minimap\b/u.test(main) && /settings\.minimapColors/u.test(main));
@@ -171,7 +172,8 @@ export async function run() {
     // And the key is not a chord with nothing behind it.
     const main =
       readFileSync(new URL("../src/editorstate.ts", import.meta.url), "utf8") +
-      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+      readFileSync(new URL("../src/main.ts", import.meta.url), "utf8") +
+      readFileSync(new URL("../src/actionsurface.ts", import.meta.url), "utf8");
     ok("the key has an action behind it",
       /id: "minimap", run:/u.test(main),
       "a chord in DEFAULT_KEYS with no action is a chord that silently does nothing");

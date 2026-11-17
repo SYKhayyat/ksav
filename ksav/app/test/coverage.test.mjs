@@ -101,7 +101,8 @@ const NOT_OFFERED = {
 
 export async function run() {
 
-const MAIN = read("main.ts");
+// The action table moved to `actionsurface.ts` (wave 8 of #188).
+const MAIN = read("main.ts") + read("actionsurface.ts");
 const STYLES_PANEL = read("stylespanel.ts");
 const DESTINATIONS = read("destinations.ts");
 const REVIEW_PANEL = read("reviewpanel.ts");

@@ -88,21 +88,21 @@ const INVENTORY = {
   // --- handle their own failures, deliberately --------------------------------
   "src/compile.ts:runCompile": "guarded; a superseded compile cancels rather than rejects",
   "src/compile.ts:compileUnfocused": "guarded; the same walk, reached the same way",
-  "src/main.ts:refreshSources": "guarded; reports through troubleSaid and setStatus",
+  "src/actionsurface.ts:refreshSources": "guarded; reports through troubleSaid and setStatus",
   "src/boot.ts:refreshBaseline": "guarded; a stale baseline is a Girsa answer, not a crash",
   "src/noteschooser.ts:runErrand": "guarded; a background errand reports its own failure",
   "src/docswitch.ts:saveNow": "guarded; reports a failed save as a notice, which is the point",
   "src/boot.ts:saveFile": "guarded; same notice path as saveNow",
   "src/panescroll.ts:settleNow": "guarded; settling after a save cannot fail the save",
-  "src/main.ts:takeSnapshot": "guarded; a snapshot that fails leaves the previous one",
-  "src/main.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
+  "src/actionsurface.ts:takeSnapshot": "guarded; a snapshot that fails leaves the previous one",
+  "src/actionsurface.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
   "src/girsa.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
   "src/noteschooser.ts:fillNotePreview": "guarded; a note that will not preview is left alone",
-  "src/main.ts:openSpellMenu": "guarded; the menu's own failure path",
+  "src/actionsurface.ts:openSpellMenu": "guarded; the menu's own failure path",
   // The extension list moved here in the `main.ts` split; the same call, the
   // same guard, at its new address.
   "src/editorstate.ts:openSpellMenu": "guarded; the menu's own failure path",
-  "src/main.ts:linkifySelection": "guarded; a newer linkify run supersedes this one",
+  "src/actionsurface.ts:linkifySelection": "guarded; a newer linkify run supersedes this one",
   "src/main.ts:loadRegistries": "guarded; a registry that will not load is reported once",
   "src/save.ts:saveNow": "guarded; the save module's own try/catch and notice",
 

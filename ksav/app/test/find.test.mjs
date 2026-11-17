@@ -35,6 +35,7 @@ const ROWLISTS = readFileSync(path.join(SRC, "rowlists.ts"), "utf8");
 // find drawer's markup is read from `layout.ts` alongside `main.ts`.
 const MAIN =
   readFileSync(path.join(SRC, "main.ts"), "utf8") +
+  readFileSync(path.join(SRC, "actionsurface.ts"), "utf8") +
   readFileSync(path.join(SRC, "layout.ts"), "utf8");
 const SETTINGS_DRAWER = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 const COMPILE = readFileSync(path.join(SRC, "compile.ts"), "utf8");

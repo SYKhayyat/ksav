@@ -50,7 +50,8 @@ const HERE = dirOf(import.meta.url);
 const SRCDIR = path.join(HERE, "..", "src");
 const FILES = readdirSync(SRCDIR).filter((f) => f.endsWith(".ts"));
 const SOURCES = new Map(FILES.map((f) => [f, readFileSync(path.join(SRCDIR, f), "utf8")]));
-const MAIN = SOURCES.get("main.ts");
+// The action dispatcher moved to `actionsurface.ts` (wave 8 of #188).
+const MAIN = SOURCES.get("main.ts") + SOURCES.get("actionsurface.ts");
 const INSERT = SOURCES.get("insert.ts");
 const ROWLISTS = SOURCES.get("rowlists.ts");
 const SETTINGS_DRAWER = SOURCES.get("settingsdrawer.ts");

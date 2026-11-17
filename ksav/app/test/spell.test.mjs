@@ -282,7 +282,9 @@ export async function run() {
     // application boots, so a handler that reappeared there would be the same
     // regression. Both are read, because the fact is "no handler anywhere".
     const list = readFileSync(path.join(SRC, "editorstate.ts"), "utf8");
-    const main = readFileSync(path.join(SRC, "main.ts"), "utf8");
+    const main =
+      readFileSync(path.join(SRC, "main.ts"), "utf8") +
+      readFileSync(path.join(SRC, "actionsurface.ts"), "utf8");
     const openers = ["EditorView.domEventHandlers({", "domEventHandlers({"];
     const at = openers.map((o) => main.indexOf(o)).find((i) => i !== -1) ?? -1;
     const handlers = at === -1 ? "" : main.slice(at);

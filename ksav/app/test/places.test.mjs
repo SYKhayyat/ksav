@@ -38,7 +38,8 @@ export function run() {
   // the code it watches actually lives in — so it cannot pass on a search that
   // nothing is there to fail.
   const transports = src("transports.ts");
-  const main = src("main.ts");
+  // The action table moved to `actionsurface.ts` (wave 8 of #188).
+  const main = src("main.ts") + src("actionsurface.ts");
   const panels = src("panels.ts");
   const bindings = src("bindings.ts");
   const sw = readFileSync(path.join(APP, "public", "sw-services.gen.js"), "utf8");

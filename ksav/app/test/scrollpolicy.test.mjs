@@ -42,7 +42,11 @@ const styles = readFileSync(path.join(SRC, "styles.css"), "utf8").replace(
   /\/\*[\s\S]*?\*\//g,
   " ",
 );
-const mainSrc = readFileSync(path.join(SRC, "main.ts"), "utf8");
+// The boot sequence installs the policy (wave 4 of #188), so it is read from
+// `boot.ts` as well as `main.ts`.
+const mainSrc =
+  readFileSync(path.join(SRC, "main.ts"), "utf8") +
+  readFileSync(path.join(SRC, "boot.ts"), "utf8");
 const drawerSrc = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
 
 export async function run() {
@@ -130,7 +134,7 @@ export async function run() {
     // import — so this is a text read, of the call and its import both.)
     check("boot installs the scroll policy",
       (mainSrc.match(/installScrollPolicy\(\)/g) ?? []).length, 1);
-    ok("and main imports it from its own module", /from "\.\/scrollpolicy"/.test(mainSrc));
+    ok("and boot imports it from its own module", /from "\.\/scrollpolicy"/.test(mainSrc));
 
     // The containment clause is the platform's own boundary; it belongs beside
     // the rule that makes the surface scrollable (`overflow: auto`), one rule

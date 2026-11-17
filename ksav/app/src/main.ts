@@ -1,7 +1,7 @@
 import "./styles.css";
 import { EditorView } from "@codemirror/view";
 import { buildExtensions } from "./editorstate";
-import { render, applyTheme, applySourceZoom, applyUiDir, nameGutterMarks, updateCounts } from "./layout";
+import { applyTheme, applySourceZoom, applyUiDir, nameGutterMarks, updateCounts } from "./layout";
 import { buildHeader, wireHeader } from "./appheader";
 import { EditorState } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
@@ -10,22 +10,16 @@ import { openSearchPanel } from "@codemirror/search";
 import { foldAll, unfoldAll, foldEffect, foldService } from "@codemirror/language";
 import { setRevealAll } from "./ksav-lang";
 import { tagContaining, selectTag, type TagSelection } from "./tagselect";
-
 import { type Placement } from "./minimap";
 import { openMinimap, closeMinimap, minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
 import { healAll } from "./bracket-lint";
 import { moveOutTarget } from "./brackets";
-
 import { renderAllNotes } from "./apparatus-lint";
-
 import { renumberAll, scheduleRenumber } from "./numbering-lint";
 import { jumpDeferred, deferHere, recallHere, deferAll, inlineAll, sortDeferredBodies } from "./deferred-editor";
-
-import { createBackend } from "./transports";
 import * as panelviews from "./panelviews";
-import { getLang, setLang, t, tf } from "./i18n";
+import { setLang, t, tf } from "./i18n";
 import type { Lang } from "./i18n";
-
 import * as docs from "./docs";
 import * as panes from "./panes";
 import * as tabs from "./tabs";
@@ -35,19 +29,13 @@ import {
   PLACED_COMMANDS,
   runRegisteredAction,
 } from "./actions";
-import * as files from "./files";
-import {
-  noteAt,
-} from "./notes";
 import { aliasesInForce } from "./bindings";
 import * as sefarim from "./sefarim";
 import * as spell from "./spell";
 import { clearSpellCheck, forceFullSpellCheck, markSpellDirty, openSpellMenu, scheduleSpellCheck } from "./spellcheck";
 import { keybindings } from "./keyhint";
-
 import * as entity from "./entity";
 import * as styles from "./styles";
-
 // The modules `main.ts` was split into, wave by wave, and what each one took —
 // the map the refactor's end-state acceptance promised would live here:
 //
@@ -95,8 +83,6 @@ import {
   isPageField,
   docConfig,
   ownPageSetup,
-  settingsLoadFailure,
-  reportSettingsWriteFailures,
   setSetting,
   setPageSetup,
   wireSettingsWrite,
@@ -110,24 +96,16 @@ import { actionName } from "./actions";
 import { savedNameMap } from "./macros";
 import * as save from "./save";
 import { scheduleSave, reportSaveFailure } from "./save";
-import { scheduleCompile, runCompile, compileNow, onStale, onAfterCompile, onSchedule } from "./compile";
+import { scheduleCompile, compileNow, onStale, onAfterCompile, onSchedule } from "./compile";
 import { applyPreview, drawCurrentInto } from "./preview";
 import { sourceViews, toEveryPane, wirePanes } from "./panestate";
-import { renderPanes, refreshPaneHeads, cyclePaneZoom, gotoPart } from "./panehost";
+import { renderPanes, refreshPaneHeads, cyclePaneZoom } from "./panehost";
 import { narrowHere, widenHere } from "./paneview";
 import { swapPaneToward } from "./panedrag";
 import { invalidateScrollMap, followCaretInPreview } from "./panescroll";
-import { installScrollPolicy } from "./scrollpolicy";
 import { refreshPanes, selectTab, closeTab, newTab, newDocTab } from "./tabstrip";
-
 import { toggleIsolate } from "./bidi";
-
 import * as keymodes from "./keymodes";
-import * as crash from "./crash";
-import * as watch from "./watch";
-
-import { onGoToPart } from "./diagview";
-
 import * as zoom from "./zoom";
 import { troubleSaid } from "./diagnostics";
 import * as structure from "./structure";
@@ -143,11 +121,10 @@ import { settlePendingModals, ask, askText } from "./formmodal";
 import { markReview, addComment, isReviewOpen, renderReviewPanel } from "./reviewpanel";
 import { applyNotePick, bodyHome, renderNotesChooser } from "./noteschooser";
 import { addFont, removeAsset } from "./assets";
-import { starterDoc, searchPhrases, swapUntouchedStarter, wireStarter, maybeOnboard } from "./starter";
+import { searchPhrases, swapUntouchedStarter, wireStarter, maybeOnboard } from "./starter";
 import { wireTemplates } from "./templates";
-import { openFile, saveFile, saveFileAs, reloadFromDisk, openSharedIfLinked, autosaveToFile } from "./fileui";
-import { offerRecovery, maybeCheckForUpdate, registerServiceWorker, showCrashPanel } from "./applifecycle";
-import { FILE_AUTOSAVE_MS } from "./save";
+import { boot, scheduleAutoSnapshots, wireBoot } from "./boot";
+import { openFile, saveFile, saveFileAs } from "./fileui";
 import { showChromeNotice, clearChromeNotice } from "./ribbon";
 import { openDoc, openSwitcher, goToLastDoc, closeOpenDoc, refreshBaseline, updateTitleBar, loadBody, newDoc, wireDocswitch } from "./docswitch";
 import { takeSnapshot, restoreSnapshot, renderHistory, wireSnapshots } from "./snapshots";
@@ -170,12 +147,11 @@ import { insertSnippet, insertCommand, tieredNoteHere, docLang, wireInsert } fro
 import * as hiding from "./hiding";
 import { LIST_DEPTHS } from "./lists";
 import * as lists from "./lists";
-import { linkifySelection, refreshSources, askForMekor, installGirsaPoll } from "./girsa";
+import { linkifySelection, refreshSources, askForMekor } from "./girsa";
 import { openPalette, renderPaletteList, wirePalette } from "./palette";
 import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
 import { focusCompartment, focusExtension } from "./focus";
 import { wireCompartments } from "./compartments";
-
 // ---- configurable keyboard shortcuts ----
 // Each action has an id (localized in Settings) and a runner. Keys are CM key
 // strings ("Mod-b" etc.; Mod = Ctrl on Win/Linux, Cmd on macOS) and are user-
@@ -202,7 +178,6 @@ import { wireCompartments } from "./compartments";
  * depths of it would be nine rows nobody reads. The commands themselves have no
  * such limit — `foldAll` still takes everything.
  */
-
 const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Every action that inserts a registry command, generated from the one table
   // that says which. Hand-listing them here is what let the bullet list come out
@@ -496,7 +471,6 @@ const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // clock off is no use if the hand has nowhere to press.
   { id: "snapshot", run: () => (void takeSnapshot(true), true) },
 ];
-
 /**
  * Every action, including the macros saved since the page loaded.
  *
@@ -533,7 +507,6 @@ function actions(): { id: string; run: (v: EditorView) => boolean }[] {
     ...styleActions(),
   ];
 }
-
 /**
  * The open document's own styles, as bindable actions.
  *
@@ -548,7 +521,6 @@ function styleActions(): { id: string; run: (v: EditorView) => boolean }[] {
     run: () => applyCustomStyle(st.name),
   }));
 }
-
 /** Convert a keydown event to a CodeMirror key string ("Mod-Shift-k").
  *
  * **From `e.code`, deliberately, and the cost is on record.** `e.code` is the
@@ -574,7 +546,6 @@ function eventToKey(e: KeyboardEvent): string | null {
   parts.push(codeToKey(code));
   return parts.join("-");
 }
-
 /** Convert a physical key code to the logical key name CodeMirror expects. */
 function codeToKey(code: string): string {
   if (code.startsWith("Key")) return code.slice(3).toLowerCase();
@@ -609,12 +580,10 @@ function codeToKey(code: string): string {
   };
   return special[code] ?? code;
 }
-
 // What commands this document has is `commands.ts`'s question, and the compiler,
 // the completions and the palette all ask it there. `userCommandNames` used to live
 // here, read `settings.customCommands` only — disagreeing with `compile.ts` about a
 // shared sefer's own commands — and had exactly one caller (B27).
-
 /**
  * Wrap the selection in a directional isolate, or take one off.
  *
@@ -757,7 +726,6 @@ function makeState(body: string, prose: boolean, at?: number): EditorState {
     ],
   });
 }
-
 /**
  * #89 — open or close the minimap strip.
  *
@@ -776,7 +744,6 @@ function toggleMinimap(): void {
   }
   saveSettings();
 }
-
 /**
  * Move the caret past the closing bracket of the pair around it.
  *
@@ -829,7 +796,6 @@ function moveOutOfBracket(v: EditorView, toNextLine: boolean, all = false): bool
  * sixty frames a second; a fifth of a second late it is still the same number,
  * and the keystroke it is late for is the one being typed.
  */
-
 /**
  * The three constructs, through one door each.
  *
@@ -845,7 +811,6 @@ function applyHiding(edit: hiding.Edit) {
   runtime.view.focus();
   scheduleCompile();
 }
-
 /**
  * Make what is written here a real list.
  *
@@ -868,7 +833,6 @@ function makeListHere(): boolean {
   runtime.view.focus();
   return true;
 }
-
 /**
  * A table of contents, after the title block, once.
  *
@@ -895,7 +859,6 @@ function addContentsHere(): boolean {
   runtime.view.focus();
   return true;
 }
-
 /**
  * Take a running head out of the settings drawer and put it in the document.
  *
@@ -932,25 +895,21 @@ function moveRunningIntoDoc(which: "header" | "footer") {
   closePanel("settings-drawer");
   runtime.view.focus();
 }
-
 /** A fold: collapsible while writing, and every word of it prints. */
 function insertFold() {
   const sel = runtime.view.state.selection.main;
   applyHiding(hiding.foldAround(docTextOf(runtime.view.state.doc), sel.from, sel.to, t("foldName")));
 }
-
 /** Hide a passage from the page with `/* … *\/`, or reveal the one we are in. */
 function hideBlockHere() {
   const sel = runtime.view.state.selection.main;
   applyHiding(hiding.hideBlock(docTextOf(runtime.view.state.doc), sel.from, sel.to, t("hiddenName")));
 }
-
 /** Hide these lines from the page with `//`, or bring them back. */
 function hideLineHere() {
   const sel = runtime.view.state.selection.main;
   applyHiding(hiding.hideLines(docTextOf(runtime.view.state.doc), sel.from, sel.to));
 }
-
 /**
  * Collapse the outline to a depth: chapters only, or chapters and simanim.
  *
@@ -996,7 +955,6 @@ function foldListsToDepth(view: EditorView, depth: number) {
     effects.length ? "ok" : "",
   );
 }
-
 function foldToLevel(view: EditorView, level: number) {
   unfoldAll(view);
   const doc = docTextOf(view.state.doc);
@@ -1014,7 +972,6 @@ function foldToLevel(view: EditorView, level: number) {
   if (effects.length) view.dispatch({ effects });
   setStatus(effects.length ? tf("foldLevel", String(level)) : t("noHeadings"), effects.length ? "ok" : "");
 }
-
 /**
  * A line break in the source that prints nothing.
  *
@@ -1050,7 +1007,6 @@ function hiddenBreak() {
   runtime.view.focus();
   scheduleCompile();
 }
-
 function applySkin(name: string) {
   applyPreset(name, setPageSetup);
   closeMenus();
@@ -1063,7 +1019,6 @@ function applySkin(name: string) {
   if (wasOpen) openPanel("styles-panel");
   setStatus(tf("presetApplied", t("skin." + name)), "ok");
 }
-
 function undoSkin() {
   if (!undoPreset(setPageSetup)) return;
   scheduleCompile();
@@ -1071,7 +1026,6 @@ function undoSkin() {
   rerenderChrome();
   if (wasOpen) openPanel("styles-panel");
 }
-
 function toggleNikud() {
   settings.nikud = !settings.nikud;
   saveSettings();
@@ -1079,7 +1033,6 @@ function toggleNikud() {
   reconfigureShortcuts();
   rerenderChrome();
 }
-
 /**
  * What each chip does when it is pressed.
  *
@@ -1101,18 +1054,15 @@ function startFind(view: EditorView): boolean {
   openPanel("find-drawer");
   return true;
 }
-
 /** Swap the whole document and put the caret somewhere sensible. */
 function replaceAll(text: string, caret: number) {
   editDoc(text, caret);
   scheduleCompile();
   runtime.view.focus();
 }
-
 /** What the keys drawer's search box holds. Lives here because the view is a
  *  pure function of it and the drawer is rebuilt on every keystroke. */
 let keysQuery = "";
-
 /**
  * Every rebindable action, drawn into the keys drawer.
  *
@@ -1177,19 +1127,16 @@ function renderKeysPanel(): void {
     ),
   );
 }
-
 function columnStepFor(id: string): string {
   const rtl = docConfig().dir !== "ltr";
   if (id === "table.cellStartward") return rtl ? "table.cellStartward" : "table.cellEndward";
   if (id === "table.cellEndward") return rtl ? "table.cellEndward" : "table.cellStartward";
   return id;
 }
-
 /** Any action by id — built-in, structural, or a saved macro. */
 function actionById(id: string): { id: string; run: (v: EditorView) => boolean } | undefined {
   return actions().find((a) => a.id === id);
 }
-
 /**
  * Run an action by id. **The only way an action should be invoked.**
  *
@@ -1225,7 +1172,6 @@ function runAction(id: string, v: EditorView = runtime.view): boolean {
     inAction--;
   }
 }
-
 /**
  * Depth of `runAction`, so `insertSnippet` can tell a command arriving from the
  * toolbar apart from one an action is inserting on its own account.
@@ -1237,7 +1183,6 @@ function runAction(id: string, v: EditorView = runtime.view): boolean {
  * one that survives the registry snippet changing under it.
  */
 let inAction = 0;
-
 /**
  * Run one structural operation, wherever the caret is.
  *
@@ -1267,7 +1212,6 @@ function runStructureAction(action: structure.StructureAction, sticky = false): 
   requestAnimationFrame(updateContextBar);
   return true;
 }
-
 /**
  * Select, unwrap or remove the construct the caret is in.
  *
@@ -1312,7 +1256,6 @@ function entityAct(what: "select" | "unwrap" | "remove"): boolean {
   runtime.view.focus();
   return true;
 }
-
 // ---------------------------------------------------------------- setting mutations
 /**
  * What a setting reads as **now** (B26).
@@ -1337,7 +1280,6 @@ function now<K extends Field>(key: K): ValueOf<K> {
   }
   return settings[key as keyof Settings] as ValueOf<K>;
 }
-
 /**
  * Change a setting — of the document, or of the application (B26).
  *
@@ -1359,7 +1301,6 @@ function now<K extends Field>(key: K): ValueOf<K> {
  * margin does not silently reset the paper. Saved through `docs.update`, which is
  * where every other change to a document goes.
  */
-
 /**
  * Make the open document's layout what a **new** document starts with (B26).
  *
@@ -1378,9 +1319,7 @@ function adoptPageSetupAsDefault(): void {
   saveSettings();
   showChromeNotice("setupIsDefault");
 }
-
 // ---------------------------------------------------------------- layout / theme / chrome
-
 /**
  * The source's zoom, as a number the stylesheet multiplies by.
  *
@@ -1390,7 +1329,6 @@ function adoptPageSetupAsDefault(): void {
  * that leaves that difference intact — a zoom that set a font size outright
  * would have flattened page view back to a code pane.
  */
-
 /**
  * Zoom the surface the writer is in. `by` is +1, -1, or 0 for "back to 100%".
  *
@@ -1413,7 +1351,6 @@ function stepZoom(by: number): boolean {
   if (isPanelOpen("settings-drawer")) rerenderChrome();
   return true;
 }
-
 /**
  * Start, restart or stop the automatic snapshot timer.
  *
@@ -1421,17 +1358,6 @@ function stepZoom(by: number): boolean {
  * the part a `setInterval` at the bottom of `boot` could not do: the cadence was
  * fixed at load and the only way to change it was to reload the application.
  */
-let autoSnapshotTimer: number | null = null;
-function scheduleAutoSnapshots() {
-  if (autoSnapshotTimer !== null) {
-    window.clearInterval(autoSnapshotTimer);
-    autoSnapshotTimer = null;
-  }
-  const every = docs.autoInterval(settings.autoSnapshot, settings.autoSnapshotMinutes);
-  if (every === null) return;
-  autoSnapshotTimer = window.setInterval(() => void takeSnapshot(), every);
-}
-
 // Preview placement is not a setting any more, and the two cycling chips it fed
 // are gone with it. Which side the preview sits on is *which child of a split it
 // is*, which the tree says directly and a splitter drag changes; how much of the
@@ -1450,13 +1376,11 @@ function scheduleAutoSnapshots() {
 // counts, and it is gone rather than announced: whether the source is prose or
 // raw is a separate question with a separate control, and the writer had already
 // answered it.
-
 // The splitter is per split now, and built by `splitterFor` beside the tree it
 // resizes. The old one was a single element with an id, which is the shape a
 // window with exactly one divider has — and the reason `settings.previewFrac`
 // was a global: there was only ever one fraction to store. A tree keeps its
 // fractions on its splits, where a second divider has somewhere to put its own.
-
 /**
  * Tell the change gutter what its three marks mean.
  *
@@ -1464,7 +1388,6 @@ function scheduleAutoSnapshots() {
  * the margin and the line in the help say the same sentence — a legend and a
  * tooltip that are two hand-written lists are two lists that disagree.
  */
-
 function rerenderChrome() {
   applyUiDir();
   nameGutterMarks();
@@ -1485,9 +1408,7 @@ function rerenderChrome() {
   // until its next interaction.
   rebuildOpenPanels();
 }
-
 // ---------------------------------------------------------------- boot
-
 // global keys: Ctrl/Cmd+K palette; Alt reveals raw markup in prose mode
 /**
  * What a settings change moves, once the value itself is written.
@@ -1594,7 +1515,6 @@ function applySettingChange(key: Field, value: unknown): void {
     scheduleCompile();
   }
 }
-
 /**
  * Is this keystroke somebody typing into a field?
  *
@@ -1606,7 +1526,6 @@ function typingIntoSomething(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   return !!el?.closest?.("input, textarea, select, [contenteditable='true']");
 }
-
 /**
  * Run a shortcut that arrived while the editor did not have focus.
  *
@@ -1660,7 +1579,6 @@ function runShortcutOutsideEditor(e: KeyboardEvent): boolean {
   runAction(id, runtime.view);
   return true;
 }
-
 function wireKeys() {
   window.addEventListener("keydown", (e) => {
     // The two Girsa errands used to be answered here, by comparing `e.key` to a
@@ -1694,7 +1612,6 @@ function wireKeys() {
     closeOnOutsideClick(e.target as Element | null);
   });
 }
-
 /**
  * Hand the shell's own operations to the modules that need them.
  *
@@ -1755,7 +1672,6 @@ function wirePanels() {
       runtime.view?.focus();
     },
   });
-
   wirePanel("marks-drawer", {
     rebuild: renderMarksPane,
     open: () => {
@@ -1771,7 +1687,6 @@ function wirePanels() {
       runtime.view?.focus();
     },
   });
-
   wirePanel("find-drawer", {
     rebuild: renderFindPane,
     open: () => {
@@ -1786,7 +1701,6 @@ function wirePanels() {
     },
     close: () => runtime.view?.focus(),
   });
-
   wirePanel("settings-drawer", { close: () => runtime.view?.focus() });
   wirePanel("commands-drawer", {
     open: () => {
@@ -1817,7 +1731,6 @@ function wirePanels() {
     },
     close: () => runtime.view?.focus(),
   });
-
   wirePanel("palette", {
     open: () => {
       const input = document.getElementById("palette-input") as HTMLInputElement;
@@ -1871,7 +1784,6 @@ function wirePanels() {
   });
   wirePanel("welcome", { close: () => localStorage.setItem("ksav.onboarded", "1") });
 }
-
 function installHooks() {
   wirePanels();
   runtime.onRerenderChrome(rerenderChrome);
@@ -2059,9 +1971,7 @@ function installHooks() {
     if (settings.notesPane) renderNotesPane();
   });
 }
-
 const REGISTRY_RETRY_MS = 2000;
-
 /**
  * Load the command and template registries, retrying before giving up.
  *
@@ -2093,7 +2003,6 @@ async function loadRegistries(): Promise<void> {
     showChromeNotice("registriesGaveUp", { key: "retrySave", press: () => void loadRegistries() });
   }, REGISTRY_RETRY_MS);
 }
-
 /** One attempt. Returns whether the chrome now has what it needs. */
 async function fetchRegistries(): Promise<boolean> {
   try {
@@ -2158,251 +2067,7 @@ async function adoptDictionary(): Promise<void> {
     console.error("could not open the dictionary file:", e);
   }
 }
-
-async function boot() {
-  installHooks();
-  // The interface language, before anything reads it — and this line did not
-  // exist. `setLang` was called from exactly one place, `setSetting("lang", …)`,
-  // which is the chip; nothing ever handed it what was stored. So the
-  // application booted Hebrew every time however many times a writer had chosen
-  // English, and only the chip put it right, for that session.
-  //
-  // That is what the help panel's Hebrew title was really about. The interface
-  // was not "in English with one Hebrew string in it" — it was in Hebrew, and
-  // the chip's rerender reached the header and the settings drawer and left the
-  // panels where they were. Two faults, one symptom, and this is the first.
-  //
-  // Before `starterDoc()`, which asks `getLang()` to decide whether a new
-  // document opens in English and left-to-right.
-  if (settings.lang === "en" || settings.lang === "he") setLang(settings.lang);
-  // The store opens before anything is drawn: the editor is constructed with
-  // the document's text in it, so there is never a frame in which the writer
-  // could type into a buffer that has no document behind it.
-  const starter = starterDoc();
-  // An English starter is a left-to-right document, and it is the only moment
-  // where flipping the direction is unambiguously right: nothing else exists yet
-  // to be disturbed by it.
-  //
-  // **This used to run here, and it did nothing.** `setPageSetup` returns early
-  // when there is no current document, and at this line there is none — the
-  // store has not opened yet, `runtime.currentDoc` is set forty lines below by
-  // `setCurrentDoc(await docs.init(...))`. So an English first run got the
-  // engine's shipped RTL default, which is #135's first defect: the writer asked
-  // for English and was handed a right-to-left page with no way to see why.
-  //
-  // It is decided here and applied below, after the document exists. Deciding
-  // and applying have to be the same expression or this happens again.
-  const englishStarter = getLang() === "en" && !localStorage.getItem("ksav.onboarded");
-  // Whether a durable store is available. When it is not — a private window, or
-  // storage blocked — the fix is to lose *persistence* and nothing else. The old
-  // fallback returned early here, and in doing so skipped the command/template
-  // registries (leaving an empty toolbar, empty menus, no completions), the
-  // unload guard (so closing the tab discarded the work with no prompt, in the
-  // one case where nothing else was keeping it either), spell-check and the
-  // timers. Everything below still runs; only the store-backed steps are guarded.
-  let durable = true;
-  try {
-    runtime.setCurrentDoc(await docs.init(starter, t("untitled")));
-  } catch (e) {
-    durable = false;
-    runtime.setCurrentDoc({ id: docs.newId(), title: t("untitled"), body: starter, assets: [], updated: Date.now() });
-    reportSaveFailure(e); // the banner is honest; everything after it now works
-  }
-  // …and now there is a document to put it on. `dir` is page setup, so it belongs
-  // to the starter rather than to the application — see the note above.
-  if (englishStarter) setPageSetup({ dir: "ltr" });
-  if (durable) {
-    // A binding lives in the store, so there is nothing to recall without one.
-    void files.bindingFor(runtime.currentDoc.id).then((b) => {
-      runtime.setCurrentBinding(b);
-      updateTitleBar();
-    });
-  }
-  // Preferences that could not be read are preferences the writer has silently
-  // lost. This banner exists because that failure had nowhere to go for the
-  // whole life of the application: `loadSettings` threw on every boot and the
-  // catch handed back the defaults, so every choice anybody ever made was
-  // discarded on reload and nothing anywhere said a word about it. A fallback
-  // that cannot report itself is indistinguishable from a feature that does not
-  // work, which is what "emacs mode does nothing" turned out to be.
-  const lostSettings = settingsLoadFailure();
-  if (lostSettings) showChromeNotice(tf("settingsLost", lostSettings));
-  // And the other half. A failed *read* has had a banner since it was written;
-  // a failed *write* was swallowed, so a writer whose localStorage had filled
-  // set preferences that the UI accepted, applied for the session, and lost on
-  // reload — with no sentence anywhere. The string was already written.
-  reportSettingsWriteFailures((why: string) => showChromeNotice(tf("settingsNotKept", why)));
-  render();
-  wireKeys();
-  save.wireUnloadGuard();
-  const status = document.getElementById("status")!;
-  status.textContent = t("rendering");
-  runtime.setBackend(await createBackend());
-  const badge = document.getElementById("engine-badge");
-  if (badge) {
-    const labels: Record<string, string> = {
-      server: "⬢ server",
-      wasm: "⬡ wasm",
-      desktop: "🖥 native",
-    };
-    badge.textContent = labels[runtime.backend!.kind] ?? runtime.backend!.kind;
-  }
-  // The dictionary as a file (B29) and the command/template registries are
-  // independent of each other and both only need the backend, so they resolve
-  // together rather than one behind the other in front of the first compile.
-  // `adoptDictionary` still lands after the backend and before anything
-  // spell-checks, so the first check already has the writer's own words. A
-  // browser has no `dictionary()` and keeps using `localStorage`.
-  await Promise.all([adoptDictionary(), loadRegistries()]);
-  // The change gutter needs the document's newest snapshot, and boot does not
-  // go through `openDoc`.
-  void refreshBaseline();
-  // What the modes are lent. Every route is the one the rest of the application
-  // already uses: `:w` and C-x C-s reach the same save as the toolbar, `:name`
-  // and M-x reach the same `runAction` the keyboard and the palette reach — so
-  // the macro recorder sees a command run from `:` exactly as it sees one run
-  // from a key — and `M-x` opens the palette this application already has rather
-  // than a second, worse minibuffer built to be spelled the same way.
-  keymodes.setBridge({
-    save: () => void saveFile(),
-    commands: () => actions().map((a) => a.id),
-    run: (id) => void runAction(id),
-    prompt: () => openPalette(),
-    // The units a sefer is made of, from the same modules the outline pane, the
-    // ribbon and the note register read. A second opinion about where a note
-    // ends would disagree first with the pane sitting beside the text.
-    units: (at) => {
-      const doc = docTextNow();
-      const out: Partial<Record<keymodes.SeferUnit, keymodes.Span>> = {};
-
-      // A note. `a` is the marker with its body; `i` is the prose. A marker with
-      // no body yet has no inside, and `hasBody` is how the register says so.
-      const note = noteAt(doc, at);
-      if (note) {
-        out.note = {
-          from: note.from,
-          to: note.deferred ? note.deferred.defTo : note.to,
-          inner: note.hasBody ? { from: note.bodyFrom, to: note.bodyTo } : undefined,
-        };
-      }
-
-      // A heading, and *its section*: everything under it until the next heading
-      // at the same level or above. `i` is the section without the heading line,
-      // which is what a writer means by "this heading" when they say `dih`.
-      // `sectionAt`, not `headingAt`. The difference is the whole feature:
-      // `headingAt` matches only while the caret is *on the heading line*, so
-      // `dah` did nothing from inside the section it is named after — which is
-      // where a writer always is. `headings.ts` has carried the right function
-      // all along, with a comment saying it is what "move this section" and
-      // "fold this section" mean when the caret is in the body text.
-      //
-      // Recorded because the previous attempt at these text objects was
-      // withdrawn with a note saying the arithmetic here was "right and is what
-      // the next attempt needs". It was not; it was one function call wrong,
-      // and calling the registration the only missing piece is what stopped
-      // anybody looking.
-      const all = heads.headings(doc);
-      const here = heads.sectionAt(doc, at, all);
-      if (here) {
-        const after = all.find((h) => h.from > here.from && h.level <= here.level);
-        const sectionTo = after ? after.from : doc.length;
-        out.heading = {
-          from: here.from,
-          to: sectionTo,
-          inner: { from: here.to, to: sectionTo },
-        };
-      }
-      return out;
-    },
-    heading: (at, forward) => {
-      const all = heads.headings(docTextNow());
-      const next = forward
-        ? all.find((h) => h.from > at)
-        : [...all].reverse().find((h) => h.from < at);
-      return next ? next.from : null;
-    },
-  });
-  // An error in an included chapter opens *that* chapter and goes to the line.
-  // `voidAction` and not `void`: opening a chapter awaits the document it is
-  // switching to, and a failure there is a real one that the writer would
-  // otherwise meet as a silent no-op. The fence in `asyncaction.test.mjs`
-  // asked for exactly this answer rather than an inventory entry.
-  // `voidAction` and not `void`: opening a chapter awaits the document it is
-  // switching to, and a failure there is a real one the writer would otherwise
-  // meet as a silent no-op. The fence in `asyncaction.test.mjs` asked for
-  // exactly this answer rather than an inventory entry.
-  //
-  // `general` and not a new `Doing`: switching documents is not a compile, a
-  // save, Girsa or a linkify, and `Doing` is a closed union on purpose — every
-  // variant costs a sentence in both catalogues and earns its place by naming a
-  // failure the writer could confuse with another kind.
-  onGoToPart((file, line, column) => voidAction("general", () => gotoPart(file, line, column)));
-  registerServiceWorker();
-  voidAction("save_file", () => openSharedIfLinked());
-  // Rescue the text before anything else, then say what happened.
-  crash.install(
-    () => ({
-      title: runtime.currentDoc?.title ?? "",
-      body: runtime.docText(),
-      id: runtime.currentDoc?.id,
-    }),
-    (_e, detail) => showCrashPanel(detail),
-  );
-  voidAction("save_file", () => offerRecovery());
-  voidAction("general", () => maybeCheckForUpdate());
-  // A filesystem stat that nothing before the first compile reads, so it does
-  // not gate the first page — void-fired like the other watch bookkeeping.
-  void watch.markInSync(runtime.currentDoc.id, runtime.currentBinding);
-  // Notice when the file changes underneath us — Dropbox pulling an older copy
-  // down, a second window, a `git checkout`. On focus above all, because
-  // alt-tabbing back from whatever touched it is the overwhelmingly common case.
-  watch.watchForChanges(
-    () => ({ docId: runtime.currentDoc?.id ?? "", binding: runtime.currentBinding }),
-    () => {
-      const name = runtime.currentBinding?.name ?? "";
-      // A notice and not a modal. The conflict costs nothing until the next
-      // save, and a dialog thrown up mid-sentence over something that can wait
-      // is how writers learn to dismiss dialogs without reading them.
-      showChromeNotice(tf("fileChangedNotice", name), {
-        label: t("reloadFromDisk"),
-        press: () => voidAction("save_file", () => reloadFromDisk()),
-      });
-    },
-  );
-  if (settings.editingMode && settings.editingMode !== "default") {
-    voidAction("save_file", () => setEditingMode(settings.editingMode));
-  }
-  runCompile();
-  // The first check has to be scheduled explicitly: boot compiles directly
-  // rather than through scheduleCompile, so nothing would be checked until the
-  // writer's first keystroke.
-  scheduleSpellCheck();
-  // Periodic auto-snapshot, when the writer has left it on (only stores when the
-  // text changed). Snapshots live in the store, so this is the one timer with
-  // nothing to do without one — and the cadence is `scheduleAutoSnapshots`,
-  // which reads the settings and can be called again when they change.
-  if (durable) scheduleAutoSnapshots();
-  // periodic write-back to the bound file, when there is one to write to. Kept
-  // even with no store: a file binding made this session writes to disk, not to
-  // the store, so it is exactly the escape hatch a private window still has.
-  // This used to be a bare `setInterval` that ran forever — on a backgrounded
-  // tab, a laptop on battery — with no guard against a slow call overlapping
-  // itself. See `installBackgroundTimers`.
-  installBackgroundTimers();
-  // The Girsa handoff poll is girsa.ts's now (spec.md §10.6); same install
-  // moment, its own file.
-  installGirsaPoll();
-  // The floating surfaces' scroll policy — native deltas, one honest
-  // conversion, and the writer's own multiplier (#120), wired once at boot
-  // because the document-level listener needs no rebuild after it.
-  installScrollPolicy();
-}
 /** True when this session's autosave should be quiet. */
-
-function tabHidden(): boolean {
-  return typeof document !== "undefined" && document.visibilityState === "hidden";
-}
-
 /**
  * The recurring write-back job, gated and guarded.
  *
@@ -2411,17 +2076,6 @@ function tabHidden(): boolean {
  * cannot pile up behind itself — the shape `watch.ts` uses. The other
  * background job, the Girsa inbox poll, lives beside this one in `girsa.ts`.
  */
-function installBackgroundTimers(): void {
-  let autosaveBusy = false;
-  window.setInterval(() => {
-    if (tabHidden() || autosaveBusy) return;
-    autosaveBusy = true;
-    void Promise.resolve(autosaveToFile()).finally(() => {
-      autosaveBusy = false;
-    });
-  }, FILE_AUTOSAVE_MS);
-}
-
 /**
  * #89 — open the strip if it was left open.
  *
@@ -2440,7 +2094,6 @@ function openMinimapIfSaved(): void {
   wireMinimapPanel(minimapDeps());
   if (settings.minimap && !minimapIsOpen()) toggleMinimap();
 }
-
 /**
  * The strip's one set of dependencies.
  *
@@ -2463,6 +2116,12 @@ function minimapDeps() {
     },
   };
 }
-
+wireBoot({
+  installHooks,
+  wireKeys,
+  actions,
+  runAction,
+  adoptDictionary,
+  loadRegistries,
+});
 boot().then(openMinimapIfSaved);
-

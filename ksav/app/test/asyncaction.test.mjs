@@ -89,11 +89,10 @@ const INVENTORY = {
   "src/compile.ts:runCompile": "guarded; a superseded compile cancels rather than rejects",
   "src/compile.ts:compileUnfocused": "guarded; the same walk, reached the same way",
   "src/main.ts:refreshSources": "guarded; reports through troubleSaid and setStatus",
-  "src/main.ts:refreshBaseline": "guarded; a stale baseline is a Girsa answer, not a crash",
-  "src/main.ts:runAction": "guarded; the command dispatcher's own catch",
+  "src/boot.ts:refreshBaseline": "guarded; a stale baseline is a Girsa answer, not a crash",
   "src/noteschooser.ts:runErrand": "guarded; a background errand reports its own failure",
   "src/docswitch.ts:saveNow": "guarded; reports a failed save as a notice, which is the point",
-  "src/main.ts:saveFile": "guarded; same notice path as saveNow",
+  "src/boot.ts:saveFile": "guarded; same notice path as saveNow",
   "src/panescroll.ts:settleNow": "guarded; settling after a save cannot fail the save",
   "src/main.ts:takeSnapshot": "guarded; a snapshot that fails leaves the previous one",
   "src/main.ts:askForMekor": "guarded; asks the OS, and a refusal is an answer",
@@ -124,6 +123,9 @@ const INVENTORY = {
   "src/appheader.ts:undo": "returns a promise the editor already handles",
   // moved with the layout scan (wave 5 of #188)
   "src/layout.ts:takeSnapshot": "returns a promise the snapshot module already handles",
+  // moved with the boot sequence (wave 4 of #188)
+  "src/boot.ts:takeSnapshot": "returns a promise the snapshot module already handles",
+  "src/boot.ts:wiring": "guarded; the command dispatcher's own catch handles it",
   "src/appheader.ts:redo": "returns a promise the editor already handles",
   "src/appheader.ts:foldAll": "a synchronous fold walk",
   "src/appheader.ts:unfoldAll": "a synchronous fold walk",

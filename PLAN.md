@@ -117,6 +117,14 @@ section at the top of this plan.
 - [x] Tauri shell audit (it was not covered by the #140 sweep): IPC surface, file-system scope, updater. `AUDIT-shell-2026-11-17.md` — capability grant is `core:default` only, every file op keyed on a dialog-picked path (normalized, traversal tested), `ksav_call` reaches the seven Native services but bounded by fixed git args and `protocol.ext.allow=never`, preview SVG sanitized by allow-list, prose tables escape per character, one CSP file fenced by build.rs with `https://api.github.com` as the only egress. Remaining work in it is #131 (signed builds).
 - [ ] Security: what an opened document can make the app do (links, includes, paths).
 - [ ] Data integrity: round-trip every saved format; check that nothing is silently dropped.
+  Started from the export side (`3662bb4`, #199): a comparison of every prose word a
+  document prints against the words an export contains, over the engine's own 14
+  documents, found two silent-loss defects — `#פסוק[ref][verse]` and
+  `#הגדרה[term][definition]` exported only their first body, and a quoted
+  `#note_named["…"]` kept its quotes where its `#note_body["…"]` did not, so the note
+  was deleted on export and called broken by the lint. Both fixed, fenced in
+  `app/test/integrity.test.mjs`. The import half (docx/odt → Ksav → export) is still
+  open, and #200 holds the formatting follow-up the fix surfaced.
 - [ ] Run `lamdan` across the whole repo once and triage its findings into this plan.
 
 ## ◆ D2 — Before others use it

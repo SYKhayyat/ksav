@@ -41,11 +41,17 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
       packages. Mutation-tested by adding `libfoo-dev` to CI (named, `["ci"]` is
       not the failure — `["libfoo-dev"]` is) and by dropping `patchelf` from the
       release job (`got ["release"]`).
-- [ ] #210 verify the lamdan findings the triage could not open — 23 external rows
-      (6.1 *an English document falls out of the note-layout path*, CONFIRMED High,
-      first), three duplication rows, and `three-repos` §8 item 9's ten false or stale
-      claims. "Verify" means a test, a measurement, or a comment that says what was
-      decided.
+- [x] #210 verify the lamdan findings the triage could not open. **Closed** — all
+      seventeen rows opened, and the whole external report turns out to have been swept
+      between August and November: 37 of 40 closed since, three out of scope
+      (`girsa-personal`'s log, two `sefer-crates` claims). Verifying produced three
+      things reading alone would not: `convertNote` had **no caller** (deleted, its
+      test's claims moved onto `retargetNote`), the CLI printed `✓ compiled` *before*
+      counting the page images it could not write (`engine/tests/cli.rs` runs the binary
+      as a process), and a failed settings write had no test at all
+      (`settings.test.mjs` now breaks `localStorage.setItem`). One row — `forEach`'s
+      throwing visitor — could not be given a behavioural fence, because the test runtime
+      cannot reproduce the hang; it has the contract *and* a source rule, and says so.
       uses — `תצוגה`, `תפריטים`, `עדכון`, `מאגרים`, `חלוניות`, `אחסון`, `גיבוי`,
       `עימוד`, `העדפות` among them. Found by the starter's save line, which said `וייצוא` and was
       underlined. **Closed 2026-11-18** by the owner's answer, which was two layers

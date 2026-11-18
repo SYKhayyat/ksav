@@ -10873,3 +10873,40 @@ quotes. Twelve hundred and up engine tests, 13,987 editor assertions, the gate's
 twelve checks, and the acceptance suite's 868 checks are green on Windows.
 
 — B
+
+## 2026-11-18 · the audit was swept, and nobody had said so
+
+**#210 asked for seventeen rows to be checked.** The answer was uniform, and it
+took a morning to find: the whole external audit had been fixed between August
+and November, one class at a time, and nobody had gone back to the report. 37 of
+40 closed since; three out of scope because they live in `sefer-crates` and
+Girsa.
+
+Verifying them turned up three things that reading the comment would not have:
+
+- **`convertNote` had no caller.** The function §6.2 complained about was still
+  shipped — language-blind, command-based — and its only consumer was a test. A
+  fence around dead code reads exactly like a fence around the feature. Deleted;
+  the claims moved to `retargetNote`, which is the function the note menu calls,
+  and two mutation tests prove the moved fence still bites.
+- **The CLI printed `✓ compiled` before it counted the page images it could not
+  write.** The exit code and the count were right; the order was not. A run whose
+  page images all failed printed a success line and then a failure line. Fixed,
+  and `engine/tests/cli.rs` runs the built binary as a process — the fence has to
+  be a process, because the assertion is an exit code and a line on stderr.
+- **A failed settings write had no test at all**, only the machinery and a
+  comment. Now `settings.test.mjs` breaks `localStorage.setItem` on purpose and
+  asserts the failure is observable, told *once* per run of failures, and cleared
+  by the next success.
+
+One row could not have a behavioural fence and says so: `store.forEach`'s throwing
+visitor. `fake-indexeddb` re-raises a throw from an event handler into the abort
+path, so deleting the guard leaves the behavioural assertion green — the browser
+hangs, the test runtime does not. It has both the contract and a source rule, and
+the comment explains why the first is not enough.
+
+The lesson worth keeping is not "the audit was fine". It is that a report is only
+answered when somebody writes the verdict down where the next reader will find
+it, and that verifying a fix is a different job from having made it.
+
+— B

@@ -599,4 +599,48 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
     }
   }
 
+  // ------------------------------------------------- a write that cannot happen
+  //
+  // `lamdan/external-2026-08-18.md` §4.4: a settings **read** that failed had a
+  // banner and a **write** that failed had none. The writer set a preference,
+  // watched it take effect, and found it gone on the next reload, with nothing
+  // having said so — while the machinery to say it existed and was wired to the
+  // other half.
+  //
+  // This is the fence the issue asks for: the failure is observable, the banner
+  // is told exactly once for a run of failures (a notice per splitter drag is a
+  // notice nobody reads), and a write that succeeds afterwards clears it so the
+  // next failure is news again.
+  {
+    const real = globalThis.localStorage.setItem.bind(globalThis.localStorage);
+    const told = [];
+    settings.reportSettingsWriteFailures((why) => told.push(why));
+    let broken = true;
+    globalThis.localStorage.setItem = (k, v) => {
+      if (broken) {
+        const e = new Error("QuotaExceededError");
+        e.name = "QuotaExceededError";
+        throw e;
+      }
+      return real(k, v);
+    };
+    try {
+      settings.saveSettings();
+      check("a write that fails is reported, not swallowed", settings.settingsWriteFailure() !== null, true);
+      check("and the shell is told once", told.length, 1);
+      settings.saveSettings();
+      check("a second failure does not repeat the banner", told.length, 1);
+      broken = false;
+      settings.saveSettings();
+      check("a write that succeeds clears the failure", settings.settingsWriteFailure(), null);
+      broken = true;
+      settings.saveSettings();
+      check("and the next failure is news again", told.length, 2);
+    } finally {
+      globalThis.localStorage.setItem = real;
+      broken = false;
+      settings.saveSettings();
+    }
+  }
+
 }

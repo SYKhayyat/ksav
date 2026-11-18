@@ -205,6 +205,20 @@ fn main() -> ExitCode {
                 failed += 1;
             }
         }
+        // The success line comes **after** the failure count, not before it.
+        //
+        // It used to be printed first, so a run whose page images all failed said
+        // `✓ compiled … (43 page(s))` and then `✗ 43 of 43 page image(s) could not
+        // be written` and exited 1 — two lines, one of them false, in the order a
+        // reader takes them. `tests/cli.rs` asserts the pair: a page image that
+        // cannot be written is an error, a non-zero exit, and *no* success line.
+        if failed > 0 {
+            eprintln!(
+                "✗ {failed} of {} page image(s) could not be written",
+                result.pages_svg.len()
+            );
+            return ExitCode::from(1);
+        }
         println!(
             "✓ compiled {} → {} ({} page(s), {} bytes PDF) in {:.0}ms",
             input.display(),
@@ -213,13 +227,6 @@ fn main() -> ExitCode {
             pdf.len(),
             elapsed.as_secs_f64() * 1000.0,
         );
-        if failed > 0 {
-            eprintln!(
-                "✗ {failed} of {} page image(s) could not be written",
-                result.pages_svg.len()
-            );
-            return ExitCode::from(1);
-        }
         ExitCode::SUCCESS
     } else {
         eprintln!(

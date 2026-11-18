@@ -1,6 +1,7 @@
 import { check, notOk, ok } from "./harness.mjs";
 import { analyze, enclosingGroups, findNextCloser, moveOutTarget, pairedDelimiters } from "../.tmp-test/brackets.mjs";
 import { DEFAULTS } from "../.tmp-test/settings.mjs";
+import { readFileSync } from "node:fs";
 
 // Bracket healing: the speculative repair that keeps the preview alive while
 // a command is half-typed. Its invariant — healed text is balanced, and
@@ -206,4 +207,26 @@ export async function run() {
     check(`invariant ${i}: idempotent`, twice.healed, once);
   }
 }
+
+// UAT 12: the pairing is **installed**, not merely defined.
+//
+// `pairedDelimiters` above is the list; this is the two places that wire it into
+// the live editor. A regression that deletes the wiring — `closeBrackets()` from
+// the extensions, or the `closeBracketsKeymap` from the base keymap — passes every
+// pure test in this file, because the delimiters are still "paired" in a function
+// nothing calls. Both halves are asserted so the pair cannot exist in name only.
+{
+  const editor = readFileSync(new URL("../src/editorstate.ts", import.meta.url), "utf8");
+  ok("the closer handler is in the editor's extensions", /closeBrackets\(\)/u.test(editor));
+  ok("and its keymap rides with the base keys", /closeBracketsKeymap/u.test(editor));
+  const compartments = readFileSync(new URL("../src/compartments.ts", import.meta.url), "utf8");
+  ok(
+    "the pair list is fed from the two switches",
+    /pairedDelimiters\(\s*settings\.autoPairBrackets !== false,\s*!!settings\.autoPairQuotes,\s*\)/u.test(compartments),
+  );
+  // The default is the one the report was about: brackets close, quotes do not.
+  ok("brackets close by default", DEFAULTS.autoPairBrackets === true);
+  ok("quotes do not (geresh is a letter)", DEFAULTS.autoPairQuotes === false);
+}
+
 }

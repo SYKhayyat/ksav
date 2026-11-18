@@ -3183,6 +3183,87 @@ async function main() {
     check("the bare keycap is not the binding", (await minimapOpen()) === false, "stayed closed");
   }
 
+  // ------------------------------------------- UAT 12: typing a closer, not a
+  // ------------------------------------------- double
+  //
+  // The report: "there was no way to type `[` to close `[]` because auto-pairing
+  // always typed both together." Auto-pairing, working, inserts `[]` and moves the
+  // caret between; typing the closer must then **skip** the auto-inserted closer,
+  // not add a second one — a reader closes with one keystroke and the document
+  // never sees `[]]` or `))` or `}}`.
+  //
+  // Driven with the keyboard only, in the built app, on the default settings
+  // (`autoPairBrackets: true`, `autoPairQuotes: false`). The assertion is a
+  // *count*: not "the text looks right", which passes by eyeball, but how many of
+  // each delimiter the document holds after the keystrokes.
+  {
+    const src = () => page.evaluate(() => (document.querySelector(".cm-content")?.textContent ?? "").trim());
+    const count = (ch) => src().then((t) => t.split(ch).length - 1);
+    const reset = async () => {
+      await press("Escape");
+      await clickVisible("the editor", ".cm-content");
+      await press("Control+a");
+      await press("Delete");
+    };
+
+    await reset();
+    await page.keyboard.insertText("א");
+    await page.keyboard.insertText("[");
+    // Typing the opener put the caret between `[` and its auto-`]`.
+    check(
+      "typing `[` auto-inserts its closer",
+      (await count("[")) === 1 && (await count("]")) === 1,
+      "one [ and one ] after typing [",
+    );
+    // The reported bug: typing the closer must skip, not duplicate.
+    await page.keyboard.insertText("]");
+    check(
+      "typing `]` closes the pair instead of making `[]]`",
+      (await count("[")) === 1 && (await count("]")) === 1,
+      `one [ and one ] after typing ] (got ${await src()})`,
+    );
+
+    await reset();
+    await page.keyboard.insertText("א");
+    await page.keyboard.insertText("[");
+    await page.keyboard.insertText("טקסט"); // the pair is already closed; we type inside it
+    await page.keyboard.insertText("]");
+    check(
+      "typing inside the pair and closing still leaves one of each",
+      (await count("[")) === 1 && (await count("]")) === 1,
+      "no duplicate closer while typing inside",
+    );
+
+    await reset();
+    await page.keyboard.insertText("א");
+    await page.keyboard.insertText("(");
+    await page.keyboard.insertText(")");
+    check(
+      "the same, for round brackets",
+      (await count("(")) === 1 && (await count(")")) === 1,
+      "one ( and one )",
+    );
+
+    await reset();
+    await page.keyboard.insertText("$");
+    await page.keyboard.insertText("$");
+    check(
+      "maths `$` pairs without doubling",
+      (await count("$")) === 2,
+      `two $ total after typing $ $ (got ${await src()})`,
+    );
+
+    await reset();
+    await page.keyboard.insertText('"');
+    check(
+      "quotes ship unpaired by default (geresh is a letter here)",
+      (await count('"')) === 1,
+      `one double-quote — not auto-paired: ${await src()}`,
+    );
+
+    await reset();
+  }
+
   // ------------------------------------------------- UAT 3: a chip says its state
   //
   // The report was that the prose button is *always blue*, so the writer cannot

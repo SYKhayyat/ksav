@@ -207,7 +207,21 @@ are triaged into this plan.
 Exit: someone who is not the owner completes #14 alone, from install to export.
 
 - [ ] Code-signed Windows installer (no SmartScreen wall).
-- [ ] Onboarding inside the app: an example document and the first steps, in Hebrew.
+- [x] Onboarding inside the app: an example document and the first steps, in Hebrew.
+      **Done, and it was half-missing.** `app/src/starter.ts` has held a Hebrew welcome
+      document and an English one (chosen by interface language, swapped while still
+      untouched) since the first screen was written, and the welcome overlay lists all ten
+      templates in two labelled groups. What it did *not* say was how to **keep** what you
+      type: three bullets about exploring, none about saving. Both starters now open with
+      *save with `Ctrl+S`, export under the File menu*, which is the first thing a new writer
+      needs and the one thing whose absence teaches them the program loses work.
+      And the starters had **no compile behind them** — not in `docs.test.mjs`, not in
+      acceptance, which starts from `sefer`. New `engine/tests/starter.rs` reads both
+      template literals out of the TypeScript (no copy that could compile while the shipped
+      one does not) and asserts each one compiles, puts its own first line on the page, and
+      names the save chord and the export menu. Three assertions; each mutation-tested
+      (`#nosuchcommand`, `Ctrl+S` removed, the title words changed) reddens the one it
+      belongs to.
 - [ ] A help system and an error-message pass written for non-technical readers.
 - [ ] #14 run by an outside tester.
 - [ ] Tag v1.0.0 and publish.

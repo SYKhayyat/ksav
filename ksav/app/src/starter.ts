@@ -16,6 +16,7 @@ const STARTER_HE = `#שער[ברוכים הבאים לכְּתָב]
 זהו עורך #הדגשה[כְּתָב]. כל פקודה כאן היא פונקציית Typst אמיתית, ולכן #נטוי[הקינון בלתי מוגבל] עובד מאליו — טבלה בתוך הערה בתוך כותרת בתוך רשימה, הכול מוצג נכון.
 
 #רשימה(
+  פריט[שמרו עם Ctrl+S, וייצוא ל-PDF או ל-Word נמצא בתפריט #הדגשה[קובץ].],
   פריט[בחרו תבנית מתפריט #הדגשה[תבניות].],
   פריט[פתחו את #הדגשה[פקודות] עם Ctrl+K.],
   פריט[החליפו בין עברית לאנגלית, ומצב פרוזה, מלמעלה.],
@@ -34,6 +35,7 @@ This is the #bold[Ksav] editor. Every command here is a real Typst function, so
 a list all typesets correctly, without anything special being done about it.
 
 #bullets(
+  item[Save with Ctrl+S. PDF and Word export are under the #bold[File] menu.],
   item[Pick a starting point from the #bold[Templates] menu.],
   item[Open #bold[Commands] with Ctrl+K to see everything there is.],
   item[Switch between English and Hebrew, and prose mode, from the top bar.],

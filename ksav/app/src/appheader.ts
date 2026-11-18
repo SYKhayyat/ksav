@@ -396,7 +396,10 @@ export function buildHeader(): HTMLElement {
           ["chip", c.active ? "active" : "", c.disabled ? "disabled" : "", c.id === "record" && c.active ? "recording" : ""]
             .filter(Boolean)
             .join(" "),
-          { "data-chip": c.id },
+          // A toggle says whether it is pressed; anything else says nothing.
+          // Before this the state lived only in `.chip.active`, so the button
+          // looked pressed and announced no state at all (UAT 3, #134).
+          { "data-chip": c.id, ...(c.toggle ? { "aria-pressed": c.active ? "true" : "false" } : {}) },
         ),
       ),
     ),

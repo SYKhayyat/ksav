@@ -2966,6 +2966,64 @@ async function main() {
     check("…and none of it raised anything on the console", newProblems(mark).length === 0, newProblems(mark).join(" | "));
   }
 
+  // ------------------------------------------------- UAT 3: a chip says its state
+  //
+  // The report was that the prose button is *always blue*, so the writer cannot
+  // tell whether prose mode is on. Measured in the built application, both halves
+  // of that sentence are the same bug seen twice: `active` reached the DOM as
+  // `.chip.active` and nothing else, so the button had a colour and no state.
+  //
+  // Two presses, so this ends where it started and no later reader inherits prose
+  // mode. What is asserted is the *agreement* — the class, the attribute and the
+  // glyph are three statements about one fact, and the failure mode is two of them
+  // agreeing with each other and not with the third.
+  {
+    const prose = '[data-chip="prose"]';
+    const read = async () => ({
+      pressed: await page.getAttribute(prose, "aria-pressed"),
+      cls: (await page.getAttribute(prose, "class")) ?? "",
+      glyph: ((await page.textContent(prose)) ?? "").trim(),
+      title: (await page.getAttribute(prose, "title")) ?? "",
+    });
+    const before = await read();
+    check(
+      "the prose chip reports a pressed state rather than only a colour",
+      before.pressed === "true" || before.pressed === "false",
+      `aria-pressed=${JSON.stringify(before.pressed)}`,
+    );
+    check(
+      "…and the pressed state is the same fact as the active class",
+      before.cls.split(/\s+/).includes("active") === (before.pressed === "true"),
+      `${before.cls} says ${before.pressed}`,
+    );
+    const look = [before.glyph, before.title];
+    await clickVisible("the prose chip", prose);
+    const after = await read();
+    check(
+      "…and pressing it flips the state it reports",
+      after.pressed !== before.pressed,
+      `${before.pressed} → ${after.pressed}`,
+    );
+    check(
+      "…which the class follows",
+      after.cls.split(/\s+/).includes("active") === (after.pressed === "true"),
+      after.cls,
+    );
+    check(
+      "…and the glyph and tooltip name the mode it switches to",
+      after.glyph !== look[0] && after.title !== look[1],
+      `${look.join(" / ")} → ${after.glyph} / ${after.title}`,
+    );
+    // Back to where it was, asserted rather than assumed.
+    await clickVisible("the prose chip again", prose);
+    const again = await read();
+    check(
+      "…and pressing it again returns to the starting state",
+      again.pressed === before.pressed,
+      `${before.pressed} → ${again.pressed}`,
+    );
+  }
+
   // ----------------------------------------------------------------- the tally
 
   if (failures.length && (HEADED || KEEP)) {

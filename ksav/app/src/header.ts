@@ -85,6 +85,18 @@ export interface Chip {
   title: string;
   /** The setting this chip shows is on. */
   active?: boolean;
+  /**
+   * This chip is a **toggle**, so `active` is its pressed state (UAT 3, #134).
+   *
+   * `active` alone was visible only as `.chip.active` in the stylesheet, which
+   * means the button looked pressed and told a screen reader nothing at all: it
+   * had an `aria-label` and no state. The distinction is not academic — `git`
+   * also uses `active`, to mean "there are conflicts", and announcing that as a
+   * pressed toggle would be a button that claims to be a setting and does not
+   * toggle. So the state is declared where the chip is defined, not inferred
+   * from the word `active`.
+   */
+  toggle?: boolean;
   /** Not available in this state. `iconBtn` turns this into the real attribute. */
   disabled?: boolean;
 }
@@ -177,12 +189,12 @@ export function chips(s: HeaderState): Chip[] {
     { id: "redo", glyph: "↷", title: t("sc.redo") },
     { id: "styles", glyph: "🎨", title: t("stylesTitle") },
     { id: "find", glyph: "🔍", title: t("find") },
-    { id: "outline", glyph: "☰", title: t("outline"), active: s.outline },
+    { id: "outline", glyph: "☰", title: t("outline"), active: s.outline, toggle: true },
     { id: "notesChooser", glyph: "✻", title: t("notesChooser") },
-    { id: "notesPane", glyph: "†☰", title: t("sc.notesPane"), active: s.notesPane },
+    { id: "notesPane", glyph: "†☰", title: t("sc.notesPane"), active: s.notesPane, toggle: true },
     // The third list. Its glyph is a mark and a list, the way the notes pane's is
     // a dagger and a list: the chipbar says which list, not that there is one.
-    { id: "marksPane", glyph: "◆☰", title: t("sc.marksPane"), active: s.marksPane },
+    { id: "marksPane", glyph: "◆☰", title: t("sc.marksPane"), active: s.marksPane, toggle: true },
     { id: "review", glyph: "✎", title: t("reviewTitle") },
     // Version control. Never disabled, however unavailable it is: each of the
     // three ways it can be unavailable has a different answer for the reader —
@@ -212,6 +224,7 @@ export function chips(s: HeaderState): Chip[] {
       glyph: s.prose ? "🅐" : "＃",
       title: s.prose ? t("raw") : t("prose"),
       active: s.prose,
+      toggle: true,
     },
     // **One chip, and it opens a picker.**
     //
@@ -232,13 +245,14 @@ export function chips(s: HeaderState): Chip[] {
     // The sun and the moon name the theme you would switch to, like the language
     // chip. Anything is defensible here as long as it is one rule.
     { id: "theme", glyph: dark ? "☀" : "🌙", title: t("theme") },
-    { id: "nikud", glyph: "אָ", title: t("nikud"), active: s.nikud },
+    { id: "nikud", glyph: "אָ", title: t("nikud"), active: s.nikud, toggle: true },
     { id: "history", glyph: "🕐", title: t("history") },
     {
       id: "record",
       glyph: s.recording ? "⏹" : "⏺",
       title: s.recording ? t("macroStop") : t("macroRecord"),
       active: s.recording,
+      toggle: true,
     },
     { id: "help", glyph: "?", title: t("help") },
     { id: "settings", glyph: "⚙", title: t("settings") },

@@ -358,6 +358,36 @@ check(
 // `layout`, `editingMode` — all did. One missing line, in the toggle a writer
 // presses first, and every reading test in this repository was green through it.
 //
+// ---------------------------------------------------------------------------
+// A toggle's state is in the DOM, not only in the stylesheet (UAT 3, #134).
+//
+// `active` was rendered as `.chip.active` and nothing else. The button looked
+// pressed and a screen reader was told nothing: `iconBtn` gave it an `aria-label`
+// and no state, so "is prose mode on" had an answer for everyone who could see
+// colour and none for anyone who could not. This is the second half of UAT 3 —
+// the first being that the chip used to be blue always.
+//
+// Two facts, and the second is the one a careless fix gets wrong: the state is
+// declared by the chip (`toggle`), and `git` must **not** declare it. `git` uses
+// `active` to mean "there are conflicts", which is a warning rather than a
+// pressed setting, and announcing it as pressed would be a lie in the other
+// direction.
+{
+  const HEADER = SOURCES.get("header.ts");
+  const toggles = [...HEADER.matchAll(/toggle: true/g)].length;
+  check("six chips are toggles and say so", toggles, 6);
+  const gitChip = HEADER.slice(HEADER.indexOf('id: "git"'));
+  ok(
+    "…the version-control chip is a warning, not a pressed toggle",
+    !gitChip.slice(0, gitChip.indexOf("}")).includes("toggle"),
+  );
+  const HEAD = SOURCES.get("appheader.ts");
+  ok(
+    "…and every toggle's state reaches the DOM as aria-pressed",
+    /c\.toggle \? \{ "aria-pressed": c\.active \? "true" : "false" \}/.test(HEAD),
+  );
+}
+
 // The class, not the instance: `header.chips` is a pure function of a named
 // state, so **every settings key that state is built from has to be a key whose
 // change rebuilds the chrome.** The list is read off `headerState()` rather than

@@ -520,33 +520,6 @@ export function noteAt(doc: string, pos: number): NoteSpan | null {
 }
 
 /**
- * Rewrite one note as a different kind, keeping its text.
- *
- * The consolation prize for §1.4 — a tier-1 collector adopting the note the
- * writer already has is the real fix, and `#הערה` now *is* tier 1, but the band
- * apparatuses (`#מדור_*`, `#מדף_*`) collect their own markers and cannot adopt a
- * native footnote without printing it twice. For those, converting the note in
- * place beats retyping it.
- *
- * For a deferred note the prose does not move: what changes is the marker's
- * `סוג`, because that is the whole of where a deferred note prints. Rewriting
- * the `#גוף_הערה` instead would have produced a document with two notes in it.
- */
-export function convertNote(doc: string, note: NoteSpan, command: string): { text: string; caret: number } {
-  if (note.deferred) {
-    const ref = scanDeferred(doc).refs.find((r) => r.from === note.from);
-    if (!ref) return { text: doc, caret: note.from };
-    return retargetRef(doc, ref, command);
-  }
-  const body = doc.slice(note.bodyFrom, note.bodyTo);
-  const replacement = `#${command}[${body}]`;
-  return {
-    text: doc.slice(0, note.from) + replacement + doc.slice(note.to),
-    caret: note.from + replacement.length - 1,
-  };
-}
-
-/**
  * Delete a note and its marker, leaving the surrounding prose joined up.
  *
  * A deferred note is deleted from both ends. Taking the marker alone would

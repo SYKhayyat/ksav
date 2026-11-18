@@ -6,7 +6,7 @@ import {
   noteAt,
   noteDepthAt,
   tieredNoteAt,
-  convertNote,
+  retargetNote,
   deleteNote,
 } from "../.tmp-test/notes.mjs";
 import {
@@ -183,11 +183,21 @@ for (const [label, inline] of Object.entries(CORPUS)) {
 
   // Convert rewrites the marker, which is where a deferred note's layout is
   // decided. Rewriting the body instead would have produced two notes.
-  const converted = convertNote(doc, note, "הערתסיום");
-  ok("convert changes the marker's layout", converted.text.includes("סוג: הערתסיום"));
+  //
+  // Through `retargetNote` — the function the note menu actually calls — rather
+  // than through `convertNote`, which was a second implementation of the same
+  // act, keyed on a Hebrew command name, whose only caller was this test. A
+  // producer with no consumer is a finding, and a test that fences it is a
+  // fence around dead code.
+  const converted = retargetNote(doc, note, { dest: "end", region: null }, "he");
+  ok("convert names the destination on the marker", converted.text.includes('ערוץ: "סוף"'));
   check("and leaves exactly one body behind", scan(converted.text).defs.length, 1);
   check("and the prose is untouched", at(notesIn(converted.text), 0).text, "עיין שם");
-  check("and the note is now an endnote", at(notesIn(converted.text), 0).command, "הערתסיום");
+  // The command does **not** change, and that is the fix rather than a gap: a
+  // note's layout is its channel, so moving one to the back of the sefer used to
+  // be spelled as rewriting `#fnote` into `#הערה` — a change of language offered
+  // as a change of place. `סוג` is which printer prints it; `ערוץ` is where.
+  check("and the note keeps its own command", at(notesIn(converted.text), 0).command, "הערה");
 
   // Delete takes both halves. Taking the marker alone would trade the note for
   // an orphan warning, which is a worse document than the one being deleted.

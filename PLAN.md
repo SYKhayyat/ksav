@@ -99,6 +99,11 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
       opening vocabulary taken from `commands::COMMANDS` rather than copied), asserts a
       verdict for each *and* that a diagnostic's line and column are inside the document, and
       a one-off release sweep of 10,000 found no panic and nothing slower than 39 ms.
+- [x] #216 the editor's scanner had no test on documents nobody wrote. **Closed**
+      (`app/test/scanfuzz.test.mjs`): 300 generated documents, every node/group/comment/frame
+      range inside the document and between its own delimiters, `parent`/`children` agreeing,
+      determinism, no throws, plus the anti-vacuity counts (2,447 calls) and a bounded-cost
+      check. Mutation-tested: `nodes[0].to = text.length + 1` reddens with the seed named.
 - [ ] #215 four services answer a failure in three different wire shapes (`jump` `{}`,
       `reveal` `{"points": []}`, `places` `{"places": []}`, `spell`/`suggest` `{error}` with no
       `ok`, the rest `services::error_json`). Measured by `engine/tests/fuzz.rs`, which sends the

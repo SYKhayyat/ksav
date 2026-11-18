@@ -13,6 +13,7 @@
 //! typo a great many places to hide, so `ordinary_typos_are_still_caught` is as
 //! load-bearing as anything else in this file.
 
+mod common;
 use ksav_engine::spell::{self, english, hebrew, Checker, Language};
 
 /// The bundled English lexicon, parsed **once** for the whole binary.
@@ -177,26 +178,13 @@ fn neither_starter_document_opens_covered_in_squiggles() {
     let english = en();
     let checker = Checker::new(Some(&he), Some(english));
     for name in ["STARTER_HE", "STARTER_EN"] {
-        let body = starter(source, name);
+        let body = common::starter_literal(source, name);
         let flagged: Vec<String> = checker.check(&body).into_iter().map(|m| m.word).collect();
         assert!(
             flagged.is_empty(),
             "{name} contains flagged words: {flagged:?}"
         );
     }
-}
-
-/// The body of a `const NAME = \`…\`;` template literal in the editor's source.
-fn starter(source: &str, name: &str) -> String {
-    let head = format!("const {name} = `");
-    let start = source
-        .find(&head)
-        .unwrap_or_else(|| panic!("{name} is no longer declared the way this test looks for it"))
-        + head.len();
-    let len = source[start..]
-        .find('`')
-        .unwrap_or_else(|| panic!("{name} has no closing backtick"));
-    source[start..start + len].to_string()
 }
 
 #[test]

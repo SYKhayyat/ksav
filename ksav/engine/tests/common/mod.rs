@@ -22,6 +22,34 @@
 
 #![allow(dead_code)] // each test crate uses a different subset
 
+//! One `const NAME = \`…\`;` template literal out of the editor's source.
+//!
+//! Two test files need the starters — `spell_en.rs` because a squiggle on the
+//! first screen is a bug, `starter.rs` because that screen is a document and
+//! had never been compiled — and this was written twice before it was written
+//! here. Reading the literals rather than holding copies is the point: a copy
+//! is a second starter that can pass while the shipped one fails.
+//!
+//! The path is `include_str!`'d by the caller rather than here, because a
+//! relative `include_str!` resolves against the file it is written in and this
+//! module is `common/`.
+pub fn starter_literal(source: &str, name: &str) -> String {
+    let head = format!("const {name} = `");
+    let start = source
+        .find(&head)
+        .unwrap_or_else(|| panic!("{name} is no longer declared the way this test looks for it"))
+        + head.len();
+    let len = source[start..]
+        .find('`')
+        .unwrap_or_else(|| panic!("{name} has no closing backtick"));
+    let body = source[start..start + len].to_string();
+    assert!(
+        !body.contains("${"),
+        "{name} interpolates something, so the text the writer reads is not this text",
+    );
+    body
+}
+
 use ksav_engine::probe::{self, Fill, Line, TextRun};
 use ksav_engine::DocConfig;
 

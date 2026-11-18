@@ -19,33 +19,13 @@
 //! second starter that compiles while the shipped one does not, which is exactly
 //! the failure this file exists to prevent.
 
+mod common;
+
+use common::starter_literal;
 use ksav_engine::{probe, DocConfig};
 
-/// The body of one `const NAME = \`…\`;` from `app/src/starter.ts`.
-///
-/// The starters are template literals with no `${}` and no backtick inside them,
-/// which is a property of these two strings rather than of the file, so it is
-/// checked rather than assumed: a starter that interpolated something would be a
-/// document whose text the engine never sees, and this test would be reading a
-/// fragment.
-fn starter_body(name: &str) -> String {
-    let source = include_str!("../../app/src/starter.ts");
-    let opener = format!("const {name} = `");
-    let start = source
-        .find(&opener)
-        .unwrap_or_else(|| panic!("app/src/starter.ts has no `{name}`"))
-        + opener.len();
-    let rest = &source[start..];
-    let end = rest
-        .find('`')
-        .unwrap_or_else(|| panic!("`{name}` is not closed by a backtick"));
-    let body = &rest[..end];
-    assert!(
-        !body.contains("${"),
-        "`{name}` interpolates something, so the text the writer sees is not this text",
-    );
-    body.to_string()
-}
+/// `app/src/starter.ts`, read at compile time.
+const STARTERS: &str = include_str!("../../app/src/starter.ts");
 
 /// Both starters, named, with what each one is called in the language it is in.
 ///
@@ -54,8 +34,16 @@ fn starter_body(name: &str) -> String {
 /// against.
 fn starters() -> Vec<(&'static str, String, &'static str)> {
     vec![
-        ("STARTER_HE", starter_body("STARTER_HE"), "ברוכים הבאים"),
-        ("STARTER_EN", starter_body("STARTER_EN"), "Welcome to Ksav"),
+        (
+            "STARTER_HE",
+            starter_literal(STARTERS, "STARTER_HE"),
+            "ברוכים הבאים",
+        ),
+        (
+            "STARTER_EN",
+            starter_literal(STARTERS, "STARTER_EN"),
+            "Welcome to Ksav",
+        ),
     ]
 }
 
@@ -109,8 +97,14 @@ fn each_starter_says_how_to_keep_the_document() {
             body.contains("Ctrl+S"),
             "{name} does not tell the writer how to save",
         );
-        let lower = body.to_lowercase();
-        let export = body.contains("ייצוא") || lower.contains("export");
-        assert!(export, "{name} does not tell the writer how to export");
+        // A format name, not a phrase: the bullet was first written with
+        // `ייצוא`, the word on the File menu, and the Hebrew speller flagged it
+        // — the lexicon is built from Torah and pre-war literature and has no
+        // word for "export". `spell_en.rs` caught that on the next run, which is
+        // why the sentence now says `הוצאת הקובץ ל-PDF` and this asserts the
+        // format rather than the noun. Filed separately: the interface's own
+        // vocabulary is not required to be a word the speller knows.
+        let export = body.contains("PDF") && (body.contains("Word") || body.contains("ייצוא"));
+        assert!(export, "{name} does not say where a document can go");
     }
 }

@@ -19,6 +19,7 @@
 // on one surface.
 
 import { check, ok, notOk } from "./harness.mjs";
+import { nowhere } from "./source.mjs";
 import { MAX_LEVEL } from "../.tmp-test/spans.mjs";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
 import { readFileSync } from "node:fs";
@@ -91,7 +92,14 @@ export async function run() {
       "there is a fold action for every heading level",
       /length: heads\.MAX_LEVEL \}, \(_, i\) => i \+ 1\)\.map\(\(level\) => \(\{\s*\n\s*id: `foldLevel\$\{level\}`/.test(MAIN),
     );
-    notOk("...and not a hand-written three", /\.\.\.\[1, 2, 3\]\.map\(\(level\) => \(\{/.test(MAIN));
+    // Whole-source, for the same reason as `find.test.mjs`'s: "`main.ts` does not
+    // list the depths by hand" would be true of a version that lists them in
+    // `ribbon.ts` (#212).
+    check(
+      "...and not a hand-written three, anywhere in the source",
+      nowhere(/\.\.\.\[1, 2, 3\]\.map\(\(level\) => \(\{/),
+      "",
+    );
     // The menu offers all of them too — the surface a writer who does not know
     // the chord actually reaches for.
     ok(

@@ -33,6 +33,7 @@
 // fence follows the code, and the prohibition did not loosen with it.)
 
 import { check, ok, notOk } from "./harness.mjs";
+import { nowhere } from "./source.mjs";
 import * as tabs from "../.tmp-test/tabs.mjs";
 import * as panes from "../.tmp-test/panes.mjs";
 import * as settings from "../.tmp-test/settings.mjs";
@@ -247,14 +248,18 @@ export async function run() {
     // The template half lives in `templates.ts` since wave 11 — the
     // prohibition reads both files, or it guards a file that no longer writes
     // templates.
-    notOk(
-      "a stock template no longer overwrites the open document",
-      MAIN.includes("loadBody(tpl.body)") || TEMPLATES.includes("loadBody(tpl.body)"),
+    // Whole-source, not `main.ts + templates.ts`: those two are where the claim
+    // is *about* today, and a union of two files is exactly the shape that goes
+    // quietly true when the third one appears (#212).
+    check(
+      "a stock template no longer overwrites the open document, in any file",
+      nowhere("loadBody(tpl.body)"),
+      "",
     );
-    notOk(
-      "nor does a saved one",
-      MAIN.includes("loadBody(ut.body)") || TEMPLATES.includes("loadBody(ut.body)"),
-    );
+    check("nor does a saved one, in any file", nowhere("loadBody(ut.body)"), "");
+    // And the positive half: what a template *does* call, so the pair above is
+    // not satisfied by there being no template code at all.
+    ok("…and a template starts a document instead", /startFromTemplate\(/u.test(TEMPLATES));
     ok("both start a document instead", callsTo("startFromTemplate").length >= 3);
     ok(
       "...and an empty document still takes one in place, so a first template costs no tab",

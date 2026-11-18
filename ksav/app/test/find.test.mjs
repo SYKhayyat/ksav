@@ -23,6 +23,7 @@
 // a second source search.
 
 import { check, ok, notOk } from "./harness.mjs";
+import { nowhere } from "./source.mjs";
 import * as find from "../.tmp-test/find.mjs";
 import * as panelrows from "../.tmp-test/panelrows.mjs";
 import { readFileSync } from "node:fs";
@@ -313,7 +314,10 @@ export async function run() {
     // still the last good ones, so a find drawer reading it would announce that
     // the phrase the writer is looking at printed nowhere, on every unbalanced
     // bracket, mid keystroke.
-    notOk("...and never off the last compile", /lastResult\?\.pages_text/.test(MAIN));
+    // Absence, over the whole of `src/` — not over `main.ts`. The claim is that
+    // *nothing* reads the abandoned compile, and `main.ts` is the file things
+    // move out of, so the narrower version would go quietly true (#212).
+    check("...and never off the last compile, anywhere in the source", nowhere(/lastResult\?\.pages_text/), "");
     // The prohibition, and it is the fence: nothing in `find.ts` may take a
     // page from a source string. `findIn` receives the pages; it never builds
     // them, and there is no second door into the preview half.

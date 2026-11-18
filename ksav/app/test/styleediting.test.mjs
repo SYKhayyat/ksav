@@ -35,6 +35,7 @@
 // about a control that existed, worked, and was offered in one place.
 
 import { check, ok, notOk } from "./harness.mjs";
+import { nowhere } from "./source.mjs";
 import * as styles from "../.tmp-test/styles.mjs";
 import * as panelviews from "../.tmp-test/panelviews.mjs";
 import { MAX_LEVEL } from "../.tmp-test/spans.mjs";
@@ -169,7 +170,10 @@ export async function run() {
     // Through `hintFor`, so a mode that has taken the keyboard prints what to
     // type instead of a chord that now does something else. The application-wide
     // rule is `prohibitions.test.mjs`'s; this is the two new surfaces meeting it.
-    notOk("...and no new surface spells a chord itself", /readable\(kb\[/.test(MAIN) || /readable\(kb\[/.test(RIBBON) || /readable\(kb\[/.test(CONTEXTBAR));
+    // A union of three files was the second-worst version of this: it names the
+    // three surfaces that existed when it was written, so a fourth one escapes.
+    // Whole-source, so the claim is the one in the sentence (#212).
+    check("...and no surface anywhere spells a chord itself", nowhere(/readable\(kb\[/), "");
   }
 
   // ---------------------------------------------------------------- the knobs
@@ -194,7 +198,7 @@ export async function run() {
     ok("...which the field control reaches for", /case "size-em":\s*\n\s*return sizeControl\(/.test(STYLE_CONTROLS));
     // The regression this replaces. Named here so that putting the list back —
     // which is the cheap way to "fix" any complaint about a control — fails.
-    notOk("the seven-preset list is gone", MAIN.includes('["1.15em", "115%"]'));
+    check("the seven-preset list is gone, from every file", nowhere('["1.15em", "115%"]'), "");
   }
 
   // ------------------------------------------------------------ the ceiling

@@ -94,6 +94,17 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
       *no test asserts a pattern is absent from `main.ts`* — absence is a claim about all of
       `src/` (`test/source.mjs::nowhere`) — six fences converted, and `test/fences.test.mjs`
       enforces it with an exemption list that can only shrink. Mutation-tested both ways.
+- [x] #214 the hostile-input corpus was hand-written. **Closed** (`e51b140`):
+      `engine/tests/fuzz.rs` generates 800 documents in ~2.6 s (two families, seeded LCG, the
+      opening vocabulary taken from `commands::COMMANDS` rather than copied), asserts a
+      verdict for each *and* that a diagnostic's line and column are inside the document, and
+      a one-off release sweep of 10,000 found no panic and nothing slower than 39 ms.
+- [ ] #215 four services answer a failure in three different wire shapes (`jump` `{}`,
+      `reveal` `{"points": []}`, `places` `{"places": []}`, `spell`/`suggest` `{error}` with no
+      `ok`, the rest `services::error_json`). Measured by `engine/tests/fuzz.rs`, which sends the
+      same garbage to every service in the registry and asserts only what is true of all of
+      them. The uniformity decision is the owner's, because the wire is a contract with the
+      installed app.
 - [ ] #213 a 166 KB document of brackets costs two minutes of CPU: Typst's markup parse is
       quadratic (release: 10,000 stray `]` 0.49 s, 40,000 6.92 s, 160,000 126.96 s) and
       nothing here has a compile budget. Found while answering the stack question that

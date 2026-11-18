@@ -39,7 +39,7 @@
 
 use std::time::{Duration, Instant};
 
-use ksav_engine::{probe, DocConfig};
+use ksav_engine::{probe, services, DocConfig};
 
 /// The product's own vocabulary, as pairs that open and close.
 ///
@@ -343,6 +343,182 @@ fn a_generated_corpus_of_documents_all_come_back_with_a_verdict() {
         "only {compiled_documents} of {SEEDS} well-formed documents compiled — the generator \
          is producing fragments, so this test is not reaching layout"
     );
+}
+
+// ------------------------------------------------------------ the wire
+
+/// A request any service might be handed, that no writer ever handed it.
+///
+/// The documents in the two families above arrive as a JSON request, so the
+/// boundary a stranger reaches is `services::call`, not the parser: a wrong
+/// JSON type, a key that means something in one service and nothing in another,
+/// an object where a string belongs. Each of these must come back as JSON that
+/// says `ok`, and a `false` must be said out loud with an error or a diagnostic
+/// — never a panic and never a shape the client cannot parse.
+#[test]
+fn every_service_answers_garbage_with_json_rather_than_a_panic() {
+    // The service list is the registry's own, so a service added later is fuzzed
+    // by this test without an edit here. (Fuzzed lightly — see `BUDGET`.)
+    let names: Vec<String> =
+        serde_json::from_str::<Vec<serde_json::Value>>(&services::services_json())
+            .expect("the registry describes itself as JSON")
+            .into_iter()
+            .map(|s| s["name"].as_str().unwrap_or("").to_string())
+            .filter(|n| !n.is_empty())
+            .collect();
+    assert!(names.len() >= 8, "the registry has shrunk: {names:?}");
+
+    // Hand-written shapes: the ones a mutation of a real request is most likely
+    // to produce, plus the boundary cases JSON itself has.
+    let manual: &[&str] = &[
+        "",
+        " ",
+        "null",
+        "true",
+        "0",
+        "1e999",
+        "\"str\"",
+        "[]",
+        "{}",
+        "{\"text\": null}",
+        "{\"text\": 7}",
+        "{\"text\": []}",
+        "{\"text\": {}}",
+        "{\"body\": \"שלום\"}",
+        "{\"text\": \"שלום\"}",
+        "{\"have_pages\": \"not an array\"}",
+        "{\"cfg\": {\"dir\": 7}}",
+    ];
+
+    let mut compiled_ok = 0;
+    for name in &names {
+        let mut calls = Vec::new();
+        calls.extend(manual.iter().map(|s| s.to_string()));
+        // And a generated set, so the boundary is not only the shapes somebody
+        // wrote down. Random objects, values, and depth, over the same LCG.
+        calls.extend((1..=60u64).map(generated_json));
+        for input in calls {
+            let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                services::call(name, &input)
+            }));
+            let text = match out {
+                Ok(t) => t,
+                Err(_) => {
+                    panic!("service {name} panicked on request {input:?}. It must answer JSON.")
+                }
+            };
+            let value: serde_json::Value = match serde_json::from_str(&text) {
+                Ok(v) => v,
+                Err(e) => panic!("service {name} answered non-JSON for {input:?}: {e}\n{text:?}"),
+            };
+            // What is asserted here is what holds for **every** service, which is
+            // less than a single envelope would be: the answer parses as JSON, it
+            // is not empty, and if it claims failure it says why. The wire is not
+            // uniform — `jump`/`reveal`/`places` answer a bare coordinate object,
+            // `spell` answers `{error}` with no `ok`, the rest answer
+            // `{ok, error, diagnostics}` — and that inconsistency is filed rather
+            // than enforced here (#215), because changing a shape a client reads
+            // is not a test's decision.
+            assert!(
+                value.is_object() || value.is_array() || value.is_boolean(),
+                "service {name} answered a bare scalar for {input:?}: {text}"
+            );
+            if let Some(v) = value.get("ok") {
+                assert!(
+                    v.is_boolean(),
+                    "service {name} answered `ok` as {v} for {input:?}: {text}"
+                );
+            }
+            if value["ok"].as_bool() == Some(false) || value.get("error").is_some() {
+                let has_error = value["error"]
+                    .as_str()
+                    .map(|s| !s.is_empty())
+                    .unwrap_or(false);
+                let has_diag = value["diagnostics"]
+                    .as_array()
+                    .map(|a| a.iter().any(|d| d["severity"] == "error"))
+                    .unwrap_or(false);
+                assert!(
+                    has_error || has_diag,
+                    "service {name} said it failed for {input:?} but gave no error and no                      diagnostic: {text}"
+                );
+            }
+            if value["ok"].as_bool() == Some(true)
+                && name == "compile"
+                && input == "{\"body\": \"שלום\"}"
+            {
+                compiled_ok += 1;
+            }
+        }
+    }
+    // The anti-vacuity assertion: `compile` with a real document must succeed,
+    // or this test would pass on every service answering `false` forever.
+    assert_eq!(
+        compiled_ok, 1,
+        "the well-formed request must actually compile"
+    );
+}
+
+/// A small random JSON document, on the same LCG as the document families.
+///
+/// Valid JSON with the *wrong shapes* rather than invalid JSON, because the
+/// hand-written list above already covers "this is not a request at all" and the
+/// interesting failure is a request that parses and then means something
+/// unexpected: a number where a string belongs, an object where an array does.
+fn generated_json(seed: u64) -> String {
+    fn value(rng: &mut Rng, depth: usize, out: &mut String) {
+        match rng.upto(8) {
+            0..=1 => out.push_str(rng.pick(&["\"a\"", "\"שלום\"", "\"\"", "\"not an array\""])),
+            2 => out.push_str(rng.pick(&[
+                "7",
+                "-1.5",
+                "0",
+                "1e999",
+                "true",
+                "null",
+                "123456789012345678901234567890",
+            ])),
+            3..=4 if depth < 3 => {
+                out.push('{');
+                for i in 0..=rng.upto(3) {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    out.push_str(rng.pick(&[
+                        "\"text\"",
+                        "\"cfg\"",
+                        "\"dir\"",
+                        "\"have_pages\"",
+                        "\"want_pdf\"",
+                        "\"format\"",
+                        "\"version\"",
+                    ]));
+                    out.push(':');
+                    value(rng, depth + 1, out);
+                }
+                out.push('}');
+            }
+            5..=6 if depth < 3 => {
+                out.push('[');
+                for i in 0..=rng.upto(3) {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    value(rng, depth + 1, out);
+                }
+                out.push(']');
+            }
+            _ => {
+                // A well-formed request, so that some of the generated calls are
+                // ones the service is supposed to answer rather than refuse.
+                out.push_str("{\"body\":\"שלום\",\"cfg\":{\"dir\":\"rtl\"}}");
+            }
+        }
+    }
+    let mut rng = Rng(seed.wrapping_mul(7919).wrapping_add(13));
+    let mut out = String::new();
+    value(&mut rng, 0, &mut out);
+    out
 }
 
 #[test]

@@ -244,9 +244,12 @@ export function mostlyHebrew(text: string): boolean {
  * How one plain-text format writes each thing the classification above names.
  *
  * Every method returns the finished text. None of them may emit a `#name[` — the
- * walker cannot check that for you, but `interchange.test.mjs` checks the output
- * of every dialect over a document that uses every construct, which is the same
- * claim made where it can be measured.
+ * walker cannot check that for you, but each dialect's own test checks its output
+ * over a document that uses every construct — `markdown.test.mjs`, `org.test.mjs`
+ * — and `integrity.test.mjs` holds all three to the words a document prints. It
+ * used to name a test file that never existed — `interchange` — a claim with
+ * no fence behind it, which is the shape this repository's own audits keep
+ * finding.
  */
 export interface Dialect {
   atom(kind: AtomKind): string;

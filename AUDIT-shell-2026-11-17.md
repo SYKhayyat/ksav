@@ -126,3 +126,17 @@ pasted document) are now known rather than assumed.
 Reproduced with: `cd ksav/app && npm run build`, `cd ksav/engine && cargo build
 --release --features embed-ui`, then `cd ksav/app && npm run accept` (Chrome found
 by channel name; `HEADED=1` watches it).
+
+### The Emacs package, on Windows too
+
+`ci.yml`'s `emacs` job runs the package's whole ERT suite against a live engine,
+byte-compiles every `.el` with `byte-compile-error-on-warn`, and then packages the
+tarball and installs it into a clean Emacs. All of it passes here, on Emacs 30.2
+with the release engine on `PATH`: **63 of 63**, no byte-compile warning, and the
+installed copy loads with `ksav-install-engine` there.
+
+Two things that job proves and a Windows run adds to: the package's floor is
+27.1 (this box has 30.2, and the `emacs-current` job is what covers the other
+direction), and every path in it is built with `expand-file-name`/`file-truedir`
+rather than a `/`-joined literal — which is the class of bug that could have made
+the package unusable on Windows and would have been invisible on the runner.

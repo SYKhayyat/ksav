@@ -21,9 +21,12 @@
 // other: a rewriter silently reshaped the writer's own source and nothing said so.
 //
 // So this module reads **one** of them — `scan()`, which already skips comments
-// and code samples, where a `[` is prose — and `brackets-agree.test.mjs` asserts
-// the other one reaches the same answer for every tag in a document. Not a
-// comment. A test, on every bracket in the file.
+// and code samples, where a `[` is prose — and `delimits.test.mjs` asserts the
+// other one reaches the same answer for every tag in a document. Not a comment.
+// A test, on every bracket in the file. (The file was once named `brackets-agree`
+// and was renamed; the sentence naming it was not, which is
+// why `documentation.test.mjs` now checks that every test file named in the
+// sources exists.)
 
 import { scan, type Frame } from "./spans";
 import type { Extension, TransactionSpec } from "@codemirror/state";

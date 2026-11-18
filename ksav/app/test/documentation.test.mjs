@@ -21,7 +21,7 @@
 // name is worth.
 
 import { ok, check } from "./harness.mjs";
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { card } from "../tools/card.mjs";
 import path from "node:path";
@@ -471,4 +471,34 @@ function everyProseChordIsTheRightOne(tracked) {
   }
   check("every chord in prose is a chord the app has", unknown, []);
   check("and the sentence around it says what that chord does", wrong, []);
+
+  // ------------------------------------------ a comment that names a test file
+  //
+  // The fifth fence, and it is the same argument one level in: the *sources* name
+  // test files constantly — "`motion.test.mjs` asserts the boundary",
+  // "`prohibitions.test.mjs` refuses a new unbounded stream" — and a comment is
+  // the only place a renamed file is never noticed. Two were rotting here when
+  // this was written: `src/tagselect.ts` named `brackets-agree.test.mjs` after the
+  // file had become `delimits.test.mjs`, and `src/interchange.ts` named an
+  // `interchange.test.mjs` that had never existed at all. Both read as evidence
+  // and neither was.
+  //
+  // What makes this the shape worth a fence is that it *looks* like proof. A
+  // reader in a hurry sees the file name and stops looking, which is the same
+  // failure as the `save.ts` comment that described an autosave guard nothing
+  // asserted: the prose was better than the code and therefore believed.
+  {
+    const src = path.join(APP, "src");
+    const tests = new Set(readdirSync(path.join(APP, "test")));
+    const named = [];
+    for (const name of readdirSync(src).filter((f) => f.endsWith(".ts"))) {
+      const text = readFileSync(path.join(src, name), "utf8");
+      for (const m of text.matchAll(/([a-zA-Z0-9_-]+\.test\.mjs)/gu)) {
+        named.push([name, m[1]]);
+      }
+    }
+    ok("the sources name test files", named.length > 20, `${named.length}`);
+    const missing = named.filter(([, t]) => !tests.has(t)).map(([f, t]) => `${f} names ${t}`);
+    check("every test file a source comment names exists", missing, []);
+  }
 }

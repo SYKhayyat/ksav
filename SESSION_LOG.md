@@ -10778,3 +10778,61 @@ than one walk of the document. 6.27 ms → 1.78 ms per caret move at
 itself — 21 ms per keystroke — is profiled and filed as its own issue
 with the finding that the cost is in the assembly rather than the lex,
 which is where the next session should start.
+
+## 2026-11-17 · the fixes were right and the class was not
+
+A session of small, specific findings, and one shape repeating behind them.
+
+**Two silent losses in the export path** (#199, #201): `inner()` walked
+`bodies[0]` only, so a verse's second body — the actual verse — never
+reached the Word export; and a save the disk refused came back to the
+writer as "the dialog was closed". Both were found by asking what the
+export *says* rather than what it must not contain.
+
+**A panic is not a timeout** (#204). `run_bounded`'s `Err(_)` arm turned
+a panicking compile into "the document ran longer than 30 s and was
+abandoned", which is a lie about the document, and the slot counter lived
+on the last line of the spawned thread, so an unwinding compile never gave
+its slot back — four bad documents and the server was permanently busy. A
+`Slot` guard owns the decrement now; `Disconnected` has its own sentence.
+
+**34 GB from a table** (#205). `#טבלה(עמודות: 999999999)` aborted the
+process — an abort, not a catchable panic — one click from a share
+fragment, with the writer's unsaved work in the window. The prelude refuses
+0 and >256 with a diagnostic naming the limit, and `engine/tests/hostile.rs`
+holds 33 malformed documents to a *verdict* rather than a crash.
+
+**A note nobody cites is still a note** (#206). The Org import gathered
+definitions and emitted them only where cited: every uncited apparatus note
+in `sefer.ksav` (~40 words) was deleted with `dropped` saying nothing.
+Found by an out-and-back word check over the engine's own documents.
+
+**The browser engine had never run on Windows** (#207). The smoke check
+`import`ed a filesystem path, which is a legal ESM specifier on POSIX and
+`ERR_UNSUPPORTED_ESM_URL_SCHEME` on Windows. Fixed, and the class is a
+prohibition: a dynamic import is given a URL.
+
+**Decompression with a ceiling** (#203, the previous session's work,
+committed here): bytes counted as they arrive, not the size the archive
+declares, and only the entries the importer reads inflated at all.
+
+**The first screen had no compile behind it.** Both starter documents were
+asserted for *which one opens*, never for compiling. `engine/tests/starter.rs`
+now reads both literals out of the TypeScript and asserts each compiles,
+puts its own first line on the page, and says how to keep the document —
+which was the other half of the finding: three bullets about exploring, none
+about saving. Writing it surfaced **#208**: 117 Hebrew words the interface
+itself uses are unknown to the bundled speller.
+
+**Two cross-platform runs, in an audit file**: `npm run accept` (868 checks,
+real Chrome, the assembled app) and the Emacs package's whole suite (63 tests,
+byte-compiled with warnings as errors, tarball installed into a clean Emacs).
+Both had only ever run on Linux.
+
+Two stale test-file names in the sources — `brackets-agree.test.mjs`, renamed
+to `delimits`, and an `interchange.test.mjs` that never existed — are now a
+fence in `documentation.test.mjs`: every test file a source comment names has
+to exist. A comment that names a test is read as evidence, which is why it has
+to be true.
+
+— B

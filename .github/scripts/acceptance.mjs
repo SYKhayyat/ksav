@@ -3112,6 +3112,77 @@ async function main() {
     await page.waitForTimeout(250);
   }
 
+  // ------------------------------------------- UAT 5: the keycap, not the letter
+  //
+  // The report: shortcuts worked in Word and LibreOffice but not in Ksav with an
+  // English keyboard layout. A binding is printed beside its menu item as a keycap
+  // — `Ctrl+Alt+Shift+M` — so what it must answer to is the *physical* key
+  // (`KeyboardEvent.code`), not the character the layout puts on it
+  // (`KeyboardEvent.key`), which is a different letter on every layout.
+  //
+  // This is testable without a Hebrew keyboard machine, and better than testing
+  // with one: dispatch keydowns whose `key` and `code` **disagree**, which is the
+  // state any layout mismatch produces. Both directions, because a resolver that
+  // reads `key` passes half of this and fails the other half:
+  //
+  //   * the right keycap with the wrong character must fire;
+  //   * the right character on the wrong keycap must not.
+  {
+    const keydown = (attrs) =>
+      page.evaluate(
+        (a) => {
+          const e = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...a });
+          window.dispatchEvent(e);
+          return e.defaultPrevented;
+        },
+        attrs,
+      );
+    const minimapOpen = () => page.evaluate(() => !!document.getElementById("minimap"));
+    // Ctrl+Alt+Shift on the keycap printed M. `key` is a Hebrew letter because that
+    // is what the keycap produces on a Hebrew layout, and the binding must not care.
+    const chord = { code: "KeyM", key: "צ", ctrlKey: true, altKey: true, shiftKey: true };
+
+    check("the minimap starts closed", (await minimapOpen()) === false, "before any press");
+
+    const answered = await keydown(chord);
+    await page.waitForTimeout(150);
+    check(
+      "a chord fires on the physical key whatever character the layout prints",
+      (await minimapOpen()) === true,
+      `minimap open after Ctrl+Alt+Shift+KeyM with key="צ"`,
+    );
+    check(
+      "and the keystroke is marked answered, so no second resolver doubles it",
+      answered === true,
+      `defaultPrevented=${answered}`,
+    );
+
+    // Twice is once each time: a binding that fired twice per press would leave
+    // the strip open after an even number of presses.
+    await keydown(chord);
+    await page.waitForTimeout(150);
+    check(
+      "a second press closes it, so one press is one action",
+      (await minimapOpen()) === false,
+      "closed again",
+    );
+
+    // The half a `key`-based resolver fails: the right character, the wrong keycap.
+    await keydown({ code: "KeyN", key: "m", ctrlKey: true, altKey: true, shiftKey: true });
+    await page.waitForTimeout(150);
+    check(
+      "a matching character on a different keycap does not fire it",
+      (await minimapOpen()) === false,
+      `stayed closed after Ctrl+Alt+Shift+KeyN with key="m"`,
+    );
+
+    // Modifiers are assembled, not assumed: the bare keycap is nobody's shortcut,
+    // and a resolver that dropped the modifiers would fire it anyway.
+    await keydown({ code: "KeyM", key: "m" });
+    await page.waitForTimeout(150);
+    check("the bare keycap is not the binding", (await minimapOpen()) === false, "stayed closed");
+  }
+
   // ------------------------------------------------- UAT 3: a chip says its state
   //
   // The report was that the prose button is *always blue*, so the writer cannot

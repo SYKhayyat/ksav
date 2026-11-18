@@ -9,6 +9,7 @@
 // action already holds a combination.
 
 import { check, ok, notOk } from "./harness.mjs";
+import { readFileSync } from "node:fs";
 import {
   DEFAULT_KEYS,
   KEY_ALIASES,
@@ -250,5 +251,26 @@ export function run() {
       return !(structural && DICTS[lang][structural.label]);
     });
     check(`every action is named in ${lang}`, unnamed, []);
+  }
+
+  // --------------------------------------- the keycap, not the character (UAT 5)
+  //
+  // A binding answers to the keycap (`KeyboardEvent.code`) and a chord is printed
+  // as a keycap (`Ctrl+Shift+M`), so a layout that changes `KeyboardEvent.key` —
+  // an English layout on a binding thought of as Hebrew — must not change which
+  // binding fires. The regression is a resolver that reads `event.key`, which is
+  // exactly what the interface is *named* after, so it cannot be spotted by
+  // reading the code; it is refused by a fence that names the keycap as the
+  // question. The behavioural half lives in the assembled-app UAT 5 block, which
+  // dispatches a keydown whose `key` and `code` disagree in both directions.
+  {
+    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const at = main.indexOf("function eventToKey");
+    const body = main.slice(at, main.indexOf("function codeToKey", at));
+    ok("eventToKey reads the keycap", /const code = e\.code/u.test(body));
+    notOk("and never the character the layout prints", /e\.key/u.test(body));
+    const codeToKey = main.slice(main.indexOf("function codeToKey"));
+    ok("a letter keycap maps to its own letter", /code\.startsWith\("Key"\)\).*slice\(3\)\.toLowerCase\(\)/u.test(codeToKey));
+    ok("a bracket keycap maps to the bracket", /BracketLeft: "\["/u.test(codeToKey));
   }
 }

@@ -145,7 +145,11 @@ the real app.
       the attribute and the glyph agree (882 checks, green).
       **2 measured, not verified**: a click that moves the caret now lands correctly — the pages follow, a page
       is left on screen, the ends do not overshoot, the first heading returns to 0 — and, after #211, a second
-      click on the heading the caret is already on moves nothing. **2 verified.** Still open: 4, 5, 10, 12, 16, 17.
+      click on the heading the caret is already on moves nothing.
+      **UAT 5 measured** (English-layout shortcuts): drove the built app with keydowns whose `key` and `code`
+      disagree in both directions — the right keycap with the wrong character fires, the right character on the
+      wrong keycap does not, a bare keycap is nobody's binding, and one press is one action — plus four unit
+      fences in `bindings.test.mjs`. **3 verified.** Still open: 4, 10, 12, 16, 17.
 - [x] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Fixed (`67b165e`): `gate.test.mjs` refuses a bare invocation and `docs/troubleshooting.md` says what to run instead.
 - [x] #196 the render check calls a single-instance handover "the webview did not start": a clean exit 0 is read as a webview fault, and that is the same sentence #189 is open about.
 - [x] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".

@@ -32,10 +32,15 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 - [ ] #163 multi-preview sync.
 - [ ] #164 the `e.code` / `e.key` split.
 - [x] **#208** the speller does not know 117 Hebrew words the interface itself
-- [ ] #209 the Linux apt dependency list is written three times and kept equal by a
+- [x] #209 the Linux apt dependency list is written three times and kept equal by a
       comment in each copy. Found by the `lamdan` triage. The fence is a set comparison
       across `packaging/linux.Dockerfile`, `ci.yml` and `release.yml`, with the
-      Dockerfile's build-only packages named as the allowed difference.
+      Dockerfile's build-only packages named as the allowed difference. **Closed**
+      (`app/test/aptdeps.test.mjs`): seven core packages asserted in all three,
+      every extra named with its reason, and the reasons asserted not to outlive the
+      packages. Mutation-tested by adding `libfoo-dev` to CI (named, `["ci"]` is
+      not the failure — `["libfoo-dev"]` is) and by dropping `patchelf` from the
+      release job (`got ["release"]`).
 - [ ] #210 verify the lamdan findings the triage could not open — 23 external rows
       (6.1 *an English document falls out of the note-layout path*, CONFIRMED High,
       first), three duplication rows, and `three-repos` §8 item 9's ten false or stale

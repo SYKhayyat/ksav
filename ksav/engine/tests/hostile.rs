@@ -16,9 +16,16 @@
 //!
 //! The shapes are chosen from what the editor's own surfaces hand the engine:
 //! a half-typed command mid-keystroke, a hostile name, a foreign document's
-//! leftovers. Magnitudes stay modest — the parser's nesting depth is a real
-//! limit and blowing the stack is an abort no test can catch, so a document
-//! with a million brackets is a separate question, filed rather than run.
+//! leftovers. Magnitudes stay modest here, because this file is about *kinds* of
+//! input rather than sizes.
+//!
+//! The size question that used to be left open in this paragraph — *"blowing the
+//! stack is an abort no test can catch, so a document with a million brackets is
+//! a separate question, filed rather than run"* — is `tests/nesting.rs`, and the
+//! answer is that it was never a stack question: 4,000 levels of `#box[` are
+//! refused with one bilingual sentence, 200,000 plain brackets are text and
+//! compile, and the limit is asserted from both sides. What *is* open is time
+//! rather than depth, and it has a number: #213.
 
 use ksav_engine::probe;
 use ksav_engine::DocConfig;

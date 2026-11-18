@@ -82,6 +82,24 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 - [x] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh. Anchored on `$GITHUB_WORKSPACE`, the Windows leg runs it under `pwsh`, and the gate refuses a bare relative path (`818d4e5`).
 - [x] #198 the assembled app's two export checks still wait for a Playwright download, which #127 removed. Fixed in `.github/scripts/acceptance.mjs`: the export steps install a `ksav_save_export` stand-in (so the *desktop* route runs, which is the one that ships), decode the base64 body and assert a PDF, the filename and the dialog's filter — then remove the stand-in so later steps are a browser again.
 - [ ] Check #140 (the audit index) and close it if nothing is left open. As of 2026-11-15 every child was closed except ledger debts #163 and #164, which are in the Debt section above. Ask the owner before closing.
+- [x] #188 `main.ts` is 3,536 lines against a target of ~1,500. **Closed** at **1,473**:
+      the waves were done by the other session (3,536 → 1,457, ledger in the issue), and this
+      pass verified the resolving test *is* a fence rather than a number in a file — padded
+      `main.ts` to 1,535, watched `runner.test.mjs:137` print `got false`, restored. The
+      issue's own second note outlived its resolving test and is **#212**: seventeen test
+      files read `main.ts` as text and nine of those fences go silently vacuous when the code
+      moves. `installHooks` (188 lines) stays, deliberately.
+- [ ] #212 seventeen test files read `main.ts` as text, and nine of the fences go
+      silently vacuous when the code moves (measured: 17 files, 9 `notOk` fences). Technical
+      debt, filed out of #188's second note. The work is to make each fence's strength match
+      its claim: importable facts asserted by import, negative claims made whole-source, and
+      a new `test/fences.test.mjs` that fails when a text fence can no longer go red.
+- [ ] #213 a 166 KB document of brackets costs two minutes of CPU: Typst's markup parse is
+      quadratic (release: 10,000 stray `]` 0.49 s, 40,000 6.92 s, 160,000 126.96 s) and
+      nothing here has a compile budget. Found while answering the stack question that
+      `hostile.rs` had left open — which `engine/tests/nesting.rs` now answers and fences:
+      4,000 nested `#box[` is refused with one bilingual sentence, 200,000 plain brackets are
+      text and compile, and the limit is asserted from both sides.
 - [ ] Check #22 (the `main.ts` split) and close it if every split wave is done. As of 2026-11-15 they were, but `main.ts` was still about 3,500 lines against a target of about 1,500. That gap is in the Debt section above. Ask the owner before closing.
 
 ## ◆ D0 — Do we decide the UI and backend direction now?

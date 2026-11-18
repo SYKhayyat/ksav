@@ -4,7 +4,39 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-10-28 (UAT sweep, #119–#120 closed)
+## Current handoff — 2026-11-18 (the audit closed, and three fuzzers)
+
+The lamdan report that `PLAN.md` had been carrying is **fully answered** (#210):
+all seventeen rows the first triage could not open were opened, and the answer
+was uniform — the external report had been swept between August and November,
+one class at a time, and nobody had gone back to say so. Verifying them, rather
+than reading them, turned up three things: `convertNote` had **no caller** and a
+test fencing it (deleted), the CLI printed `✓ compiled` before counting the page
+images it could not write (fixed, and `engine/tests/cli.rs` runs the binary as a
+process), and a failed settings write had no test at all (now it does).
+
+Also closed this sitting: **#188** (`main.ts` is 1,473 against its 1,500 target,
+and its fence was checked to still bite by padding the file), **#212** (absence
+claims about `main.ts` now have to be whole-source claims, enforced by
+`test/fences.test.mjs`), **#214** and **#216** (two generated corpora —
+`engine/tests/fuzz.rs` and `app/test/scanfuzz.test.mjs`).
+
+**Two issues are waiting on a decision, not on work.** #213: a 166 KB document of
+`]` costs two minutes of CPU (Typst's markup parse is quadratic); the fix is a
+compile budget or a balance pre-check, and a budget is a product decision. #215:
+four services answer a failure in three wire shapes (`{}`, `{"points": []}`,
+`{error}` with no `ok`, and `error_json`); making them uniform changes a shape the
+installed app reads.
+
+**One trap, recorded because it cost an hour.** `node test/run.mjs` *refuses to
+run* while generated fixtures are stale, and the refusal prints no `FAIL` — so a
+`grep` for failures shows only the previous green run, and a mutation test looks
+proven when nothing ran. Check exit codes, not output.
+
+Counts live in `ksav/README.md` and are fenced by the suite itself; the dated
+record is in `SESSION_LOG.md`.
+
+## Handoff — 2026-10-28 (UAT sweep, #119–#120 closed)
 
 The UAT.org sweep is under way: the user reported issues #119–#139 from
 `ksav/UAT.org`, worked one at a time (root cause → plan with the designer

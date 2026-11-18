@@ -10910,3 +10910,22 @@ answered when somebody writes the verdict down where the next reader will find
 it, and that verifying a fix is a different job from having made it.
 
 — B
+
+## 2026-11-18 · every row answered, then the scanner
+
+The report is closed (#210) — not because the findings were swept, but because
+each one now names the code that answers it, and the seven that did not are this
+sitting's work: `convertNote` with no caller, the CLI's `✓ compiled` printed
+before counting its failed page images, a settings write with no test, a
+`main.ts` whose size fence had quietly stopped mattering, six absence claims
+about `main.ts` that were really claims about all of `src/`, and the scanner —
+which runs on every keystroke and had no test on a document nobody wrote.
+
+The two fuzzers are the same idea in two places: generate what a person types
+at their worst (a seeded corpus for the engine, 300 seeded documents for the
+scanner), and assert only the promises the code already makes — a diagnostic
+inside the document, a range between its own delimiters, a parent that agrees
+with its children. Mutation-tested in both, because a fuzz test that cannot go
+red is a fuzz test that says nothing.
+
+— B

@@ -31,6 +31,14 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
 - [ ] #163 multi-preview sync.
 - [ ] #164 the `e.code` / `e.key` split.
+- [ ] **#208** the speller does not know 117 Hebrew words the interface itself
+      uses — `תצוגה`, `תפריטים`, `עדכון`, `מאגרים`, `חלוניות`, `אחסון`, `גיבוי`,
+      `עימוד`, `העדפות` among them. Measured, filed, **not taken**: adding them to
+      `lexicon-he.txt` is a change to data whose provenance rule is stated (Torah and
+      pre-war literature), and a fence worth having — *the interface's own words are
+      not flagged*, with a commented allow-list for the deliberately-unknown foreign
+      words — needs that policy decided first. Found by the starter's save line, which
+      said `וייצוא` and was underlined; the starter now says something else.
 - [x] #32 trim the test and documentation tower. Closed as overtaken: measured on 2026-11-17, `run.mjs`'s sweep is the only fence on the *value* of the two runtime counts (deleting it leaves a wrong README count green; `documentation.test.mjs` says at both sites that it cannot know them), and the `assert_same_page` oracles it wanted to redirect into already exist — `engine/tests/deferred_notes.rs`, eleven note layouts compared run for run.
 - [x] #188 `main.ts` size (left over from #22): 3,536 lines against a target of about 1,500. **Done** — 1,457, in nine waves: `editorstate.ts` (`3f192a9`, the extension stack), `appheader.ts` (`3b75967`, the header), `settings.ts` (`9c68270`, the settings value write), `layout.ts` (`32d401d`, the window composition), `boot.ts` (`e70bfaa`, the boot sequence), `editorcommands.ts` (`fecd114`, thirteen structure commands), `settings.ts`+`layout.ts` (`0594358`, the setting reader and the chrome rebuild), `actionsurface.ts` (`50f1d3a`, the action table and dispatcher). Wave 3 bought separation rather than subtraction — the settings change set stayed in main because moving it closed 28 import cycles. `test/runner.test.mjs` now asserts `main.ts` stays at or under 1,500 (`53a296d`). `installHooks` (187 lines) is still in main but no longer holds its size up. Every new module is imported by a test rather than grepped.
 

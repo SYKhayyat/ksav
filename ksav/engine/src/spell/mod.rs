@@ -695,9 +695,22 @@ use std::sync::OnceLock;
 ///
 /// A quarter of a million entries is not something to rebuild per keystroke, and
 /// the editor checks on every pause in typing.
-fn shared_hebrew() -> &'static hebrew::Lexicon {
-    static SHARED: OnceLock<hebrew::Lexicon> = OnceLock::new();
-    SHARED.get_or_init(hebrew::Lexicon::bundled)
+fn shared_hebrew(layers: hebrew::Layers) -> &'static hebrew::Lexicon {
+    // One cache per combination, built on first use. Four quarter-million-entry
+    // dictionaries is a few tens of megabytes; building them all at boot for a
+    // writer who never turns a switch off would be the same waste in the other
+    // direction, and building one per keystroke is not an option at all.
+    static BOTH: OnceLock<hebrew::Lexicon> = OnceLock::new();
+    static MODERN: OnceLock<hebrew::Lexicon> = OnceLock::new();
+    static RABBINIC: OnceLock<hebrew::Lexicon> = OnceLock::new();
+    static NEITHER: OnceLock<hebrew::Lexicon> = OnceLock::new();
+    let slot = match layers.index() {
+        0 => &BOTH,
+        1 => &MODERN,
+        2 => &RABBINIC,
+        _ => &NEITHER,
+    };
+    slot.get_or_init(|| hebrew::Lexicon::layered(layers))
 }
 
 /// The bundled English lexicon, parsed once. Same reasoning.
@@ -715,13 +728,14 @@ fn shared_english() -> &'static english::Lexicon {
 /// The shared lexicons are *borrowed*, never copied — see [`Layered`].
 fn for_request(
     user_words: &str,
+    layers: hebrew::Layers,
 ) -> (
     Layered<'static, hebrew::Lexicon>,
     Layered<'static, english::Lexicon>,
 ) {
     let (he, en) = split_user_words(user_words);
     (
-        Layered::new(shared_hebrew(), &he),
+        Layered::new(shared_hebrew(layers), &he),
         Layered::new(shared_english(), &en),
     )
 }
@@ -752,7 +766,11 @@ pub fn spell_request(input_json: &str) -> String {
     let want_suggestions = v.get("suggest").and_then(|x| x.as_bool()).unwrap_or(false);
     let limit = v.get("limit").and_then(|x| x.as_u64()).unwrap_or(5) as usize;
 
-    let (he, en) = for_request(user_words);
+    // Which vocabularies to check against. Absent means both, and that is the
+    // default everywhere: the two switches exist for a writer who is distracted
+    // by one of them, not as a setup step.
+    let layers = hebrew::Layers::from_json(v.get("hebrew"));
+    let (he, en) = for_request(user_words, layers);
     let checker = Checker::new(Some(&he), Some(&en));
 
     // Offsets go out as UTF-16 code units, not bytes.
@@ -811,7 +829,10 @@ pub fn suggest_request(input_json: &str) -> String {
     let word = v.get("word").and_then(|x| x.as_str()).unwrap_or("");
     let user_words = v.get("user_words").and_then(|x| x.as_str()).unwrap_or("");
     let limit = v.get("limit").and_then(|x| x.as_u64()).unwrap_or(6) as usize;
-    let (he, en) = for_request(user_words);
+    // The same switches as the check: a suggestion list drawn from a vocabulary
+    // the writer turned off is the same disagreement in a different place.
+    let layers = hebrew::Layers::from_json(v.get("hebrew"));
+    let (he, en) = for_request(user_words, layers);
     let checker = Checker::new(Some(&he), Some(&en));
     serde_json::json!({ "suggestions": checker.suggest(word, limit) }).to_string()
 }

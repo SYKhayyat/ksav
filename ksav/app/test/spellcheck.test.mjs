@@ -72,6 +72,44 @@ export async function run() {
   ok("the editing-mode note says so before any mode loads", spellcheck.editingModeNote().length > 0);
   ok("the snapshot note names a chord or the button", spellcheck.snapshotNote().length > 0);
 
+  // 2b. The two halves of the Hebrew dictionary, as the request carries them.
+  //
+  // Four combinations and one absence. The absence is the load-bearing one: a
+  // settings file written before these switches existed, a fresh install and a
+  // hand-edited one all have `undefined` here, and `undefined` has to mean *both
+  // halves on* — the opposite default underlines correct words on day one, which
+  // is how a checker teaches people to ignore it.
+  check(
+    "no setting yet means the whole dictionary",
+    spellcheck.hebrewLayers({}),
+    { modern: true, rabbinic: true },
+  );
+  check(
+    "modern off, Talmudic on",
+    spellcheck.hebrewLayers({ spellModernHebrew: false }),
+    { modern: false, rabbinic: true },
+  );
+  check(
+    "Talmudic off, modern on",
+    spellcheck.hebrewLayers({ spellTalmudicHebrew: false }),
+    { modern: true, rabbinic: false },
+  );
+  check(
+    "both off — the product's own words are still checked against a dictionary",
+    spellcheck.hebrewLayers({ spellModernHebrew: false, spellTalmudicHebrew: false }),
+    { modern: false, rabbinic: false },
+  );
+  // And the request actually carries it: a switch that reaches the settings
+  // object and not the wire is a control that does nothing.
+  ok(
+    "the check sends the chosen halves",
+    /backend\.spell\(payload, spell\.userWordsText\(\), false, hebrewLayers\(\)\)/.test(spellSrc),
+  );
+  ok(
+    "the suggestion menu sends them too",
+    /backend!\.suggest\(m\.word, spell\.userWordsText\(\), hebrewLayers\(\)\)/.test(spellSrc),
+  );
+
   // 3. The split plan's rule 4, asserted on the file itself: spellcheck.ts
   // imports main.ts never. The extension assembly's `autoExtension` lives in
   // main.ts *on purpose*; a reference here would be a cycle and a feature

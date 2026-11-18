@@ -444,6 +444,18 @@ Hebrew and English, both at once, in one document. It knows which script a word 
 in and checks it against the right lexicon — 262,648 Hebrew entries and 96,184 English
 ones.
 
+The Hebrew dictionary is two vocabularies, and each is a switch in the settings
+panel. The **Torah** half holds the Mishnah, the Shulchan Arukh, the Mishnah
+Berurah and Rashi's Hebrew, plus a hand-kept list of Talmudic words and the
+citation apparatus; the **modern** half holds the ordinary literary Hebrew of
+Project Ben-Yehuda's twenty-six thousand public-domain books. Both are on unless
+you turn one off. Turn the modern half off and a word in a Rashi stops being
+offered a newspaper word as its correction; turn the Torah half off and a letter
+stops being offered `ודו"ק`. Either half alone is a complete dictionary — the
+words both of them know are in both — and a third list of words *this program
+itself writes* is always on, so the interface and the templates are never
+underlined whatever you choose.
+
 It will underline your rebbe's name. Right-click → add, and it is in your
 dictionary — which on the desktop app is **a file you own**, so it survives a
 reinstall and you can put it in Dropbox. `KSAV_DICTIONARY` points it wherever you

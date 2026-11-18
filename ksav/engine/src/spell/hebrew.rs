@@ -53,10 +53,94 @@
 
 use super::{edit_distance, is_transposition, letter_mask, rank, ByLength, Dict, Learn};
 
-/// The bundled Torah lexicon, generated from Public Domain texts.
-const LEXICON: &str = include_str!("../../assets/lexicon-he.txt");
-/// Hand-curated Talmudic vocabulary and the citation apparatus.
+/// The Torah half: every word the Sefaria sources know (Mishnah, Shulchan
+/// Arukh, Mishnah Berurah, Rashi), generated from Public Domain texts.
+const LEXICON_TORAH: &str = include_str!("../../assets/lexicon-he-torah.txt");
+/// The modern half: every word Project Ben-Yehuda's public-domain library knows.
+const LEXICON_MODERN: &str = include_str!("../../assets/lexicon-he-modern.txt");
+/// Hand-curated Talmudic vocabulary and the citation apparatus — part of the
+/// Torah half, because a Gemara's words belong to the same reader.
 const SUPPLEMENT: &str = include_str!("../../assets/lexicon-he-supplement.txt");
+/// The words **this product writes**: interface text, the starter documents and
+/// the twelve templates. Always on — see [`Layers`].
+const PRODUCT: &str = include_str!("../../assets/lexicon-he-product.txt");
+
+/// Which vocabularies a check runs against.
+///
+/// Two switches, because a writer's Hebrew is not one language. The Torah half
+/// knows the Mishnah's and the Shulchan Arukh's words and the citation
+/// apparatus; the modern half knows the ordinary literary Hebrew of the last two
+/// centuries — `תצוגה`, `עדכון`, `מחשבה` in its modern sense. A bochur writing a
+/// sefer wants the first and can be distracted by the second's suggestions; a
+/// writer drafting a letter wants the second and does not need `ודו"ק`.
+///
+/// **Both default on**, because a checker that underlines correct words teaches
+/// people to ignore it, and each half on its own is a smaller dictionary than the
+/// whole. Either can be switched off; the *product* layer cannot, because the
+/// program may not underline its own vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Layers {
+    /// The modern, general-Hebrew half.
+    pub modern: bool,
+    /// The Torah/Talmudic half — Sefaria plus the hand-curated supplement.
+    pub rabbinic: bool,
+}
+
+impl Default for Layers {
+    fn default() -> Layers {
+        Layers {
+            modern: true,
+            rabbinic: true,
+        }
+    }
+}
+
+impl Layers {
+    /// The four combinations, in the order [`Layers::index`] numbers them.
+    pub const ALL: [Layers; 4] = [
+        Layers {
+            modern: true,
+            rabbinic: true,
+        },
+        Layers {
+            modern: true,
+            rabbinic: false,
+        },
+        Layers {
+            modern: false,
+            rabbinic: true,
+        },
+        Layers {
+            modern: false,
+            rabbinic: false,
+        },
+    ];
+
+    /// Which of [`Layers::ALL`] this is, for a table of cached lexicons.
+    pub fn index(self) -> usize {
+        match (self.modern, self.rabbinic) {
+            (true, true) => 0,
+            (true, false) => 1,
+            (false, true) => 2,
+            (false, false) => 3,
+        }
+    }
+
+    /// Read from a request: absent means the default, and anything that is not a
+    /// boolean is absent rather than false — a malformed request must not turn a
+    /// vocabulary off behind the writer's back.
+    pub fn from_json(v: Option<&serde_json::Value>) -> Layers {
+        let flag = |key: &str, fallback: bool| {
+            v.and_then(|o| o.get(key))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(fallback)
+        };
+        Layers {
+            modern: flag("modern", true),
+            rabbinic: flag("rabbinic", true),
+        }
+    }
+}
 
 /// A word carrying no frequency band. **Unranked, not rare** — that is most of
 /// the lexicon, and none of it is being called uncommon.
@@ -79,12 +163,27 @@ impl Lexicon {
         Lexicon::default()
     }
 
-    /// The bundled Torah lexicon plus the curated supplement.
+    /// The whole dictionary: both halves, plus the curated supplement and the
+    /// product's own words.
     pub fn bundled() -> Lexicon {
-        let mut l = Lexicon::default();
-        l.add_words(LEXICON);
-        l.add_words(SUPPLEMENT);
-        l
+        Lexicon::layered(Layers::default())
+    }
+
+    /// The dictionary for one pair of switches.
+    ///
+    /// The product layer is added first and unconditionally: whichever halves are
+    /// off, a word the program itself writes is a word it may not underline.
+    pub fn layered(l: Layers) -> Lexicon {
+        let mut lex = Lexicon::default();
+        lex.add_words(PRODUCT);
+        if l.rabbinic {
+            lex.add_words(LEXICON_TORAH);
+            lex.add_words(SUPPLEMENT);
+        }
+        if l.modern {
+            lex.add_words(LEXICON_MODERN);
+        }
+        lex
     }
 
     /// The two bundled lists as text, in the order [`bundled`] adds them.
@@ -94,8 +193,8 @@ impl Lexicon {
     /// the bands is measured against the same words rather than asserted. A
     /// claim about ranking that cannot be re-run is a claim that goes stale
     /// silently, which is how the 4%-useful menu shipped for a month.
-    pub fn bundled_sources() -> [&'static str; 2] {
-        [LEXICON, SUPPLEMENT]
+    pub fn bundled_sources() -> [&'static str; 4] {
+        [LEXICON_TORAH, LEXICON_MODERN, SUPPLEMENT, PRODUCT]
     }
 
     /// Add words from a newline-separated list. `#` comments and blanks are

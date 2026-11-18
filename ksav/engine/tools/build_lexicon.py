@@ -56,6 +56,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.dirname(HERE)
 CACHE = os.path.join(HERE, ".corpus-cache")
 OUT = os.path.join(ENGINE, "assets", "lexicon-he.txt")
+# The same words, kept apart by the corpus they came from, so a writer can
+# check modern Hebrew without the Gemara's vocabulary or the other way round.
+# See the header of each file: a word both corpora know is in **both** layers,
+# which is what makes either one complete on its own.
+OUT_TORAH = os.path.join(ENGINE, "assets", "lexicon-he-torah.txt")
+OUT_MODERN = os.path.join(ENGINE, "assets", "lexicon-he-modern.txt")
 # Word counts extracted from the Ben-Yehuda dump, so the 246 MB zip is needed
 # only once. Committed? No — it is large and derivable; the built lexicon is what
 # ships.
@@ -313,6 +319,24 @@ BAND_PASSES = [
 ]
 
 
+def write_layer(path, headline, entries, bands):
+    """One provenance layer: header, then the same shape as the union file.
+
+    `entries` is an iterable of words. A layer is a **complete vocabulary for
+    its flavour**: the union file is one list because the checker used to have
+    one switch, and the two files here are what that list is made of.
+    """
+    words = sorted(entries)
+    ranked = sum(1 for w in words if bands.get(w, UNRANKED) != UNRANKED)
+    with open(path, "w", encoding="utf8", newline="\n") as f:
+        f.write(headline)
+        f.write("# %d entries, %d banded, normalized (no nikud, ASCII gershayim).\n"
+                % (len(words), ranked))
+        for w in words:
+            b = bands.get(w, UNRANKED)
+            f.write(w + "\n" if b == UNRANKED else "%s\t%d\n" % (w, b))
+
+
 def assign_bands(kept, torah_counts, general_counts):
     """Map each kept word to a frequency band, or leave it unranked.
 
@@ -403,6 +427,11 @@ def main():
     general = {w for w, c in by.items() if c >= args.benyehuda_min_count}
     print(f"  Ben-Yehuda: {len(by)} distinct forms, {len(general)} kept "
           f"(min-count {args.benyehuda_min_count})")
+    # The Torah half, kept as its own name: `words` is reassigned to the union
+    # before anything is written, and the first draft of the layer files read it
+    # after that — so the 'Torah' file was the whole dictionary and the split
+    # was invisible until the two counts were read side by side.
+    torah_words = words
     kept = words | general
     bands = assign_bands(kept, counts, by)
     ranked = sum(1 for w in kept if bands.get(w, UNRANKED) != UNRANKED)
@@ -425,6 +454,29 @@ def main():
         for w in words:
             b = bands.get(w, UNRANKED)
             f.write(w + "\n" if b == UNRANKED else f"{w}\t{b}\n")
+
+    # The two layers, written after the union so a build that fails halfway
+    # leaves the shipped file alone.
+    write_layer(
+        OUT_TORAH,
+        "# Ksav Hebrew lexicon — the Torah half, by tools/build_lexicon.py\n"
+        "# Every word the Sefaria sources know: Mishnah, Shulchan Arukh, Mishnah\n"
+        "# Berurah, Rashi. Hand-curated Talmudic Aramaic and the citation\n"
+        "# apparatus are a separate file — lexicon-he-supplement.txt — and belong\n"
+        "# to the same layer when the engine composes one.\n"
+        "# Do not edit by hand.\n",
+        torah_words,
+        bands,
+    )
+    write_layer(
+        OUT_MODERN,
+        "# Ksav Hebrew lexicon — the modern half, by tools/build_lexicon.py\n"
+        "# Every word Project Ben-Yehuda's 26,000 public-domain works know: the\n"
+        "# general literary Hebrew a writer uses outside the beis midrash.\n"
+        "# Do not edit by hand.\n",
+        sorted(general),
+        bands,
+    )
 
     print(f"\n{len(counts)} distinct forms seen, {len(words)} kept (min-count {args.min_count})")
     print(f"{ranked} carry a frequency band")

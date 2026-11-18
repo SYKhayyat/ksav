@@ -10836,3 +10836,40 @@ to exist. A comment that names a test is read as evidence, which is why it has
 to be true.
 
 — B
+
+## 2026-11-18 · the dictionary was one list because the checker had one switch
+
+**#208 asked a question the file could not answer.** The product's own welcome
+page said `וייצוא`, the word on the export menu, and the speller underlined it,
+because the dictionary is built from Torah and pre-war literature. The measured
+finding was 117 Hebrew tokens the interface uses that the dictionary lacks —
+`תצוגה`, `עדכון`, `גיבוי`, `אחסון` among them. Adding them to the shipped file
+would have been a quiet change to a corpus with a stated provenance rule, so it
+was filed and left.
+
+The owner's answer was structural: **two vocabularies, two switches.** The
+Sefaria half and the Ben-Yehuda half are now separate files, each complete on its
+own (a word both corpora know is in both), each with an independent switch, both
+on by default. `Layers { modern, rabbinic }` travels in the request, so the same
+engine serves all four combinations and the answer is reproducible from the JSON.
+
+Two traps, both now fences:
+
+- **The first draft of the builder wrote the union into the Torah file**, because
+  `words` was reassigned to the union before the layer files read it. Counts were
+  262,648 and 250,818 and the split was invisible; a superset still "adds up".
+  `the_two_halves_add_up_to_the_union` asserts the equality *and* that neither
+  half is the whole.
+- **"Collect the Hebrew words" is not a thing to do by hand.** A splitter over
+  runs of Hebrew letters turned `ב"ה` into `הרש` and kept or dropped a geresh
+  depending on which character it was. The generator now runs the checker's own
+  tokenizer over the sources against an *empty* dictionary, so the product layer
+  holds exactly the tokens the checker will look up — and the test asserts the
+  same sentence independently, under all four combinations.
+
+`THIRD-PARTY-NOTICES.md` and `notices.rs` name the four files that are actually
+embedded; the union file stays, unembedded, as the total the documentation
+quotes. Twelve hundred and up engine tests, 13,987 editor assertions, the gate's
+twelve checks, and the acceptance suite's 868 checks are green on Windows.
+
+— B

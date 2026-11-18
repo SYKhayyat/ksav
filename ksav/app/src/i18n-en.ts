@@ -1256,6 +1256,10 @@ export const EN: Dict = {
   autoPairQuotesNote: "Off by default: in Hebrew the geresh and gershayim stand inside words (רש״י, ר' חיים), not as a pair.",
   spellcheckLabel: "Spell check",
   spellcheckCommentsLabel: "Also check comments and folds",
+  spellModernLabel: "Modern Hebrew",
+  spellTalmudicLabel: "Talmudic and halachic Hebrew",
+  spellHalvesNote:
+    "Two halves of one dictionary, both on by default. Turn modern Hebrew off and a Rashi will not be offered a newspaper word as its correction; turn the Talmudic half off and a letter will not be offered a rosh-teivos. The program's own words are never underlined.",
   langHebrew: "Hebrew",
   langEnglish: "English",
   spellLanguages: "Hebrew and English are checked. Text in any other language is left alone — not confirmed correct.",

@@ -254,6 +254,25 @@ export interface Settings {
    */
   spellcheckComments?: boolean;
   /**
+   * Which halves of the bundled Hebrew dictionary to check against.
+   *
+   * The dictionary is two vocabularies, built from two corpora: the **Torah**
+   * half (Mishnah, Shulchan Arukh, Mishnah Berurah, Rashi, plus the hand-curated
+   * Talmudic and citation apparatus) and the **modern** half (Project
+   * Ben-Yehuda's 26,000 public-domain works — the ordinary literary Hebrew of the
+   * last two centuries). Both are on by default, because a checker that
+   * underlines correct words teaches people to ignore it.
+   *
+   * A writer who is writing a sefer can turn the modern half off and stop being
+   * offered `עיתון` as a correction for a word in a Rashi; a writer drafting a
+   * letter can turn the Torah half off and stop being offered `ודו"ק`. Each
+   * switch is a complete dictionary on its own — the words both corpora know are
+   * in both — and neither can ever remove the product's own vocabulary, which is
+   * a third layer no setting touches.
+   */
+  spellModernHebrew?: boolean;
+  spellTalmudicHebrew?: boolean;
+  /**
    * When the tab strip is on screen: always, only with more than one
    * arrangement, or never.
    *
@@ -700,6 +719,8 @@ export const DEFAULTS: Settings = {
   proseStrip: false,
   spellcheck: true,
   spellcheckComments: false,
+  spellModernHebrew: true,
+  spellTalmudicHebrew: true,
   tabStrip: "always",
   syncScroll: true,
   followCaret: true,

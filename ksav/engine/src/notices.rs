@@ -124,7 +124,15 @@ pub static NOTICES: &[Notice] = &[
         licence: "MIT OR Apache-2.0",
         licence_file: "",
         url: "https://github.com/SYKhayyat/ksav",
-        files: &["assets/lexicon-he.txt", "assets/lexicon-he-supplement.txt"],
+        // The two halves and the two hand-kept lists, not the union file that is
+        // no longer embedded: a notice naming an asset the engine stopped shipping
+        // is a licence claim about a file nobody has.
+        files: &[
+            "assets/lexicon-he-torah.txt",
+            "assets/lexicon-he-modern.txt",
+            "assets/lexicon-he-supplement.txt",
+            "assets/lexicon-he-product.txt",
+        ],
         selectable: false,
     },
 ];

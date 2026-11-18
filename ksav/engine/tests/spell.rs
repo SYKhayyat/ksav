@@ -513,6 +513,58 @@ fn a_spell_request_returns_located_misses() {
     assert!(out["lexicon_size"].as_u64().unwrap() > 30_000);
 }
 
+/// The two switches, at the wire.
+///
+/// `Layers` is tested directly in `tests/product_words.rs`; this is the half a
+/// client can get wrong — a field renamed, a flag read as a string, a default
+/// that quietly becomes *off*. The request says which dictionary to check
+/// against, and the answer must follow it: `עיתון` is modern-only Hebrew (no
+/// Sefaria source), `אבוהון` is Talmudic (the modern corpus does not carry it).
+#[test]
+fn a_request_can_turn_half_of_the_dictionary_off() {
+    let misses = |body: serde_json::Value| -> Vec<String> {
+        let out: serde_json::Value =
+            serde_json::from_str(&ksav_engine::spell::spell_request(&body.to_string())).unwrap();
+        out["misspellings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["word"].as_str().unwrap_or("").to_string())
+            .collect()
+    };
+
+    let modern =
+        serde_json::json!({ "text": "עיתון", "hebrew": { "modern": true, "rabbinic": false } });
+    let rabbinic =
+        serde_json::json!({ "text": "עיתון", "hebrew": { "modern": false, "rabbinic": true } });
+    let default = serde_json::json!({ "text": "עיתון" });
+    let neither =
+        serde_json::json!({ "text": "עיתון", "hebrew": { "modern": false, "rabbinic": false } });
+
+    assert!(
+        misses(modern).is_empty(),
+        "a modern word was flagged with the modern half on"
+    );
+    assert!(
+        misses(default).is_empty(),
+        "the default is meant to be both halves on"
+    );
+    assert_eq!(misses(rabbinic), vec!["עיתון".to_string()]);
+    assert_eq!(misses(neither), vec!["עיתון".to_string()]);
+
+    let talmudic =
+        serde_json::json!({ "text": "אבוהון", "hebrew": { "modern": true, "rabbinic": false } });
+    assert_eq!(misses(talmudic), vec!["אבוהון".to_string()]);
+
+    // A malformed switch is *absent*, not false: nothing in a request should be
+    // able to turn a vocabulary off by being unreadable.
+    let junk = serde_json::json!({ "text": "עיתון", "hebrew": { "modern": "no" } });
+    assert!(
+        misses(junk).is_empty(),
+        "a string flag turned the modern half off"
+    );
+}
+
 #[test]
 fn offsets_are_utf16_and_correct_across_several_misses() {
     // Two nonsense words with a known Hebrew word between them. Hebrew is two

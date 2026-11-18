@@ -38,6 +38,22 @@ import { hintFor } from "./keyhint";
 // every keystroke would squiggle words the writer is still in the middle of.
 
 let spellTimer: number | undefined;
+
+/**
+ * The two halves of the bundled Hebrew dictionary, as the request carries them.
+ *
+ * Read from the settings rather than stored, so a switch takes effect on the
+ * next check without a second copy to keep in step. **Absent means on**: an old
+ * settings file, a fresh install and a hand-edited one all get the whole
+ * dictionary, which is the only default that does not underline correct words.
+ *
+ * The extra function exists so this can be asserted without a document, a view
+ * or a backend: `spellcheck.test.mjs` calls it with the four combinations and
+ * reads the object back.
+ */
+export function hebrewLayers(s: typeof settings = settings): { modern: boolean; rabbinic: boolean } {
+  return { modern: s.spellModernHebrew !== false, rabbinic: s.spellTalmudicHebrew !== false };
+}
 /** Set when the last check could not reach the engine, so the coverage note can
  *  say so instead of continuing to read as a clean bill of health — the exact
  *  silence this feature was built to avoid. */
@@ -133,7 +149,7 @@ export async function runSpellCheck() {
   );
   const mine = ++spellGeneration;
   try {
-    const res = await runtime.backend.spell(payload, spell.userWordsText(), false);
+    const res = await runtime.backend.spell(payload, spell.userWordsText(), false, hebrewLayers());
     // Superseded, or the document moved under the request: its offsets are now
     // fiction, so drop it and let the next scheduled check answer the real text.
     if (mine !== spellGeneration || runtime.view.state.doc !== doc) return;
@@ -253,7 +269,7 @@ export async function openSpellMenu(m: spell.Misspelling, x: number, y: number) 
 
   let suggestions: string[] = [];
   try {
-    suggestions = await runtime.backend!.suggest(m.word, spell.userWordsText());
+    suggestions = await runtime.backend!.suggest(m.word, spell.userWordsText(), hebrewLayers());
   } catch {
     suggestions = [];
   }

@@ -245,16 +245,30 @@ abstract class ServiceClient {
     return this.ask("assemble", assembleRequest(body, cfg, assets, opts));
   }
 
-  async spell(text: string, userWords: string, suggest = false): Promise<SpellResult> {
+  async spell(
+    text: string,
+    userWords: string,
+    suggest = false,
+    hebrew?: { modern: boolean; rabbinic: boolean },
+  ): Promise<SpellResult> {
     // Background: on the wasm build a spell check shares the one worker with the
     // compile, and the writer is waiting on the compile, not the squiggles.
-    return this.ask("spell", { text, user_words: userWords, suggest }, { background: true });
+    return this.ask(
+      "spell",
+      { text, user_words: userWords, suggest, ...(hebrew ? { hebrew } : {}) },
+      { background: true },
+    );
   }
 
-  async suggest(word: string, userWords: string): Promise<string[]> {
+  async suggest(
+    word: string,
+    userWords: string,
+    hebrew?: { modern: boolean; rabbinic: boolean },
+  ): Promise<string[]> {
     const out = await this.ask<{ suggestions?: string[] }>("suggest", {
       word,
       user_words: userWords,
+      ...(hebrew ? { hebrew } : {}),
     });
     return out.suggestions ?? [];
   }

@@ -847,6 +847,12 @@ function applySettingChange(key: import("./settings").Field, value: unknown): vo
     // adding new ones.
     if (settings.spellcheck) scheduleSpellCheck();
     else clearSpellCheck();
+  } else if (key === "spellModernHebrew" || key === "spellTalmudicHebrew") {
+    // A different dictionary, so every word on screen has a different answer —
+    // full, not incremental, and the squiggles the old answer put there are
+    // cleared rather than left until the next keystroke.
+    clearSpellCheck();
+    forceFullSpellCheck();
   } else if (key === "spellcheckComments") {
     // A wider or narrower checkable text, so the answer on screen is stale
     // either way — and turning it *off* has to clear the squiggles it put in

@@ -877,9 +877,25 @@ export interface Backend {
   /** Structural facts from the Rust scanner, for consumers that can await. */
   scan(text: string, opts?: { signal?: AbortSignal }): Promise<ScanResult>;
   /** Check text against both lexicons plus the writer's own words. */
-  spell(text: string, userWords: string, suggest?: boolean): Promise<SpellResult>;
+  /**
+   * `hebrew` chooses the halves of the bundled dictionary to check against —
+   * `{modern, rabbinic}`, both on when it is omitted. It is part of the request
+   * rather than a setting the engine reads, because there is one engine and four
+   * combinations of a writer's preference, and the answer must be reproducible
+   * from the request alone.
+   */
+  spell(
+    text: string,
+    userWords: string,
+    suggest?: boolean,
+    hebrew?: { modern: boolean; rabbinic: boolean },
+  ): Promise<SpellResult>;
   /** Suggestions for one word — asked for only when a menu is opened. */
-  suggest(word: string, userWords: string): Promise<string[]>;
+  suggest(
+    word: string,
+    userWords: string,
+    hebrew?: { modern: boolean; rabbinic: boolean },
+  ): Promise<string[]>;
   commands(): Promise<CommandDef[]>;
   /** The sefer catalogue, for citation autocomplete. The same list the source
    *  index sorts by, so what the editor offers and where the index files it

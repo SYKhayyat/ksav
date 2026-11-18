@@ -75,8 +75,10 @@ rename the fonts. Ksav redistributes this font unmodified, so no rename applies.
 
 ### Ksav Hebrew lexicon
 
-- Files: `ksav/engine/assets/lexicon-he.txt`,
-  `ksav/engine/assets/lexicon-he-supplement.txt`
+- Files: `ksav/engine/assets/lexicon-he-torah.txt`,
+  `ksav/engine/assets/lexicon-he-modern.txt`,
+  `ksav/engine/assets/lexicon-he-supplement.txt`,
+  `ksav/engine/assets/lexicon-he-product.txt`
 - Built from Public Domain texts (Sefaria, Project Ben-Yehuda).
 - Licence: MIT OR Apache-2.0 — Ksav's own.
 - Built from Public Domain sources by `ksav/engine/tools/build_lexicon.py`,
@@ -85,6 +87,12 @@ rename the fonts. Ksav redistributes this font unmodified, so no rename applies.
 
 `ksav/engine/assets/lexicon-he-supplement.txt` is original work by the Ksav
 authors and is covered by Ksav's own licence.
+
+The dictionary ships as **two halves** — the Torah half (`-torah`) from the
+Sefaria texts and the modern half (`-modern`) from Project Ben-Yehuda — so a
+writer can turn either off. `lexicon-he-product.txt` is a third, always-on layer
+of words this program itself writes; it is generated from Ksav's own interface
+and templates by `cargo run --example emit-product-words` and is Ksav's own text.
 
 Nothing under the GNU AGPL is bundled. Hspell — the only other open Hebrew
 spelling dictionary in existence — is deliberately not included; see the module

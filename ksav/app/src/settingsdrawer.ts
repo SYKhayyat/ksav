@@ -825,6 +825,14 @@ export function buildSettingsDrawer(): HTMLElement {
     checkRow("proseStripLabel", "proseStrip"),
     el("div", { class: "set-note" }, [t("proseStripNote")]),
     checkRow("spellcheckLabel", "spellcheck"),
+    // The two halves of the dictionary, because a writer's Hebrew is not one
+    // language: the Torah half knows the Gemara's words and the citation
+    // apparatus, the modern half knows ordinary literary Hebrew. Both on by
+    // default. The note says what the switches are for, since a writer who has
+    // never seen `ודו"ק` offered as a correction cannot picture the control.
+    checkRow("spellModernLabel", "spellModernHebrew"),
+    checkRow("spellTalmudicLabel", "spellTalmudicHebrew"),
+    el("div", { class: "set-note" }, [t("spellHalvesNote")]),
     checkRow("spellcheckCommentsLabel", "spellcheckComments"),
     el("div", { id: "spell-coverage", class: "set-note" }, [spellCoverageNote()]),
     // The strip's own visibility, beside the rest of "what is on screen". It

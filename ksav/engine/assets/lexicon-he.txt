@@ -9,7 +9,7 @@
 # A line without one is UNRANKED, which is not the same as rare. See
 # assign_bands() in the builder for what each band means, and
 # examples/suggestrate.rs for what they are worth, measured.
-# 262648 entries, 69793 banded, normalized (no nikud, ASCII gershayim).
+# 262648 entries, 69794 banded, normalized (no nikud, ASCII gershayim).
 א"
 א"א	1
 א"ב	4
@@ -40549,6 +40549,7 @@
 דתרועה	4
 דתרי	4
 דתרתי	4
+דתשביתו	4
 דתשמיש	4
 דתשמישו	4
 דתשר"ת	4
@@ -151706,7 +151707,7 @@
 כגוונא
 כגוזז	4
 כגוזל	4
-כגוי
+כגוי	4
 כגויה
 כגויי
 כגויים
@@ -153599,7 +153600,6 @@
 ככושית
 ככותב	4
 ככותבת	4
-ככותי	4
 ככותל	4
 ככח
 ככחה

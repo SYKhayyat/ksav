@@ -1620,8 +1620,10 @@
       "licence_file": "",
       "url": "https://github.com/SYKhayyat/ksav",
       "files": [
-        "assets/lexicon-he.txt",
-        "assets/lexicon-he-supplement.txt"
+        "assets/lexicon-he-torah.txt",
+        "assets/lexicon-he-modern.txt",
+        "assets/lexicon-he-supplement.txt",
+        "assets/lexicon-he-product.txt"
       ],
       "selectable": false
     }

@@ -102,7 +102,10 @@ the real app.
 - [ ] #134 verify UAT items 2, 3, 4, 5, 10, 12, 16, 17 in the real app, not only in tests.
       **3 done** (`7a46dd9`): the prose chip's state was colour-only, so `aria-pressed` was added where the
       chip is declared and `acceptance.mjs` now presses it twice in the assembled app and asserts the class,
-      the attribute and the glyph agree (882 checks, green). Still open: 2, 4, 5, 10, 12, 16, 17.
+      the attribute and the glyph agree (882 checks, green).
+      **2 measured, not verified**: a click that moves the caret now lands correctly — the pages follow, a page
+      is left on screen, the ends do not overshoot, the first heading returns to 0 — but a second click on the
+      heading the caret is already on moves the preview 157px, now #211. Still open: 4, 5, 10, 12, 16, 17.
 - [x] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Fixed (`67b165e`): `gate.test.mjs` refuses a bare invocation and `docs/troubleshooting.md` says what to run instead.
 - [x] #196 the render check calls a single-instance handover "the webview did not start": a clean exit 0 is read as a webview fault, and that is the same sentence #189 is open about.
 - [x] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".
@@ -117,6 +120,9 @@ and Windows, for **two weeks** without losing text, and the second UAT pass
 (#14) passes.
 
 - [x] #138 Emacs-like open/window model: `openIn` now defaults to `current` (`C-x b`), the three answers are stated as Emacs commands at the setting, the funnel and `docs/start-here.md`, and `tabs.showing`'s focused-pane rule is written down and asserted. Hands-on confirmation of the felt behaviour rides with #134.
+- [ ] #211 re-clicking the heading the caret is already on still moves the pages: measured in the assembled
+      app at 157px (1075 → 1232, stable after another 900ms), so it is the click and not the glide. UAT 2's own
+      complaint surviving where the caret does not move; found while verifying #134.
 - [ ] #128 document identity: one Documents menu instead of two (Documents and File), and labelled rows instead of icon-only rows. Keep the shape compatible with #117. **Code done** (`84b11be`, `eea216b`): one `docTitle()` for the name line, `docFileState` for its honest suffixes, the Documents taxonomy as data with a persistent `⧉ / ⌄ / ×` legend, and *File ▸ New document* removed rather than marked, on the owner's call. Open for the owner's reading pass — the last acceptance line is a judgement about reading on screen, which no tool here can make.
 - [x] #127 native PDF destination picker on export — every export asks `saveExportAs` (#127), desktop dialog + browser fallback, cancel silent.
 - [ ] #126 semantic navigation: word and paragraph motion skips Typst markup. **Code done** (`4283990`, `6cb2029`): `motion.ts` (the boundary function, fenced row by row from the spec) and `sourcemotion.ts` (the `sourceMotions` setting, `Ctrl`+arrows, `Alt`+arrows as the raw escape, `Shift` on the same stops). Shipped as `"raw"` on purpose — flipping the default is a felt judgement, and it is one line once the owner has arrowed around a document with it on.

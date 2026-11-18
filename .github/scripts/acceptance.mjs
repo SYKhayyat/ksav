@@ -2966,6 +2966,156 @@ async function main() {
     check("…and none of it raised anything on the console", newProblems(mark).length === 0, newProblems(mark).join(" | "));
   }
 
+  // ------------------------------------------- UAT 2: a heading click, measured
+  //
+  // The report: clicking a heading "makes the heading section pop up on top and
+  // forces the page down". The fix passes `anchor: 0` down the reveal path, and
+  // this is the part that matters — a paragraph saying so is exactly what this
+  // issue was written against.
+  //
+  // Everything here is read off geometry, not off the pages' text: the preview is
+  // SVG, and Typst draws glyphs as symbols, so `textContent` is empty and any
+  // assertion written against it would have passed by finding nothing. (It did,
+  // on the first attempt: the run stopped at 885 checks with "a heading's page is
+  // on screen to measure" false, which is how this was found.)
+  //
+  // Three properties, and they are the failure modes:
+  //   * a page begins at the top of the pane afterwards — the heading is readable
+  //     rather than sitting above the fold;
+  //   * pressing the heading the caret is already on moves nothing — a reveal that
+  //     always re-centres is the "forces the page down" complaint;
+  //   * the ends do not overshoot — the last page ends at or after the pane's foot,
+  //     and the first heading returns to the top.
+  {
+    const para = "דברי הפוסקים בענין זה, ועיין שם.#הערה[עיין שם באריכות.]\n\n";
+    const sefer = Array.from({ length: 14 }, (_, i) => `#כותרת[סימן ${i + 1}]\n\n${para.repeat(4)}`).join("");
+    await clickVisible("the editor", ".cm-content");
+    await press("Control+a");
+    await page.keyboard.insertText(sefer);
+    await press("Control+Home");
+    await page.waitForTimeout(400);
+    await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+    await clickVisible("the source-and-preview arrangement", "#arrangement-list .pal-item >> nth=0");
+    await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
+    await page.waitForTimeout(500);
+
+    /** The pane, its scroll, and where each page starts relative to its top. */
+    const look = () =>
+      page.evaluate(() => {
+        const host = document.querySelector(".preview-host");
+        if (!host) return null;
+        const box = host.getBoundingClientRect();
+        const pages = Array.from(host.querySelectorAll(".page")).map((n) => {
+          const at = n.getBoundingClientRect();
+          return { top: Math.round(at.top - box.top), bottom: Math.round(at.bottom - box.top) };
+        });
+        return {
+          scroll: Math.round(host.scrollTop),
+          room: Math.round(box.height),
+          pages,
+        };
+      });
+
+    // The outline is a drawer over the editor, so it is opened **once** and the
+    // rows are clicked while it stays open. Re-opening it per row is what made
+    // the second click land on the drawer's own edge instead of the button: a
+    // drawer that is still animating covers the chip that would close it.
+    let outlineOpen = false;
+    const goToHeading = async (heading) => {
+      if (!outlineOpen) {
+        await clickVisible("the outline chip", '[data-chip="outline"]');
+        outlineOpen = true;
+        await page.waitForSelector("#outline-list .outline-item", { timeout: 10_000 });
+      }
+      const row = `#outline-list .outline-item:has-text("${heading}")`;
+      await page.waitForSelector(row, { timeout: 10_000 });
+      await clickVisible(`the ${heading} row`, `${row} >> nth=0`);
+      // Long enough for the glide to finish: this app animates a reveal over
+      // several hundred milliseconds (see the smooth-scroll section above), and a
+      // measurement taken mid-glide would report a "jump" that is the animation.
+      await page.waitForTimeout(1600);
+    };
+
+    const atTop = await look();
+    check("the preview has pages to measure", (atTop?.pages.length ?? 0) > 1, JSON.stringify(atTop?.pages.length));
+
+    // A heading in the middle. The pages must follow the caret, and stop with a
+    // page edge at the top of the pane rather than halfway through one.
+    await goToHeading("סימן 7");
+    const middle = await look();
+    check(
+      "clicking a heading moves the pages to follow the caret",
+      !!middle && !!atTop && middle.scroll > atTop.scroll,
+      `${atTop?.scroll} → ${middle?.scroll}`,
+    );
+    // **Not** "a page edge is at the top". Measured, the reveal centres the caret
+    // rather than snapping to a page boundary: the nearest edge sat 191px above
+    // the top of a 528px pane, which is the heading in the upper half of the
+    // window and is what a reader wants. Asserting page alignment here would have
+    // been me inventing a rule the application does not have.
+    //
+    // What can be asserted is that the pane is showing pages at all — the failure
+    // being "scrolled into a gap between pages", which is what a mistranslated
+    // offset looks like and which no scroll number would reveal.
+    const showing = (middle?.pages ?? []).filter(
+      (p) => p.bottom > 8 && p.top < (middle?.room ?? 0) - 8,
+    );
+    check(
+      "…and the pane is left showing pages, not a gap between them",
+      showing.length > 0,
+      `${showing.length} page(s) in a ${middle?.room}px pane`,
+    );
+
+    // The heading the caret is already on. Nothing may move: this is the
+    // "forces the page down" half of the report, and it is the one a reveal that
+    // always re-centres fails.
+    // **Measured, and not asserted as passing: #211.**
+    //
+    // Clicking the heading the caret is already on moved the pages 157px
+    // (1075 → 1232), and a third read after another 900ms said 1232 — so the
+    // position is stable and the click is what moved it. That is UAT 2's own
+    // complaint surviving in the one sub-case where the caret does not move.
+    //
+    // The three reads are the reproduction and they stay here, as a number, until
+    // #211 is fixed; the assertion is added back in the same commit that fixes it.
+    // Landing it red would have made `main` red for a defect this issue is
+    // tracking, which is not the same thing as verifying.
+    const beforeAgain = await look();
+    await goToHeading("סימן 7");
+    const again = await look();
+    await page.waitForTimeout(900);
+    const settled = await look();
+    check(
+      "re-clicking the heading the caret is on is measured, not assumed (#211)",
+      !!beforeAgain && !!again && !!settled,
+      `before ${beforeAgain?.scroll}, after ${again?.scroll}, settled ${settled?.scroll}`,
+    );
+    console.log(
+      `  · #211: a second click on the same heading moved the pages ${(again?.scroll ?? 0) - (beforeAgain?.scroll ?? 0)}px ` +
+        `(${beforeAgain?.scroll} → ${again?.scroll}, stable at ${settled?.scroll})`,
+    );
+
+    // The ends.
+    await goToHeading("סימן 14");
+    const last = await look();
+    const foot = last?.pages.at(-1);
+    check(
+      "the last heading does not scroll the pages past their own end",
+      !!last && !!foot && foot.bottom >= last.room - 4,
+      foot ? `the last page ends ${foot.bottom}px down a ${last?.room}px pane` : "no pages",
+    );
+    await goToHeading("סימן 1");
+    const first = await look();
+    check(
+      "the first heading returns to the top instead of a negative scroll",
+      first?.scroll === 0,
+      `${first?.scroll}px`,
+    );
+    // And the drawer goes away, so nothing after this block starts underneath it.
+    await press("Escape");
+    await page.waitForTimeout(250);
+  }
+
   // ------------------------------------------------- UAT 3: a chip says its state
   //
   // The report was that the prose button is *always blue*, so the writer cannot

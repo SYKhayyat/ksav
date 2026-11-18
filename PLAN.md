@@ -80,6 +80,9 @@ the real app.
 - [x] #133 Windows: clean build from scratch, plus a smoke test of the packaged app (launch, open, save, export).
   Done for a clean clone on 2026-11-17: `tauri build` → NSIS → silent install → Start-menu shortcut → a window with a bound desk. Two findings filed on the way: #194 (the installer cannot be driven from Git Bash) and #195 (a stale shortcut is silent, which is UAT 28's symptom). The owner's own machine still needs the last acceptance line.
 - [ ] #134 verify UAT items 2, 3, 4, 5, 10, 12, 16, 17 in the real app, not only in tests.
+      **3 done** (`7a46dd9`): the prose chip's state was colour-only, so `aria-pressed` was added where the
+      chip is declared and `acceptance.mjs` now presses it twice in the assembled app and asserts the class,
+      the attribute and the glyph agree (882 checks, green). Still open: 2, 4, 5, 10, 12, 16, 17.
 - [x] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Fixed (`67b165e`): `gate.test.mjs` refuses a bare invocation and `docs/troubleshooting.md` says what to run instead.
 - [x] #196 the render check calls a single-instance handover "the webview did not start": a clean exit 0 is read as a webview fault, and that is the same sentence #189 is open about.
 - [x] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".

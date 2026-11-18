@@ -32,6 +32,15 @@ item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 - [ ] #163 multi-preview sync.
 - [ ] #164 the `e.code` / `e.key` split.
 - [x] **#208** the speller does not know 117 Hebrew words the interface itself
+- [ ] #209 the Linux apt dependency list is written three times and kept equal by a
+      comment in each copy. Found by the `lamdan` triage. The fence is a set comparison
+      across `packaging/linux.Dockerfile`, `ci.yml` and `release.yml`, with the
+      Dockerfile's build-only packages named as the allowed difference.
+- [ ] #210 verify the lamdan findings the triage could not open — 23 external rows
+      (6.1 *an English document falls out of the note-layout path*, CONFIRMED High,
+      first), three duplication rows, and `three-repos` §8 item 9's ten false or stale
+      claims. "Verify" means a test, a measurement, or a comment that says what was
+      decided.
       uses — `תצוגה`, `תפריטים`, `עדכון`, `מאגרים`, `חלוניות`, `אחסון`, `גיבוי`,
       `עימוד`, `העדפות` among them. Found by the starter's save line, which said `וייצוא` and was
       underlined. **Closed 2026-11-18** by the owner's answer, which was two layers
@@ -191,7 +200,7 @@ section at the top of this plan.
   `dropped` said nothing (`acbf61b`). `odt` is not an import this application
   offers; the plan's earlier "docx/odt" named a format that does not exist. #200 holds the
   formatting follow-up the export fix surfaced.
-- [ ] Run `lamdan` across the whole repo once and triage its findings into this plan.
+- [x] Run `lamdan` across the whole repo once and triage its findings into this plan. **Done 2026-11-18** (`lamdan/TRIAGE-2026-11-18.md`): a verdict per finding taken by opening the file each one names — 40 external + 12 duplication + 13 ranked. Most were closed by later sessions and nobody had gone back to the reports to say so. **One live finding** became **#209** (the Linux apt list is written three times and kept equal by a comment, not a fence); the rows I did not open are recorded as *unverified* rather than assumed fixed and became **#210**, with 6.1 (*an English document falls out of the note-layout path*, CONFIRMED High) named first. The reports' own thesis — *fixes the instance in front of it and does not sweep for the siblings* — is answered: the siblings were swept, one class at a time, and the missing act was closing the loop.
 
 ## ◆ D2 — Before others use it
 

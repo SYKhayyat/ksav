@@ -80,6 +80,16 @@ export async function run() {
     // replaced, and a guard that reads its own explanation as evidence is the
     // mistake `chrome.test.mjs` already paid for once.
     const src = readFileSync(`${HERE}/../src/panescroll.ts`, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ");
+    // #211: a scroll floor says *another writer owns this pane right now*, and the
+    // follow used to obey it by dropping itself. What was left on screen was that
+    // other writer's position — for a jump, the linked scroll's proportion of the
+    // source — so the pane stopped 157px from the heading and only a second click
+    // finished the journey. Re-arming costs one timer and lands the exact place
+    // once the claim expires; dropping it means the estimate is the answer.
+    ok(
+      "a scroll floor defers the follow rather than discarding it",
+      /if \(scrollFloor && performance\.now\(\) < scrollFloor\.until\) \{\s*caretFollowTimer = window\.setTimeout/u.test(src),
+    );
     ok("the follow prefixes its id for the host it means", src.includes("pane-host-"));
     ok(
       "and no scan counts preview boxes",

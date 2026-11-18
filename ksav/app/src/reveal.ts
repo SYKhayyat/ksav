@@ -37,6 +37,19 @@ import * as api from "./api";
  */
 export async function revealCursor(opts: { quiet?: boolean; from?: number; anchor?: number } = {}): Promise<boolean> {
   const quiet = opts.quiet ?? false;
+  // **An exact answer supersedes the cheap one.** Moving the caret schedules a
+  // line-fraction follow about 100ms later (`followCaretInPreview`), and that is
+  // usually right: it costs no engine round trip and it is where the reader is.
+  // It is wrong here, because this reveal is about to answer the same question
+  // exactly, and the estimate arrives *after* it — overwriting a glyph-level
+  // target with a line-level one. Measured: an outline click landed 157px short
+  // and a second click on the same heading "corrected" it, because the second
+  // click moved no caret and so scheduled no estimate (#211).
+  //
+  // The click path already says this in its own words (`revealFromSourceClick`
+  // cancels before asking). This is the same rule for every caller, in the one
+  // place all of them arrive at.
+  cancelCaretFollow();
   if (!runtime.backend) return true;
   const pages = currentPages();
   if (!pages.length) {

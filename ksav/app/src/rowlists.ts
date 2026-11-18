@@ -438,7 +438,17 @@ export function drawList(host: HTMLElement, list: PanelList, look: Look, snaps: 
 export function goToOffset(at: number) {
   const where = settings.outlineJump ?? "source";
   jumpTo(at, where !== "preview");
-  if (where !== "source") rowsWiring().revealCaret();
+  // Ask the preview for the place the line **printed**, whatever `outlineJump`
+  // says about the caret.
+  //
+  // It used to be asked only when the setting was not `source`, which quietly made
+  // the default mode rely on linked scrolling — a *proportion* of the source's
+  // scroll, not an answer. Measured in the assembled app: clicking a heading left
+  // the page 157px from where the heading printed, and clicking the same row again
+  // moved the pane there, so a heading click "forced the page down" on the second
+  // press (#211). A jump is a question with an answer; the mirror is what the pane
+  // does while nobody has asked.
+  rowsWiring().revealCaret();
 }
 
 /**

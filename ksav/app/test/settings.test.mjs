@@ -584,7 +584,18 @@ function eachSyncSwitchGatesItsOwnBehaviour() {
     // down their own file. The caret still moves, because the preview half is
     // answered by asking the compiler where the *caret* printed.
     ok("preview leaves the source pane alone", /jumpTo\(at, where !== "preview"\)/u.test(body));
-    ok("and anything but source reveals in the preview", /where !== "source".*revealCaret/su.test(body));
+    // #211: the preview is asked where the line printed in **every** mode.
+    //
+    // This fence used to assert the opposite — `where !== "source"` — and it was
+    // wrong in a way a fence can be: it described the code, not the requirement.
+    // The setting's job is to decide whether the *source* pane moves and whether
+    // the *caret* moves. Asking the preview was left to the two modes that did it,
+    // so the default mode fell back to linked scrolling, which is a proportion of
+    // the source's scroll rather than an answer: measured in the assembled app,
+    // clicking a heading landed 157px from where it printed and clicking the row
+    // again moved the pane the rest of the way.
+    ok("every mode asks the preview where the line printed", /rowsWiring\(\)\.revealCaret\(\)/u.test(body));
+    notOk("and no mode is left with the mirror instead of the answer", /where !== "source"/u.test(body));
 
     check(
       "the three answers are the ones the setting declares",

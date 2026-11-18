@@ -3069,30 +3069,26 @@ async function main() {
     // The heading the caret is already on. Nothing may move: this is the
     // "forces the page down" half of the report, and it is the one a reveal that
     // always re-centres fails.
-    // **Measured, and not asserted as passing: #211.**
+    // Clicking the heading the caret is already on must not move anything: this
+    // is the "forces the page down" half of the report, and it is the one a
+    // reveal that re-centres fails.
     //
-    // Clicking the heading the caret is already on moved the pages 157px
-    // (1075 → 1232), and a third read after another 900ms said 1232 — so the
-    // position is stable and the click is what moved it. That is UAT 2's own
-    // complaint surviving in the one sub-case where the caret does not move.
-    //
-    // The three reads are the reproduction and they stay here, as a number, until
-    // #211 is fixed; the assertion is added back in the same commit that fixes it.
-    // Landing it red would have made `main` red for a defect this issue is
-    // tracking, which is not the same thing as verifying.
+    // It also catches a subtler fault that #211 was: a reveal that computes its
+    // arithmetic once, against a page whose height is still changing, lands short
+    // and is corrected only by the *next* click. Measured before the fix:
+    // 1075 → 1232 → 1232 → 1232, so a single click was 157px wrong and every
+    // click after it right. Three reads, because a before/after pair cannot tell
+    // a reveal that moved from a glide still arriving.
     const beforeAgain = await look();
     await goToHeading("סימן 7");
     const again = await look();
     await page.waitForTimeout(900);
     const settled = await look();
     check(
-      "re-clicking the heading the caret is on is measured, not assumed (#211)",
-      !!beforeAgain && !!again && !!settled,
-      `before ${beforeAgain?.scroll}, after ${again?.scroll}, settled ${settled?.scroll}`,
-    );
-    console.log(
-      `  · #211: a second click on the same heading moved the pages ${(again?.scroll ?? 0) - (beforeAgain?.scroll ?? 0)}px ` +
-        `(${beforeAgain?.scroll} → ${again?.scroll}, stable at ${settled?.scroll})`,
+      "clicking the heading the caret is already on does not move the pages",
+      Math.abs((again?.scroll ?? 0) - (beforeAgain?.scroll ?? 0)) <= 2 &&
+        Math.abs((settled?.scroll ?? 0) - (again?.scroll ?? 0)) <= 2,
+      `${beforeAgain?.scroll} → ${again?.scroll} → ${settled?.scroll}`,
     );
 
     // The ends.

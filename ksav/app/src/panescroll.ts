@@ -478,7 +478,15 @@ export function followCaretInPreview() {
     // Not while a pane is being scrolled by hand: that is the writer reading
     // somewhere the caret is not, and yanking the preview back is the opposite
     // of help.
-    if (scrollFloor && performance.now() < scrollFloor.until) return;
+    // A floor is a claim that somebody *else* is writing this pane right now —
+    // a linked scroll, usually. Dropping the follow outright used to leave the
+    // preview at whatever that other writer chose, which is a mirror rather than
+    // an answer; re-arming costs one more timer and lands the exact position once
+    // the claim expires (#211).
+    if (scrollFloor && performance.now() < scrollFloor.until) {
+      caretFollowTimer = window.setTimeout(() => followCaretInPreview(), 60);
+      return;
+    }
     const host = followedPreviewHost();
     if (!host) return;
     const view = runtime.view;

@@ -89,11 +89,11 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
       issue's own second note outlived its resolving test and is **#212**: seventeen test
       files read `main.ts` as text and nine of those fences go silently vacuous when the code
       moves. `installHooks` (188 lines) stays, deliberately.
-- [ ] #212 seventeen test files read `main.ts` as text, and nine of the fences go
-      silently vacuous when the code moves (measured: 17 files, 9 `notOk` fences). Technical
-      debt, filed out of #188's second note. The work is to make each fence's strength match
-      its claim: importable facts asserted by import, negative claims made whole-source, and
-      a new `test/fences.test.mjs` that fails when a text fence can no longer go red.
+- [x] #212 seventeen test files read `main.ts` as text, and the **absence** fences among
+      them go silently vacuous when the code moves. **Closed** (`80c3fd4`): the rule is now
+      *no test asserts a pattern is absent from `main.ts`* — absence is a claim about all of
+      `src/` (`test/source.mjs::nowhere`) — six fences converted, and `test/fences.test.mjs`
+      enforces it with an exemption list that can only shrink. Mutation-tested both ways.
 - [ ] #213 a 166 KB document of brackets costs two minutes of CPU: Typst's markup parse is
       quadratic (release: 10,000 stray `]` 0.49 s, 40,000 6.92 s, 160,000 126.96 s) and
       nothing here has a compile budget. Found while answering the stack question that

@@ -266,4 +266,59 @@ export async function run() {
     ok("plain: the reference reads as an attribution", toPlainText(verse).includes("    — דברים"), toPlainText(verse));
   }
 
+  // -------------------------------------- what separates two rows is not prose
+  //
+  // #217: the walk suppresses the characters *between* a container's children
+  // for `#רשימה`, because a comma and an indent there are the source's
+  // punctuation. `#רשימת_הגדרות` has no branch of its own — its rows are
+  // ordinary `הגדרה[…]` calls — so it fell through to the generic walk with
+  // nothing suppressed and exported the writer's commas: one `,` on a line of
+  // its own per separator. In Org, a line that is not an item ends a list, so a
+  // two-row definition list arrived as two one-item lists with a comma between
+  // them, and the shape #200 bought never hung together.
+  {
+    const definition = "#רשימת_הגדרות(\n  הגדרה[מונח א׳][ההסבר הראשון],\n  הגדרה[מונח ב׳][ההסבר השני],\n)";
+    for (const [name, out] of [
+      ["org", toOrg(definition)],
+      ["markdown", toMarkdown(definition)],
+      ["plain", toPlainText(definition)],
+    ]) {
+      notOk(
+        `${name}: no comma between the rows is exported`,
+        out.split("\n").some((l) => l.trim() === ","),
+        out,
+      );
+      notOk(
+        `${name}: …and the source's indent is not carried out either`,
+        /^[ \t]+(- |\*\*)/m.test(out),
+        out,
+      );
+    }
+    // The whole point of the row shape: in Org the rows have to be *consecutive*
+    // item lines or they are not one description list.
+    check(
+      "org: two rows are one description list, one line each",
+      toOrg(definition),
+      ["- מונח א׳ :: ההסבר הראשון", "- מונח ב׳ :: ההסבר השני", ""].join("\n"),
+    );
+    // Three rows, so the fence is about `between` rather than about the last
+    // row — which is where a comma survived in the one-row case.
+    check(
+      "org: and three rows are still one list",
+      toOrg("#רשימת_הגדרות(הגדרה[א][1], הגדרה[ב][2], הגדרה[ג][3])"),
+      ["- א :: 1", "- ב :: 2", "- ג :: 3", ""].join("\n"),
+    );
+    // The other direction: a comma the *writer* wrote, in prose between two
+    // commands, is the writer's and has to survive. Suppressing it would be the
+    // fence eating the document.
+    const prose = "נאמר #פסוק[א][ב], ואחר כך #פסוק[ג][ד].";
+    ok("a comma between two calls in prose is kept", toPlainText(prose).includes("א\n, ואחר כך"), toPlainText(prose));
+    // …and a comma inside one row's own body belongs to that row.
+    ok(
+      "a comma inside a row is kept",
+      toPlainText("#רשימת_הגדרות(הגדרה[מונח][א, ב])").includes("מונח — א, ב"),
+      toPlainText("#רשימת_הגדרות(הגדרה[מונח][א, ב])"),
+    );
+  }
+
 }

@@ -30,7 +30,7 @@
 // reaches the output.**
 
 import { resolveDeferred } from "./deferred";
-import { withAliases } from "./engine.gen";
+import { STRUCTURAL_CHILDREN, withAliases } from "./engine.gen";
 import { scan, type Node } from "./spans";
 
 // Every table below is keyed by the **Hebrew** name alone and expanded through
@@ -341,7 +341,24 @@ export function render(source: string, d: Dialect): string {
     return d.table(rows, cols, cells.some((c) => c.header));
   };
 
-  const walk = (from: number, to: number, listKind?: "bullet" | "number"): string => {
+  /**
+   * `between` says the characters *between* this range's children are the
+   * source's punctuation rather than the document's (#217).
+   *
+   * It started as `listKind !== undefined`, which is the same fact stated as a
+   * side effect of the list branch, and that spelling knew only about
+   * `#רשימה`. `#רשימת_הגדרות` has no branch of its own — its rows are ordinary
+   * `הגדרה[…]` calls — so it fell through to the generic walk with nothing
+   * suppressed and exported the commas between its rows: one `,` on a line of
+   * its own per separator, which in Org ends the list, so a two-row definition
+   * list arrived as two one-item lists with a comma in the gutter.
+   */
+  const walk = (
+    from: number,
+    to: number,
+    listKind?: "bullet" | "number",
+    between?: boolean,
+  ): string => {
     let out = "";
     let i = from;
     let itemIndex = 0;
@@ -372,7 +389,7 @@ export function render(source: string, d: Dialect): string {
         // export was checked for the thing it must never do and never once for
         // what it actually produces. Found by writing the same assertion for a
         // second format.
-        if (!listKind) out += src[i];
+        if (!listKind && !between) out += src[i];
         i++;
         continue;
       }
@@ -403,14 +420,14 @@ export function render(source: string, d: Dialect): string {
        * lists, a bold term over markdown — is a formatting question and is filed
        * separately; losing them was a data question.
        */
-      const inner = () =>
+      const inner = (between?: boolean) =>
         hasBody
           ? s.bodies
-              .map((b) => walk(b.from, b.to).trim())
+              .map((b) => walk(b.from, b.to, undefined, between).trim())
               .filter((t) => t !== "")
               .join(" ")
           : bodyFrom >= 0
-            ? walk(bodyFrom, bodyTo)
+            ? walk(bodyFrom, bodyTo, undefined, between)
             : "";
 
       if (DROPPED.has(s.name)) {
@@ -501,7 +518,15 @@ export function render(source: string, d: Dialect): string {
         // plain-text format can carry (colour, size, alignment, boxes),
         // structural wrappers, and — importantly — commands this converter has
         // never heard of, including ones the writer defined themselves.
-        out += inner();
+        //
+        // Except a container of *items* — which, once lists and tables are
+        // taken above, is `#רשימת_הגדרות`: the comma and the indent between two
+        // `הגדרה[…]` rows are the call's punctuation, not the writer's words
+        // (#217). Asked through the engine's structural-children table rather
+        // than a second table of names — the scrutinee is *the child's* name
+        // now, so a container added later is covered the day its rows are
+        // declared a child of it.
+        out += inner(s.children.some((c) => STRUCTURAL_CHILDREN[c.name]?.includes(s.name)));
       }
       i = end;
     }

@@ -418,6 +418,11 @@ export interface SeferDef {
   aliases: string[];
 }
 
+/** What `sefarim` answers: the catalogue, under the one key it travels in. */
+export interface SefarimAnswer {
+  sefarim: SeferDef[];
+}
+
 /**
  * One template, as `engine/src/templates.rs` shapes it.
  *
@@ -456,6 +461,18 @@ export interface SpellResult {
   /** Per language, so the interface can name what it is actually checking
    *  rather than repeat a claim the engine might not be able to keep. */
   lexicon_sizes?: { he: number; en: number };
+}
+
+/**
+ * What `suggest` answers: words near one the checker does not know.
+ *
+ * Its own interface rather than an inline one at the call site, because
+ * `wire.test.mjs` compares the engine's answer against a *declared* shape and
+ * an inline object type is not one it can find — the same reason `Told` and
+ * `Linkified` are named (`#225`).
+ */
+export interface Suggestions {
+  suggestions: string[];
 }
 
 /** A source that arrived from Girsa and is waiting for the cursor
@@ -721,6 +738,17 @@ export interface GitThis {
   kind: GitFile["kind"];
 }
 
+/** Who git will record as the author.
+ *
+ * Both halves or nothing: `identity()` answers `{name, email}` when it has both
+ * and `null` when it has either one alone, because a commit with half an
+ * identity fails at git's own door with a lecture instead of here with a form.
+ */
+export interface GitWho {
+  name: string;
+  email: string;
+}
+
 export interface GitStatus {
   ok: boolean;
   /** The installed git's version. `null` is answered when there is none, and
@@ -741,7 +769,15 @@ export interface GitStatus {
   /** Who git will record as the author, or `null` when it has not been told —
    *  which is worth asking, because the alternative is a first commit failing
    *  with git's own nine-line lecture about `user.email`. */
-  who?: { name: string; email: string } | null;
+  who?: GitWho | null;
+  /** Which files `files` covers: the document alone, or the whole repository.
+   *
+   * Echoed from the request because the request may not have named one —
+   * `gitui.ts` asks for `status` bare and the engine defaults to `file` — and a
+   * panel drawing a subset it cannot name would be lying about the repository.
+   * The `wire` test found it sent and undeclared (`#225`); it stays because a
+   * caller that asks both scopes has to tell the two answers apart. */
+  scope?: "file" | "repo";
   error?: string;
 }
 

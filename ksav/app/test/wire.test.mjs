@@ -217,6 +217,212 @@ const SEAM = [
     ts: "ClipboardSource",
     optional: [],
   },
+
+  // --------------------------------------------- the nine services #225 found
+  //
+  // Each of these is a service whose answer shape was declared on this side and
+  // compared to nothing at all: a key renamed in Rust reached the client as
+  // `undefined`, in one of three transports, and the whole suite stayed green.
+  // The rows are here so that cannot happen again, and `ANSWERS` below is what
+  // makes the *set* of them a claim rather than a memory.
+  {
+    what: "spell: every word the checker does not know, and how much it knows",
+    file: "spell/mod.rs",
+    at: '"misspellings": found,',
+    ts: "SpellResult",
+    optional: [],
+  },
+  {
+    what: "spell: one finding, positioned in UTF-16 code units",
+    file: "spell/mod.rs",
+    at: '"start": start,',
+    ts: "Misspelling",
+    // Added only when the caller asked for suggestions, so the absence is a
+    // claim about the answer and not a gap in the row.
+    optional: ["suggestions"],
+  },
+  {
+    what: "spell, when the request would not read",
+    file: "spell/mod.rs",
+    at: '"error": format!("malformed spell request',
+    ts: "Refusable",
+    optional: [],
+  },
+  {
+    what: "suggest: words near the one that was not recognised",
+    file: "spell/mod.rs",
+    at: '"suggestions": checker.suggest(word, limit)',
+    ts: "Suggestions",
+    optional: [],
+  },
+  {
+    what: "sefarim: the catalogue, under the one key it travels in",
+    file: "sefarim.rs",
+    at: '"sefarim": entries',
+    ts: "SefarimAnswer",
+    optional: [],
+  },
+  {
+    what: "sefarim: one sefer in it",
+    file: "sefarim.rs",
+    at: '"canonical": s.canonical',
+    ts: "SeferDef",
+    optional: [],
+  },
+  // Three answers that are not `json!` literals at all: `serde` serialises a
+  // struct, so the field *declarations* are the wire. Read as declarations, by
+  // the same rule — a field renamed in the struct is a field the client stops
+  // receiving, and no compiler here writes both sides.
+  {
+    what: "commands: the registry, as `Command` serialises",
+    file: "commands.rs",
+    struct: "Command",
+    ts: "CommandDef",
+    optional: [],
+  },
+  {
+    what: "templates: the registry, as `Template` serialises",
+    file: "templates.rs",
+    struct: "Template",
+    ts: "TemplateDef",
+    optional: [],
+  },
+  {
+    what: "inbox: the sources waiting for the cursor, as `Arrival` serialises",
+    file: "post.rs",
+    struct: "Arrival",
+    ts: "Arrival",
+    optional: [],
+  },
+  //
+  // ------------------------------------------------ git: eighteen operations
+  //
+  // `GitAnswer` is one superset shape: every operation's answer is a subset of
+  // it, because the refusal shape is shared and the drawer reads one type. So
+  // each row below claims *this answer sends exactly these keys* (`optional:
+  // "*"`) and the union rule below — every key the interface declares is sent
+  // by some answer — is what keeps the superset honest.
+  {
+    what: "git status, in a document outside any repository",
+    file: "git.rs",
+    at: '"root": serde_json::Value::Null,',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git status, in a repository",
+    file: "git.rs",
+    at: '"root": root.to_string_lossy()',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git status: the document itself",
+    file: "git.rs",
+    at: '"path": rel,',
+    ts: "GitThis",
+    optional: [],
+  },
+  {
+    what: "git status: who git will record as the author",
+    file: "git.rs",
+    at: '"name": name, "email": email',
+    ts: "GitWho",
+    optional: [],
+  },
+  {
+    what: "git log: an empty history",
+    file: "git.rs",
+    at: '"commits": []',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git log: the history",
+    file: "git.rs",
+    at: '"commits": read_log',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git log: one commit in the history",
+    file: "git.rs",
+    at: '"hash": f[0],',
+    ts: "GitCommit",
+    optional: [],
+  },
+  {
+    what: "git show: the document at a commit",
+    file: "git.rs",
+    at: '"text": r.out',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git: git did what it was asked and said so",
+    file: "git.rs",
+    at: '"said": r.message()',
+    every: true,
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git commit: the hash it made",
+    file: "git.rs",
+    at: '"hash": hash, "said": r.message()',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git: the operation finished and had nothing to say",
+    file: "git.rs",
+    at: '"ok": true })',
+    every: true,
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git branches: the list",
+    file: "git.rs",
+    at: '"branches": list',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git branches: one branch in it",
+    file: "git.rs",
+    at: '"name": f.first().copied()',
+    ts: "GitBranch",
+    optional: [],
+  },
+  {
+    what: "git merge: it merged",
+    file: "git.rs",
+    at: '"merged": true,',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git merge: it stopped on conflicts, which is not a failure",
+    file: "git.rs",
+    at: '"merged": false,',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git remotes: the list",
+    file: "git.rs",
+    at: '"remotes": list',
+    ts: "GitAnswer",
+    optional: "*",
+  },
+  {
+    what: "git remotes: one remote in it",
+    file: "git.rs",
+    at: '"name": name, "url": url',
+    ts: "GitRemote",
+    optional: [],
+  },
 ];
 
 /**
@@ -230,8 +436,90 @@ const SEAM = [
 const EXTRA_SENT = { CompileResult: ["error"] };
 
 /**
- * The keys of the `json!({ … })` literal containing the `nth` occurrence of
- * `at`, and where that literal starts.
+ * Which interface each service answers with — the list `wire.test.mjs` did not
+ * have, and the reason nine answers went unchecked (`#225`).
+ *
+ * Read as a claim by the fence in `run()`: **every service in the engine's
+ * registry** is named here or in `EXEMPT` with a reason, and every interface
+ * named here has a row above. Adding a service without a row is then a red
+ * test rather than an untested answer — the property `services.rs` gives the
+ * four transports, one level down.
+ */
+const ANSWERS = {
+  compile: ["CompileResult"],
+  assemble: ["AssembledSource"],
+  jump: ["Located"],
+  reveal: ["Revealed"],
+  places: ["Places"],
+  spell: ["SpellResult", "Misspelling", "Refusable"],
+  suggest: ["Suggestions"],
+  commands: ["CommandDef"],
+  templates: ["TemplateDef"],
+  sefarim: ["SefarimAnswer", "SeferDef"],
+  inbox: ["Arrival"],
+  linkify: ["Linkified"],
+  refresh: ["RefreshResult"],
+  "clipboard-source": ["ClipboardSource"],
+  "saved-here": ["Told"],
+  git: ["GitAnswer", "GitThis", "GitWho", "GitCommit", "GitBranch", "GitRemote"],
+};
+
+/**
+ * Services with no row above, and the instrument that fences them instead.
+ *
+ * Both entries are exemptions of *mechanism*, not of coverage: each names a
+ * fence that compares the two sides harder than this file could.
+ */
+const EXEMPT = {
+  scan:
+    "`tools/emit-scan-oracle.mjs` writes fixtures from the Rust scanner and " +
+    "`spans.scanWire` is compared to them value by value, which catches a " +
+    "renamed key as a failing object, not as an `undefined` at a call site",
+  mekoros:
+    "Girsa's own JSON, handed to the editor unchanged — `post.rs`'s own words: " +
+    "a shape re-described on the way through is a shape that drifts, so the " +
+    "change to make it wrong has to be made in Girsa and the fixture that " +
+    "catches it belongs there",
+};
+
+/**
+ * Literals in the swept files that are **not answers**, and why.
+ *
+ * The exhaustiveness fence below walks every `json!({` in a shipping file; a
+ * literal that is a question to somebody else is not an answer this file has
+ * anything to say about, and saying so is cheaper than a row that pretends to
+ * compare it.
+ */
+const NOT_ANSWERS = [
+  {
+    file: "post.rs",
+    at: '"phrase": phrase, "except": except',
+    why: "an errand to Girsa over the loopback, not an answer from the engine",
+  },
+  { file: "post.rs", at: '"phrase": phrase })', why: "an errand to Girsa, not an answer" },
+  { file: "post.rs", at: '"text": prose', why: "an errand to Girsa, not an answer" },
+];
+
+/**
+ * Declared keys that no row's literal sends, and the door that does send them.
+ *
+ * `error` is the shared refusal: every service that can refuse answers through
+ * `services::error_json`, whose literal has its own row above and whose
+ * interface is `CompileResult`. So a service whose *own* answers never carry one
+ * still declares it, deliberately — one shape for failure in all four builds.
+ */
+const DECLARED_ELSEWHERE = {
+  GitAnswer: ["error"],
+  Mekoros: ["error"],
+  // Added to the finding after the literal is built — `o["suggestions"] =
+  // serde_json::json!(…)` when the caller asked for them — so it is a key this
+  // answer really sends and one a `json!` reader cannot see.
+  Misspelling: ["suggestions"],
+};
+
+/**
+ * The `json!({ … })` literal containing the `nth` occurrence of `at`: its
+ * offsets and its top-level keys.
  *
  * `nth` because two literals really are identical: `clipboard-source` answers
  * `{"markup": null}` from three places — a packet that will not read, a build
@@ -240,7 +528,7 @@ const EXTRA_SENT = { CompileResult: ["error"] };
  * rows pointing at one fragment would look like coverage and be one literal
  * checked three times.
  */
-function keysAt(rust, at, nth = 0) {
+function literalAt(rust, at, nth = 0) {
   let found = -1;
   for (let i = 0; i <= nth; i += 1) {
     found = rust.indexOf(at, found + 1);
@@ -261,55 +549,164 @@ function keysAt(rust, at, nth = 0) {
       }
     }
   }
-  const body = rust.slice(opened, end);
-  keysAt.opened = opened;
   // Top-level keys only: a nested `{"severity": …}` inside `diagnostics` is
   // that array's business and has its own interface.
-  const out = [];
+  const keys = [];
   let level = 0;
-  for (const [, key, brace] of body.matchAll(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:|([{}])/gu)) {
+  for (const [, key, brace] of rust.slice(opened, end).matchAll(/"([A-Za-z_][A-Za-z0-9_]*)"\s*:|([{}])/gu)) {
     if (brace === "{") level += 1;
     else if (brace === "}") level -= 1;
-    else if (level === 1) out.push(key);
+    else if (level === 1) keys.push(key);
+  }
+  return { opened, end, keys };
+}
+let TS_API = "";
+let TS_GEN = "";
+
+/** The field names of one `export interface` in `api.ts` — or `engine.gen.ts`,
+ *  where the generated tables live (`TemplateDef` is re-exported from there). */
+function fieldsOf(ts, name) {
+  for (const body of [ts, TS_GEN]) {
+    const at = body.indexOf(`export interface ${name} {`);
+    if (at >= 0) {
+      const end = body.indexOf("\n}", at);
+      return [...body.slice(at, end).matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_]*)\??:/gmu)].map((m) => m[1]);
+    }
+    // An interface that extends another declares only what it adds.
+    const heir = new RegExp(`export interface ${name} extends ([A-Za-z_][A-Za-z0-9_]*) \\{`, "u").exec(body);
+    if (heir) {
+      const own = body.indexOf(heir[0]);
+      const end = body.indexOf("\n}", own);
+      const added = [...body.slice(own, end).matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_]*)\??:/gmu)].map((m) => m[1]);
+      return [...(fieldsOf(ts, heir[1]) ?? []), ...added];
+    }
+  }
+  return null;
+}
+
+/**
+ * The fields a `serde::Serialize` struct puts on the wire.
+ *
+ * The declaration *is* the wire for a struct — the same claim a `json!` literal
+ * makes — so the row kind `struct:` reads the declaration. `#[serde(rename = "x")]`
+ * is honoured because it renames the wire and not the field; a `skip` is
+ * dropped for the same reason.
+ */
+function structFields(rust, name) {
+  const at = rust.indexOf(`pub struct ${name} {`);
+  if (at < 0) return null;
+  const end = rust.indexOf("\n}", at);
+  const body = rust.slice(at, end);
+  const out = [];
+  let rename = null;
+  for (const line of body.split("\n")) {
+    const renamed = /^\s*#\[serde\(rename = "([A-Za-z_][A-Za-z0-9_]*)"\)\]/.exec(line);
+    if (renamed) {
+      rename = renamed[1];
+      continue;
+    }
+    if (/^\s*#\[(serde|doc)/.test(line)) continue;
+    const field = /^\s*pub ([a-z_][a-z0-9_]*):/.exec(line);
+    if (field) {
+      out.push(rename ?? field[1]);
+      rename = null;
+    }
   }
   return out;
 }
 
-/** The field names of one `export interface` in `api.ts`. */
-function fieldsOf(ts, name) {
-  const at = ts.indexOf(`export interface ${name} {`);
-  if (at < 0) return null;
-  const end = ts.indexOf("\n}", at);
-  const body = ts.slice(at, end);
-  return [...body.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_]*)\??:/gmu)].map((m) => m[1]);
+/** Every offset `at` appears at, in shipping code only. */
+function allAt(rust, at) {
+  const out = [];
+  let found = -1;
+  for (;;) {
+    found = rust.indexOf(at, found + 1);
+    if (found < 0) return out;
+    out.push(found);
+  }
+}
+
+/**
+ * The files whose every `json!({` literal must be accounted for.
+ *
+ * The three this file began with, plus the five `#225` added. `scan.rs` is here
+ * by *exemption* rather than omission: its answer shape is fenced value by value
+ * by the scan oracle, which is a stronger comparison than a key list.
+ */
+const SWEPT = [
+  "lib.rs",
+  "jump.rs",
+  "services.rs",
+  "git.rs",
+  "post.rs",
+  "sefarim.rs",
+  "spell/mod.rs",
+];
+
+/** Shipping code of one engine file: everything before its first test module. */
+function shippingOf(body) {
+  const tests = body.indexOf("\n#[cfg(test)]");
+  return tests === -1 ? body : body.slice(0, tests);
 }
 
 export async function run() {
-  const rust = {
-    "lib.rs": await readFile(path.join(ENGINE, "lib.rs"), "utf8"),
-    "jump.rs": await readFile(path.join(ENGINE, "jump.rs"), "utf8"),
-    "services.rs": await readFile(path.join(ENGINE, "services.rs"), "utf8"),
-  };
-  const ts = await readFile(path.join(SRC, "api.ts"), "utf8");
+  TS_API = await readFile(path.join(SRC, "api.ts"), "utf8");
+  TS_GEN = await readFile(path.join(SRC, "engine.gen.ts"), "utf8");
 
-  ok("the seam is stated", SEAM.length >= 17, `${SEAM.length} response shapes`);
+  const cache = new Map();
+  const rust = async (file) => {
+    if (!cache.has(file)) {
+      cache.set(file, await readFile(path.join(ENGINE, file), "utf8"));
+    }
+    return cache.get(file);
+  };
+
+  ok("the seam is stated", SEAM.length >= 37, `${SEAM.length} response shapes`);
 
   const declaredIn = new Map();
   const covered = new Set();
+  /** Every key some row sends, per interface — the union rule's input. */
+  const sentByTs = new Map();
   for (const row of SEAM) {
-    const sent = keysAt(rust[row.file], row.at, row.nth ?? 0);
-    const opened = keysAt.opened;
-    covered.add(`${row.file}:${opened}`);
-    ok(`${row.what}: the literal is where the seam says`, sent !== null, `${row.file}`);
+    const body = await rust(row.file);
+    // Two row kinds: a `json!` literal, and a serialised struct's declaration.
+    let sent;
+    if (row.struct) {
+      sent = structFields(shippingOf(body), row.struct);
+      ok(`${row.what}: the struct is where the seam says`, sent !== null, `${row.file}`);
+    } else if (row.every) {
+      // One shape from several places — `{"ok": true}` is four operations'
+      // answer and one sentence. Every occurrence is checked, and every
+      // occurrence is *covered*, so "covered by offset" stays honest.
+      const spots = allAt(shippingOf(body), row.at);
+      ok(`${row.what}: the literal is where the seam says`, spots.length > 0, `${row.file}`);
+      if (spots.length === 0) continue;
+      sent = [];
+      for (let i = 0; i < spots.length; i += 1) {
+        const found = literalAt(shippingOf(body), row.at, i);
+        if (!found) continue;
+        covered.add(`${row.file}:${found.opened}`);
+        sent.push(...found.keys);
+      }
+    } else {
+      const found = literalAt(body, row.at, row.nth ?? 0);
+      sent = found ? found.keys : null;
+      if (found) covered.add(`${row.file}:${found.opened}`);
+      ok(`${row.what}: the literal is where the seam says`, sent !== null, `${row.file}`);
+    }
     if (!sent) continue;
 
     let read = declaredIn.get(row.ts);
     if (!read) {
-      read = fieldsOf(ts, row.ts);
+      read = fieldsOf(TS_API, row.ts);
       declaredIn.set(row.ts, read);
     }
     ok(`${row.ts} is an interface in api.ts`, read !== null, row.ts);
     if (!read) continue;
+
+    const union = sentByTs.get(row.ts) ?? new Set();
+    for (const key of sent) union.add(key);
+    sentByTs.set(row.ts, union);
 
     const allowed = new Set([...read, ...(EXTRA_SENT[row.ts] ?? [])]);
     const undeclared = sent.filter((key) => !allowed.has(key));
@@ -319,24 +716,49 @@ export async function run() {
       undeclared.length ? `not on ${row.ts}: ${undeclared.join(", ")}` : row.ts,
     );
 
-    const missing = read.filter((key) => !sent.includes(key) && !row.optional.includes(key));
-    ok(
-      `${row.what}: and everything ${row.ts} declares is sent`,
-      missing.length === 0,
-      missing.length ? `declared and absent: ${missing.join(", ")}` : "all sent",
-    );
+    // `optional: "*"` is not a skip list either; it is the claim the row makes
+    // when the interface is a *superset* by design — `GitAnswer` is one shape
+    // for eighteen operations — and the union rule below is then the only
+    // honest way to state the other direction.
+    if (row.optional !== "*") {
+      const missing = read.filter((key) => !sent.includes(key) && !row.optional.includes(key));
+      ok(
+        `${row.what}: and everything ${row.ts} declares is sent`,
+        missing.length === 0,
+        missing.length ? `declared and absent: ${missing.join(", ")}` : "all sent",
+      );
 
-    // The `optional` list is a claim, not a skip list: a key named there that
-    // *is* sent means the claim went stale and the row should stop making it.
-    const wrong = row.optional.filter((key) => sent.includes(key));
+      // The `optional` list is a claim, not a skip list: a key named there that
+      // *is* sent means the claim went stale and the row should stop making it.
+      const wrong = row.optional.filter((key) => sent.includes(key));
+      ok(
+        `${row.what}: and nothing claimed absent is present`,
+        wrong.length === 0,
+        wrong.length ? `claimed optional and sent: ${wrong.join(", ")}` : "as claimed",
+      );
+    }
+  }
+
+  // Every key an interface declares is sent by *some* answer of that shape.
+  //
+  // The clause the header above has always stated, now enforced once for the
+  // whole seam instead of row by row — which is what makes `optional: "*"`
+  // honest: a declared key nobody sends is a field the editor waits for and
+  // never gets, whatever any single row claims about its own answer.
+  for (const [ts, union] of sentByTs) {
+    const read = declaredIn.get(ts);
+    if (!read) continue;
+    const elsewhere = new Set([...(EXTRA_SENT[ts] ?? []), ...(DECLARED_ELSEWHERE[ts] ?? [])]);
+    const missing = read.filter((key) => !union.has(key) && !elsewhere.has(key));
     ok(
-      `${row.what}: and nothing claimed absent is present`,
-      wrong.length === 0,
-      wrong.length ? `claimed optional and sent: ${wrong.join(", ")}` : "as claimed",
+      `${ts}: every key it declares is sent by some answer`,
+      missing.length === 0,
+      missing.length ? `declared and never sent: ${missing.join(", ")}` : `${union.size} keys`,
     );
   }
 
-  // Every response literal in the three files is covered by a row above.
+  // Every response literal in the swept files is covered by a row above, or is
+  // named in `NOT_ANSWERS` with a reason.
   //
   // By **offset**, not by count: two rows pointing at one literal would look
   // like coverage and be one literal checked twice. Without this the seam is
@@ -345,20 +767,60 @@ export async function run() {
   // other side of this comparison, before Girsa wrote its version of this file.
   {
     const uncovered = [];
-    for (const [file, body] of Object.entries(rust)) {
-      // Response literals only: the ones under `#[cfg(test)]` are fixtures.
-      const tests = body.indexOf("\n#[cfg(test)]");
-      const shipping = tests === -1 ? body : body.slice(0, tests);
+    let literals = 0;
+    for (const file of SWEPT) {
+      const shipping = shippingOf(await rust(file));
+      // The literals that are questions rather than answers, resolved to the
+      // literal each sits inside — so the excuse is one literal and not every
+      // literal that happens to share a fragment.
+      const excused = new Set(
+        NOT_ANSWERS.filter((n) => n.file === file)
+          .map((n) => literalAt(shipping, n.at, 0)?.opened)
+          .filter((opened) => opened !== undefined),
+      );
       for (const m of shipping.matchAll(/json!\(\{/gu)) {
-        if (!covered.has(`${file}:${m.index}`)) {
-          uncovered.push(`${file}:${shipping.slice(0, m.index).split("\n").length}`);
-        }
+        literals += 1;
+        if (covered.has(`${file}:${m.index}`) || excused.has(m.index)) continue;
+        uncovered.push(`${file}:${shipping.slice(0, m.index).split("\n").length}`);
       }
     }
     ok(
       "every response literal the engine ships has a row here",
       uncovered.length === 0,
-      uncovered.length ? `no row for: ${uncovered.join(", ")}` : `${covered.size} literals`,
+      uncovered.length ? `no row for: ${uncovered.join(", ")}` : `${literals} literals, ${covered.size} rows`,
+    );
+  }
+
+  // ------------------------------- every service is either covered or exempt
+  //
+  // The registry is the engine's own list (`SERVICES` in `services.rs`), read
+  // here rather than restated, so a nineteenth service cannot arrive without
+  // either a row above or a written reason it needs none. This is the check
+  // whose absence let nine answers go compared to nothing (`#225`).
+  {
+    const registry = await rust("services.rs");
+    const names = [...registry.matchAll(/^ *svc\("([a-z-]+)"/gmu)].map((m) => m[1]);
+    ok("the engine's service registry was read", names.length >= 18, `${names.length} services`);
+
+    const checked = new Set();
+    for (const row of SEAM) if (row.ts) checked.add(row.ts);
+    const uncovered = names.filter(
+      (name) => !(name in EXEMPT) && !(ANSWERS[name] ?? []).every((ts) => checked.has(ts)),
+    );
+    ok(
+      "every service the engine answers has a row, or a written reason it needs none",
+      uncovered.length === 0,
+      uncovered.length ? `no row and no exemption: ${uncovered.join(", ")}` : `${names.length} services`,
+    );
+
+    // And the other direction: a name in either table that the registry does
+    // not carry is a row about a service that no longer exists, which reads as
+    // coverage and is not.
+    const stale = [...Object.keys(ANSWERS), ...Object.keys(EXEMPT)].filter((n) => !names.includes(n));
+    ok(
+      "and nothing is claimed about a service the registry does not have",
+      stale.length === 0,
+      stale.length ? `not in the registry: ${stale.join(", ")}` : "all present",
     );
   }
 }

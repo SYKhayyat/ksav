@@ -45,6 +45,8 @@ import type {
   Sources,
   SpellResult,
   SeferDef,
+  SefarimAnswer,
+  Suggestions,
   TemplateDef,
   Told,
 } from "./api";
@@ -265,7 +267,7 @@ abstract class ServiceClient {
     userWords: string,
     hebrew?: { modern: boolean; rabbinic: boolean },
   ): Promise<string[]> {
-    const out = await this.ask<{ suggestions?: string[] }>("suggest", {
+    const out = await this.ask<Suggestions>("suggest", {
       word,
       user_words: userWords,
       ...(hebrew ? { hebrew } : {}),
@@ -284,7 +286,7 @@ abstract class ServiceClient {
   }
 
   async sefarim(): Promise<SeferDef[]> {
-    return (await this.ask<{ sefarim?: SeferDef[] }>("sefarim")).sefarim ?? [];
+    return (await this.ask<SefarimAnswer>("sefarim")).sefarim ?? [];
   }
 
   async templates(): Promise<TemplateDef[]> {

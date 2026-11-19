@@ -383,6 +383,20 @@ export interface CompileResult {
  * `compilecache.ts`. */
 
 
+/**
+ * The compile answer **as the engine sends it**, before the client expands it.
+ *
+ * `pages_svg` carries a `null` for every page the client said it already holds
+ * (`have_pages`), so `(string | null)[]` is the wire and `string[]` is what a
+ * caller sees — `compilecache` fills the holes from its own copy by
+ * `pages_hash[i]` and answers `CompileResult`. Declaring the wire as `string[]`
+ * and casting at the one reader was the one `as unknown as` in `src/` that
+ * described a shape the engine really sends (`#221`).
+ */
+export interface WireCompileResult extends Omit<CompileResult, "pages_svg"> {
+  pages_svg: (string | null)[];
+}
+
 export interface CommandDef {
   he: string;
   en: string;
@@ -1101,6 +1115,38 @@ export function sourcesOf(b: Backend | undefined): Sources | null {
   // A browser tab has no loopback, and no amount of duck-typing changes that.
   if (SERVICE.inbox.nativeOnly && s.kind === "wasm") return null;
   return s as Sources;
+}
+
+/**
+ * The writer's dictionary as a **file**, and how to write it back (B29).
+ *
+ * The second capability that only one build has, and the second one the editor
+ * used to discover by duck-typing — `typeof (backend as { dictionary?: …
+ * }).dictionary`, with the answer's shape written out inline a second time.
+ * `main.ts` then re-declared what `TauriBackend` already answers, which is how a
+ * capability acquires two spellings and no contract (`#221`).
+ *
+ * It is not a service and cannot be one: it reads a path. A browser tab has no
+ * filesystem to put a dictionary in, so the capability is the build's, exactly
+ * like `Sources` — a caller asks `dictionaryOf(backend)` and gets `null`.
+ */
+export interface KeptDictionary {
+  /** The file as it stands, or `""` when there is no file yet. */
+  text: string;
+  /** Write it back. Rejects rather than resolving on a failed write. */
+  write: (text: string) => Promise<void>;
+  /** Where it lives, for the notice that says the words came across. */
+  where: string;
+}
+
+export interface Dictionary {
+  dictionary(): Promise<KeptDictionary>;
+}
+
+/** The dictionary half of a backend, or `null` if this one keeps none. */
+export function dictionaryOf(b: Backend | undefined): Dictionary | null {
+  const d = b as (Backend & Partial<Dictionary>) | undefined;
+  return d && typeof d.dictionary === "function" ? (d as Dictionary) : null;
 }
 
 /** The three transports and the shared parse helpers under them —

@@ -621,11 +621,14 @@ export async function reflowableHtml(): Promise<{ html: string | null; why: stri
   if (!backend) return { html: null, why: "" };
   try {
     const body = withPreamble(runtime.docText()).body;
-    const res = (await backend.compile(body, docConfig(), {
+    // No cast: `Backend.compile` already answers `CompileResult`, and writing a
+    // smaller one out by hand here made this the one reader of the compile
+    // answer that `wire.test.mjs` could not see (`#221`).
+    const res: CompileResult = await backend.compile(body, docConfig(), {
       ...docs.requestAssets(runtime.currentDoc?.assets ?? []),
       parts: await includedParts(body),
       format: "html",
-    })) as unknown as { ok: boolean; html?: string; diagnostics?: { message: string }[] };
+    });
     if (res.ok && res.html) return { html: res.html, why: "" };
     return { html: null, why: res.diagnostics?.[0]?.message ?? "" };
   } catch (e) {

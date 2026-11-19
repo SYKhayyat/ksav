@@ -33,6 +33,8 @@ import type {
   CompileResult,
   DocConfig,
   GitAnswer,
+  Dictionary,
+  KeptDictionary,
   Linkified,
   Located,
   Mekoros,
@@ -49,6 +51,7 @@ import type {
   Suggestions,
   TemplateDef,
   Told,
+  WireCompileResult,
 } from "./api";
 import { NO_ASSETS, type RequestAssets } from "./api";
 import { hydrateScan, type ScanWire } from "./spans";
@@ -722,7 +725,7 @@ export class WasmBackend extends ServiceClient implements Backend {
               timeoutMs: compileDeadlineMs(),
               background: opts.background,
             }),
-          ) as CompileResult,
+          ) as WireCompileResult,
         assets,
       );
     } catch (e) {
@@ -747,7 +750,7 @@ export class WasmBackend extends ServiceClient implements Backend {
 }
 
 /** Runs the engine in-process inside the Tauri desktop app (no HTTP). */
-export class TauriBackend extends ServiceClient implements Backend, Sources {
+export class TauriBackend extends ServiceClient implements Backend, Sources, Dictionary {
   readonly kind = "desktop";
   private cache = new CompileCache();
   private invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<string>) | null = null;
@@ -780,7 +783,7 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
    * do is stop the list living inside one browser profile — where it was invisible
    * to this app and gone the day that profile was cleared.
    */
-  async dictionary(): Promise<{ text: string; write: (text: string) => Promise<void>; where: string }> {
+  async dictionary(): Promise<KeptDictionary> {
     const invoke = await this.inv();
     const [text, where] = await Promise.all([
       invoke("ksav_dictionary_read"),
@@ -803,7 +806,7 @@ export class TauriBackend extends ServiceClient implements Backend, Sources {
   async compile(body: string, cfg: DocConfig, assets = NO_ASSETS): Promise<CompileResult> {
     const run = this.cache.compile(
       async (extra) =>
-        JSON.parse(await this.call("compile", JSON.stringify({ body, ...cfg, ...extra }))) as CompileResult,
+        JSON.parse(await this.call("compile", JSON.stringify({ body, ...cfg, ...extra }))) as WireCompileResult,
       assets,
     );
     // Typst cannot be interrupted, and the in-process compile runs off the UI

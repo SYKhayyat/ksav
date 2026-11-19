@@ -1108,6 +1108,32 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
 
   let w = windows.get(host);
   if (!w) {
+    // Built before the record it goes into, so the record never holds a null in
+    // a field the rest of the file uses without asking — the placeholder cast
+    // that stood here was a lie the type checker could not see (`#221`).
+    const pagesReconciler = keyedReconciler<PageModel, string, HTMLElement>({
+      key: (model) => model.key,
+      equal: (previous, next) =>
+        previous.key === next.key &&
+        previous.page === next.page &&
+        previous.hash === next.hash &&
+        previous.index === next.index &&
+        previous.aspect === next.aspect &&
+        previous.hidden === next.hidden,
+      create: (_model, _index, parent) => {
+        parent.insertAdjacentHTML("beforeend", '<div class="page"></div>');
+        const node = parent.lastElementChild as HTMLElement;
+        w!.observer?.observe(node);
+        return node;
+      },
+      update: (node, model, previousModel) => {
+        if (model.hash !== previousModel.hash) w!.changed.add(node);
+        node.dataset.page = String(model.index);
+        node.style.aspectRatio = model.aspect;
+        node.hidden = model.hidden;
+      },
+      remove: (node) => w!.observer?.unobserve(node),
+    });
     w = {
       pages,
       hashes,
@@ -1116,7 +1142,7 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
       showing: [],
       keys: [],
       nextKey: 0,
-      pagesReconciler: null as unknown as KeyedReconciler<PageModel, HTMLElement>,
+      pagesReconciler,
       changed: new Set(),
       observer: null,
       near: new Set(),
@@ -1155,29 +1181,6 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
       },
       { root: host, rootMargin: KEEP_MARGIN },
     );
-    w.pagesReconciler = keyedReconciler<PageModel, string, HTMLElement>({
-      key: (model) => model.key,
-      equal: (previous, next) =>
-        previous.key === next.key &&
-        previous.page === next.page &&
-        previous.hash === next.hash &&
-        previous.index === next.index &&
-        previous.aspect === next.aspect &&
-        previous.hidden === next.hidden,
-      create: (_model, _index, parent) => {
-        parent.insertAdjacentHTML("beforeend", '<div class="page"></div>');
-        const node = parent.lastElementChild as HTMLElement;
-        w!.observer?.observe(node);
-        return node;
-      },
-      update: (node, model, previousModel) => {
-        if (model.hash !== previousModel.hash) w!.changed.add(node);
-        node.dataset.page = String(model.index);
-        node.style.aspectRatio = model.aspect;
-        node.hidden = model.hidden;
-      },
-      remove: (node) => w!.observer?.unobserve(node),
-    });
     windows.set(host, w);
   }
 

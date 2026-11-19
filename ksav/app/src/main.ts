@@ -51,6 +51,7 @@ import { keybindings } from "./keyhint";
 //   boot(), and the header bar (its three main-locals are the settings
 //     machinery wave 6 held — see #147's record) — the recipe for how the
 //     whole app is assembled.
+import { dictionaryOf } from "./api";
 import * as runtime from "./runtime";
 import { setStatus, closeMenus, editDoc } from "./runtime";
 import { docTextNow, wireChrome } from "./ribbon";
@@ -1406,14 +1407,13 @@ async function fetchRegistries(): Promise<boolean> {
  * behind it, so the worst case is the behaviour Ksav has always had.
  */
 async function adoptDictionary(): Promise<void> {
-  const backend = runtime.backend;
-  if (!backend || typeof (backend as { dictionary?: unknown }).dictionary !== "function") return;
+  // The capability, asked once in one place (`api.ts`) rather than probed here
+  // with two casts — a build's answer to "is there a dictionary file" is a
+  // contract, not a duck-typing accident (`#221`).
+  const keptFile = dictionaryOf(runtime.backend);
+  if (!keptFile) return;
   try {
-    const kept = await (
-      backend as unknown as {
-        dictionary: () => Promise<{ text: string; write: (t: string) => Promise<void>; where: string }>;
-      }
-    ).dictionary();
+    const kept = await keptFile.dictionary();
     const moved = spell.keepDictionaryIn(kept.text, (next) =>
       kept.write(next).catch((e: unknown) => {
         const bad = troubleSaid(e, "save_file");

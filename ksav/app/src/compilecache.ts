@@ -15,11 +15,7 @@
 // This file refuses to answer for: which services talk to which routes
 // (transports.ts), or the scan memo the lints share (scanmemo.ts).
 
-import type { CompileResult, RequestAsset, RequestAssets } from "./api";
-
-/** One slot per page the engine reports: a string, or `null` for a page this
- *  client still holds (and the engine therefore leaves out of the answer). */
-type WirePages = (string | null)[];
+import type { CompileResult, RequestAsset, RequestAssets, WireCompileResult } from "./api";
 
 /**
  * The rendered pages this client is holding, by fingerprint.
@@ -72,10 +68,16 @@ class PageStore {
    * actually here. The caller asks again for the whole document rather than
    * showing a gap, which is the one thing this must never do.
    */
-  expand(res: CompileResult): CompileResult | null {
-    if (!Array.isArray(res.pages_svg)) return res; // an html export carries none
-    const wire = res.pages_svg as unknown as WirePages;
-    if (!res.pages_hash) return res; // an engine that does not name its pages
+  expand(res: WireCompileResult): CompileResult | null {
+    if (!Array.isArray(res.pages_svg)) return res as CompileResult; // an html export carries none
+    const wire = res.pages_svg;
+    if (!res.pages_hash) {
+      // A hole and no hashes to fill it from — an engine older than `have_pages`
+      // cannot be in this state, but the answer if it ever is that a page is
+      // missing is to ask again rather than draw a gap.
+      if (wire.some((p) => p === null)) return null;
+      return { ...res, pages_svg: wire as string[] };
+    }
     const pages: string[] = [];
     for (let i = 0; i < wire.length; i++) {
       const own = wire[i];
@@ -137,7 +139,7 @@ export class CompileCache {
    * one is how a cache turns a saving into a hang.
    */
   async compile(
-    send: (payload: Record<string, unknown>) => Promise<CompileResult>,
+    send: (payload: Record<string, unknown>) => Promise<WireCompileResult>,
     assets: RequestAssets,
   ): Promise<CompileResult> {
     const first = this.prepare(assets);

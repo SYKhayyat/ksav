@@ -29,6 +29,43 @@ everyone else. Linux packaging stays distro-neutral, with no Nix-only paths.
 Clear these before any milestone work. The older ledger, with the reasons each
 item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
+### The 2026-11-19 audit — filed straight to the top
+
+Seven findings, each measured rather than read, and each with a mechanism
+(the audit's own rule: a fence or a type, not a sweep). They sit above the two
+standing debts because they are *this* tree's shape today, not a pay-condition
+waiting on a feature.
+
+- [ ] **#225** the wire comparator covers 11 of 18 services; `spell`, `inbox` and
+      `git` have **no** fence at all. 19 SEAM rows, hand-kept, against a registry
+      of 18. Land this **before** #215's envelope, so the change that edits every
+      answer shape is measured by a complete comparator.
+- [ ] **#215** four services answer a failure in three different wire shapes and
+      nothing on the wire says which. Claimed; the fix is a `Reply` type whose only
+      constructors are `ok(payload)`/`fail(message)`, so a new service *cannot*
+      answer in its own shape.
+- [ ] **#218** one compile at sefer size costs **3.4 s** (634 KB, 258 pages, warm,
+      over the loopback) and nothing measures the curve. Fence first: ms/page at
+      three real sizes with a stated ceiling.
+- [ ] **#219** the pane refresh costs **86 ms** of main thread per 200 ms of typing
+      at 634 KB (scan 55.3 ms + `notesIn` 30.8 ms), and the panes call `spans.scan`
+      locally while `scanmemo` already routes to the wasm worker.
+- [ ] **#220** 52 `catch` blocks discard the error and answer a default, and no
+      rule tells the good ones from the swallowed bugs. A `// silent: <why>` marker
+      per block with a whole-tree fence and an asserted count.
+- [ ] **#221** the compile answer re-declared in a cast (`compile.ts:628`) that
+      `wire.test.mjs` cannot see, and `dictionary()` duck-typed because no interface
+      declares it. A cast fence over `src/` with the 14 named and reasoned.
+- [ ] **#222** `engine/src/lib.rs` is 6,231 lines and 160 items across three
+      concerns — the file the app's own split (#22/#188) would have been made from.
+- [ ] **#223** eight exported values have no caller at all, 45 more are test-only,
+      and no fence holds the class.
+- [ ] **#224** the TypeScript tree has no linter while Rust runs `clippy -D warnings`;
+      22 fire-and-forget promises and 14 `as unknown as` casts are exactly what a
+      linter sees and `tsc` cannot.
+
+### Standing, waiting on their pay condition
+
 - [ ] #163 multi-preview sync.
 - [ ] #164 the `e.code` / `e.key` split.
 - [x] **#208** the speller does not know 117 Hebrew words the interface itself

@@ -10929,3 +10929,39 @@ with its children. Mutation-tested in both, because a fuzz test that cannot go
 red is a fuzz test that says nothing.
 
 — B
+
+## 2026-11-19 · the first debt audit, files to the top
+
+Two issues from the earlier sittings closed and one filed, then an audit of the
+tree's debt measured rather than read — seven issues, filed straight to the top
+of PLAN.md's debt list (#218–#225), each with its number in the measurement.
+
+**Closed:** #200 (definition/verse exports keep their two halves — verified by
+running the built modules, `cd89d3e`; the one residue found while verifying,
+a definition list exporting its own commas, became **#217** and was fixed in
+`c5d25fe` with ten assertions, three mutants, full gate green at 14,057).
+
+**Filed, all measured:**
+
+- **#218** — one compile at sefer size is 3.4 s (634 KB → 258 pp, warm, over
+  the loopback); nothing fences the curve, so nothing can see it regress.
+- **#219** — the pane refresh is 86 ms of main thread per 200 ms of typing at
+  634 KB (`npm run bench`), and the panes call `spans.scan` locally while
+  `scanmemo` already knows how to route to the wasm worker.
+- **#220** — 52 `catch` blocks discard the error and answer a default; no rule,
+  no fence; `save.ts`'s background path is the one a comment excuses.
+- **#221** — `compile.ts:628` re-declares the compile answer in an
+  `as unknown as` cast (invisible to `wire.test.mjs`), and
+  `main.ts:1413` duck-types `dictionary()` because no interface declares it.
+- **#222** — `engine/lib.rs` is 6,231 lines and 160 items across three
+  concerns; the app's split (#22/#188) never reached the engine.
+- **#223** — eight exported values have no caller at all; 45 more are test-only.
+- **#224** — the TS tree has no linter while Rust runs `clippy -D warnings`.
+- **#225** — the wire comparator covers 11 of 18 services; `spell`, `inbox`,
+  `git` have no fence at all, and #215 is about to rewrite every one of those
+  shapes — so #225 lands before #215.
+
+#215 is claimed (the `Reply`-type fix) and sits second in the debt list, behind
+#225, which is its regression net. HANDOFF.md is one sitting stale.
+
+— B

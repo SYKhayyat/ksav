@@ -148,8 +148,15 @@ impl Rng {
         self.0 >> 33
     }
 
-    fn pick<'a, T>(&mut self, from: &'a [T]) -> &'a T {
-        &from[(self.next() as usize) % from.len()]
+    /// One of `from`, by index.
+    ///
+    /// `?Sized`, because every caller passes a slice of `&str`: the element it
+    /// hands back is a string, and a `Sized` bound would force the compiler to
+    /// infer `T = str` and refuse. It was written `T` and the whole test target
+    /// stopped compiling (#215's corpus landed with it) — which nothing noticed,
+    /// because only the file was ever run by name.
+    fn pick<'a, T: ?Sized>(&mut self, from: &'a [&'a T]) -> &'a T {
+        from[(self.next() as usize) % from.len()]
     }
 
     fn upto(&mut self, n: usize) -> usize {

@@ -112,7 +112,7 @@ export function wirePaneDrag(pane: panes.Leaf, head: HTMLElement) {
         try {
           head.setPointerCapture(m.pointerId);
         } catch {
-          /* the pointer is gone; the window listeners still finish the drag */
+          /* silent: the pointer is gone; the window listeners still finish the drag */
         }
         document.body.classList.add("dragging-pane");
       }

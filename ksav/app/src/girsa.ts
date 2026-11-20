@@ -557,7 +557,7 @@ export function installGirsaPoll(): void {
     try {
       arrived = await takeArrivals();
     } catch {
-      // A poll that throws is the same as an empty one; do not stop the loop.
+      // silent: a poll that throws is the same as an empty one; do not stop the loop.
     } finally {
       pollBusy = false;
     }

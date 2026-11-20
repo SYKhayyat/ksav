@@ -114,6 +114,8 @@ export function userTemplates(): UserTemplate[] {
   try {
     return JSON.parse(localStorage.getItem("ksav.userTemplates") || "[]");
   } catch {
+    // silent: templates this build cannot parse are no user templates, and the
+    // built-in set still stands.
     return [];
   }
 }

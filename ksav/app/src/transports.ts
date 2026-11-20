@@ -210,6 +210,9 @@ abstract class ServiceClient {
         await this.ask("jump", { body, ...cfg, ...assets, ...at }, { timeoutMs: compileDeadlineMs() }),
       );
     } catch {
+      // silent: null is the contract's answer for "not located", the same one an
+      // engine that answered without a spot gives. The preview leaves the click
+      // where the writer put it rather than moving it somewhere wrong.
       return null;
     }
   }
@@ -221,6 +224,8 @@ abstract class ServiceClient {
         await this.ask("reveal", { body, ...cfg, ...assets, ...at }, { timeoutMs: compileDeadlineMs() }),
       );
     } catch {
+      // silent: no positions is the contract's answer for "nothing to highlight",
+      // and the preview clears the highlight it was holding.
       return [];
     }
   }
@@ -236,6 +241,8 @@ abstract class ServiceClient {
         await this.ask("places", { body, ...cfg, ...assets, ...at }, { timeoutMs: compileDeadlineMs() }),
       );
     } catch {
+      // silent: the empty Places, carrying the spot's own line, is the contract's
+      // answer — the panes show nothing placed rather than placing it by guess.
       return { places: [], first: null, file: null, line: at.line };
     }
   }
@@ -326,7 +333,7 @@ abstract class ServiceClient {
       // rather than the source. See `post.rs::drain`.
       return await this.ask("inbox", { took }, { background: true });
     } catch {
-      // The editor polls this every second; a build with no Girsa half, or a
+      // silent: the editor polls this every second; a build with no Girsa half, or a
       // server that went away, is a thing to stop asking about quietly rather
       // than to shout about in the console.
       return [];
@@ -851,7 +858,7 @@ export async function createBackend(): Promise<Backend & Partial<Sources>> {
     const res = await fetch(SERVICE_PATH.commands, { signal: AbortSignal.timeout(800) });
     if (res.ok) return new HttpBackend();
   } catch {
-    /* no server — fall through to wasm if this build includes it */
+    /* silent: no server — fall through to wasm if this build includes it */
   }
   if (__WASM__) return new WasmBackend();
   return new HttpBackend();

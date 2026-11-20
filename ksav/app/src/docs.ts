@@ -209,6 +209,8 @@ function readJson<T>(key: string, fallback: T): T {
     const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
+    // silent: a key this build cannot read answers the caller's fallback rather than
+    // throwing out of a boot path. Nothing is lost that the fallback does not name.
     return fallback;
   }
 }
@@ -268,7 +270,7 @@ function writeIndex() {
   try {
     localStorage.setItem(LIBRARY_KEY, JSON.stringify(index));
   } catch {
-    /* the index is rebuildable; see init() */
+    /* silent: the index is rebuildable; see init() */
   }
 }
 
@@ -418,7 +420,7 @@ export function setCurrentId(id: string): void {
   try {
     localStorage.setItem(CURRENT_KEY, id);
   } catch {
-    /* which document was open is a nicety; the documents themselves are not */
+    /* silent: which document was open is a nicety; the documents themselves are not */
   }
 }
 
@@ -605,7 +607,7 @@ async function migrateFromLocalStorage(): Promise<void> {
       await store.put(DOCS, doc.id, { ...doc, assets: doc.assets ?? [] });
       localStorage.removeItem(key);
     } catch {
-      // Out of room in the new store too — leave the old copy where it is
+      // silent: out of room in the new store too — leave the old copy where it is
       // rather than deleting the only copy that exists.
     }
   }
@@ -623,7 +625,7 @@ async function migrateFromLocalStorage(): Promise<void> {
       await store.put(DOCS, doc.id, doc);
       localStorage.removeItem(LEGACY_DOC_KEY);
     } catch {
-      /* keep the only copy */
+      /* silent: keep the only copy */
     }
   }
   // The old global history is unattributable — there is no document id in the
@@ -810,7 +812,7 @@ export function parseDoc(
         };
       }
     } catch {
-      // Not our JSON — fall through and treat it as an ordinary text document.
+      // silent: not our JSON — fall through and treat it as an ordinary text document.
     }
   }
   return { title: fallbackTitle, body: text, assets: [] };

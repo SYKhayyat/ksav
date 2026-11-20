@@ -69,6 +69,8 @@ export async function fileStamp(binding: FileBinding): Promise<{ mtime: number; 
       return { mtime: f.lastModified, size: f.size };
     }
   } catch {
+    // silent: a binding whose file cannot be stat'ed has no mtime, and the
+    // caller treats an unknown time as "cannot tell" rather than as a change.
     return null;
   }
   // The download tier has no file to look at: it never wrote one anywhere Ksav
@@ -118,7 +120,7 @@ export async function openFile(): Promise<OpenedFile | null> {
       const file = await handle.getFile();
       return { text: await file.text(), binding: { kind: "handle", name: handle.name, handle } };
     } catch {
-      return null; // the picker was dismissed
+      return null; // silent: the picker was dismissed
     }
   }
   return openViaInput();
@@ -234,6 +236,8 @@ export async function reread(binding: FileBinding): Promise<string | null> {
       return await (await binding.handle.getFile()).text();
     }
   } catch {
+    // silent: the file is gone, or the handle is no longer usable. There is
+    // nothing to re-read and the caller asks the writer where it went.
     return null;
   }
   return null;
@@ -260,7 +264,7 @@ export async function saveAs(suggestedName: string, text: string): Promise<FileB
         types: [{ description: "Ksav document", accept: { "text/plain": [".ksav"] } }],
       });
     } catch {
-      return null; // dismissed, which is not a failure
+      return null; // silent: dismissed, which is not a failure
     }
     const binding: FileBinding = { kind: "handle", name: handle.name, handle };
     // **The write is outside the `catch` that means "dismissed".**
@@ -340,7 +344,7 @@ export async function saveExportAs(file: ExportFile): Promise<SaveOutcome> {
       await writable.close();
       return "saved";
     } catch {
-      // The picker throws on dismissal, and it is the only throw that means
+      // silent: the picker throws on dismissal, and it is the only throw that means
       // "no" — so a real failure is indistinguishable from a cancel here. Both
       // leave nothing written and nothing said, which is the safe reading.
       return "cancelled";
@@ -420,7 +424,7 @@ export async function rememberBinding(docId: string, binding: FileBinding | null
       await store.del(store.HANDLES, docId);
     }
   } catch {
-    // Which file a document is bound to is a convenience; failing to remember it
+    // silent: which file a document is bound to is a convenience; failing to remember it
     // must not stop the writer from saving.
   }
 }
@@ -429,6 +433,8 @@ async function recallBinding(docId: string): Promise<FileBinding | null> {
   try {
     return await store.get<FileBinding>(store.HANDLES, docId);
   } catch {
+    // silent: nothing remembered for this document reads as nothing remembered —
+    // the writer is asked to pick the file again.
     return null;
   }
 }
@@ -472,7 +478,7 @@ export async function recallBindings(docIds: string[]): Promise<Map<string, File
       if (b) out.set(id, b);
     });
   } catch {
-    /* no bindings readable is the same answer as no bindings */
+    /* silent: no bindings readable is the same answer as no bindings */
   }
   return out;
 }
@@ -501,7 +507,7 @@ export async function hasWritePermission(binding: FileBinding): Promise<boolean>
     try {
       return await tauriInvoke<boolean>("ksav_path_allowed", { path: binding.path });
     } catch {
-      // An older shell without the command. `false` is the honest reading:
+      // silent: an older shell without the command. `false` is the honest reading:
       // this build cannot tell, and promising a save it may not be able to make
       // is the thing being fixed.
       return false;
@@ -514,6 +520,8 @@ export async function hasWritePermission(binding: FileBinding): Promise<boolean>
   try {
     return (await h.queryPermission({ mode: "readwrite" })) === "granted";
   } catch {
+    // silent: a handle that cannot answer the permission question has not been
+    // granted a write, and the caller treats "not granted" as "ask".
     return false;
   }
 }
@@ -575,7 +583,7 @@ export async function ensureWritable(binding: FileBinding, words: ConfirmWords):
         cancelLabel: words.cancel,
       });
     } catch {
-      // An older shell without the command. `false` is the honest reading — the
+      // silent: an older shell without the command. `false` is the honest reading — the
       // same rule `hasWritePermission` follows — and the caller's answer to it
       // is Save-As, which re-admits the path through a dialog that has always
       // been there.
@@ -591,6 +599,8 @@ export async function ensureWritable(binding: FileBinding, words: ConfirmWords):
     if ((await h.queryPermission({ mode: "readwrite" })) === "granted") return true;
     return (await h.requestPermission({ mode: "readwrite" })) === "granted";
   } catch {
+    // silent: a handle that cannot ask for permission has not got it, and the
+    // caller answers Save-As, which re-admits the path through a dialog.
     return false;
   }
 }

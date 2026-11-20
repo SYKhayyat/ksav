@@ -154,6 +154,8 @@ export async function decodeShare(fragment: string): Promise<SharedDoc | null> {
       ...(value.s && typeof value.s === "object" ? { config: value.s } : {}),
     };
   } catch {
+    // silent: a fragment this build cannot read is not a link. The document opens
+    // as an ordinary one, which is what a broken link has to mean.
     return null;
   }
 }

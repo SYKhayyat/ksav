@@ -48,7 +48,7 @@ export function stash(title: string, body: string, id?: string): boolean {
     localStorage.setItem(RECOVERY_KEY, JSON.stringify({ at: Date.now(), title, body, id }));
     return true;
   } catch {
-    // Quota, or a private window. The download offer below is the fallback, and
+    // silent: quota, or a private window. The download offer below is the fallback, and
     // it is the reason this is not the only rescue.
     return false;
   }
@@ -62,6 +62,8 @@ export function recovery(): Recovery | null {
     const value = JSON.parse(raw) as Recovery;
     return typeof value?.body === "string" && value.body ? value : null;
   } catch {
+    // silent: nothing was stashed, or what is there is not a recovery this build
+    // wrote. There is none to offer.
     return null;
   }
 }
@@ -91,7 +93,7 @@ export function clearRecovery(): void {
   try {
     localStorage.removeItem(RECOVERY_KEY);
   } catch {
-    // Nothing to do, and nothing lost: a leftover recovery offer is harmless.
+    // silent: nothing to do, and nothing lost: a leftover recovery offer is harmless.
   }
 }
 
@@ -111,6 +113,8 @@ export function describe(error: unknown): { said: string; detail: string } {
   try {
     return { said: String(error), detail: JSON.stringify(error, null, 2) };
   } catch {
+    // silent: the value will not stringify — a cycle, or a getter that throws —
+    // and the two words it can say are the whole description available.
     return { said: "unknown error", detail: "unknown error" };
   }
 }
@@ -138,7 +142,7 @@ export function install(
       const { title, body, id } = text();
       stash(title, body, id);
     } catch {
-      // Even the rescue failed. Still show the panel — the writer at least
+      // silent: even the rescue failed. Still show the panel — the writer at least
       // learns that something is wrong before they type another paragraph into
       // an editor that is not saving it.
     }
@@ -146,7 +150,7 @@ export function install(
     try {
       show(error, detail);
     } catch {
-      // Last resort. If the panel itself cannot be drawn there is nothing left
+      // silent: last resort. If the panel itself cannot be drawn there is nothing left
       // to do in-process, and the stash above already happened.
     }
   };

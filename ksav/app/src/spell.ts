@@ -366,6 +366,8 @@ function fromLocalStorage(): string[] {
     const list = JSON.parse(localStorage.getItem(USER_WORDS_KEY) || "[]");
     return Array.isArray(list) ? list.filter((w) => typeof w === "string" && w.trim()) : [];
   } catch {
+    // silent: a list this build cannot parse is an empty user dictionary. The
+    // built-in one still runs, so nothing is lost but the writer's own additions.
     return [];
   }
 }
@@ -383,7 +385,7 @@ function writeUserWords(list: string[]) {
   try {
     localStorage.setItem(USER_WORDS_KEY, JSON.stringify(list));
   } catch {
-    // A word list is a few kilobytes; if this fails the browser is out of room
+    // silent: a word list is a few kilobytes; if this fails the browser is out of room
     // entirely, which the save path reports far more usefully than a squiggle
     // menu could.
   }

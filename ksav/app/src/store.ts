@@ -310,6 +310,8 @@ export async function available(): Promise<boolean> {
     await open();
     return true;
   } catch {
+    // silent: a store this browser will not open is one it does not offer, and
+    // "not available" is the answer every caller is written for.
     return false;
   }
 }
@@ -334,6 +336,8 @@ export async function estimate(): Promise<{ usage: number; quota: number } | nul
     if (typeof e.usage !== "number" || typeof e.quota !== "number") return null;
     return { usage: e.usage, quota: e.quota };
   } catch {
+    // silent: a browser that cannot answer honestly answers "unknown", which the
+    // caller treats as no ceiling rather than as an error.
     return null;
   }
 }

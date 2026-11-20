@@ -93,6 +93,8 @@ export async function latestRelease(fetchImpl: typeof fetch = fetch): Promise<Re
       notes: body.body ?? "",
     };
   } catch {
+    // silent: an offline machine or a rate-limited API means no news, and no news
+    // is not an error to show anyone.
     return null;
   }
 }
@@ -129,7 +131,7 @@ export function markChecked(now = Date.now(), store: Storage | null = safeStorag
   try {
     store?.setItem(LAST_CHECK_KEY, String(now));
   } catch {
-    // A full or unavailable localStorage means the check runs again next launch,
+    // silent: a full or unavailable localStorage means the check runs again next launch,
     // which is a wasted request and not a bug worth reporting.
   }
 }
@@ -138,7 +140,7 @@ function safeStorage(): Storage | null {
   try {
     return typeof localStorage === "undefined" ? null : localStorage;
   } catch {
-    // A private window with storage disabled throws on *access*, not on use.
+    // silent: a private window with storage disabled throws on *access*, not on use.
     return null;
   }
 }

@@ -1389,6 +1389,9 @@ async function fetchRegistries(): Promise<boolean> {
     maybeOnboard();
     return true;
   } catch {
+    // silent: the attempt failed, and `false` is the answer the caller reports —
+    // the same one an empty command list gets, so a server that is down reaches
+    // `registriesFailed` instead of a shorter ribbon (#105).
     return false;
   }
 }

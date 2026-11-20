@@ -324,7 +324,7 @@ export async function autosaveToFile(enabled: boolean, text: () => Promise<strin
     fileWritten();
     return true;
   } catch {
-    // A background save that fails must not steal the writer's attention; the
+    // silent: a background save that fails must not steal the writer's attention; the
     // next manual Save will report it properly.
     return false;
   }

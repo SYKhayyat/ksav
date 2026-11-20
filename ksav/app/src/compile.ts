@@ -224,7 +224,7 @@ export async function compileUnfocused(): Promise<number> {
       }
     }
   } catch {
-    // A background layout that fails is a background layout that fails. Nobody
+    // silent: a background layout that fails is a background layout that fails. Nobody
     // asked for it, so nobody is told; switching to that document falls back to
     // its kept pages, exactly as `keep` does.
   } finally {

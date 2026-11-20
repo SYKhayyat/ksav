@@ -53,7 +53,7 @@ export async function docBoundTo(binding: files.FileBinding): Promise<string | n
       try {
         if (await binding.handle.isSameEntry(other.handle)) return entry.id;
       } catch {
-        /* an unusable handle simply isn't a match */
+        /* silent: an unusable handle simply isn't a match */
       }
     }
   }

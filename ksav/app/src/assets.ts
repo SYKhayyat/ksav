@@ -133,7 +133,8 @@ export async function removeAsset(name: string) {
   try {
     await docs.collectAssets();
   } catch {
-    /* the asset is off the document either way; the bytes can be swept later */
+    // silent: the asset is already off the document, so nothing is lost and the
+    // bytes can be swept later.
   }
   scheduleCompile();
   rerenderChrome();

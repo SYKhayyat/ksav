@@ -190,7 +190,7 @@ function makeDraggable(box: HTMLElement, head: HTMLElement, deps: MinimapDeps): 
     try {
       head.releasePointerCapture(e.pointerId);
     } catch {
-      /* the capture is already gone, which is fine */
+      /* silent: the capture is already gone, which is fine */
     }
     // Remembered on release, which is the only moment the writer has finished deciding.
     deps.remember({ x: box.offsetLeft, y: box.offsetTop });

@@ -134,7 +134,7 @@ export function watchForChanges(
       const { docId, binding } = current();
       if ((await checkFile(docId, binding)) === "changed") onChanged();
     } catch {
-      // A stat that throws is a file that has been unplugged or unmounted. It is
+      // silent: a stat that throws is a file that has been unplugged or unmounted. It is
       // not a conflict, and reporting it as one would be a prompt about a file
       // that is not there.
     } finally {

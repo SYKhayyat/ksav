@@ -122,6 +122,8 @@ export async function inflateOrNull(
   try {
     return await inflateBounded(data, ceiling, what);
   } catch {
+    // silent: a body that will not inflate — corrupt, or over the ceiling — answers
+    // null to a caller booting, rather than throwing mid-boot.
     return null;
   }
 }

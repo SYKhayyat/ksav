@@ -825,7 +825,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
 | `editor` | both | the typechecker, the linter, then 14,244 assertions across 164 files |
-| `engine` | both | formatting, lints, then 1202 tests across 87 binaries |
+| `engine` | both | formatting, lints, then 1209 tests across 90 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
@@ -981,6 +981,36 @@ overstates a keystroke by 40%. CodeMirror hands the scanner a flat string.
 
 Read down a column, not across a row: the shape to watch for is a number growing
 faster than the document does.
+
+A **compile** has its own instrument, because it is the other half of the same
+promise:
+
+```sh
+cd engine && cargo run --release --example bench-compile-curve
+```
+
+It prints, at 60, 160 and 260 pages: the layout alone; the SVG of every page
+written on one thread and on the box's cores; the same with every page handed
+back by the caller; and the export, which adds a PDF. The reading that matters is
+the ratio between those columns, because at sefer size the layout is *not* what
+a compile spends its time on — it is about a tenth of a millisecond a page and it
+stays there across a document four times the size, while writing the pages costs
+ten times that in total. A superlinear layout, the shape `#218` was filed about,
+would show in the first column and nowhere else.
+
+`engine/tests/compile_curve.rs` holds the shape: the layout cost per page must
+not grow from the smallest size to the largest, page writing must stay the
+dominant half, and holding every page must be cheaper than writing every page —
+or the client's page cache is decoration. Every number is printed on each run, so
+whoever reads a failing log sees the milliseconds beside the ratio, and every
+assertion compares two numbers measured in the same process, on the same machine,
+in the same run, so a loaded box is slow in both terms.
+
+The page writing itself runs on every core the box has, two pages a thread and one
+thread for a one-page preview (`engine/src/pagesvg.rs`), because it is a pure
+function of the page and the options: the frames are laid out before it and
+nothing in it touches Typst. `engine/tests/pagesvg.rs` proves the parallel writer
+hands back byte-identical pages in the same order as the serial one.
 
 The notes block below the table measures the pane refresh, which is a different
 question: what the side panes cost *per keystroke* at 634 KB, ~993 pages. A

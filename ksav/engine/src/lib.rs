@@ -59,6 +59,8 @@ pub mod notices;
 /// Which of the writer's lines printed on each page — the fact a preview
 /// narrowed to one siman is drawn from.
 pub mod pagelines;
+/// Turning laid-out pages into SVG, on every core rather than one (#218).
+pub mod pagesvg;
 /// What each page actually *says* — the fact a search of the preview is drawn
 /// from, and the one a search of the source cannot answer.
 pub mod pagetext;
@@ -3624,22 +3626,15 @@ pub fn compile_parts(
             // client stores these in memory and hands them straight back, and
             // every response carries a fresh set. A restarted engine simply
             // finds nothing in `have` and sends everything once.
+            //
+            // And **on every core** (#218): serialising is a pure function of the
+            // page and the options, so the pages divide by page. `pagesvg` says
+            // why that is safe and how it is proven, and the measurement that made
+            // it worth doing — 543 ms of SVG for 35 ms of layout at 258 pages.
             let svg_opts = typst_svg::SvgOptions::default();
-            let mut pages_hash = Vec::with_capacity(doc.pages().len());
-            let pages_svg = doc
-                .pages()
-                .iter()
-                .map(|p| {
-                    let fp = page_fingerprint(p);
-                    let known = have.contains(&fp);
-                    pages_hash.push(fp);
-                    if known {
-                        String::new()
-                    } else {
-                        typst_svg::svg(p, &svg_opts)
-                    }
-                })
-                .collect();
+            let svg_threads = pagesvg::threads_for(doc.pages().len());
+            let (pages_hash, pages_svg) =
+                pagesvg::serialise(doc.pages(), have, &svg_opts, svg_threads);
             Compiled {
                 ok: true,
                 pdf,
@@ -3769,22 +3764,6 @@ fn pdf_bytes(doc: &PagedDocument, cfg: &DocConfig) -> (Option<Vec<u8>>, Vec<Diag
             (None, notes)
         }
     }
-}
-
-/// A short, stable fingerprint of one rendered page.
-///
-/// FNV-1a rather than `DefaultHasher`, because this number crosses a wire and is
-/// compared against one an *earlier* process produced: it has to mean the same
-/// thing in every build of every backend, which the standard hasher does not
-/// promise. Sixteen hex digits is far more than enough to tell one page of a
-/// document from another, and collisions cost a stale page rather than
-/// corruption — the client only ever reuses a page it already had under that
-/// same name.
-fn page_fingerprint(page: &typst_layout::Page) -> String {
-    format!(
-        "{:032x}",
-        typst::utils::hash128(&(&page.frame, &page.fill, &page.bleed))
-    )
 }
 
 /// JSON-in / JSON-out compile, shared by the HTTP server and the wasm binding.

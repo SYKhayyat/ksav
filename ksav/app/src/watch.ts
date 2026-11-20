@@ -120,7 +120,7 @@ export async function checkFile(docId: string, binding: FileBinding | null): Pro
  * two stat calls and the alternative is discovering the conflict *by* the
  * autosave.
  */
-export const POLL_MS = 30_000;
+const POLL_MS = 30_000;
 
 export function watchForChanges(
   current: () => { docId: string; binding: FileBinding | null },

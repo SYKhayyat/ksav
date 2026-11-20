@@ -1847,16 +1847,6 @@ export function nodeAt(scan: Scan, pos: number): Node | null {
   return null;
 }
 
-/** The innermost call with this role containing `pos`. */
-export function roleAt(scan: Scan, pos: number, role: Role): Node | null {
-  const { levels } = nodeIndex(scan);
-  for (let d = levels.length - 1; d >= 0; d--) {
-    const n = atLevel(levels[d] ?? [], pos);
-    if (n && n.role === role) return n;
-  }
-  return null;
-}
-
 /** Is `pos` inside a comment? */
 export function inComment(scan: Scan, pos: number): boolean {
   return scan.comments.some((c) => pos >= c.from && pos < c.to);

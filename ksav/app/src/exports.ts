@@ -517,7 +517,7 @@ function wordUnavailable(why: string) {
  * over as Word's own footnotes and endnotes and are not mentioned, because
  * nothing happens to them; the rest are named, each with what it becomes.
  */
-export function wordDegradations(doc: string): string[] {
+function wordDegradations(doc: string): string[] {
   const out: string[] = [];
   const seen = new Set<DestinationId>();
   for (const [channel] of noteCounts(doc)) {

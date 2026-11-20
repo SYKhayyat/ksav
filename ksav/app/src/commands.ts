@@ -75,7 +75,7 @@ export function definedIn(preamble: string): string[] {
 }
 
 /** The writer's own commands, from a preamble and where it came from. */
-export function ownCommands(own: Preamble = preambleInForce()): Available[] {
+function ownCommands(own: Preamble = preambleInForce()): Available[] {
   const { text, from } = own;
   return definedIn(text).map((name) => ({
     name,

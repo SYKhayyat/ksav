@@ -173,7 +173,7 @@ export interface Span {
  */
 export type SeferUnit = "heading" | "note";
 
-export const UNIT_KEYS: Record<SeferUnit, string> = {
+const UNIT_KEYS: Record<SeferUnit, string> = {
   heading: "h",
   note: "n",
 };

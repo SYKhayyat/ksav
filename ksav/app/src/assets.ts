@@ -47,7 +47,7 @@ const MAX_ASSET_BYTES = 8 * 1024 * 1024;
  * `null` answer means "go ahead and find out" rather than "refuse" — but when it
  * does answer, telling the writer now beats failing after the read.
  */
-export async function roomFor(bytes: number): Promise<boolean> {
+async function roomFor(bytes: number): Promise<boolean> {
   const e = await store.estimate();
   if (!e) return true;
   // base64 costs a third on top, and the store wants headroom to work in.

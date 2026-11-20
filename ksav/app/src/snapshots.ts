@@ -82,7 +82,7 @@ export async function restoreSnapshot(s: docs.Snapshot) {
 export function openHistory() {
   openPanel("history-modal");
 }
-export function closeHistory() {
+function closeHistory() {
   closePanel("history-modal");
 }
 

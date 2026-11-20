@@ -449,7 +449,7 @@ export function loadBody(body: string) {
  * that is already on screen, because an editor with no document is not a state
  * this application has and a new tab for it is a tab nobody asked for.
  */
-export async function newBlankDoc() {
+async function newBlankDoc() {
   closeMenus();
   await enterDoc((await createBlankDoc()).id);
 }

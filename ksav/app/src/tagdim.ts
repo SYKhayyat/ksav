@@ -32,12 +32,10 @@
 
 import { Decoration, EditorView, ViewPlugin } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { RangeSet, Compartment } from "@codemirror/state";
+import { RangeSet } from "@codemirror/state";
 import type { Range } from "@codemirror/state";
 import type { EditorState, Extension } from "@codemirror/state";
 import { scan } from "./spans";
-
-export const tagDimCompartment = new Compartment();
 
 /** The nesting, at a line, in `[`, that the caret's tag sits at. */
 export interface TagNesting {

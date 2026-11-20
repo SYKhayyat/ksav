@@ -120,7 +120,7 @@ export async function openFile() {
  * to compare against and `checkFile` correctly says `unknown`. Here there is
  * something better than a stamp — both texts.
  */
-export async function openBound(id: string, opened: { text: string; binding: files.FileBinding }) {
+async function openBound(id: string, opened: { text: string; binding: files.FileBinding }) {
   const stored = await docs.getDoc(id);
   const onDisk = docs.parseDoc(opened.text, "");
   if (stored && stored.body !== onDisk.body) {
@@ -424,7 +424,7 @@ export async function copyShareLink(forReview: boolean) {
  * known — `files.ts` reads and writes files and has never held a word of either
  * language. See `files.ConfirmWords`.
  */
-export function confirmWriteWords(): files.ConfirmWords {
+function confirmWriteWords(): files.ConfirmWords {
   return {
     title: t("confirmWriteTitle"),
     message: t("confirmWriteMessage"),

@@ -61,7 +61,7 @@ export function pairedDelimiters(brackets: boolean, quotes: boolean): string[] {
 export type Opener = "[" | "(" | "{";
 export type Closer = "]" | ")" | "}";
 
-export const CLOSER_OF: Record<Opener, Closer> = { "[": "]", "(": ")", "{": "}" };
+const CLOSER_OF: Record<Opener, Closer> = { "[": "]", "(": ")", "{": "}" };
 const OPENER_OF: Record<Closer, Opener> = { "]": "[", ")": "(", "}": "{" };
 
 export type Problem =
@@ -84,18 +84,6 @@ export interface Analysis {
   edits: Edit[];
   /** The document with those edits applied — what a speculative compile uses. */
   healed: string;
-}
-
-/**
- * Regions the bracket scanner must not look inside: `//` line comments and
- * `/* *\/` blocks. Brackets there are prose, not structure.
- *
- * From `spans.ts`, along with the answer to which brackets are structure at
- * all — see `delimiters()` there for the three valid documents this file used
- * to condemn, and then corrupt when the writer pressed the repair button.
- */
-export function commentRegions(text: string): { from: number; to: number; unterminated?: boolean }[] {
-  return delimiters(text).comments;
 }
 
 /**
@@ -159,7 +147,7 @@ export function enclosingGroups(text: string, pos: number): Group[] {
  * Counts openers of every type, so `[a (b) c]` closes at the `]` and not at the
  * `)` — the mistake the old scan made by filtering to one closer.
  */
-export function closerOfGroup(text: string, openerPos: number): number | null {
+function closerOfGroup(text: string, openerPos: number): number | null {
   const { delims } = delimiters(text);
   // A stack of what is open *inside* the group, not a numeric depth: this is the
   // same walk `enclosingGroups` makes, so the two cannot disagree about nesting,

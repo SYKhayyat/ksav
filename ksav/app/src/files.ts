@@ -425,7 +425,7 @@ export async function rememberBinding(docId: string, binding: FileBinding | null
   }
 }
 
-export async function recallBinding(docId: string): Promise<FileBinding | null> {
+async function recallBinding(docId: string): Promise<FileBinding | null> {
   try {
     return await store.get<FileBinding>(store.HANDLES, docId);
   } catch {

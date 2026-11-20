@@ -107,7 +107,7 @@ export const NOTE_BODY_COMMANDS: readonly string[] = [
 ];
 
 /** The same set, for the hot paths — `notesIn` asks this per call. */
-export const NOTE_BODY_SET: ReadonlySet<string> = new Set(NOTE_BODY_COMMANDS);
+const NOTE_BODY_SET: ReadonlySet<string> = new Set(NOTE_BODY_COMMANDS);
 
 /** Is this command's body note prose? */
 export function opensNoteBody(command: string): boolean {

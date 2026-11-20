@@ -315,7 +315,7 @@ function padAt(level: number, amount: number, text: string) {
  * Measured, not assumed: the ceiling is a fraction of the pane, so an estimate that
  * is 20% out moves the cap by 20%.
  */
-export function charsWide(view: EditorView): number {
+function charsWide(view: EditorView): number {
   const dom = view.dom.querySelector(".cm-content") as HTMLElement | null;
   if (!dom) return 0;
   const width = dom.clientWidth;

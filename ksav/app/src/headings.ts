@@ -310,7 +310,7 @@ function sectionSwap(
  * A heading whose level the prelude pins cannot be re-levelled at all, and one
  * already at the level asked for has nothing to do.
  */
-export function canSetLevel(h: HeadingInfo, level: number): boolean {
+function canSetLevel(h: HeadingInfo, level: number): boolean {
   return !h.levelFixed && Math.min(Math.max(1, level), MAX_LEVEL) !== h.level;
 }
 
@@ -336,7 +336,7 @@ export function canDeleteSection(): boolean {
   return true;
 }
 
-export function canUnwrapHeading(h: HeadingInfo): boolean {
+function canUnwrapHeading(h: HeadingInfo): boolean {
   return !h.levelFixed;
 }
 

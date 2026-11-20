@@ -302,7 +302,7 @@ const GLIDE_MIN = 6;
 let glideFrame = 0;
 
 /** Stop the settle glide — somebody has taken the pane, or booked a new follow. */
-export function cancelGlide() {
+function cancelGlide() {
   if (!glideFrame) return;
   cancelAnimationFrame(glideFrame);
   glideFrame = 0;

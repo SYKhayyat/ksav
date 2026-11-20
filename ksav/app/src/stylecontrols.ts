@@ -199,7 +199,7 @@ export function sizeControl(raw: string | undefined, set: (v: string | null) => 
  * heard of. A dropdown would make the second impossible; a bare text box would
  * make the first a spelling test.
  */
-export function fontControl(raw: string | undefined, set: (v: string | null) => void): HTMLElement {
+function fontControl(raw: string | undefined, set: (v: string | null) => void): HTMLElement {
   const id = `font-list-${(fontListSeq += 1)}`;
   const input = el("input", {
     type: "text",
@@ -227,7 +227,7 @@ export function fontControl(raw: string | undefined, set: (v: string | null) => 
 let fontListSeq = 0;
 
 /** A colour, with the means to unset it — a colour picker alone has no "none". */
-export function clearableColour(
+function clearableColour(
   raw: string | undefined,
   set: (v: string | null) => void,
 ): HTMLElement {

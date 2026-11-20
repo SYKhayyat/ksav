@@ -512,7 +512,7 @@ export function findList(
 }
 
 /** How many rows of each kind the palette shows before it stops. */
-export const PALETTE_ACTIONS = 30;
+const PALETTE_ACTIONS = 30;
 export const PALETTE_COMMANDS = 60;
 
 /** One heading in the commands drawer, and the commands under it. */

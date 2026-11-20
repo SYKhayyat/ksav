@@ -234,7 +234,7 @@ export function closeHydra() {
   closePanel("hydra");
 }
 
-export function renderHydra() {
+function renderHydra() {
   const panel = document.getElementById("hydra")!;
   const h = openHydraState;
   if (!h) return;
@@ -279,7 +279,7 @@ export function renderHydra() {
   openPanel("hydra");
 }
 
-export function runHydraEntry(entry: HydraEntry) {
+function runHydraEntry(entry: HydraEntry) {
   // The hydra is opened by a chord and driven by a pointer-free keyboard, but
   // it is offered from the same sticky reading the ribbon uses, so it acts on
   // the same structure the writer can see listed.

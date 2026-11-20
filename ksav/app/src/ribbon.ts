@@ -749,7 +749,7 @@ const DOCS_RUN: Record<DocsActionId, () => void> = {
  * strips is not survivable"* — so the close control is a `⌄` labelled "close",
  * and `×` continues to mean delete and only delete.
  */
-export function docsMenuItems(): (Node | string)[] {
+function docsMenuItems(): (Node | string)[] {
   const items: (Node | string)[] = docsActions().map((row) =>
     el(
       "button",

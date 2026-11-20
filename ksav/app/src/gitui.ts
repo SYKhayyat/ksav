@@ -137,7 +137,7 @@ export async function refreshGit(): Promise<void> {
 }
 
 /** Run an operation, show what git said, and re-read everything. */
-export async function runGit(op: git.GitOp, extra: Record<string, unknown> = {}): Promise<api.GitAnswer | null> {
+async function runGit(op: git.GitOp, extra: Record<string, unknown> = {}): Promise<api.GitAnswer | null> {
   const answer = await askGit(op, extra);
   const said = git.outcome(answer);
   gitSaid = said.said;
@@ -150,7 +150,7 @@ export function openGit() {
   openPanel("git-panel");
 }
 
-export function isGitOpen(): boolean {
+function isGitOpen(): boolean {
   return isPanelOpen("git-panel");
 }
 

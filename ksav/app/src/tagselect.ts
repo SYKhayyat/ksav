@@ -213,8 +213,6 @@ const tagSelectionField = StateField.define<{ from: number; to: number; mode: Ta
   },
 });
 
-export const setTagSelection = TAG_SELECTION;
-
 /**
  * The transaction that selects `tag` as `mode`.
  *
@@ -222,7 +220,7 @@ export const setTagSelection = TAG_SELECTION;
  * with no view in it — and so there is exactly one place that knows what selecting
  * a tag *is*, whether the writer clicked, pressed a key, or ran a macro.
  */
-export function tagSelectionSpec(tag: TagRange, mode: TagSelection): TransactionSpec {
+function tagSelectionSpec(tag: TagRange, mode: TagSelection): TransactionSpec {
   const { from, to } = rangeFor(tag, mode);
   return {
     selection: EditorSelection.range(from, to),

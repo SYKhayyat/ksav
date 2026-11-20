@@ -34,7 +34,7 @@ import feed from "../../policy/feed.json";
 const RELEASES: string = feed.latest;
 
 /** The page a "newer Ksav exists" banner sends the writer to. */
-export const RELEASES_PAGE: string = feed.releases;
+const RELEASES_PAGE: string = feed.releases;
 
 export interface Release {
   version: string;

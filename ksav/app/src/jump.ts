@@ -146,7 +146,7 @@ export function clickedChapter(
 
 /** How long the mark stays up. Long enough to find with the eye, short enough
  *  that it is gone before it becomes furniture. */
-export const MARK_MS = 1400;
+const MARK_MS = 1400;
 
 /**
  * Draw the mark at a point inside a page node.

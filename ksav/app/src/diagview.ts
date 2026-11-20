@@ -87,7 +87,7 @@ export function shorten(msg: string, max = MAX_MESSAGE_CHARS): string {
 }
 
 /** A compiler message as one line: its own wrapping is not the writer's. */
-export function onOneLine(msg: string): string {
+function onOneLine(msg: string): string {
   return msg.replace(/\s+/g, " ").trim();
 }
 

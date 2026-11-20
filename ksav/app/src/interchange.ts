@@ -64,7 +64,7 @@ import { scan, type Node } from "./spans";
  * divergence is written down with its reason instead of being a nine-row table
  * nobody could tell was disagreeing.
  */
-export const TITLES_AS_HEADINGS: Record<string, number> = withAliases({
+const TITLES_AS_HEADINGS: Record<string, number> = withAliases({
   שער: 1,
   תת_שער: 2,
 });
@@ -107,7 +107,7 @@ export const EMPHASIS: Record<string, EmphasisKind> = withAliases<EmphasisKind>(
  */
 export type PairKind = "definition" | "verse";
 
-export const PAIRS: Record<string, PairKind> = withAliases<PairKind>({
+const PAIRS: Record<string, PairKind> = withAliases<PairKind>({
   הגדרה: "definition",
   פסוק: "verse",
 });
@@ -123,7 +123,7 @@ export const PAIRS: Record<string, PairKind> = withAliases<PairKind>({
  */
 export type AtomKind = "rule" | "pagebreak" | "linebreak" | "colbreak" | "gap" | "vspace" | "hspace";
 
-export const ATOMS: Record<string, AtomKind> = withAliases<AtomKind>({
+const ATOMS: Record<string, AtomKind> = withAliases<AtomKind>({
   קו_מפריד: "rule",
   מעבר_עמוד: "pagebreak",
   מעבר_שורה: "linebreak",

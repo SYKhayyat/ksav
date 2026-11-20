@@ -95,7 +95,7 @@ export function toggleOutline() {
  * view of it, and a writer who splits the source twice does not want a third
  * outline. It is the one pane whose position is decided rather than chosen.
  */
-export function togglePanelPane(role: "outline" | "notes" | "marks", on: boolean) {
+function togglePanelPane(role: "outline" | "notes" | "marks", on: boolean) {
   const existing = panes.leaves(paneTree).find((l) => l.role === role);
   if (on && !existing) {
     setTree(panes.split(paneTree, paneTree.id, "row", panes.leaf(role, null, { linked: false }), true));
@@ -492,7 +492,7 @@ export function runRow(does: panelrows.RowAction, snaps: docs.Snapshot[] = []) {
  * page element, the box, the inverse of `jump.ts`'s arithmetic, the match point
  * — is the same problem and would have been the same code written twice.
  */
-export function revealPrinted(page: number, y: number, anchor?: number) {
+function revealPrinted(page: number, y: number, anchor?: number) {
   const pages = currentPages();
   const index = page - 1;
   const box = pageBox(pages[index]);
@@ -548,7 +548,7 @@ export function drawRow(r: PanelRow, look: Look, first: boolean, snaps: docs.Sna
 }
 
 /** Update one retained row with a fresh outer shape and listener set. */
-export function updateRow(node: HTMLElement, r: PanelRow, look: Look, snaps: docs.Snapshot[]): HTMLElement {
+function updateRow(node: HTMLElement, r: PanelRow, look: Look, snaps: docs.Snapshot[]): HTMLElement {
   const selected = node.classList.contains("sel") || !!node.querySelector(".sel");
   const expanded = node.classList.contains("expanded");
   const active = document.activeElement;

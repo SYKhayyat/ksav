@@ -467,7 +467,7 @@ export function minimapDeps() {
   };
 }
 
-export function toggleIsolateSelection(v: EditorView): boolean {
+function toggleIsolateSelection(v: EditorView): boolean {
   const range = v.state.selection.main;
   if (range.empty) {
     setStatus(t("isolateNeedsSelection"), "warn");
@@ -501,7 +501,7 @@ export function moveOutOfBracket(v: EditorView, toNextLine: boolean, all = false
   return true;
 }
 
-export function stepZoom(by: number): boolean {
+function stepZoom(by: number): boolean {
   const surface = zoom.surfaceOf(!!runtime.view?.hasFocus);
   const field = zoom.FIELD_OF[surface];
   const now = (settings[field] ?? zoom.DEFAULT) as number;

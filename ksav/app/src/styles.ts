@@ -86,7 +86,7 @@ export function markDoor(cls: string): MarkDoor {
 }
 
 /** The class behind a door, or `null` for a section command. */
-export function doorClass(target: StyleTarget): string | null {
+function doorClass(target: StyleTarget): string | null {
   return target.startsWith("door:") ? target.slice("door:".length) : null;
 }
 

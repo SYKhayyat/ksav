@@ -158,7 +158,7 @@ export const BLOCK_CLASSES: readonly string[] = [
  * nothing behind it. Its width is how far the line runs rather than how wide
  * a block is, which is why this is its own list and not a subset.
  */
-export const RULE_KNOBS: readonly string[] = ["עובי", "צבע", "רוחב", "יישור"];
+const RULE_KNOBS: readonly string[] = ["עובי", "צבע", "רוחב", "יישור"];
 
 /** Which classes draw a line. */
 export const RULE_CLASSES: readonly string[] = ["קו_מפריד"];

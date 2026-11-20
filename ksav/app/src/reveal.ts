@@ -190,9 +190,9 @@ export async function revealPlaces(): Promise<boolean> {
 }
 
 /** The last answer, kept so the panel can re-render on a rebuild or a resize. */
-export let placesAnswer: api.Places | null = null;
+let placesAnswer: api.Places | null = null;
 
-export function closePlaces() {
+function closePlaces() {
   closePanel("places-chooser");
 }
 
@@ -249,7 +249,7 @@ export function renderPlaces() {
  * writer's document is arithmetic with an offset in it, and a second copy of that
  * arithmetic is a second thing to be wrong.
  */
-export function revealToExpandedLine(expandedLine: number) {
+function revealToExpandedLine(expandedLine: number) {
   const { offset } = bodyOnScreen();
   const doc = runtime.view.state.doc;
   const target = Math.max(1, expandedLine - offset);
@@ -282,7 +282,7 @@ export function revealToExpandedLine(expandedLine: number) {
  * stacked sources is most of the way down the window and at the top of its pane,
  * and it is the pane the answer is about.
  */
-export function clickFraction(e: MouseEvent): number | undefined {
+function clickFraction(e: MouseEvent): number | undefined {
   const pane = (e.target as HTMLElement | null)?.closest<HTMLElement>(".cm-scroller");
   if (!pane) return undefined;
   const box = pane.getBoundingClientRect();

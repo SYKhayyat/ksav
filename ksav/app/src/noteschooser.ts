@@ -38,7 +38,7 @@ export function openNotesChooser() {
   openPanel("notes-chooser");
 }
 
-export function closeNotesChooser() {
+function closeNotesChooser() {
   closePanel("notes-chooser");
 }
 

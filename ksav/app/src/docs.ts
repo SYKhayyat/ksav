@@ -410,7 +410,7 @@ export async function deleteDoc(id: string): Promise<void> {
   });
 }
 
-export function currentId(): string | null {
+function currentId(): string | null {
   return localStorage.getItem(CURRENT_KEY);
 }
 

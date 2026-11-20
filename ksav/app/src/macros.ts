@@ -198,7 +198,7 @@ export interface MacrosWiring {
 
 const W = makeWiring<MacrosWiring>("wireMacros");
 export const wireMacros = W.wire;
-export const macroWiring = W.get;
+const macroWiring = W.get;
 
 let recording: Step[] | null = null;
 

@@ -29,11 +29,11 @@ import { scan, splitArgs } from "./spans";
 import type { Group, Node } from "./spans";
 
 /** The command that declares a channel. */
-export const CHANNEL_COMMAND = "ערוץ";
+const CHANNEL_COMMAND = "ערוץ";
 /** The command that declares a region. */
-export const REGION_COMMAND = "אזור";
+const REGION_COMMAND = "אזור";
 /** The command that prints a collected region. */
-export const SHOW_REGION_COMMAND = "הצג_אזור";
+const SHOW_REGION_COMMAND = "הצג_אזור";
 /** The command that writes a note. */
 export const NOTE_COMMAND = "הערה";
 
@@ -75,9 +75,6 @@ export const PLACEMENTS = [
   "גוף",
 ] as const;
 export type Placement = (typeof PLACEMENTS)[number];
-
-/** How a region lays out the channels pointed into it. */
-export const LAYOUTS = ["מוערם", "צד"] as const;
 
 /** The built-in channels: the seven tiers of the native apparatus. */
 export const TIER_CHANNELS: readonly string[] = [
@@ -876,7 +873,7 @@ export interface NotePick {
 }
 
 /** The everyday pick: an ordinary note at the foot of the page. */
-export const DEFAULT_PICK: NotePick = { dest: "foot", region: null };
+const DEFAULT_PICK: NotePick = { dest: "foot", region: null };
 
 /** Are these the same answer? */
 export function samePick(a: NotePick, b: NotePick): boolean {

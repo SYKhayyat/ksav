@@ -424,7 +424,7 @@ function sefarimCompletions(context: CompletionContext): CompletionResult | null
 }
 
 /** What to call a bidi control character, in the interface's language. */
-export function bidiMarkName(code: number): string {
+function bidiMarkName(code: number): string {
   const mark = BIDI_MARKS[code];
   if (!mark) return "";
   return `${mark.tag} — ${getLang() === "en" ? mark.en : mark.he}`;

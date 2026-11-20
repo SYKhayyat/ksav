@@ -39,7 +39,7 @@
 // The two exceptions are refusals rather than omissions, and both are stated at
 // `unwrap` below.
 
-import { docTextOf, nodeAt, scan, stackAt } from "./spans";
+import { nodeAt, scan, stackAt } from "./spans";
 import type { Node, Scan } from "./spans";
 
 /** A rewrite, in the shape every editing module here returns. */
@@ -84,7 +84,7 @@ export function select(doc: string, from: number, to: number = from): Edit | nul
  * keeping the first would keep the label and throw away the note. Every
  * one-group construct is unaffected by the rule, which is nearly all of them.
  */
-export function keptBody(node: Node): { from: number; to: number } | null {
+function keptBody(node: Node): { from: number; to: number } | null {
   if (!node.bodies.length) return null;
   const last = node.bodies[node.bodies.length - 1];
   return { from: last.from, to: last.to };
@@ -133,13 +133,4 @@ export function canUnwrap(doc: string, node: Node): boolean {
 /** The construct's name, for a menu row that says what it is about to act on. */
 export function nameOf(node: Node): string {
   return node.name;
-}
-
-/** The same three, from a document object rather than a string. */
-export function entityIn(
-  doc: { toString(): string } | string,
-  from: number,
-  to: number = from,
-): Node | null {
-  return entityAt(docTextOf(doc), from, to);
 }

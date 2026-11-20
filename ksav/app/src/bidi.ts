@@ -379,12 +379,12 @@ export const BIDI_MARK_RE = new RegExp(
 );
 
 /** The characters an isolate is written with: open, and the one closer. */
-export const ISOLATE_OPEN: Record<Dir | "auto", string> = {
+const ISOLATE_OPEN: Record<Dir | "auto", string> = {
   ltr: "⁦",
   rtl: "⁧",
   auto: "⁨",
 };
-export const ISOLATE_CLOSE = "⁩";
+const ISOLATE_CLOSE = "⁩";
 
 /**
  * Wrap `text` in an isolate, or unwrap it if it is already wrapped in one.

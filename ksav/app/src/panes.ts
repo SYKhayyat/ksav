@@ -55,9 +55,6 @@
  */
 export type Role = "source" | "preview" | "outline" | "notes" | "marks";
 
-/** The roles that show a document's text and can be typed in. */
-export const EDITABLE: Role[] = ["source"];
-
 /** One pane. */
 export interface Leaf {
   kind: "leaf";
@@ -464,8 +461,8 @@ export type Side = "left" | "right" | "up" | "down";
  * has a 200-pixel band at its top, so the further a writer drags into the
  * middle of a big pane the more of it means something they did not ask for.
  */
-export const DROP_EDGE = 0.15;
-export const DROP_EDGE_MAX = 96;
+const DROP_EDGE = 0.15;
+const DROP_EDGE_MAX = 96;
 
 /**
  * What a drop at this point in a pane of this size means.

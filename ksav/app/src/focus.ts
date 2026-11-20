@@ -134,7 +134,7 @@ export function typewriterPadding(anchor: TypewriterAnchor | undefined): {
  * would drag the view back to the caret the instant the writer tried to look at
  * anything else, which is a fight the writer always loses.
  */
-export function typewriterPlugin(anchor: TypewriterAnchor | undefined) {
+function typewriterPlugin(anchor: TypewriterAnchor | undefined) {
   const f = anchorFraction(anchor);
   return ViewPlugin.fromClass(
     class {
@@ -161,9 +161,6 @@ export function typewriterPlugin(anchor: TypewriterAnchor | undefined) {
     },
   );
 }
-
-/** The centred plugin, for callers that never asked for an anchor. */
-export const typewriterMode = typewriterPlugin("center");
 
 /**
  * The extension for a pair of settings.

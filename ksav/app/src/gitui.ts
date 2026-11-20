@@ -113,7 +113,7 @@ export async function refreshGit(): Promise<void> {
     rerenderChrome();
     return;
   }
-  const status = (await askGit("status")) as api.GitStatus | null;
+  const status = (await askGit("status"));
   gitState = status;
   if (status?.root) {
     const [log, branches, remotes] = await Promise.all([

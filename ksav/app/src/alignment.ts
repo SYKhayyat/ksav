@@ -195,16 +195,16 @@ export interface AlignWrapper {
 export function wrapperIn(doc: string, from: number, to: number): AlignWrapper | null {
   let a = from;
   let b = to;
-  while (a < b && /\s/u.test(doc[a]!)) a++;
-  while (b > a && /\s/u.test(doc[b - 1]!)) b--;
+  while (a < b && /\s/u.test(doc[a])) a++;
+  while (b > a && /\s/u.test(doc[b - 1])) b--;
   if (doc[a] !== "#") return null;
   const m = /^#([A-Za-z0-9֐-׿_]+)/u.exec(doc.slice(a, b));
   if (!m) return null;
-  const edge = edgeOf(m[1]!);
+  const edge = edgeOf(m[1]);
   if (!edge) return null;
   const nameTo = a + m[0].length;
   let open = nameTo;
-  while (open < b && /\s/u.test(doc[open]!)) open++;
+  while (open < b && /\s/u.test(doc[open])) open++;
   // A call with arguments — `#ימין(…)` — is not how the registry writes one, and
   // its body is then a second question this rewrite would be guessing at.
   if (doc[open] !== "[") return null;
@@ -260,7 +260,7 @@ function applyEdits(doc: string, edits: Edit[], caret: number): { text: string; 
  * What a press of an alignment button does to this document, or null.
  *
  * Null means "not this module's question": the caret is in code mode, where a
- * paragraph is not a paragraph and `#מרכז[…​]` is not a legal expression. The
+ * paragraph is not a paragraph and `#מרכז[…]` is not a legal expression. The
  * caller then splices the snippet as it always did, which is right there.
  */
 export function alignPlan(
@@ -293,8 +293,8 @@ export function alignPlan(
     // whole paragraph, which is the part the empty `#מרכז[]` got wrong.
     let a = para.from;
     let b = para.to;
-    while (a < b && /\s/u.test(doc[a]!)) a++;
-    while (b > a && /\s/u.test(doc[b - 1]!)) b--;
+    while (a < b && /\s/u.test(doc[a])) a++;
+    while (b > a && /\s/u.test(doc[b - 1])) b--;
     if (a === b) continue; // nothing to align on a blank line
     const name = alignCommand(edge, lang);
     edits.push({ from: a, to: a, insert: `#${name}[` });

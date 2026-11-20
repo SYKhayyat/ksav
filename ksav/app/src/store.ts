@@ -289,7 +289,7 @@ export function getMany<T>(store: StoreName, ids: string[]): Promise<(T | null)[
           return;
         }
         const s = transaction.objectStore(store);
-        const out: (T | null)[] = new Array(ids.length).fill(null);
+        const out: (T | null)[] = ids.map(() => null);
         ids.forEach((id, i) => {
           const req = s.get(id);
           req.onsuccess = () => {

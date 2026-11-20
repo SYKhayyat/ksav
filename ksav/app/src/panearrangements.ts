@@ -13,6 +13,7 @@ import * as tabstrip from "./tabstrip";
 import * as panes from "./panes";
 import { settings, saveSettings } from "./settings";
 import { t, tf } from "./i18n";
+import { voidAction } from "./asyncaction";
 import { el, glyphBtn } from "./dom";
 import { openPanel, closePanel } from "./panels";
 import { hintFor } from "./keyhint";
@@ -165,7 +166,7 @@ export function openArrangements() {
         "data-save-arrangement": "",
         onClick: () => {
           closePanel("arrangement");
-          saveArrangementHere();
+          voidAction("general", saveArrangementHere);
         },
       },
       [

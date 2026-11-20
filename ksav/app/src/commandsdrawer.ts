@@ -65,7 +65,7 @@ export function buildCommandsDrawer(): HTMLElement {
     "aria-label": t("commandsSearch"),
     "data-i18n-label": "commandsSearch",
     class: "help-search",
-  }) as HTMLInputElement;
+  });
   input.addEventListener("input", () => renderCommands(input.value));
   return el(
     "aside",

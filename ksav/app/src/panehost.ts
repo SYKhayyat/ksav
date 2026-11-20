@@ -608,7 +608,7 @@ function wirePreviewClicks(host: HTMLElement) {
     // A drag that ended here is a selection, not a click: the reader is copying
     // a rendered line, and moving the caret would take the selection with it.
     if (!isPlainClick(window.getSelection())) return;
-    voidAction("general", () => jumpFromClick(e as MouseEvent));
+    voidAction("general", () => jumpFromClick(e));
   });
 }
 

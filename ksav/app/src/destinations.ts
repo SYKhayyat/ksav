@@ -82,12 +82,13 @@ function styleDestinations(): NotePick[] {
   for (const c of channels.usedChannels(doc)) {
     if (!channels.destinationForChannel(c)) named.add(c);
   }
-  return [
+  const picks: NotePick[] = [
     ...DESTINATIONS.filter((d) => d.id !== "region").map(
-      (d) => ({ dest: d.id, region: null }) as NotePick,
+      (d): NotePick => ({ dest: d.id, region: null }),
     ),
-    ...[...named].map((name) => ({ dest: "region", region: name }) as NotePick),
+    ...[...named].map((name): NotePick => ({ dest: "region", region: name })),
   ];
+  return picks;
 }
 
 /** What to call a destination on this panel: its place, or the writer's own name. */

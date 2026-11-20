@@ -132,6 +132,21 @@ export const CHECKS = [
     why: "The suite runs bundled modules, so a type error can pass every assertion.",
   },
   {
+    id: "editor-lint",
+    group: "editor",
+    tree: "editor",
+    name: "editor lints",
+    cwd: "app",
+    // `--cache`, because this is the one check here that reads every module
+    // through a typed program and the inner loop should not pay for it twice.
+    // The cache lives under `node_modules/`, so a fresh checkout in CI gets a
+    // cold run and no stale answers from a machine that is not this one.
+    command: ["npx", "eslint", "--cache", "--cache-location", "node_modules/.cache/eslint/", "src"],
+    why: "tsc is a type checker, not a linter: it cannot see a promise nobody awaits, " +
+      "a promise handed where a `void` was wanted, or a cast that re-declares a shape. " +
+      "The engine has clippy -D warnings; this is the app's half (#224).",
+  },
+  {
     id: "editor-suite",
     group: "editor",
     tree: "editor",

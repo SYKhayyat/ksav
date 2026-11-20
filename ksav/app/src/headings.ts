@@ -378,6 +378,10 @@ export function makeHeading(doc: string, pos: number, level: number): Edit | nul
   const { from, to, line } = lineAt(doc, pos);
   if (!canMakeHeading(null, line, level)) return null;
 
+  // The range *is* ASCII, and its lower bound is a control character by
+  // definition. A printable-only range would call a line holding a tab
+  // non-English and write the heading keyword in the wrong language.
+  // eslint-disable-next-line no-control-regex -- deliberate: the ASCII bound
   const en = /^[\x00-\x7F]*$/.test(line) && line.length > 0;
   const s = SPELLING;
   const head =

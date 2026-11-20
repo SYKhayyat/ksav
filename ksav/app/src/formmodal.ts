@@ -157,7 +157,7 @@ export function askText(
       resolve(v);
     };
     modalDismiss = () => done(null);
-    const input = el("input", { class: "set-input", type: "text" }) as HTMLInputElement;
+    const input = el("input", { class: "set-input", type: "text" });
     input.value = initial;
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {

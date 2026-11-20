@@ -1227,7 +1227,7 @@ function render(host: HTMLElement, pages: string[], hashes?: string[]) {
   w.keys = models.map((model) => model.key);
   w.pages = pages;
   w.hashes = hashes;
-  w.showing = nodes.map((node) => (w!.changed.has(node) ? "" : oldShowing.get(node) ?? ""));
+  w.showing = nodes.map((node) => (w.changed.has(node) ? "" : oldShowing.get(node) ?? ""));
   w.near = new Set(models.flatMap((model, index) => oldNear.has(model.key) ? [index] : []));
   w.wanted = new Set();
 

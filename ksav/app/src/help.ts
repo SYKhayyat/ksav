@@ -360,7 +360,7 @@ export function buildHelpPanel(): HTMLElement {
     "aria-label": t("helpSearch"),
     "data-i18n-label": "helpSearch",
     class: "help-search",
-  }) as HTMLInputElement;
+  });
   input.addEventListener("input", () => renderHelp(input.value));
   return el("aside", { id: "help-panel", class: "drawer drawer-help", "aria-label": t("help"), "data-i18n-label": "help" }, [
     panelHead("help-panel", "helpTitle"),

@@ -56,7 +56,7 @@ function closeNotesChooser() {
  */
 export function bodyHome(): BodyHome {
   const held = settings.noteBodyHome;
-  if (held && (BODY_HOMES as readonly string[]).includes(held)) return held as BodyHome;
+  if (held && (BODY_HOMES as readonly string[]).includes(held)) return held;
   // The old boolean, still honoured. `deferNoteBodies` was this preference when
   // it had two answers, and a writer who set it does not have to set it again.
   return settings.deferNoteBodies === true ? "file" : "inline";
@@ -72,7 +72,7 @@ export function bodyHome(): BodyHome {
  */
 function bodyHomeFor(pick: NotePick): BodyHome {
   const per = settings.noteBodyPlacement?.[pick.dest];
-  if (per && (BODY_HOMES as readonly string[]).includes(per)) return per as BodyHome;
+  if (per && (BODY_HOMES as readonly string[]).includes(per)) return per;
   return bodyHome();
 }
 
@@ -259,7 +259,7 @@ export function renderNotesChooser() {
         type: "text",
         value: d.args["גובה"] ?? "",
         onchange: () => {
-          const v = (input as HTMLInputElement).value.trim();
+          const v = (input).value.trim();
           const next = setDeclaredArgs(docTextOf(runtime.view.state.doc), d, {
             "גובה": v === "" ? null : v,
           });

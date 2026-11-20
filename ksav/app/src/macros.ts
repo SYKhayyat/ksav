@@ -185,6 +185,7 @@ import { t, tf } from "./i18n";
 import { setStatus, rerenderChrome, view } from "./runtime";
 import { insertSnippet } from "./insert";
 import { scheduleCompile } from "./compile";
+import { voidAction } from "./asyncaction";
 import { actionName } from "./actions";
 
 export interface MacrosWiring {
@@ -269,7 +270,7 @@ export function noteSnippet(snippet: string) {
 
 export function toggleRecording() {
   if (recording) {
-    finishRecording();
+    voidAction("general", finishRecording);
     return;
   }
   recording = [];

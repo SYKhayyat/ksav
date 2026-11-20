@@ -322,7 +322,7 @@ async function hydrateAssets(assets: DocAsset[]): Promise<DocAsset[]> {
     : [];
   const byHash = new Map<string, string>();
   wanted.forEach((a, i) => {
-    if (blobs[i]?.data) byHash.set(a.hash!, blobs[i]!.data);
+    if (blobs[i]?.data) byHash.set(a.hash!, blobs[i].data);
   });
   return assets.map((a) => {
     // An asset whose blob has gone is kept as an entry with no bytes rather than
@@ -798,8 +798,15 @@ export function parseDoc(
   const trimmed = text.trimStart();
   if (trimmed.startsWith("{")) {
     try {
-      const v = JSON.parse(text);
-      if (v?.format === FILE_MAGIC) {
+      // `unknown` until proven an object: `JSON.parse` answers `any`, and an
+      // `any` read field by field is how a hand-edited file puts a number where
+      // a title belongs. Every field below is narrowed, not trusted.
+      const parsed: unknown = JSON.parse(text);
+      const v =
+        parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : null;
+      if (v && v.format === FILE_MAGIC) {
         return {
           title: typeof v.title === "string" && v.title ? v.title : fallbackTitle,
           body: typeof v.body === "string" ? v.body : "",

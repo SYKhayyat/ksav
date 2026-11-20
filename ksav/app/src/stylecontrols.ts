@@ -37,7 +37,7 @@ export function textControl(
     type: "text",
     value: current,
     ...(placeholder ? { placeholder } : {}),
-  }) as HTMLInputElement;
+  });
   input.addEventListener("change", () => onSet(input.value));
   return input;
 }
@@ -133,7 +133,7 @@ export function unitControl(
     type: "number",
     step: String(step),
     value: n === null ? "" : String(n),
-  }) as HTMLInputElement;
+  });
   input.addEventListener("change", () => {
     const v = parseFloat(input.value);
     set(input.value.trim() === "" || !Number.isFinite(v) ? null : `${v}${unit}`);
@@ -167,7 +167,7 @@ export function sizeControl(raw: string | undefined, set: (v: string | null) => 
     value: read == null ? "" : String(read.n),
     placeholder: "—",
     "aria-label": t("knobSize"),
-  }) as HTMLInputElement;
+  });
   // Emptying the box is how a knob is unset, exactly as `unitControl` does it:
   // absent means *this layer says nothing*, which is not the same as any number.
   input.addEventListener("change", () => {
@@ -207,7 +207,7 @@ function fontControl(raw: string | undefined, set: (v: string | null) => void): 
     value: styles.readString(raw) ?? "",
     placeholder: t("notSet"),
     "aria-label": t("knobFont"),
-  }) as HTMLInputElement;
+  });
   input.addEventListener("change", () =>
     set(input.value.trim() === "" ? null : styles.typstString(input.value.trim())),
   );
@@ -294,7 +294,7 @@ export function fieldControl(
     case "numbering-levels":
       return levelsControl(raw, set);
     case "count": {
-      const input = el("input", { type: "number", step: 1, value: (raw ?? "").trim() }) as HTMLInputElement;
+      const input = el("input", { type: "number", step: 1, value: (raw ?? "").trim() });
       input.addEventListener("change", () => {
         const v = parseInt(input.value, 10);
         set(Number.isFinite(v) ? String(v) : null);
@@ -302,7 +302,7 @@ export function fieldControl(
       return input;
     }
     case "text": {
-      const input = el("input", { type: "text", value: styles.readString(raw) ?? "" }) as HTMLInputElement;
+      const input = el("input", { type: "text", value: styles.readString(raw) ?? "" });
       input.addEventListener("change", () =>
         set(input.value.trim() === "" ? null : styles.typstString(input.value)),
       );
@@ -352,7 +352,7 @@ export function regionHeightControl(
     // height* — and a dash in it says the state, not the subject.
     "aria-label": t("regionHeight"),
     "data-i18n-label": "regionHeight",
-  }) as HTMLInputElement;
+  });
   const commit = (n: number, u: string) => {
     if (!Number.isFinite(n) || n < 0) return;
     onChange(`${n}${u}`);

@@ -504,7 +504,7 @@ export function moveOutOfBracket(v: EditorView, toNextLine: boolean, all = false
 function stepZoom(by: number): boolean {
   const surface = zoom.surfaceOf(!!runtime.view?.hasFocus);
   const field = zoom.FIELD_OF[surface];
-  const now = (settings[field] ?? zoom.DEFAULT) as number;
+  const now = (settings[field] ?? zoom.DEFAULT);
   const next = by === 0 ? zoom.DEFAULT : zoom.step(now, by);
   setSetting(field, next as never);
   // Say what happened and to which of the two, because the difference between

@@ -78,15 +78,6 @@ const EXEMPT = [
   },
   {
     file: "keymodes.ts",
-    at: "as unknown as (...a: never[]) => unknown",
-    count: 2,
-    why:
-      "CodeMirror's `vim` keymap extension type is generic over a command signature " +
-      "the library does not export; `registerUnits` takes the real one. Third-party " +
-      "module typing, twice in the same registration.",
-  },
-  {
-    file: "keymodes.ts",
     at: "as unknown as Parameters<typeof registerUnits>[0]",
     count: 1,
     why: "The same `vim` module one layer out — `Vim`'s own type is not the keymap's.",
@@ -114,22 +105,6 @@ const EXEMPT = [
     why: "The read half of the same generic-by-name lookup — `ValueOf<K>` is the key's own type.",
   },
   {
-    file: "editorcommands.ts",
-    at: "as unknown as PageSetup",
-    count: 1,
-    why:
-      "`docConfig()` is the engine's spelling of the same six page values `PageSetup` " +
-      "holds for the editor. Two nominal types over one shape, and the conversion is " +
-      "the point of `ownPageSetup` — it is not a wire shape and `wire.test.mjs` does " +
-      "not apply.",
-  },
-  {
-    file: "fileui.ts",
-    at: "as unknown as Record<string, unknown>",
-    count: 1,
-    why: "The same page setup, read as a bag of keys by the asset/destination code.",
-  },
-  {
     file: "styles.ts",
     at: "as unknown as Record<StyleCommand, readonly string[]>",
     count: 1,
@@ -141,7 +116,7 @@ const EXEMPT = [
 ];
 
 /** How many `as unknown as` the tree has, as a claim rather than a tally. */
-const TOTAL_CASTS = 16;
+const TOTAL_CASTS = 12;
 
 /** Source with `//` and `/* … *\/` comments removed. */
 function stripped(text) {

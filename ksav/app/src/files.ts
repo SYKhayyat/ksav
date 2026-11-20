@@ -90,7 +90,7 @@ export function supportsRealFiles(): boolean {
 
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const core = await import("@tauri-apps/api/core");
-  return core.invoke(cmd, args) as Promise<T>;
+  return core.invoke<T>(cmd, args);
 }
 
 function baseName(p: string): string {

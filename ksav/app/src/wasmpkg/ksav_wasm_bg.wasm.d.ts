@@ -1,5 +1,5 @@
 /* tslint:disable */
-/* eslint-disable */
+ 
 export const memory: WebAssembly.Memory;
 export const init: () => void;
 export const ksav_call: (a: number, b: number, c: number, d: number) => [number, number];

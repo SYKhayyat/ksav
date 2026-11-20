@@ -296,10 +296,10 @@ function headingLevelRow(): Node {
         // indent ramp on the page, and this dropdown was the surface saying they
         // did not exist. The engine's `_hd_levels` moved with it, so each of the
         // three now has a door of its own rather than inheriting level 6's.
-        ...(Array.from({ length: heads.MAX_LEVEL }, (_, i) => [
+        ...Array.from({ length: heads.MAX_LEVEL }, (_, i): [string, string] => [
           String(i + 1),
           tf("oneLevel", String(i + 1)),
-        ]) as [string, string][]),
+        ]),
       ],
       String(headingLevel),
       (v) => {
@@ -569,7 +569,7 @@ function myStyleRows(): Node[] {
     // to this, and a new surface is exactly what it is holding it for.
     const key = el("button", { class: "sc-key", title: t("styleKeyLabel") }, [
       hintFor(id, kb) || "—",
-    ]) as HTMLButtonElement;
+    ]);
     key.addEventListener("click", () => captureShortcut(id, key));
     const kids: Node[] = [key];
     if (chord) {
@@ -723,7 +723,7 @@ function streamStyleRows(): Node[] {
   ];
   if (!heights) return rows;
   for (const [name, value] of heights) {
-    const rename = el("input", { type: "text", value: name, class: "stream-name" }) as HTMLInputElement;
+    const rename = el("input", { type: "text", value: name, class: "stream-name" });
     rename.addEventListener("change", () => {
       const to = rename.value.trim();
       // An empty name is not a stream, and two streams with one name are one
@@ -893,7 +893,7 @@ function markPartRow(): Node | null {
     selectControl(
       [
         ["", t("wholeCommand")],
-        ...(parts.map((p) => [p, t("markPart." + markClass + "." + p)]) as [string, string][]),
+        ...parts.map((p): [string, string] => [p, t("markPart." + markClass + "." + p)]),
       ],
       markPart,
       (v) => {

@@ -297,7 +297,7 @@ export async function boot() {
   if (settings.editingMode && settings.editingMode !== "default") {
     voidAction("save_file", () => setEditingMode(settings.editingMode));
   }
-  runCompile();
+  void runCompile();
   // The first check has to be scheduled explicitly: boot compiles directly
   // rather than through scheduleCompile, so nothing would be checked until the
   // writer's first keystroke.

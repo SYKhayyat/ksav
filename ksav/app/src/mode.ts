@@ -300,8 +300,9 @@ const CONTENT_HE: Record<string, string> = Object.fromEntries(
 /** Every whole `"…"` and `[…]` value in a snippet, said in `lang`. */
 function localised(snippet: string, lang: Lang): string {
   const table = lang === "en" ? CONTENT_EN : CONTENT_HE;
-  return snippet.replace(/"([^"\n]*)"|\[([^[\]\n]*)\]/gu, (whole, str, content) => {
+  return snippet.replace(/"([^"\n]*)"|\[([^[\]\n]*)\]/gu, (whole, str: string | undefined, content: string | undefined) => {
     const value = str ?? content;
+    if (value === undefined) return whole; // neither group matched, so nothing to localise
     const into = table[value];
     if (into === undefined) return whole;
     return str === undefined ? `[${into}]` : `"${into}"`;

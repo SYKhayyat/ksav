@@ -168,18 +168,18 @@ export function fieldRow(label: string, control: Node): HTMLElement {
 }
 
 export function textField(value = "", placeholder = ""): HTMLInputElement {
-  return el("input", { type: "text", value, placeholder }) as HTMLInputElement;
+  return el("input", { type: "text", value, placeholder });
 }
 
 export function numberField(value: string, min: number, max: number, step = 1): HTMLInputElement {
-  return el("input", { type: "number", value, min, max, step }) as HTMLInputElement;
+  return el("input", { type: "number", value, min, max, step });
 }
 
 export function checkField(checked = false): HTMLInputElement {
   return el("input", {
     type: "checkbox",
     ...(checked ? { checked: "checked" } : {}),
-  }) as HTMLInputElement;
+  });
 }
 
 /** Hand a blob to the browser as a download. */

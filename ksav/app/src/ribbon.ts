@@ -218,7 +218,7 @@ function paragraphStyleControl(): HTMLElement {
     class: "heading-select",
     title: t("paragraphStyle"),
     "aria-label": t("paragraphStyle"),
-  }) as HTMLSelectElement;
+  });
   fillParagraphStyles(sel);
   sel.addEventListener("change", () => applyParagraphStyle(sel.value));
 
@@ -234,7 +234,7 @@ function paragraphStyleControl(): HTMLElement {
     id: "heading-level-number",
     title: t("headingLevel"),
     "aria-label": t("headingLevel"),
-  }) as HTMLInputElement;
+  });
   level.addEventListener("change", () => {
     const want = parseInt(level.value, 10);
     if (!Number.isFinite(want) || want < 1 || want > heads.MAX_LEVEL) {
@@ -430,7 +430,7 @@ function highlightControl(writing: Lang): HTMLElement {
     value: highlightColour,
     title: t("highlightColour"),
     "aria-label": t("highlightColour"),
-  }) as HTMLInputElement;
+  });
   const apply = () => {
     highlightColour = swatch.value;
     // The default colour is written as the bare command, so the common case
@@ -729,7 +729,7 @@ export function docsLegend(): string {
 const DOCS_RUN: Record<DocsActionId, () => void> = {
   new: () => voidAction("save_file", () => newNamedDoc()),
   "new-tab": () => voidAction("save_file", () => tabstrip.newDocTab()),
-  rename: () => renameDoc(),
+  rename: () => voidAction("save_file", () => renameDoc()),
   saveAs: () => voidAction("save_file", () => chromeWiring().saveFileAs()),
   duplicate: () => voidAction("save_file", () => duplicateDoc(runtime.currentDoc.id)),
 };
@@ -758,7 +758,7 @@ function docsMenuItems(): (Node | string)[] {
         // Named for the same reason the rows below carry `data-doc`: the label is
         // translated, and the acceptance run has to be able to say *this* item.
         "data-doc-action": row.id,
-        onClick: DOCS_RUN[row.id as DocsActionId],
+        onClick: DOCS_RUN[row.id],
       },
       [row.label, ...(row.desc ? [el("span", { class: "menu-desc" }, [row.desc])] : [])],
     ),

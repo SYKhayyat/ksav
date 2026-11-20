@@ -26,7 +26,6 @@ import { noteAction } from "./macros";
 import { scheduleCompile } from "./compile";
 import { setStatus, editDoc } from "./runtime";
 import { settings, saveSettings, docConfig, ownPageSetup } from "./settings";
-import type { PageSetup } from "./settings";
 import { t, tf } from "./i18n";
 import { updateContextBar } from "./contextbar";
 
@@ -208,7 +207,7 @@ export function adoptPageSetupAsDefault(): void {
   // onto `settings` itself — which is how the app came to hold a second opinion
   // about every one of them, and how the panel came to print a margin the open
   // document was not laid out on.
-  settings.newDocument = ownPageSetup(docConfig() as unknown as PageSetup);
+  settings.newDocument = ownPageSetup(docConfig());
   saveSettings();
   showChromeNotice("setupIsDefault");
 }

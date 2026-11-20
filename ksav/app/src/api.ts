@@ -1109,8 +1109,26 @@ export interface Refreshed {
  * be missing the half for a second reason — and a `typeof` that is redundant is
  * cheaper than a `typeof` that is missing.
  */
+/**
+ * A backend seen by a caller who only holds `Backend`: the half this build may
+ * or may not include, plus the one field every backend has.
+ *
+ * The required field is what makes the annotation work. `Partial<T>` alone is a
+ * *weak type* — every member optional — and TypeScript refuses to assign
+ * `Backend` to it for having nothing in common, which is why the old code
+ * reached for `as (Backend & Partial<T>)` and then had to duck-type the members
+ * it had just claimed. A required `kind` makes the assignment legal and the
+ * optional half readable.
+ */
+type Probe<T> = Partial<T> & { kind: Backend["kind"] };
+
 export function sourcesOf(b: Backend | undefined): Sources | null {
-  const s = b as (Backend & Partial<Sources>) | undefined;
+  // Declared as the probe rather than asserted into it: every backend has a
+  // `kind`, so `Backend` is assignable to `Probe<Sources>` and the annotation
+  // is the whole widening. A cast here would be the shape #221 was about — and
+  // a plain `Partial<Sources>` is a *weak* type, which `Backend` shares no
+  // members with, so the annotation needs the one field both ends agree on.
+  const s: Probe<Sources> | undefined = b;
   if (!s || typeof s.inbox !== "function") return null;
   // A browser tab has no loopback, and no amount of duck-typing changes that.
   if (SERVICE.inbox.nativeOnly && s.kind === "wasm") return null;
@@ -1145,7 +1163,7 @@ export interface Dictionary {
 
 /** The dictionary half of a backend, or `null` if this one keeps none. */
 export function dictionaryOf(b: Backend | undefined): Dictionary | null {
-  const d = b as (Backend & Partial<Dictionary>) | undefined;
+  const d: Probe<Dictionary> | undefined = b;
   return d && typeof d.dictionary === "function" ? (d as Dictionary) : null;
 }
 

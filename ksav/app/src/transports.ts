@@ -765,9 +765,9 @@ export class TauriBackend extends ServiceClient implements Backend, Sources, Dic
   private async inv() {
     if (!this.invoke) {
       const core = await import("@tauri-apps/api/core");
-      this.invoke = core.invoke as never;
+      this.invoke = core.invoke;
     }
-    return this.invoke!;
+    return this.invoke;
   }
 
   /**

@@ -322,7 +322,7 @@ export async function openSpellMenu(m: spell.Misspelling, x: number, y: number) 
       // A learned word can appear anywhere, so re-check the whole document, not
       // just the paragraph the squiggle was in.
       spellFullPending = true;
-      runSpellCheck();
+      void runSpellCheck();
       runtime.view.focus();
     } }, ["＋ " + t("addToDictionary")]),
   );
@@ -364,5 +364,5 @@ export function spellCheckFromScratch() {
 /** A full check right now — a word learned or removed, a dictionary imported. */
 export function runFullSpellCheck() {
   spellFullPending = true;
-  runSpellCheck();
+  void runSpellCheck();
 }

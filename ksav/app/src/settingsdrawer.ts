@@ -130,11 +130,11 @@ function optNumberRow(labelKey: string, key: Field, min: number, max: number, st
     // makes the empty state readable — "empty" means *follow the one margin*, and
     // a box announced as nothing at all says neither (#178).
     "aria-label": t(labelKey),
-    "data-i18n-label": labelKey as never,
+    "data-i18n-label": labelKey,
     value: live === undefined || live === null ? "" : String(live),
     onChange: (e: Event) => {
       const raw = (e.target as HTMLInputElement).value.trim();
-      settingsWiring().write(key, (raw === "" ? undefined : Number(raw)) as never);
+      settingsWiring().write(key, (raw === "" ? undefined : Number(raw)));
     },
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
@@ -183,7 +183,7 @@ function reserveRow() {
       ["text", t("baseText")],
     ].map(([v, label]) => {
       const o = el("option", {}, [label]);
-      (o as HTMLOptionElement).value = v;
+      (o).value = v;
       return o;
     }),
   );
@@ -195,7 +195,7 @@ function reserveRow() {
       const pageH = Number(settingsWiring().live("page_height_cm")) || 29.7;
       const mTop = Number(settingsWiring().live("margin_top_cm") ?? settingsWiring().live("margin_cm") ?? 2.5);
       const mBot = Number(settingsWiring().live("margin_bottom_cm") ?? settingsWiring().live("margin_cm") ?? 2.5);
-      const baseH = (base as HTMLSelectElement).value === "text" ? pageH - mTop - mBot : pageH;
+      const baseH = (base).value === "text" ? pageH - mTop - mBot : pageH;
       settingsWiring().write("notes_region_cm", Math.round(frac * baseH * 1000) / 1000 as never);
     } else {
       const cm = raw.endsWith("pt")
@@ -225,11 +225,11 @@ function reserveRow() {
   });
   const sync = () => {
     const cm = settingsWiring().live("notes_region_cm");
-    (slider as HTMLInputElement).value = String(cm ?? 0);
+    (slider).value = String(cm ?? 0);
   };
   sync();
-  (slider as HTMLInputElement).oninput = () => {
-    const cm = Number((slider as HTMLInputElement).value);
+  (slider).oninput = () => {
+    const cm = Number((slider).value);
     settingsWiring().write("notes_region_cm", Math.round(cm * 1000) / 1000 as never);
     input.value = `${cm}cm`;
   };
@@ -426,7 +426,7 @@ function listRow(labelKey: string, key: Field) {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      settingsWiring().write(key, parts as never);
+      settingsWiring().write(key, parts);
     },
   });
   return el("label", { class: "set-row" }, [el("span", {}, [t(labelKey)]), input]);
@@ -473,7 +473,7 @@ function textAreaRow(labelKey: string, key: keyof Settings, placeholder = "") {
       // as "edit text", "slider 0" and "combo box" with nothing to say what they
       // control.
       "aria-label": t(labelKey),
-      "data-i18n-label": labelKey as never,
+      "data-i18n-label": labelKey,
       onInput: (e: Event) => settingsWiring().write(key, (e.target as HTMLTextAreaElement).value as never),
     },
     [String(settings[key] ?? "")],
@@ -1081,7 +1081,12 @@ export function captureShortcut(actionId: string, btn: HTMLButtonElement) {
     btn.textContent = text;
     window.removeEventListener("keydown", handler, true);
   };
-  const handler = async (e: KeyboardEvent) => {
+  // The listener contract is `void`, and an `async` listener breaks it in the
+  // way that only shows up as an unhandled rejection: the promise it returns is
+  // dropped by `addEventListener`, and a dialog that fails while a shortcut is
+  // being captured would take the whole capture down saying nothing.
+  const handler = (e: KeyboardEvent) => voidAction("general", () => capture(e));
+  const capture = async (e: KeyboardEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.key === "Escape") return done(original);

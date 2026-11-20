@@ -281,11 +281,11 @@ function registerUnits(Vim: {
   // that cannot be undone by returning is navigation nobody trusts.
   for (const [keys, forward] of [["]]", true], ["[[", false]] as [string, boolean][]) {
     const name = `ksavHeading${forward ? "Next" : "Prev"}`;
-    Vim.defineMotion(name, ((cm: CM, head: object) => {
+    Vim.defineMotion(name, (cm: CM, head: object) => {
       const at = cm.indexFromPos(head);
       const to = bridge.heading(at, forward);
       return to == null ? head : cm.posFromIndex(to);
-    }) as unknown as (...a: never[]) => unknown);
+    });
     Vim.mapCommand(keys, "motion", name, { toJumplist: true }, { context: "normal" });
     Vim.mapCommand(keys, "motion", name, { toJumplist: true }, { context: "visual" });
   }
@@ -323,14 +323,14 @@ function registerUnits(Vim: {
   for (const [unit, letter] of Object.entries(UNIT_KEYS) as [SeferUnit, string][]) {
     for (const inner of [true, false]) {
       const name = `ksav${inner ? "Inner" : "Whole"}${unit}`;
-      Vim.defineMotion(name, ((cm: CM, head: object) => {
+      Vim.defineMotion(name, (cm: CM, head: object) => {
         const span = bridge.units(cm.indexFromPos(head))[unit];
         // No note here, no note to take. `null` leaves the caret alone, which
         // makes `dan` outside a note do nothing rather than something.
         if (!span) return null;
         const range = inner && span.inner ? span.inner : span;
         return [cm.posFromIndex(range.from), cm.posFromIndex(range.to)];
-      }) as unknown as (...a: never[]) => unknown);
+      });
       for (const context of ["operatorPending", "visual"]) {
         Vim.mapCommand((inner ? "i" : "a") + letter, "motion", name, {}, { context });
       }

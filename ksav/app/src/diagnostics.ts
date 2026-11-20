@@ -182,6 +182,6 @@ export function troubleSaid(e: unknown, doing: Doing = "general"): Trouble {
 export function rawOf(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return `${e.name}: ${e.message}`;
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  if (e && typeof e === "object" && "message" in e) return String((e).message);
   return String(e);
 }

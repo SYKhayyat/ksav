@@ -252,7 +252,7 @@ export function splitterFor(node: panes.Split): HTMLElement {
   };
   bar.addEventListener("pointerdown", (e) => {
     dragging = true;
-    (e as PointerEvent).preventDefault();
+    (e).preventDefault();
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);

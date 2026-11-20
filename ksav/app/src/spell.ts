@@ -307,7 +307,7 @@ export function keepDictionaryIn(text: string, write: (text: string) => Promise<
   kept = { words: merged.words, write };
   // Written back only when the browser's copy actually added something, so
   // opening the app does not rewrite the file every time it starts.
-  if (merged.added > 0) write(serializeDictionary(merged.words));
+  if (merged.added > 0) void write(serializeDictionary(merged.words));
   return merged.added;
 }
 
@@ -363,8 +363,8 @@ export function mergeWords(existing: string[], text: string): { words: string[];
 
 function fromLocalStorage(): string[] {
   try {
-    const list = JSON.parse(localStorage.getItem(USER_WORDS_KEY) || "[]");
-    return Array.isArray(list) ? list.filter((w) => typeof w === "string" && w.trim()) : [];
+    const list: unknown = JSON.parse(localStorage.getItem(USER_WORDS_KEY) || "[]");
+    return Array.isArray(list) ? list.filter((w): w is string => typeof w === "string" && !!w.trim()) : [];
   } catch {
     // silent: a list this build cannot parse is an empty user dictionary. The
     // built-in one still runs, so nothing is lost but the writer's own additions.

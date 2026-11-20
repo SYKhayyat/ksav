@@ -219,7 +219,9 @@ export async function run() {
     );
     ok(
       "the panel offers every level rather than the six that had names",
-      /length: heads\.MAX_LEVEL \}, \(_, i\) => \[\s*\n\s*String\(i \+ 1\)/.test(STYLES_PANEL),
+      /Array\.from\(\{ length: heads\.MAX_LEVEL \}, \(_, i\)[^)]*=> \[[\s\S]{0,80}String\(i \+ 1\)/.test(
+        STYLES_PANEL,
+      ),
     );
     notOk("...and not a hand-written six", STYLES_PANEL.includes("...([1, 2, 3, 4, 5, 6].map("));
     ok(

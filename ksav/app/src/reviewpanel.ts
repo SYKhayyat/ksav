@@ -21,6 +21,7 @@ import { typstString, typstContent } from "./typst-escape";
 import * as styles from "./styles";
 import { settings, saveSettings } from "./settings";
 import { ask, askText } from "./formmodal";
+import { voidAction } from "./asyncaction";
 // ---------------------------------------------------------------- review
 //
 // Tracked changes and editorial comments — the one thing anyone editing someone
@@ -112,14 +113,14 @@ export function renderReviewPanel() {
       {
         setReading: setReviewView,
         mark: markReview,
-        comment: addComment,
+        comment: () => voidAction("general", addComment),
         setReviewer: (name) => {
           settings.reviewer = name;
           saveSettings();
         },
         goTo: (m) => jumpTo(m.from),
         decide: decideMark,
-        decideAll: decideEverything,
+        decideAll: (d) => voidAction("general", () => decideEverything(d)),
       },
     ),
   );

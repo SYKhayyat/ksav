@@ -355,9 +355,9 @@ export async function openSharedIfLinked() {
     shared.body,
     [],
     shared.customCommands,
-    setup as never,
+    setup,
   );
-  if (shared.dir) await docs.rememberConfig(doc.id, setup as never);
+  if (shared.dir) await docs.rememberConfig(doc.id, setup);
   await enterDoc(doc.id);
   setStatus(shared.review ? t("openedForReview") : t("openedFromLink"), "ok");
 }
@@ -401,7 +401,7 @@ export async function copyShareLink(forReview: boolean) {
     // two had drifted: a `#let` of the writer's own, and the page setup this
     // document was written on rather than whatever the reader's settings say.
     customCommands: runtime.currentDoc?.customCommands ?? settings.customCommands,
-    config: ownPageSetup(runtime.currentDoc?.config) as unknown as Record<string, unknown>,
+    config: ownPageSetup(runtime.currentDoc?.config),
   });
   if (link.tooLong) {
     setStatus(tf("shareTooLong", Math.round(link.length / 1000)), "err");

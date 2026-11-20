@@ -28,7 +28,7 @@ export function openSectionSetup() {
     [["", "num.keep"], ["1", "num.arabic"], ["א", "num.hebrew"], ["i", "num.roman"]].map(([v, k]) =>
       el("option", { value: v }, [t(k)]),
     ),
-  ) as HTMLSelectElement;
+  );
 
   openModal(t("sectionSetupTitle"), t("sectionSetupLede"), [
     fieldRow(t("secColumns"), cols),

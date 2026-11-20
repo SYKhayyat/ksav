@@ -316,7 +316,7 @@ function padAt(level: number, amount: number, text: string) {
  * is 20% out moves the cap by 20%.
  */
 function charsWide(view: EditorView): number {
-  const dom = view.dom.querySelector(".cm-content") as HTMLElement | null;
+  const dom = view.dom.querySelector<HTMLElement>(".cm-content");
   if (!dom) return 0;
   const width = dom.clientWidth;
   if (!width) return 0;

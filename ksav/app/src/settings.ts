@@ -929,7 +929,7 @@ export function loadSettings(): Settings {
     if (rescued) s.newDocument = rescued;
   }
   for (const key of PAGE_FIELDS) delete s[key];
-  return s as Settings;
+  return s;
 }
 
 /** The live settings object. Mutated in place; call `saveSettings` after. */
@@ -1019,7 +1019,7 @@ export type ValueOf<K extends Field> = K extends keyof Settings
 
 /** Is this the name of a page-setup field? */
 export function isPageField(key: Field): key is PageField {
-  return (PAGE_FIELDS as readonly string[]).includes(key as string);
+  return (PAGE_FIELDS as readonly string[]).includes(key);
 }
 
 // ---------------------------------------------------------------- one control
@@ -1176,7 +1176,7 @@ export function settingsPageSetup(): DocConfig {
  */
 export function ownPageSetup(own: PageSetup | undefined): PageSetup {
   const out: Record<string, unknown> = {};
-  if (!own) return out as PageSetup;
+  if (!own) return out;
   const shipped = defaultPageSetup() as unknown as Record<string, unknown>;
   for (const key of PAGE_FIELDS) {
     const value = (own as Record<string, unknown>)[key];
@@ -1186,7 +1186,7 @@ export function ownPageSetup(own: PageSetup | undefined): PageSetup {
     if (JSON.stringify(value) === JSON.stringify(shipped[key])) continue;
     out[key] = value;
   }
-  return out as PageSetup;
+  return out;
 }
 
 /**
@@ -1222,7 +1222,7 @@ export function readPageSetup(raw: unknown): PageSetup | undefined {
           : typeof value === typeof want && !Array.isArray(value) && value !== null;
     if (ok) out[key] = value;
   }
-  return Object.keys(out).length ? (out as PageSetup) : undefined;
+  return Object.keys(out).length ? (out) : undefined;
 }
 
 /**
@@ -1308,7 +1308,7 @@ export function applyPreset(name: string, onto: (change: PageSetup) => void) {
   const before: PageSetup = {};
   const change: PageSetup = {};
   for (const key of Object.keys(preset) as (keyof Settings)[]) {
-    if (!(PAGE_FIELDS as readonly string[]).includes(key as string)) continue;
+    if (!(PAGE_FIELDS as readonly string[]).includes(key)) continue;
     (before as Record<string, unknown>)[key] = live[key as string];
     (change as Record<string, unknown>)[key] = (preset as Record<string, unknown>)[key];
   }
@@ -1319,7 +1319,7 @@ export function applyPreset(name: string, onto: (change: PageSetup) => void) {
 /** Put back whatever the last preset displaced, on the document it displaced it in. */
 export function undoPreset(onto: (change: PageSetup) => void): boolean {
   if (!styleUndo) return false;
-  onto(styleUndo.before as PageSetup);
+  onto(styleUndo.before);
   styleUndo = null;
   return true;
 }
@@ -1361,7 +1361,7 @@ const wiring = (): SettingsWiring => settingsWriteWire.get();
  */
 export function setSetting<K extends Field>(key: K, value: ValueOf<K>): void {
   if (isPageField(key)) {
-    wiring().setPageSetup({ [key as string]: value } as PageSetup);
+    wiring().setPageSetup({ [key as string]: value });
   } else {
     (settings as unknown as Record<string, unknown>)[key as string] = value;
     saveSettings();
@@ -1402,5 +1402,10 @@ export function now<K extends Field>(key: K): ValueOf<K> {
   if (isPageField(key)) {
     return (docConfig() as unknown as Record<string, unknown>)[key] as ValueOf<K>;
   }
-  return settings[key as keyof Settings] as ValueOf<K>;
+  // The settings half, read through a view rather than asserted key by key:
+  // `isPageField` is a type predicate, but `K` is generic and the compiler
+  // cannot carry the negation of it into the index. Every key `Field` names is
+  // optional here, which `Settings` satisfies without a cast.
+  const both: { [P in Field]?: unknown } = settings;
+  return both[key] as ValueOf<K>;
 }

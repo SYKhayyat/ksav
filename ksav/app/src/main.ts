@@ -6,7 +6,7 @@ import { wireHeader } from "./appheader";
 import { EditorState } from "@codemirror/state";
 import type { KeyBinding } from "@codemirror/view";
 import { setRevealAll } from "./ksav-lang";
-import { tagContaining, selectTag, type TagSelection } from "./tagselect";
+import { tagContaining, selectTag } from "./tagselect";
 import { minimapIsOpen, wireMinimapPanel } from "./minimapstrip";
 import { scheduleRenumber } from "./numbering-lint";
 import * as panelviews from "./panelviews";
@@ -269,7 +269,7 @@ function structureKeymap() {
       run: (view) => {
         const tag = tagContaining(view.state.doc.toString(), view.state.selection.main.head);
         if (!tag) return false;
-        selectTag(view, tag, mode as TagSelection);
+        selectTag(view, tag, mode);
         return true;
       },
     });
@@ -452,7 +452,7 @@ function moveRunningIntoDoc(which: "header" | "footer") {
   // Cleared, so the document and the panel cannot give two answers about one
   // running head. The command wins in the prelude either way; leaving the field
   // filled would make that precedence something a writer has to discover.
-  setSetting(which, "" as never);
+  setSetting(which, "");
   // Redrawn, or the box goes on showing the text it no longer holds. The drawer
   // is built once and toggled — it is not a `lazyMenu` — so clearing the model
   // leaves the input exactly as the writer typed it, and the next time they open
@@ -816,7 +816,7 @@ function applySettingChange(key: import("./settings").Field, value: unknown): vo
     // "default" and the chrome is rebuilt describing the mode that is on its way
     // out — the shortcut list goes on printing keys the mode is about to take.
     // Caught by driving it: the settings list never showed a single `M-x` row.
-    action("save_file", () => setEditingMode(value)).then(rerenderChrome);
+    void action("save_file", () => setEditingMode(value)).then(rerenderChrome);
   } else if (key === "focusMode" || key === "typewriter" || key === "typewriterAnchor") {
     toEveryPane(
       focusCompartment.reconfigure(
@@ -1286,7 +1286,7 @@ function installHooks() {
     },
     swapDoc: replaceAll,
     revealCaret: () => {
-      revealCursor({ quiet: true, anchor: 0 });
+      voidAction("general", () => revealCursor({ quiet: true, anchor: 0 }));
     },
   });
   // The settings drawer's wiring: what a row can ask the shell for.
@@ -1474,4 +1474,4 @@ wireBoot({
   adoptDictionary,
   loadRegistries,
 });
-boot().then(openMinimapIfSaved);
+void action("general", boot).then(openMinimapIfSaved);

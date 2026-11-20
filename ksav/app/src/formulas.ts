@@ -48,7 +48,7 @@ export function openFormula() {
       "data-i18n-label": "formulaSource",
     },
     [],
-  ) as HTMLTextAreaElement;
+  );
   const display = checkField(true);
   const numbered = checkField();
 

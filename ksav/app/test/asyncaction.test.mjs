@@ -84,6 +84,10 @@ function bareVoids() {
 const INVENTORY = {
   // --- the wrapper, and the one bare `void` that is allowed to be bare ------
   "src/asyncaction.ts:action": "the wrapper itself; it is what makes the promise non-rejecting",
+  // The same wrapper reached by name in `main.ts`, where the whole promise is a
+  // `then` that redraws the chrome. Since the wrapper cannot reject, the `then`
+  // is safe and needs nothing else.
+  "src/main.ts:action": "the wrapper; `then` on it redraws the chrome and cannot see a rejection",
 
   // --- handle their own failures, deliberately --------------------------------
   "src/compile.ts:runCompile": "guarded; a superseded compile cancels rather than rejects",
@@ -105,6 +109,15 @@ const INVENTORY = {
   "src/actionsurface.ts:linkifySelection": "guarded; a newer linkify run supersedes this one",
   "src/main.ts:loadRegistries": "guarded; a registry that will not load is reported once",
   "src/save.ts:saveNow": "guarded; the save module's own try/catch and notice",
+  // Reached through the same guarded functions as the entries above, at a second
+  // address: `boot` starts the first compile rather than going through
+  // `scheduleCompile`, and `runCompile` reports through the same path (#224).
+  "src/boot.ts:runCompile": "guarded; the compile path cancels a superseded run and reports a real one",
+  "src/spellcheck.ts:runSpellCheck": "guarded; a dropped check marks the coverage note rather than a clean page",
+  // The dictionary file is written through a callback the caller supplied
+  // already wrapped in `.catch(...)` and `setStatus` (`main.ts`'s
+  // `adoptDictionary`), so there is nothing left for this call site to report.
+  "src/spell.ts:write": "guarded; the supplied callback reports its own failure through setStatus",
 
   // --- no promise at all ------------------------------------------------------
   // These return a number, a boolean, or nothing. `void f()` on a value that is

@@ -19,6 +19,7 @@ import { compileForExport, reflowableHtml, sourceForExport } from "./compile";
 import { escapeAttr } from "./dom";
 import { PAPERS, paperName } from "./engine.gen";
 import { saveExportAs } from "./files";
+import { voidAction } from "./asyncaction";
 import { t, tf } from "./i18n";
 import { toMarkdown, toPlainText } from "./markdown";
 import { toOrg } from "./org";
@@ -685,6 +686,9 @@ export function doPrint() {
   // Keep the click handler's immediate UI truthful even when the service is
   // asynchronous; the shared scan below can refine the same answer later.
   if (healed) runtime.setStatus(`⚠ ${tf("previewHealed", healed)}`, "warn");
-  warnIfHealed();
+  // Reported, not swallowed: a backend that is down makes this throw, and an
+  // unhandled rejection in an export handler is a print that never happens with
+  // nothing said about why.
+  voidAction("general", warnIfHealed);
   setTimeout(() => w.print(), 300);
 }

@@ -15,16 +15,16 @@
 
 import { t, tf } from "./i18n";
 import { el } from "./dom";
-import { docTextOf } from "./spans";
+import { docTextOf, type Scan } from "./spans";
 import * as runtime from "./runtime";
 import * as panelrows from "./panelrows";
 import type { PanelRow, PanelList } from "./panelrows";
 import { togglePanel, mountPanel } from "./panels";
 import { setTree, paneTree } from "./panestate";
-import { marksIn } from "./marks";
-import { notesIn, markersFor, noteAt, noteDestination, destinationTargets, retargetNote, scaffold, deleteNote } from "./notes";
+import { marksIn, marksOf } from "./marks";
+import { notesIn, notesOf, markersFor, noteAt, noteDestination, destinationTargets, retargetNote, scaffold, deleteNote } from "./notes";
 import { closeNoteMenu, closeSpellMenu } from "./spellcheck";
-import { outline } from "./ksav-lang";
+import { outline, outlineOf } from "./ksav-lang";
 import { keyedReconciler, type KeyedReconciler } from "./reconcile";
 import { insertSnippet, tieredNoteHere, dirLang } from "./insert";
 import { setStatus } from "./runtime";
@@ -140,10 +140,10 @@ export function toggleMarksPane() {
   runtime.rerenderChrome();
 }
 
-export function renderMarksPane() {
+export function renderMarksPane(scanned?: Scan) {
   if (!runtime.view) return;
   const doc = docTextOf(runtime.view.state.doc);
-  const rows = panelrows.markList(marksIn(doc), marks.MARK_CLASSES);
+  const rows = panelrows.markList(scanned ? marksOf(doc, scanned) : marksIn(doc), marks.MARK_CLASSES);
   // The class rows carry their Hebrew class name; `panelrows` does not resolve
   // language, so the translation happens here, once, where every other string in
   // this file is translated.
@@ -192,13 +192,13 @@ export function renderFindPane() {
   drawList(host, rows, LOOKS.find);
 }
 
-export function renderNotesPane() {
+export function renderNotesPane(scanned?: Scan) {
   if (!runtime.view) return;
   // A row jumps to wherever the prose actually is. For a deferred note that is
   // the `#גוף_הערה` at the end of the file, which is the whole point of the row:
   // the marker is easy to find and the prose is not.
   const doc = docTextOf(runtime.view.state.doc);
-  const notes = notesIn(doc);
+  const notes = scanned ? notesOf(doc, scanned) : notesIn(doc);
   // The markers the last compile printed, where it printed any. The drawer is
   // redrawn on a keystroke and a compile is seconds behind it, so an offset that
   // no longer names the same note simply matches nothing and that row counts
@@ -304,9 +304,10 @@ export function openNoteMenu(e: MouseEvent, at: number) {
 
 
 
-export function renderOutline() {
+export function renderOutline(scanned?: Scan) {
   if (!runtime.view) return;
-  const rows = panelrows.outlineList(outline(docTextOf(runtime.view.state.doc)));
+  const doc = docTextOf(runtime.view.state.doc);
+  const rows = panelrows.outlineList(scanned ? outlineOf(doc, scanned) : outline(doc));
   // Every home the list has: the drawer, and a pane if the writer docked it.
   // A class rather than an id, for the same reason the preview stopped being
   // `#preview` — "the outline" is however many of them are on screen.

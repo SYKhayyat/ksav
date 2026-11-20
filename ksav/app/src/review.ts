@@ -18,7 +18,7 @@
 //   reject a deletion    → unwrap it   (the text stays after all)
 //   resolve a comment    → delete it   (a comment is never part of the text)
 
-import { plainText, scan } from "./spans";
+import { plainText, scan, type Scan } from "./spans";
 
 export type MarkKind = "insert" | "delete" | "comment";
 export type Decision = "accept" | "reject";
@@ -44,9 +44,9 @@ export interface ReviewMark {
 }
 
 /** Every review mark in the document, in document order (nested ones included). */
-export function scanMarks(doc: string): ReviewMark[] {
+export function scanMarks(doc: string, scanned?: Scan): ReviewMark[] {
   const out: ReviewMark[] = [];
-  for (const n of scan(doc).nodes) {
+  for (const n of (scanned ?? scan(doc)).nodes) {
     const kind = KIND_OF[n.name];
     const body = n.bodies[0];
     if (!kind || !body) continue;

@@ -745,7 +745,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all ten jobs: the typechecker and 14,227 editor assertions across 163 files,
+      all ten jobs: the typechecker and 14,244 editor assertions across 164 files,
       1202 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS **and on Windows**, a build-and-run check of the browser (wasm)
       engine, the assembled application in a real browser, the Emacs package
@@ -824,7 +824,7 @@ which is what CI splits jobs on, or the **tree** the check is about:
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, the linter, then 14,227 assertions across 163 files |
+| `editor` | both | the typechecker, the linter, then 14,244 assertions across 164 files |
 | `engine` | both | formatting, lints, then 1202 tests across 87 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
@@ -963,7 +963,7 @@ one is on the honour system.
 cd app && npm run bench
 ```
 
-`tools/bench-structure.mjs` types into seforim of 9, 37 and 148 KB and reports
+`tools/bench-structure.mjs` types into seforim of 9, 37, 148 and 634 KB and reports
 what one keystroke costs: the scan, everything the editor asks after it, the memo
 probe, one caret move, and a fold query at the *last* heading in the document.
 
@@ -981,6 +981,16 @@ overstates a keystroke by 40%. CodeMirror hands the scanner a flat string.
 
 Read down a column, not across a row: the shape to watch for is a number growing
 faster than the document does.
+
+The notes block below the table measures the pane refresh, which is a different
+question: what the side panes cost *per keystroke* at 634 KB, ~993 pages. A
+refresh with the scan already in hand — the index and the rows — costs about a
+third of a full walk of the same document, and it is the only part the writer's
+thread pays: the panes ask `scanForBackend` for the scan (a worker round trip in
+the browser build) rather than walking the document themselves, which is what
+they used to do at ~55 ms a refresh (#219). `test/paneRefresh.test.mjs` holds
+both halves — no scan of its own, and one refresh under three quarters of a
+walk — so the cost cannot come back without a red run.
 
 ## Rebuild the lexicons
 

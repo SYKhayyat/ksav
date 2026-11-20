@@ -13,7 +13,7 @@ import * as panelviews from "./panelviews";
 import * as runtime from "./runtime";
 import { editDoc, closeMenus, jumpTo } from "./runtime";
 import { t } from "./i18n";
-import { docTextOf } from "./spans";
+import { docTextOf, type Scan } from "./spans";
 import { scheduleCompile } from "./compile";
 import { isPanelOpen, openPanel } from "./panels";
 import { insertSnippet } from "./insert";
@@ -100,13 +100,13 @@ function setReviewView(v: review.ReviewView) {
   replaceDoc(next);
 }
 
-export function renderReviewPanel() {
+export function renderReviewPanel(scanned?: Scan) {
   const box = document.getElementById("review-body");
   if (!box || !runtime.view) return;
   box.replaceChildren(
     ...panelviews.reviewPanel(
       {
-        marks: review.scanMarks(docTextOf(runtime.view.state.doc)),
+        marks: review.scanMarks(docTextOf(runtime.view.state.doc), scanned),
         reading: reviewView(),
         reviewer: settings.reviewer ?? "",
       },

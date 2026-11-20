@@ -285,8 +285,21 @@ let NOTE_INDEX: { text: string; index: readonly NoteSpan[] } | null = null;
 
 export function notesIn(doc: string): readonly NoteSpan[] {
   if (NOTE_INDEX?.text === doc) return NOTE_INDEX.index;
-  const s = scanSpans(doc);
-  const { refs, defs } = scanDeferred(doc);
+  return notesOf(doc, scanSpans(doc));
+}
+
+/**
+ * The same index, from a scan somebody else already made.
+ *
+ * The pane refresh is the caller that matters (#219): its scan comes from
+ * `scanForBackend`, which is a worker round trip in the browser build, so the
+ * whole-document walk happens there and the typing path pays only for the index
+ * over it. A scan taken again here would put the walk back where it was.
+ */
+export function notesOf(doc: string, scanned: Scan): readonly NoteSpan[] {
+  if (NOTE_INDEX?.text === doc) return NOTE_INDEX.index;
+  const s = scanned;
+  const { refs, defs } = scanDeferred(doc, scanned);
 
   /** First definition wins, which is the rule the prelude's `_nb_find` uses. */
   const bodyFor = new Map<string, (typeof defs)[number]>();

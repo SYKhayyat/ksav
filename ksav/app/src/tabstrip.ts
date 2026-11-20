@@ -419,7 +419,13 @@ export function refreshPanes() {
   paneTimer = window.setTimeout(() => {
     // The review list is a view of the document's own marks, so an edit
     // anywhere — not only a decision taken in the panel — must refresh it.
-    panestate.paneWiring().refreshSidePanes();
+    //
+    // The refill is a promise now: it asks for the shared scan rather than taking
+    // one, so the wait is a worker round trip and not a walk of the document on
+    // this thread (#219). Reported rather than dropped, for the reason every
+    // `voidAction` in this app exists: a pane that silently stopped refreshing is
+    // indistinguishable from a pane with nothing to say.
+    voidAction("general", () => panestate.paneWiring().refreshSidePanes());
   }, PANE_DEBOUNCE_MS);
 }
 

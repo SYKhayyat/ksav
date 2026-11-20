@@ -60,7 +60,7 @@ export interface PaneWiring {
   /** The open set's immediate side refills (outline, notes). */
   fillSidePanes(): void;
   /** The debounced side refills (review, outline, notes, marks, find). */
-  refreshSidePanes(): void;
+  refreshSidePanes(): Promise<void>;
   /** Open a document into a tab that already shows it — `openDoc(_, {handedOver})`. */
   openDocHanded(id: string): Promise<void>;
   /** The form-modal prompt: main.ts's `askText`. */

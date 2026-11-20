@@ -954,8 +954,20 @@ function titleOf(text: string, n: Node): string {
  * applied to a node the rest of the app agrees exists.
  */
 export function outline(text: string): OutlineRow[] {
+  return outlineOf(text, scan(text));
+}
+
+/**
+ * The same outline, from a scan somebody else already made.
+ *
+ * `outline` walked the document itself, which put a whole-document scan on the
+ * pane refresh — the one path in the app that had a shared, off-thread scan
+ * available and did not use it (#219). The typing path now asks for the scan and
+ * builds rows over the answer; the walk is the worker's.
+ */
+export function outlineOf(text: string, scanned: Scan): OutlineRow[] {
   const res: OutlineRow[] = [];
-  for (const n of scan(text).nodes) {
+  for (const n of scanned.nodes) {
     if (!startsItsLine(text, n)) continue;
     if (n.role === "heading") {
       res.push({ level: n.level ?? 1, title: titleOf(text, n), from: lineStartOf(text, n.from), section: true });

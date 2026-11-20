@@ -28,6 +28,7 @@
 import { EditorState } from "@codemirror/state";
 import { foldService } from "@codemirror/language";
 import { loadMany } from "./load.mjs";
+import { sefer, table, list } from "./seferfixture.mjs";
 
 const { structure, spans, headings, "ksav-lang": lang } = await loadMany([
   "structure",
@@ -37,44 +38,6 @@ const { structure, spans, headings, "ksav-lang": lang } = await loadMany([
 ]);
 
 // ------------------------------------------------------------------ documents
-
-function table(rows) {
-  const body = Array.from(
-    { length: rows },
-    (_, r) => `  תא[א${r}], תא[ב${r}], תא[ג${r}],`,
-  ).join("\n");
-  return `#טבלה(עמודות: 3, פסים: true,\n${body}\n)\n`;
-}
-
-function list(items) {
-  const body = Array.from({ length: items }, (_, i) => `  פריט[סעיף ${i}],`).join("\n");
-  return `#רשימה(\n${body}\n)\n`;
-}
-
-/**
- * A sefer, in the shape Ksav documents are actually written in.
- *
- * Not a wall of one construct: headings, prose, notes, citations and the
- * occasional list and table, because the cost of a scan is in the *nodes* and a
- * document of nothing but table cells has a node profile no writer produces.
- */
-function sefer(sections) {
-  const out = [];
-  for (let i = 0; i < sections; i++) {
-    out.push(`#כותרת1[פרק ${i}]`, "");
-    out.push(`#כותרת2[סימן ${i}]`, "");
-    for (let p = 0; p < 6; p++) {
-      out.push(
-        `דברי הפוסקים בענין זה, ועיין ב#הדגשה[שולחן ערוך] סימן ${p}, ` +
-          `ובמה שכתב שם (רש"י) בד"ה כך.#הערה[עיין שם באריכות, ${i}.${p}]`,
-        "",
-      );
-    }
-    out.push("#רשימה(", `  פריט[ראשית ${i}],`, `  פריט[שנית ${i}],`, ")", "");
-    if (i % 5 === 0) out.push(table(3), "");
-  }
-  return out.join("\n");
-}
 
 const SIZES = [
   ["small  (~15pp)", sefer(12)],
@@ -298,7 +261,8 @@ console.log();
 {
   const doc = SIZES[SIZES.length - 1][1];
   const pos = doc.indexOf("#הערה[");
-  const { notesIn, noteAt, noteDepthAt, noteDestination } = await loadMany(["notes"]).then((m) => m.notes);
+  const { notesIn, notesOf, noteAt, noteDepthAt, noteDestination } = await loadMany(["notes"]).then((m) => m.notes);
+  const outlineOf = lang.outlineOf;
 
   // The index is memoised per document version (notes.ts), so a keystroke pays
   // one build and every reader after it pays a hit. Measured separately: the
@@ -334,6 +298,31 @@ console.log();
     depth: n.depth,
     full: n.text,
   }));
+  // What the pane refresh costs *once the scan is in hand* (#219).
+  //
+  // Before the fix this path walked the document itself: `outline(doc)` asked
+  // `spans.scan` and `notesIn(doc)` asked for two more, on the thread the writer
+  // is typing on. Now the scan comes from `scanForBackend` — a worker round trip
+  // in the browser build — and the typing path pays only for the rows over it.
+  // The row below is that second half, which is the number the fence holds.
+  {
+    // A scan belongs to the text it was taken from (`assertScanText`), so the four
+    // keystroke variants are built and scanned *before* the timer starts — the
+    // scan is the worker's half and is deliberately not in this number.
+    const variants = Array.from({ length: 4 }, (_, i) =>
+      [doc.slice(0, at2), String.fromCharCode(0x5d0 + i), doc.slice(at2)].join(""),
+    );
+    const scans = variants.map((text) => spans.scan(text));
+    const paneWork = ms((i) => {
+      notesOf(variants[i % 4], scans[i % 4]);
+      outlineOf(variants[i % 4], scans[i % 4]);
+    }, 8);
+    console.log(
+      "  pane refresh, scan already in hand:   " + paneWork.toFixed(1) + " ms  " +
+        "(index + rows, off the typing path)",
+    );
+  }
+
   const eq = ms(() => JSON.stringify(rows) === JSON.stringify([...rows]), 30);
   console.log(
     "  row equality, " + rows.length + " rows (one notes-pane refresh): " + (eq * 1000).toFixed(1) + " µs",

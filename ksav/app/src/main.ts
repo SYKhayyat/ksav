@@ -77,6 +77,7 @@ import { savedNameMap } from "./macros";
 import * as save from "./save";
 import { scheduleSave, reportSaveFailure } from "./save";
 import { scheduleCompile, compileNow, onStale, onAfterCompile, onSchedule } from "./compile";
+import { scanForBackend } from "./scanmemo";
 import { applyPreview, drawCurrentInto } from "./preview";
 import { sourceViews, toEveryPane, wirePanes } from "./panestate";
 import { renderPanes, refreshPaneHeads } from "./panehost";
@@ -1163,16 +1164,29 @@ function installHooks() {
       renderNotesPane();
     },
     refreshSidePanes: () => {
-      if (isReviewOpen()) renderReviewPanel();
-      if (settings.outline) renderOutline();
-      if (settings.notesPane) renderNotesPane();
-      if (settings.marksPane) renderMarksPane();
-      // The find drawer is a view of the document too — of two of them. The
-      // source half moves on every keystroke and the printed half moves when
-      // the compile lands, and a list of hits into a document that has since
-      // been edited is the stale surface this application is repeatedly
-      // reported for.
-      if (isPanelOpen("find-drawer")) renderFindPane();
+      // **The scan is asked for, not taken.** `scanForBackend` is the shared memo,
+      // and in the browser build it is a worker round trip: the whole-document walk
+      // happens somewhere else and this thread only builds the rows over the answer
+      // (#219). Two panes used to walk the document themselves here — 634 KB cost
+      // ~55 ms of main thread every 200 ms of typing, five frames for one redraw.
+      //
+      // An answer that arrives after another keystroke is dropped: the rows for a
+      // text that is no longer on screen are the stale surface this app is
+      // repeatedly reported for, and the next debounce is already scheduled.
+      const text = docTextNow();
+      return scanForBackend(runtime.backend, text).then((scanned) => {
+        if (text !== docTextNow()) return;
+        if (isReviewOpen()) renderReviewPanel(scanned);
+        if (settings.outline) renderOutline(scanned);
+        if (settings.notesPane) renderNotesPane(scanned);
+        if (settings.marksPane) renderMarksPane(scanned);
+        // The find drawer is a view of the document too — of two of them. The
+        // source half moves on every keystroke and the printed half moves when
+        // the compile lands, and a list of hits into a document that has since
+        // been edited is the stale surface this application is repeatedly
+        // reported for.
+        if (isPanelOpen("find-drawer")) renderFindPane();
+      });
     },
     openDocHanded: (id) => openDoc(id, { handedOver: true }),
     askText: (message, initial) => askText(message, initial),

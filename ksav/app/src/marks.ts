@@ -15,7 +15,7 @@
 
 import { bothSpellings } from "./engine.gen";
 import { scan, splitArgs } from "./spans";
-import type { Group } from "./spans";
+import type { Group, Scan } from "./spans";
 
 /**
  * The classes whose look a control may set.
@@ -264,8 +264,17 @@ const CLASS_OF: Record<string, string> = Object.fromEntries(
  * eleventh place to find that out.
  */
 export function marksIn(doc: string): MarkSpan[] {
+  return marksOf(doc, scan(doc));
+}
+
+/**
+ * The same marks, from a scan somebody else already made — the pane refresh has
+ * one in hand, and a second walk of a 634 KB document on the typing thread is
+ * the cost #219 was filed about.
+ */
+export function marksOf(doc: string, scanned: Scan): MarkSpan[] {
   const out: MarkSpan[] = [];
-  for (const n of scan(doc).nodes) {
+  for (const n of scanned.nodes) {
     if (!n.hash) continue;
     const cls = CLASS_OF[n.name];
     if (!cls) continue;

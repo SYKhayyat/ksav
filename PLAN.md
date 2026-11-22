@@ -165,12 +165,17 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
       same garbage to every service in the registry and asserts only what is true of all of
       them. The uniformity decision was the owner's, because the wire is a contract with the
       installed app — taken and landed as `Reply`; see the audit entry above.
-- [ ] #213 a 166 KB document of brackets costs two minutes of CPU: Typst's markup parse is
-      quadratic (release: 10,000 stray `]` 0.49 s, 40,000 6.92 s, 160,000 126.96 s) and
-      nothing here has a compile budget. Found while answering the stack question that
-      `hostile.rs` had left open — which `engine/tests/nesting.rs` now answers and fences:
-      4,000 nested `#box[` is refused with one bilingual sentence, 200,000 plain brackets are
-      text and compile, and the limit is asserted from both sides.
+- [x] **#213** a 166 KB document of brackets costs two minutes of CPU: Typst's markup parse
+      is quadratic (release, re-measured: 10,000 stray `]` 1.81 s, 20,000 9.89 s, 40,000
+      55.3 s; 20,000 balanced pairs 1.68 s; a real 563 KB sefer 0.22 s) and nothing here had
+      a compile budget. **Closed**: `engine/src/shape.rs` refuses two measured shapes before
+      any work is done — more than 200 stray closers (each is also an error, and the curve is
+      worst there), or more than 48,000 bracket characters (7× the largest real document
+      measured). Both sentences name the count in both languages. The *wait* is now the
+      writer's too: `settings.compileBudgetS` (empty = the build's own number, so an
+      operator's `KSAV_COMPILE_TIMEOUT_MS` still reaches everyone who never asked). Fenced by
+      `engine/tests/budget.rs`: 160,000 stray closers answer in milliseconds with **one**
+      sentence; 20,000 balanced pairs still lay out; both ceilings asserted from both sides.
 - [ ] Check #22 (the `main.ts` split) and close it if every split wave is done. As of 2026-11-15 they were, but `main.ts` was still about 3,500 lines against a target of about 1,500. That gap is in the Debt section above. Ask the owner before closing.
 
 ## ◆ D0 — Do we decide the UI and backend direction now?

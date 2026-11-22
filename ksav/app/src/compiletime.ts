@@ -48,10 +48,45 @@ function usable(v: unknown): number | undefined {
  * have been evaluated before it.
  */
 export function compileDeadlineMs(scope: Scope | undefined = globalThis as Scope): number {
+  // **The writer's own number first** (#213), and only when they set one. An
+  // unset box is not a zero and not the default: it means *ask this build*, which
+  // is what the two sources below answer. So a deployment's raised budget still
+  // reaches a writer who never touched the setting, and a writer who did touch it
+  // outranks both.
+  const chosen = chosenSeconds();
+  if (chosen !== undefined) return chosen * 1000;
   const fromShell = usable(scope?.[GLOBAL_KEY]);
   if (fromShell !== undefined) return fromShell;
   const el = scope?.querySelector?.(META);
   const fromPage = usable(el?.getAttribute("content"));
   if (fromPage !== undefined) return fromPage;
   return DEFAULT_COMPILE_TIMEOUT_MS;
+}
+
+/**
+ * The seconds the writer asked for, or `undefined`.
+ *
+ * Read through a function rather than imported, for one reason: `settings.ts`
+ * imports this application's whole store — `api`, `runtime`, `wiring` — and this
+ * module is imported by `transports.ts`, which `api.ts` describes. A direct
+ * import would close that loop. `settings.ts` calls {@link budgetFromSettings}
+ * at module load, which happens before any compile can be asked for.
+ *
+ * Refused rather than clamped on the way in: a box left in a state the writer
+ * cannot mean (zero, negative, NaN — a cleared number input reads as `NaN`) falls
+ * back to the build's number instead of abandoning every compile instantly.
+ */
+let settingsReader: (() => unknown) | null = null;
+
+/** Point the reader at the live settings. Called once, from `settings.ts`. */
+export function budgetFromSettings(read: () => unknown): void {
+  settingsReader = read;
+}
+
+function chosenSeconds(): number | undefined {
+  const raw = settingsReader?.();
+  const n = usable(raw);
+  // A number of *seconds*, so the floor is one second rather than one
+  // millisecond: `usable` is already refusing everything that is not positive.
+  return n === undefined ? undefined : n;
 }

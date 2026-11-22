@@ -44,6 +44,9 @@ pub mod lang;
 /// The compile pipeline: the Typst world, the layout, and the pages written
 /// from it. `#218`'s curve and `#219`'s pane costs are this module's territory.
 pub mod layout;
+/// A body's shape, judged before it is laid out — the bracket ceilings `#213`
+/// measured, and the sentences a document past them is refused with.
+pub mod shape;
 /// The wire: the JSON a caller sends and the JSON it is answered with.
 pub mod wire;
 

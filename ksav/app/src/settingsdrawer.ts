@@ -898,6 +898,15 @@ export function buildSettingsDrawer(): HTMLElement {
       ["relaxed", t("previewDelay.relaxed")],
       ["manual", t("previewDelay.manual")],
     ]),
+    // #213, and the other half of the row above: *how often* the preview is laid
+    // out, and *how long* one layout may take before the editor stops waiting.
+    // Empty is the ordinary state and means "whatever this build was set up
+    // with" — the engine's `KSAV_COMPILE_TIMEOUT_MS` for a served page, the
+    // shell's copy of it on the desktop, the built-in twenty seconds offline — so
+    // `optNumberRow` rather than `numberRow`: a box that prints `undefined` into
+    // itself, or writes a 0 when cleared, would abandon every compile at once.
+    optNumberRow("compileBudgetLabel", "compileBudgetS", 5, 300, 5),
+    el("p", { class: "set-hint" }, [t("compileBudgetNote")]),
     // Which sefer a search reads. Here as well as on the find drawer itself:
     // this is where a writer sets the application up, and that is where they
     // meet the consequence — a control that lives in only one of the two is a

@@ -35,6 +35,17 @@ sittings, in the order it was done:
   shape of its own choosing; `app/test/wire.test.mjs` and `tests/reply.rs` (96
   answers driven from the registry) hold the wire.
 - **#217** a separator-splitting fence that caught a real wire bug on the way.
+- **#213** the bracket ceiling and the writer's own budget. A 166 KB body of
+  stray `]` cost two minutes of CPU (re-measured on this tree: 10,000 stray
+  1.81 s, 20,000 9.89 s, 40,000 55.3 s; a real 563 KB sefer 0.22 s) and nothing
+  bounded it. `engine/src/shape.rs` now refuses two **measured** shapes before
+  any work happens — >200 stray closers, or >48,000 bracket characters — and the
+  wait is the writer's: `settings.compileBudgetS` (empty = the build's own
+  `KSAV_COMPILE_TIMEOUT_MS`, so an operator's raised budget still reaches
+  everyone who never asked). Fenced by `engine/tests/budget.rs` and
+  `app/test/compiletime.test.mjs`. **Honest limit**: deleting the refusal call
+  from `layout_document` cannot be shown as a red in the test profile — the
+  fence just hangs for longer than a 15-minute timeout, which is the defect.
 - **#202** a link in a document is no longer a navigation. The sanitizer had
   already limited the schemes; a *surviving* `https:` link still replaced the
   editor (and, in the desktop build, asked the webview to load a new document
@@ -47,10 +58,10 @@ sittings, in the order it was done:
   defect), so the gate's `desktop render scale` check fails here before and
   after, verified by stashing.
 
-The one value left from the audit's own list that is nobody's yet: **#213** — a
-compile *budget* is a product decision (how long may the engine spend before it
-refuses?) and it is marked waiting on the owner. Never picked up during the
-audit; it is the last item `PLAN.md` had on its always-first list.
+**Nothing is waiting on a decision any more.** #213 (a compile *budget* — how long
+may the engine spend before it refuses?) was the last of them, and the owner's
+answer was *let the writer set it*: the shape is refused by a measured ceiling and
+the wait is a settings box.
 
 Of the older ledger: #171 is an index page whose findings were all actioned
 (#189 is layer 3); #140 is similar, with #163 (2-preview desync) and #164
@@ -89,12 +100,10 @@ claims about `main.ts` now have to be whole-source claims, enforced by
 `test/fences.test.mjs`), **#214** and **#216** (two generated corpora —
 `engine/tests/fuzz.rs` and `app/test/scanfuzz.test.mjs`).
 
-**Two issues are waiting on a decision, not on work.** #213: a 166 KB document of
-`]` costs two minutes of CPU (Typst's markup parse is quadratic); the fix is a
-compile budget or a balance pre-check, and a budget is a product decision. #215:
-four services answer a failure in three wire shapes (`{}`, `{"points": []}`,
-`{error}` with no `ok`, and `error_json`); making them uniform changes a shape the
-installed app reads.
+**Two issues were waiting on a decision, not on work, and both were answered.**
+#213 (a 166 KB document of `]` cost two minutes of CPU) was closed by a measured
+bracket ceiling plus a writer-settable budget; #215 (four services answered a
+failure in three wire shapes) by the `Reply` type at the service seam.
 
 **One trap, recorded because it cost an hour.** `node test/run.mjs` *refuses to
 run* while generated fixtures are stale, and the refusal prints no `FAIL` — so a

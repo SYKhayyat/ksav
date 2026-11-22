@@ -1319,6 +1319,8 @@ export const EN: Dict = {
   syncExactLabel: "Settle to the exact place when you stop",
   syncSettleMsLabel: "How long before it settles (ms)",
   syncSettleNote: "While you scroll the follow is a fast estimate; when your hand stops, the engine is asked where that line really printed and the preview settles there.",
+  compileBudgetLabel: "Longest compile to wait for (seconds)",
+  compileBudgetNote: "How long to wait for one layout before the preview gives up. Empty means this build's own number. A document that runs past it keeps laying out in the background, and the preview says it was abandoned.",
   maxSnapshotsLabel: "Restore points kept",
   maxHistoryMBLabel: "Room for them (MB)",
   historyLimitsNote: "When either ceiling is reached the oldest go first. The newest is always kept.",

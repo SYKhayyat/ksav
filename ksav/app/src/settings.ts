@@ -12,6 +12,7 @@ import { DOC_DEFAULTS } from "./engine.gen";
 import { makeWiring } from "./wiring";
 import * as runtime from "./runtime";
 import type { Lang } from "./i18n";
+import { budgetFromSettings } from "./compiletime";
 
 export type Layout = "two" | "page" | "source";
 export type PreviewSide = "left" | "right" | "top" | "bottom";
@@ -317,6 +318,23 @@ export interface Settings {
    * every arrow key drags the preview back.
    */
   followCaret?: boolean;
+  /**
+   * How long one compile may take before the editor stops waiting, in **seconds**.
+   *
+   * Unset is the ordinary state and means *whatever this build was configured
+   * with*: the engine serves `KSAV_COMPILE_TIMEOUT_MS` to the page it serves, the
+   * desktop shell hands the same number over at startup, and the offline build
+   * keeps the default. That is #109's arrangement, and it exists because a writer
+   * on a big sefer and a deployment serving one are two different people.
+   *
+   * What was missing (#213) is the writer's own say: a slow machine opening a
+   * 634 KB sefer, or a document that legitimately takes longer than the default,
+   * had no way to ask for more time short of an environment variable. Unset
+   * *falls back* to the build's number rather than overriding it, so an existing
+   * writer notices nothing until they ask — and an operator's raised budget is
+   * still honoured.
+   */
+  compileBudgetS?: number;
   /** Whether clicking in the source reveals that spot in the preview. */
   clickToPreview?: boolean;
   /**
@@ -934,6 +952,12 @@ export function loadSettings(): Settings {
 
 /** The live settings object. Mutated in place; call `saveSettings` after. */
 export const settings: Settings = loadSettings();
+
+// The one setting a *transport* reads: `compiletime.ts` cannot import this file
+// (that would close the `transports → api → settings` loop), so it takes a
+// reader instead. Handed over once, here, after the store exists — and the store
+// is mutated in place, so the closure sees every later change (#213).
+budgetFromSettings(() => settings.compileBudgetS);
 
 /**
  * Why the preferences could not be written, or null if they were.

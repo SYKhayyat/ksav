@@ -610,6 +610,18 @@ pub(crate) fn layout_document(
     cfg: &DocConfig,
     assets: &Assets,
 ) -> Result<PagedDocument, Vec<Diagnostic>> {
+    // **The shape, before the work** (#213). Typst's markup parse is
+    // superquadratic in bracket characters, and nothing used to bound how much
+    // of it a single request could ask for: a 166 KB body of stray `]` held a
+    // compile slot for two minutes and emitted one diagnostic per bracket. The
+    // scan is linear and answers in microseconds, so it costs a real document
+    // nothing — and it runs before assembly, before the world is built and
+    // before the reserve arithmetic, which are all work a refused body should
+    // not pay for either.
+    if let Some(refused) = crate::shape::refusal(body) {
+        return Err(vec![refused]);
+    }
+
     // The too-small switch's "refuse": a writer-fixed reserve smaller than its
     // foot regions' declared heights, where flowing cannot help because every
     // page is equally short. Both numbers, then stop - the one answer that can

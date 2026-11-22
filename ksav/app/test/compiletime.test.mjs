@@ -30,7 +30,11 @@ import path from "node:path";
 import { ROOT } from "../tools/paths.mjs";
 import { facts } from "../tools/facts.mjs";
 import { check, ok } from "./harness.mjs";
-import { compileDeadlineMs, DEFAULT_COMPILE_TIMEOUT_MS } from "../.tmp-test/compiletime.mjs";
+import {
+  compileDeadlineMs,
+  budgetFromSettings,
+  DEFAULT_COMPILE_TIMEOUT_MS,
+} from "../.tmp-test/compiletime.mjs";
 
 const transports = readFileSync(path.join(ROOT, "ksav/app/src/transports.ts"), "utf8");
 
@@ -111,6 +115,72 @@ export async function run() {
     "and does not cache it at module load, which would run before the shell speaks",
     !/const COMPILE_DEADLINE = compileDeadlineMs/.test(transports),
   );
+
+  // ------------------------------------------- the writer's own number (#213)
+
+  // Until a writer touches the box, the build's number stands — which is what
+  // keeps an operator's raised budget working for everyone who never asked.
+  budgetFromSettings(() => undefined);
+  check(
+    "an unset setting leaves the page's budget alone",
+    compileDeadlineMs(page({ "ksav-compile-timeout-ms": "60000" })),
+    60_000,
+  );
+  check("and leaves the shell's alone", compileDeadlineMs({ __ksavCompileTimeoutMs: 5_000 }), 5_000);
+  check("and the default is still the default", compileDeadlineMs({}), 20_000);
+
+  // Set, it outranks both: the writer is the one waiting.
+  budgetFromSettings(() => 45);
+  check(
+    "the writer's seconds win over the page",
+    compileDeadlineMs(page({ "ksav-compile-timeout-ms": "60000" })),
+    45_000,
+  );
+  check("and over the shell", compileDeadlineMs({ __ksavCompileTimeoutMs: 5_000 }), 45_000);
+  check("seconds, not milliseconds", compileDeadlineMs({}), 45_000);
+
+  // A number the writer cannot mean is refused rather than clamped: a cleared
+  // number input reads as `NaN`, and taking it at its word would abandon every
+  // compile instantly — the failure mode this setting exists to prevent, with a
+  // worse symptom than a slow compile.
+  for (const [what, v] of [
+    ["NaN (a cleared box)", NaN],
+    ["zero", 0],
+    ["negative", -30],
+    ["Infinity", Infinity],
+    ["a non-numeric string", "soon"],
+  ]) {
+    budgetFromSettings(() => v);
+    check(`${what} falls back to the build's number`, compileDeadlineMs({}), 20_000);
+  }
+  // A numeric string is a number, though: the box writes numbers, and a blob
+  // hand-edited to hold `"45"` means forty-five seconds.
+  budgetFromSettings(() => "45");
+  check("a numeric string is read as seconds", compileDeadlineMs({}), 45_000);
+  budgetFromSettings(() => undefined);
+
+  // --------------------------------------------------- the row and its words
+
+  const drawer = readFileSync(path.join(ROOT, "ksav/app/src/settingsdrawer.ts"), "utf8");
+  ok(
+    "the drawer has a row for it",
+    /optNumberRow\("compileBudgetLabel", "compileBudgetS"/.test(drawer),
+  );
+  // `optNumberRow`, not `numberRow`: the unset state is the ordinary one, and
+  // `numberRow` prints "undefined" into the box and writes `0` when cleared.
+  ok(
+    "as an optional number, so a cleared box is not a zero",
+    !/numberRow\("compileBudgetLabel"/.test(drawer),
+  );
+  // The reader is handed over rather than imported, because `settings.ts`
+  // importing `transports.ts`-side code would close a loop — and a module that
+  // silently stops being asked is exactly the #109 shape this file is about.
+  const settingsTs = readFileSync(path.join(ROOT, "ksav/app/src/settings.ts"), "utf8");
+  ok(
+    "settings hands its reader over to the module that asks",
+    /budgetFromSettings\(\(\) => settings\.compileBudgetS\)/.test(settingsTs),
+  );
+  ok("and the field it reads exists", /compileBudgetS\?: number/.test(settingsTs));
 
   // What the desktop shell does with the budget is held by the engine's own
   // sweep (`tests/deep_link.rs`), because it is Rust and this file does not

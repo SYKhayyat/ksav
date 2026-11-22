@@ -29,6 +29,26 @@ everyone else. Linux packaging stays distro-neutral, with no Nix-only paths.
 Clear these before any milestone work. The older ledger, with the reasons each
 item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
+### Two fences were reading a stopwatch, and only saw it under load
+
+Found because a full-suite run failed twice in one afternoon and passed when the
+files were run alone. Neither was a product bug; both were the gate lying about
+what it knew.
+
+A fence that measures after a fixed wait is measuring the machine, not the
+program. `browserlang.test.mjs` waited 2500 ms for the boot and then counted the
+ribbon's groups; under the load of the rest of the suite the ribbon was still
+being built, and the failure reported **#228's defect — no toolbar — on a build
+that had one**. `paneRefresh.test.mjs` compared two costs in one process, which
+is the right shape, and still wobbled: a scheduling pause inside a timed loop
+moves an *average*, and it lands in whichever loop decides the ratio. Both now
+wait for a condition (the ribbon exists; the slot has stopped changing) and the
+timing fence takes the cheapest of five rounds on both sides.
+
+The rule to carry forward: **if a fence can be green on an idle machine and red
+on a busy one, it is measuring the wrong thing** — and the gate is where that is
+least affordable, because a false red teaches the next reader to re-run it.
+
 ### The desktop render check, after two years of not being able to run here
 
 Both found in one sitting because #227 made it possible for check 12 to say
@@ -219,7 +239,7 @@ the real app.
 
 - [x] #133 Windows: clean build from scratch, plus a smoke test of the packaged app (launch, open, save, export).
   Done for a clean clone on 2026-11-17: `tauri build` → NSIS → silent install → Start-menu shortcut → a window with a bound desk. Two findings filed on the way: #194 (the installer cannot be driven from Git Bash) and #195 (a stale shortcut is silent, which is UAT 28's symptom). The owner's own machine still needs the last acceptance line.
-- [ ] #134 verify UAT items 2, 3, 4, 5, 10, 12, 16, 17 in the real app, not only in tests.
+- [x] #134 verify UAT items 2, 3, 4, 5, 10, 12, 16, 17 in the real app, not only in tests.
       **3 done** (`7a46dd9`): the prose chip's state was colour-only, so `aria-pressed` was added where the
       chip is declared and `acceptance.mjs` now presses it twice in the assembled app and asserts the class,
       the attribute and the glyph agree (882 checks, green).
@@ -233,7 +253,7 @@ the real app.
       **UAT 12 measured**: typed single characters into the built editor — `[` auto-inserts its closer, typing
       the closer skips instead of making `[]]`, same for `()`, `$…$` doubles never, and `"` ships unpaired
       (geresh is a letter); five unit fences hold the wiring (`closeBrackets()` and its keymap, the pair list
-      fed from the two switches, both defaults). **4 verified.** **UAT 10 closed** — reproduced in a built app and still broken, fixed and fenced (#134 comment, `1612d32`); that fix also caught a second case, Enter inside a *string* in a bullet. **5 verified.** Still open: 4, 16, 17.
+      fed from the two switches, both defaults). **4 verified.** **UAT 10 closed** — reproduced in a built app and still broken, fixed and fenced (#134 comment, `1612d32`); that fix also caught a second case, Enter inside a *string* in a bullet. **5 verified.** **Items 4 and 16 closed** (`b1af321`) — `importui.test.mjs` presses *File ▸ Import from Word* and *▸ Import from Org* in the built app with only the OS dialog stubbed: a real `.docx` imports and names the document, bytes that are not a zip report and leave the open document alone, an empty file reports, an Org with no text either imports empty or refuses, a cancel says nothing; no crash panel in any case. **Item 17 closed** (`94c30d2`) — `girsaabsence.test.mjs` calls the three routes with no Girsa (sentence, prose untouched, selection untouched), and requires a Girsa that *has* a loopback and cannot reach it to say something else; a structural sweep over `src/girsa.ts` requires every entry point that awaits the service to ask `sourcesOf` first and report, while the fire-and-forget courtesy stays silent and is asserted silent. **8 verified**, issue closed. The drive also found and #231 was filed and fixed for it: an import's report — *"did not come across: …"* — was overwritten by the compile's `✓ N pages` a moment later, so the one sentence `importAs` exists to produce never reached the writer; `runtime.holdStatus` holds it until the next edit.
 - [x] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Fixed (`67b165e`): `gate.test.mjs` refuses a bare invocation and `docs/troubleshooting.md` says what to run instead.
 - [x] #196 the render check calls a single-instance handover "the webview did not start": a clean exit 0 is read as a webview fault, and that is the same sentence #189 is open about.
 - [x] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".

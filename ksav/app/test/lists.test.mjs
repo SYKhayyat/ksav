@@ -5,6 +5,7 @@ import {
   itemAt,
   addItem,
   splitItem,
+  canSplitItem,
   breakInItem,
   canBreakInItem,
   indentItem,
@@ -119,6 +120,55 @@ export async function run() {
   ok("split: the head kept its start", r.text.includes("פריט[ש]"));
   ok("split: the tail moved to the new item", r.text.includes("פריט[ני]"));
   check("split: the caret is at the start of the tail", r.text.slice(r.caret, r.caret + 2), "ני");
+}
+
+// ------------------------------------------- Enter inside a note in a bullet
+//
+// **UAT 10, driven rather than read.** The report: *"pressing Enter in the middle
+// of a footnote in a list writes `פריט` literally because every Enter is treated
+// as a new list item."* The first fix made `itemAt` decline for a caret inside a
+// nested bracket body, which was right and not enough: `splitItem` then fell
+// through to its "no item here, so add one" branch and appended `פריט[]` to the
+// bottom of the list, moving the caret there — the reported symptom, unchanged,
+// with every unit test green, because every existing case put the caret in an
+// item body.
+//
+// So the question Enter asks has to separate the two nothings: no item because
+// the caret is between items (add one), and no item because the caret is inside
+// a nested body (not a list operation at all — the editor's Enter is the answer).
+{
+  const doc = `#רשימה(פריט[דבר #הערה[הערה פנימית] עוד], פריט[שני])`;
+  const pos = doc.indexOf("פנימית");
+  const l = listAt(doc, pos);
+  ok("a note inside a bullet is still a list", l !== null);
+  check("itemAt declines inside the note", itemAt(l, pos, doc), null);
+  notOk("…but canSplitItem says no, so the control is greyed", canSplitItem(doc, l, pos));
+  notOk("Enter inside the note is not a list split", splitItem(doc, l, pos) !== null);
+
+  // The other nothing: between two items there is no item to split, and adding
+  // one at the end is what Enter at the end of a list has always meant.
+  const between = doc.indexOf("], פריט[שני") + 1;
+  ok("canSplitItem still says yes between items", canSplitItem(doc, l, between));
+  const added = splitItem(doc, l, between);
+  ok("…and adds an item there", added !== null && listAt(added.text, added.caret).items.length === 3);
+
+  // A nested *command* and a table in a bullet are the same case, and neither is
+  // a note — the decline has to be about the bracket body, not about `#הערה`.
+  for (const [label, inner] of [
+    ["a bold run", `#הדגשה[מודגש]`],
+    ["a string", `#הדגשה("מחרוזת")`],
+  ]) {
+    const d = `#רשימה(פריט[דבר ${inner} עוד])`;
+    const p = d.indexOf("מודגש") >= 0 ? d.indexOf("מודגש") : d.indexOf("מחרוזת");
+    const li = listAt(d, p);
+    ok(`${label} in a bullet is a list`, li !== null);
+    notOk(`Enter inside ${label} is not a list split`, splitItem(d, li, p) !== null);
+  }
+
+  // …and ordinary list editing next to the note is untouched.
+  const outside = doc.indexOf("דבר") + 1;
+  ok("the item body around the note still splits", splitItem(doc, l, outside) !== null);
+  ok("and canSplitItem agrees", canSplitItem(doc, l, outside));
 }
 
 // ---------------------------------------------------------------- line break

@@ -93,6 +93,7 @@ export const HE: Dict = {
   "why.notOnItem": "הסמן צריך להיות בתוך אחד הפריטים",
   "why.firstItemNoNest": "לפריט הראשון אין תחת מה להיכנס",
   "why.notNestedList": "הרשימה הזו אינה בתוך רשימה אחרת",
+  "why.inNestedBody": "הסמן בתוך סוגריים — Enter כאן שורה חדשה",
   "why.noItemAbove": "זהו הפריט הראשון",
   "why.noItemBelow": "זהו הפריט האחרון",
   "why.alreadyThisKind": "הרשימה כבר מסוג זה",

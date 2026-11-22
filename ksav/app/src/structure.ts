@@ -308,16 +308,22 @@ const LIST_ACTIONS: StructureAction[] = [
   },
   {
     id: "list.splitItem",
-    why: "why.notIn.list",
+    why: "why.inNestedBody",
     primary: true,
     structure: "list",
     group: "items",
     glyph: "⤶",
     label: "listSplitItem",
-    // Splitting outside an item is adding one at the end, which always applies.
-    ...onList(
-      () => lists.canAddItem(),
-      (doc, list, pos) => lists.splitItem(doc, list, pos),
+    // Not `canAddItem`, which is always true: splitting declines inside a nested
+    // body of an item, where Enter is the editor's line break and this is not a
+    // list operation at all. The reason says which case it is, because "the
+    // caret is not inside a list" would be false there.
+    ...op(
+      (ctx) => {
+        const list = ctx.list();
+        return list !== null && lists.canSplitItem(ctx.doc, list, ctx.pos);
+      },
+      (ctx) => lists.splitItem(ctx.doc, ctx.list()!, ctx.pos),
     ),
   },
   {

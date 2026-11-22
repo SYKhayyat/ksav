@@ -239,7 +239,11 @@ the real app.
 - [x] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".
 - [ ] Generic Linux artifact from `ksav/packaging/build-linux.sh` (AppImage or tarball), tested on a non-Nix distro.
 - [ ] Windows NSIS installer built by `release.yml` and attached to the release.
-- [ ] Tag v0.2.0. Write short release notes listing what changed since v0.1.1.
+- [ ] Tag v0.2.0. **Notes written** — `docs/release-notes-v0.2.0.md`, linked from the
+      README's "Where to go". What remains is the tag itself, which waits on the two
+      artifacts above. Every claim in the notes was checked against a closed issue or a
+      measurement; the "Known limits" section names the four holes rather than closing
+      the release over them.
 
 ## M2 — Reliable for your own notes
 

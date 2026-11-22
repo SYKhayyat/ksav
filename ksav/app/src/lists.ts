@@ -123,6 +123,12 @@ export function itemAt(list: ListInfo, pos: number, doc?: string): { item: ItemI
     if (body && body.from > list.items[i].bodyFrom && body.to < list.items[i].bodyTo) {
       return null;
     }
+    // **A string is not the item's prose either.** `bodyAt` walks bracket groups,
+    // so `#הדגשה("מחרוזת")` inside a bullet was still "on the item": Enter split
+    // the item in half through the middle of a string, which is a syntax error
+    // in Typst and reads as the list corrupting itself. Found by the UAT 10
+    // fence, in the case it was written to check and one it was not.
+    if (s.strings.some((g) => pos >= g.from && pos <= g.to)) return null;
   }
   return { item: list.items[i], index: i };
 }
@@ -142,6 +148,21 @@ type OnItem = NonNullable<Here>;
 /** Always: an item can be added to a list wherever the caret is inside it. */
 export function canAddItem(): boolean {
   return true;
+}
+
+/**
+ * Enter, and the ribbon's ⤶: true anywhere in a list except inside a nested body.
+ *
+ * `canAddItem` is the honest predicate for *adding* — an item can always be
+ * appended. Splitting is not adding, and inside `#הערה[…]` within a bullet there
+ * is no item to split and nothing to add either: the caret is in ordinary markup
+ * and Enter's job there is a line break. Asking this before acting is what greys
+ * the control with a reason, and `runStructureAction` returning false is what
+ * lets the editor's own Enter run.
+ */
+export function canSplitItem(doc: string, list: ListInfo, pos: number): boolean {
+  if (itemAt(list, pos, doc)) return true;
+  return itemAt(list, pos) === null;
 }
 
 /**
@@ -262,9 +283,23 @@ function itemEndBefore(list: ListInfo, pos: number): number {
  * Enter in the middle of an item. In Word this is so ordinary that not having
  * it reads as the list being broken.
  */
-export function splitItem(doc: string, list: ListInfo, pos: number): Edit {
+export function splitItem(doc: string, list: ListInfo, pos: number): Edit | null {
+  if (!canSplitItem(doc, list, pos)) return null;
   const here = itemAt(list, pos, doc);
-  if (!here) return addItem(doc, list, pos);
+  if (!here) {
+    // No item to split. Between two items, on the `#רשימה(` line, or after the
+    // last one, that means *add* — which is what Enter at the end of a list has
+    // always done. The third case, a caret inside a nested body of an item, was
+    // already refused above.
+    //
+    // It was not, until UAT 10 was driven in a built app: the first attempt at
+    // the fix made `itemAt` answer `null` for a caret inside a `#הערה[…]` in a
+    // bullet, and the fall-through here then appended `פריט[]` to the bottom of
+    // the list and moved the caret into it — the reported symptom verbatim,
+    // *"every Enter is treated as a new list item"*, with a green unit suite,
+    // because every existing case had the caret in an item body.
+    return addItem(doc, list, pos);
+  }
   const tail = doc.slice(pos, here.item.bodyTo);
   const multiline = doc.slice(list.argsFrom, list.argsTo).includes("\n");
   const lead = multiline ? `,\n${list.indent}` : ", ";

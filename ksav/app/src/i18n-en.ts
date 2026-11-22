@@ -83,6 +83,7 @@ export const EN: Dict = {
   "why.notOnItem": "The caret has to be inside one of the items",
   "why.firstItemNoNest": "The first item has nothing to nest under",
   "why.notNestedList": "This list is not inside another one",
+  "why.inNestedBody": "The caret is inside a bracket body — here Enter starts a new line",
   "why.noItemAbove": "This is the first item",
   "why.noItemBelow": "This is the last item",
   "why.alreadyThisKind": "The list is already of this kind",

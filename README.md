@@ -21,6 +21,7 @@ Your documents stay on your machine. Ksav has no account, no server, and uploads
 | **understand the architecture** | [`ksav/README.md`](ksav/README.md) |
 | **work on the seam with Girsa** | [`docs/girsa.md`](docs/girsa.md) |
 | **know why something is the way it is** | [`decisions/README.md`](decisions/README.md) |
+| **see what changed in this release** | [`docs/release-notes-v0.2.0.md`](docs/release-notes-v0.2.0.md) |
 
 ## Download
 

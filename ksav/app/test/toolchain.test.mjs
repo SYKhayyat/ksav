@@ -117,7 +117,11 @@ export async function run() {
   // the same app. Asserting the name in all three is what stops the export
   // being deleted along with the reason it was added.
   {
-    const suite = read(path.join(APP, "test/browserlang.test.mjs"));
+    // **`pageserve.mjs`, not `browserlang.test.mjs`.** The browser accessor was
+    // extracted when a second file needed the same three helpers; this fence
+    // kept reading the old file and went red for a *move* rather than for a
+    // regression, which is the fence doing its job one file too early.
+    const suite = read(path.join(APP, "test/pageserve.mjs"));
     const acceptance = read(path.join(ROOT, ".github/scripts/acceptance.mjs"));
     ok("browser/flake.nix installs a chromium", /\bpkgs\.chromium\b/.test(flake));
     ok(

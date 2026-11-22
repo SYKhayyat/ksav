@@ -62,6 +62,11 @@ export function replaceAll(next: string) {
  * is for the operations that edit the document the writer is already in.
  */
 export function editDoc(next: string, caret?: number, extra: { scrollIntoView?: boolean } = {}) {
+  // The writer touched the document, so a held status has served its purpose —
+  // see `holdStatus`. Released here rather than on a timer because this is the
+  // one funnel every edit goes through, and "until you type" is the moment the
+  // compile report stops being a duplicate of what they just read.
+  releaseStatus();
   const change = minimalChange(docTextOf(view.state.doc), next);
   const unchanged = change.from === change.to && change.insert === "";
   view.dispatch({
@@ -199,6 +204,58 @@ export function setStatus(msg: string, cls = "", detail = "") {
   status.className = cls;
   if (detail) status.title = detail;
   else status.removeAttribute("title");
+}
+
+/**
+ * A status that survives the compile report, until the writer next types.
+ *
+ * One slot, and the routine `✓ 3 pages · 20ms` is written into it after every
+ * compile — which is fine when both messages are about the same thing and wrong
+ * when the first one is news. Two places have produced the news:
+ *
+ *   - `insertSnippet`'s refusal, *"this section cannot be added here"*, wiped a
+ *     few milliseconds later; that one was fixed by not compiling at all, which
+ *     is not available to an import.
+ *   - **an import's report** (#231): *"Imported מבחן — did not come across:
+ *     pictures"*. The list of what was left behind is the whole reason
+ *     `importAs` reports anything, and it was being erased before it could be
+ *     read — so a writer importing forty pages with images learned that the
+ *     document had forty pages.
+ *
+ * Released by the next edit rather than by a timer: a duration would be a number
+ * nobody measured, and "until you touch the document" is the moment the compile
+ * report stops being a duplicate of what the writer already knows. An **error**
+ * compile writes over the hold, because a document that no longer compiles is
+ * always the more urgent fact.
+ */
+let held: { msg: string; cls: string; detail: string } | null = null;
+
+export function holdStatus(msg: string, cls = "", detail = "") {
+  setStatus(msg, cls, detail);
+  held = { msg, cls, detail };
+}
+
+/** Answered by the compile reporter before it overwrites the slot. */
+export function statusIsHeld(): boolean {
+  return held !== null;
+}
+
+/**
+ * Put the held sentence back after a compile has finished with the slot.
+ *
+ * Suppressing the compile's report alone was not enough, and driving it showed
+ * why: the compile writes `rendering…` when it *starts*, its verdict when it
+ * ends, and a suppressed verdict left the slot reading *"rendering…"* for as long
+ * as the hold lived — a worse silence than the one this fixes. So the compile
+ * writes what it writes, and this puts the news back at the end of it.
+ */
+export function restoreHeldStatus() {
+  if (held) setStatus(held.msg, held.cls, held.detail);
+}
+
+/** Called from the one funnel every edit goes through. */
+export function releaseStatus() {
+  held = null;
 }
 
 // The header's dropdowns are the other user of the `open` class, and `panels.ts`

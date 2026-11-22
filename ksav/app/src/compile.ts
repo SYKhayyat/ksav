@@ -410,7 +410,7 @@ export async function runCompile() {
       applyPreview();
     }
     const errs = res.diagnostics.filter((d) => d.severity === "error");
-    if (res.ok && healedCount) {
+    if (res.ok && healedCount && !runtime.statusIsHeld()) {
       // Rendered, but not from what is literally on screen. Say which, and how
       // many — silently showing a page built from text the writer did not type
       // would be worse than the blank preview this replaces.
@@ -420,9 +420,17 @@ export async function runCompile() {
       status.textContent = `✓ ${res.pages_svg.length} ${t("pages")} · ${ms}ms`;
       status.className = "ok";
     } else {
+      // **An error outranks a hold.** A document that no longer compiles is
+      // always the more urgent fact than whatever the slot was holding (#231).
+      runtime.releaseStatus();
       status.textContent = `✗ ${t("compileError")}`;
       status.className = "err";
     }
+    // …and the news, if there is any, goes back into the slot: an import's report
+    // (*"did not come across: pictures"*) is exactly what a routine `✓ 1 page`
+    // was erasing, and `rendering…` had the same effect one step earlier. See
+    // `holdStatus` in `runtime.ts`.
+    runtime.restoreHeldStatus();
     const worst = errs.length ? errs : res.diagnostics;
     // The location goes in front of the message, the raw compiler text goes on
     // the hover, and the whole thing is clickable so it can put the cursor on the

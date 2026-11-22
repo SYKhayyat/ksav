@@ -79,83 +79,10 @@
 
 import { check, ok } from "./harness.mjs";
 import { markPattern } from "../.tmp-test/engine.gen.mjs";
-import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { extname, join, dirname, normalize, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const APP = resolve(HERE, "..");
-const DIST = join(APP, "dist");
-const SRC = join(APP, "src");
-
-/** The newest file under `dir`, as an mtime in ms — 0 when it holds no files. */
-function newestFile(dir) {
-  let newest = 0;
-  let where = "";
-  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    const at = join(entry.parentPath ?? entry.path, entry.name);
-    const ms = statSync(at).mtimeMs;
-    if (ms > newest) {
-      newest = ms;
-      where = at;
-    }
-  }
-  return { newest, where };
-}
-
-/**
- * Refuse to measure a `dist/` older than the sources beside it.
- *
- * **A refusal and not a skip**, and the difference is the whole point. A missing
- * `dist/` or a missing Chromium means *this machine cannot run this test*, which
- * is a complaint about the machine and the file already says so. A **stale**
- * `dist/` means the test is about to produce a confident, well-formatted,
- * entirely fictional finding about code that is not in the tree — and that is
- * what happened to #81. A skip would have been the same silence with a worse
- * sign on it, so this goes red and names the two timestamps.
- *
- * Newest-of-each rather than a single file, on both sides: `vite` writes many
- * chunks and `src/` is many files, so either one alone is a sample of a
- * distribution. And it compares `src/` against `dist/` rather than against the
- * test files, so editing a test — which is what you do when a test is wrong —
- * does not make the build stale and does not turn this red for no reason.
- */
-function assertFreshBuild() {
-  const built = newestFile(DIST);
-  const edited = newestFile(SRC);
-  // **`true`, not a bare `return`.** The first version of this returned nothing
-  // on the fresh path, and the call site reads the answer as a boolean — so a
-  // *fresh* `dist/` was indistinguishable from a refusal, and the file skipped
-  // itself on every run without printing why. `run.mjs`'s "asserted nothing"
-  // check is what caught it, which is that check earning its keep twice.
-  if (built.newest === 0 || edited.newest <= built.newest) return true;
-  console.error(
-    `app/dist is older than app/src, so this would measure a build that is not this code.\n` +
-      `  built  ${new Date(built.newest).toISOString()}  ${built.where}\n` +
-      `  edited ${new Date(edited.newest).toISOString()}  ${edited.where}\n` +
-      `  rebuild it:\n` +
-      `    cd ksav/app && npm run build`,
-  );
-  // **Thrown, not `check`ed.** #91.
-  //
-  // `check` reports a *failed assertion*, which leaves this file with one failure
-  // and zero passes — and `run.mjs`'s "a file that reports no assertions cannot
-  // go red" then reports it as `browserlang.test.mjs — 0 passed`. That is what CI
-  // showed, and it is the least useful sentence available: it reads like a test
-  // file that lost its body, when the truth is that there is no build to measure.
-  //
-  // A stale build and a gutted test are different faults with different fixes, and
-  // they were indistinguishable from outside. Throwing names this one.
-  throw new Error(
-    `refusing to measure a stale build: app/dist is older than app/src.\n` +
-      `  built  ${new Date(built.newest).toISOString()}  ${built.where}\n` +
-      `  edited ${new Date(edited.newest).toISOString()}  ${edited.where}\n` +
-      `  rebuild it:  cd ksav/app && npm run build`,
-  );
-}
+import { readFile } from "node:fs/promises";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { DIST, assertFreshBuild, baseOf, browser, serve } from "./pageserve.mjs";
 
 /** Hebrew script, the thing a switch is supposed to remove. */
 const HEBREW = /[֐-׿]/;
@@ -208,136 +135,6 @@ const RESIDUE = [
  * written down rather than fixed. In an English interface it reads Hebrew-first,
  * and that is a decision to argue about, not a translation to make.
  */const CEILING = { keys: RESIDUE.length, composed: 7 };
-
-/**
- * The path the built `index.html` asks for its assets under.
- *
- * A project Pages site lives under `/ksav/`, so `deploy.yml` builds with
- * `VITE_PUBLIC_BASE` set and every asset URL in the built HTML carries that
- * prefix. This file served `dist/` at `/`, so it answered `/ksav/assets/index-….js`
- * with **`index.html`** — which the browser then refused to run as a module, and
- * the app never booted. It surfaced as *the app boots into Hebrew with plenty on
- * screen* failing, thirty seconds later, on a **language** assertion: which is
- * what an unreadable module looks like from in here.
- *
- * Read out of the HTML rather than out of `VITE_PUBLIC_BASE`, because the
- * question is not what the build was asked for but what it asked for — and a
- * plain `npx vite build`, which is what `ci.yml` runs, wants `/`.
- *
- * Returns the base and any absolute asset URL that disagrees with it. That
- * disagreement is what a hand-edited or half-prefixed bundle looks like, and it
- * is silent: every file resolves, and the app is blank.
- */
-function baseOf(html) {
-  const absolute = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
-    .map((m) => m[1])
-    .filter((u) => u.startsWith("/") && u.includes("/assets/"));
-  if (!absolute.length) return { base: "/", offenders: [] };
-  const base = absolute[0].slice(0, absolute[0].indexOf("/assets/"));
-  return { base: base || "/", offenders: absolute.filter((u) => !u.startsWith(base + "/")) };
-}
-
-/**
- * Serve `dist/` under the prefix it was built for, and give back the origin.
- *
- * Static, and the SPA fallback for **document requests only** — which is a
- * second fix for the same silence. The fallback used to answer *every* miss with
- * `index.html`, so a missing script arrived as a 200 of `text/html` and the
- * browser's complaint was about MIME types rather than about the file that was
- * not there. `Accept` is the difference between "somebody opened a path" and
- * "the page asked for an asset", and only the first wants the app.
- */
-async function serve(base = "/") {
-  const TYPES = {
-    ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-    ".json": "application/json", ".wasm": "application/wasm",
-    ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2",
-  };
-  const server = createServer(async (req, res) => {
-    const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
-    const rel = base === "/" ? path : path.replace(new RegExp(`^${base}(?=/|$)`), "");
-    const wantsDocument = (req.headers.accept ?? "").includes("text/html");
-    const candidates = [join(DIST, rel), ...(wantsDocument ? [join(DIST, "index.html")] : [])];
-    for (const file of candidates) {
-      try {
-        const body = await readFile(file);
-        res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
-        return res.end(body);
-      } catch {
-        /* try the next candidate */
-      }
-    }
-    res.writeHead(404);
-    res.end("not found");
-  });
-  await new Promise((done) => server.listen(0, "127.0.0.1", done));
-  return { server, origin: `http://127.0.0.1:${server.address().port}${base === "/" ? "" : base}/` };
-}
-
-/** Chromium, or the reason there is not one. */
-async function browser() {
-  let chromium;
-  try {
-    ({ chromium } = await import("playwright-core"));
-  } catch {
-    return { why: "playwright-core is not installed" };
-  }
-  // **Channels first, and the managed path last.**
-  //
-  // `executablePath()` names the browser *playwright* downloaded, and on a CI
-  // runner nothing downloads one — the workflow's own comment says so: *"No browser is
-  // downloaded. `playwright-core` drives the Chrome the runner already has."* So this
-  // file asked for a path that does not exist and answered
-  //
-  //     SKIPPED browserlang: no Chromium for playwright
-  //
-  // which is the whole browser-language coverage, in a job whose name is `editor`,
-  // on every run, since the test was written. `run.mjs` counted the empty file as
-  // "asserted nothing" and turned it red, which is how it was finally noticed —
-  // **three fixes after the reason it was red was found**, because #91's
-  // staleness guard had been failing first and hid the real answer behind it.
-  //
-  // `acceptance.mjs` already solves this (`launchBrowser`, channels `chrome`,
-  // `msedge`, `chromium`, first that starts). Same approach, same order: the
-  // runner's own Chrome first, and the downloaded build only as a fallback for a
-  // machine that has one.
-  const args = ["--no-sandbox", "--disable-gpu"];
-  const tried = [];
-  // An explicitly named browser, tried **first**, and named in the failure text
-  // like the others — so a wrong path reads as a wrong path rather than as
-  // "no Chromium on this machine".
-  //
-  // It exists because all three channels below are places Playwright looks, and
-  // a machine can have a perfectly good Chromium in none of them. This one does:
-  // a Nix-store binary, absent from `/opt/google/chrome` and from
-  // `executablePath()`. Without this the only options are a file that cannot run
-  // here at all — which is the sentence the whole function is built to refuse —
-  // or shipping the `dist/` fix below unverified, which is worse.
-  const named = (process.env.KSAV_CHROMIUM ?? "").trim();
-  if (named) {
-    try {
-      return { b: await chromium.launch({ executablePath: named, headless: true, args }) };
-    } catch (e) {
-      tried.push(`${named}: ${String(e.message).split("\n")[0]}`);
-    }
-  }
-  for (const channel of ["chrome", "msedge", "chromium"]) {
-    try {
-      return { b: await chromium.launch({ channel, headless: true, args }) };
-    } catch (e) {
-      tried.push(`${channel}: ${String(e.message).split("\n")[0]}`);
-    }
-  }
-  const managed = chromium.executablePath();
-  if (existsSync(managed)) {
-    try {
-      return { b: await chromium.launch({ headless: true, args }) };
-    } catch (e) {
-      tried.push(`managed: ${String(e.message).split("\n")[0]}`);
-    }
-  }
-  return { why: `no Chromium would start — tried ${tried.join("; ")}` };
-}
 
 /**
  * Everything a writer can read off the window, and where it stands.
@@ -445,7 +242,17 @@ export async function run() {
   await page.addInitScript(() => localStorage.setItem("ksav.onboarded", "1"));
   try {
     await page.goto(origin, { waitUntil: "networkidle" });
-    await page.waitForTimeout(2500);
+    // **A condition, not a stopwatch.** This was `waitForTimeout(2500)`, which
+    // is enough on an idle machine and not enough in the full suite, where the
+    // ribbon was still being built when the first assertion read `0 groups` —
+    // a red that named #228's defect on a build that did not have it. Wait for
+    // the thing that is about to be asserted, and let a real absence fail the
+    // assertion below with its own message rather than a timeout in here.
+    await page
+      .waitForFunction(() => document.querySelectorAll("header .tb-group").length > 0, undefined, {
+        timeout: 20000,
+      })
+      .catch(() => {});
 
     // The whole reason for the file: read the window, do not read a dictionary.
     const before = await page.evaluate(READ, markPattern().source);

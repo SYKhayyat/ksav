@@ -21,7 +21,7 @@ import * as docx from "./docx";
 import * as org from "./org";
 import * as share from "./share";
 import * as runtime from "./runtime";
-import { setStatus, closeMenus } from "./runtime";
+import { setStatus, holdStatus, closeMenus } from "./runtime";
 import { t, tf } from "./i18n";
 import { settings, ownPageSetup, docConfig } from "./settings";
 import { troubleSaid } from "./diagnostics";
@@ -306,7 +306,7 @@ export async function importAs(
     result = await convert(picked);
   } catch (e) {
     const bad = troubleSaid(e, "general");
-    setStatus(`${t("importFailed")} — ${bad.said}`, "err", bad.detail);
+    holdStatus(`${t("importFailed")} — ${bad.said}`, "err", bad.detail);
     return;
   }
   const title = picked.name.replace(new RegExp(`\\${extension}$`, "i"), "") || t("untitled");
@@ -315,7 +315,11 @@ export async function importAs(
   // document's own page setup — where it belongs since B26.
   await docs.rememberConfig(created.id, { dir: result.dir });
   await enterDoc(created.id);
-  setStatus(
+  // **Held, not merely set** (#231). An import compiles the document it just
+  // created, and the compile's `✓ N pages` landed in this same slot a few
+  // milliseconds later — so the one thing the report exists to say, *what did not
+  // come across*, was erased before it could be read. Released by the next edit.
+  holdStatus(
     result.dropped.length ? tf("importedWithGaps", title, result.dropped.join(", ")) : tf("imported", title),
     result.dropped.length ? "warn" : "ok",
   );

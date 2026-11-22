@@ -43,6 +43,24 @@ function ms(fn, n) {
   return (performance.now() - t0) / n;
 }
 
+/**
+ * The cheapest round, not the average one.
+ *
+ * This fence compares two costs in the same process, which is the right shape,
+ * and it still went red twice while the rest of the suite held four browsers
+ * open: a scheduling pause inside one timed loop moves an *average*, and the
+ * loop it lands in is the one that decides the ratio. The minimum over several
+ * rounds is the CPU's own answer to "how long does this take" — noise only ever
+ * adds — and it costs a few milliseconds more.
+ *
+ * Both sides use it, so the ratio stays a comparison of like with like.
+ */
+function quickest(fn, n, rounds = 5) {
+  let best = Infinity;
+  for (let r = 0; r < rounds; r += 1) best = Math.min(best, ms(fn, n));
+  return best;
+}
+
 export async function run() {
   const doc = SEFER_810;
 
@@ -115,7 +133,7 @@ export async function run() {
     );
     const scans = variants.map((text) => scan(text));
 
-    const paneWork = ms((i) => {
+    const paneWork = quickest((i) => {
       notesOf(variants[i % 4], scans[i % 4]);
       outlineOf(variants[i % 4], scans[i % 4]);
     }, 4);
@@ -128,7 +146,7 @@ export async function run() {
     const walkTexts = Array.from({ length: 8 }, (_, i) =>
       [doc.slice(0, at), String.fromCharCode(0x5d0 + i), doc.slice(at), " "].join(""),
     );
-    const walk = ms((i) => scan(walkTexts[i % 8]), 8);
+    const walk = quickest((i) => scan(walkTexts[i % 8]), 8);
 
     ok(
       "one refresh with the scan in hand costs less than one walk of the document",

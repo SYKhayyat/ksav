@@ -365,8 +365,11 @@ export async function run() {
   // was a `dist/` built the day before the commit it was being asked about.
   // It was also not the boot-order race the same entries concluded next.
   {
-    const lang = read("ksav/app/test/browserlang.test.mjs");
-    ok("the browser test has the same guard", lang.includes("function assertFreshBuild"));
+    // Read out of `pageserve.mjs`, where `assertFreshBuild` lives since the
+    // browser plumbing was extracted. The guard is the same guard; only its
+    // address moved, and `browserlang.test.mjs` is now one of its two callers.
+    const lang = read("ksav/app/test/pageserve.mjs");
+    ok("the browser test has the same guard", lang.includes("export function assertFreshBuild"));
     // **Throws rather than skips, and throws rather than `check`s.** Both
     // distinctions are findings.
     //
@@ -406,12 +409,25 @@ export async function run() {
     // walked into it while adding a fence twenty lines below it.
     //
     // `!assertFreshBuild()` is only ever written at the call, so it is the call.
-    ok(
-      "…before it opens a browser",
-      lang.indexOf("!assertFreshBuild()") > 0 &&
-        lang.indexOf("!assertFreshBuild()") < lang.indexOf("await browser()"),
-      `guard call at ${lang.indexOf("!assertFreshBuild()")}, browser at ${lang.indexOf("await browser()")}`,
-    );
+    //
+    // **Two files now, because there are two boots.** The guard and the browser
+    // launch moved into `openApp` in `pageserve.mjs` when a second file needed
+    // them; `browserlang.test.mjs` still boots itself. Both are checked rather
+    // than the one that happens to hold the call today — the question is *is any
+    // window opened before the build is checked*, which is a question about the
+    // tree and not about one file.
+    for (const [name, src] of [
+      ["pageserve", lang],
+      ["browserlang", read("ksav/app/test/browserlang.test.mjs")],
+    ]) {
+      const guardAt = src.indexOf("!assertFreshBuild()");
+      const windowAt = src.indexOf("await browser()");
+      ok(
+        `…before it opens a browser (${name})`,
+        guardAt > 0 && (windowAt < 0 || guardAt < windowAt),
+        `guard call at ${guardAt}, browser at ${windowAt}`,
+      );
+    }
     // The one that bit the author of that guard: a fresh build returned nothing
     // and the call site read the answer as a boolean, so the file skipped itself
     // on every run and `run.mjs` reported "asserted nothing". Assert the

@@ -233,7 +233,7 @@ the real app.
       **UAT 12 measured**: typed single characters into the built editor — `[` auto-inserts its closer, typing
       the closer skips instead of making `[]]`, same for `()`, `$…$` doubles never, and `"` ships unpaired
       (geresh is a letter); five unit fences hold the wiring (`closeBrackets()` and its keymap, the pair list
-      fed from the two switches, both defaults). **4 verified.** Still open: 4, 10, 16, 17.
+      fed from the two switches, both defaults). **4 verified.** **UAT 10 closed** — reproduced in a built app and still broken, fixed and fenced (#134 comment, `1612d32`); that fix also caught a second case, Enter inside a *string* in a bullet. **5 verified.** Still open: 4, 16, 17.
 - [x] #194 the NSIS installer cannot be driven from Git Bash: `/S` is mangled, the run hangs with no output and installs nothing. Fixed (`67b165e`): `gate.test.mjs` refuses a bare invocation and `docs/troubleshooting.md` says what to run instead.
 - [x] #196 the render check calls a single-instance handover "the webview did not start": a clean exit 0 is read as a webview fault, and that is the same sentence #189 is open about.
 - [x] #195 a stale shortcut or `ksav://` registration pointing at a deleted binary is silent — the measured shape of UAT 28's "the shortcut did not open Ksav".

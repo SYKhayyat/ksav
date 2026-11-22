@@ -29,6 +29,7 @@ import type {
   BodySpot,
   ClipboardSource,
   CommandDef,
+  CommandList,
   CompileOpts,
   CompileResult,
   DocConfig,
@@ -45,12 +46,14 @@ import type {
   RefreshResult,
   Refusable,
   ScanResult,
+  InboxList,
   Sources,
   SpellResult,
   SeferDef,
   SefarimAnswer,
   Suggestions,
   TemplateDef,
+  TemplateList,
   Told,
   WireCompileResult,
 } from "./api";
@@ -292,8 +295,18 @@ abstract class ServiceClient {
     return { ...result, scan };
   }
 
+  /**
+   * The registry, read out of the object that carries it.
+   *
+   * The engine answers `{"commands": [ … ]}` — a list has to be *named* in a body
+   * whose one shape is an object (#228) — and the desktop, the HTTP server and the
+   * wasm build all answer the same way, because all three pass through the same
+   * envelope. `?? []` is not tolerating a bad answer: an absent key is the refusal
+   * case, and `registriesArrived` (the caller) turns an empty list into "registries
+   * failed" rather than a silently shorter ribbon.
+   */
   async commands(): Promise<CommandDef[]> {
-    return this.ask("commands");
+    return (await this.ask<CommandList>("commands")).commands ?? [];
   }
 
   async sefarim(): Promise<SeferDef[]> {
@@ -301,7 +314,7 @@ abstract class ServiceClient {
   }
 
   async templates(): Promise<TemplateDef[]> {
-    return this.ask("templates");
+    return (await this.ask<TemplateList>("templates")).templates ?? [];
   }
 
   /**
@@ -332,7 +345,14 @@ abstract class ServiceClient {
       // lost between the two — a reload landing between the POST and the parse,
       // a wasm worker killed by the compile timeout mid-poll — costs a repeat
       // rather than the source. See `post.rs::drain`.
-      return await this.ask("inbox", { took }, { background: true });
+      //
+      // The arrivals travel under `inbox`, because a body's one shape is an object
+      // and a list has to be named (#228). Before that, this typed an array over
+      // whatever `ask` returned, and what came back was the engine refusing its own
+      // payload as the wrong shape — so the handoff from Girsa arrived nowhere,
+      // silently, inside the `catch` that exists to keep a missing sibling
+      // application quiet.
+      return (await this.ask<InboxList>("inbox", { took }, { background: true })).inbox ?? [];
     } catch {
       // silent: the editor polls this every second; a build with no Girsa half, or a
       // server that went away, is a thing to stop asking about quietly rather

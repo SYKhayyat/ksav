@@ -89,10 +89,15 @@ const CALLS = [
   ["spell", (b) => b.spell("שלום", ""), { misspellings: [] }],
   ["suggest", (b) => b.suggest("שלום", ""), { suggestions: [] }],
   ["scan", (b) => b.scan("abc#f[x]"), scanWire("abc#f[x]")],
-  ["commands", (b) => b.commands(), []],
-  ["templates", (b) => b.templates(), []],
+  // The engine's own envelope, not the shape the client hopes for. A registry is a
+  // *list*, and the body's one shape is an object, so the list travels under its
+  // own name (#228). This row used to answer `[]` — the empty array a healthy
+  // engine never sends — and that is how the client, the engine and this file all
+  // agreed on a wire that did not exist.
+  ["commands", (b) => b.commands(), { commands: [{ he: "הדגשה" }] }],
+  ["templates", (b) => b.templates(), { templates: [{ he: "מכתב" }] }],
   ["sefarim", (b) => b.sefarim(), { sefarim: [] }],
-  ["inbox", (b) => b.inbox(), []],
+  ["inbox", (b) => b.inbox(), { inbox: [] }],
   ["mekoros", (b) => b.mekoros("דברי רש\"י"), { hits: [] }],
   ["mekoros", (b) => b.searchInGirsa("דברי רש\"י"), { opened: true }],
   ["linkify", (b) => b.linkify("טקסט"), { text: "טקסט" }],
@@ -178,6 +183,61 @@ export async function run() {
     // service, two questions, and the flag is in the body where it always was.
     const search = asked.find((a) => a.input?.includes("\"search\":true"));
     ok("asking Girsa to search is the mekoros service with a flag", !!search);
+  }
+
+  // ------------------------------- the registry arrives as a list, not an object
+  //
+  // #228: `/commands` relayed a JSON array into an envelope whose one shape is an
+  // object, was refused by the check that enforces it, and every build drew
+  // "registries failed" instead of a ribbon. The rows above prove the request;
+  // these prove what comes back, because the two halves failed silently and
+  // independently — `Promise<CommandDef[]>` was satisfied by a cast over whatever
+  // `ask` returned.
+  {
+    const engine = { ok: true, commands: [{ he: "הדגשה" }], templates: [{ he: "מכתב" }] };
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => answer(engine);
+    const overHttp = new HttpBackend();
+    const overHttpCommands = await overHttp.commands();
+    const overHttpTemplates = await overHttp.templates();
+    globalThis.fetch = realFetch;
+
+    const desktop = new TauriBackend();
+    desktop.invoke = async () => JSON.stringify(engine);
+    const overDesktopCommands = await desktop.commands();
+
+    const browser = new WasmBackend();
+    browser.worker = {
+      postMessage: (msg) => {
+        browser.pending.get(msg.id)?.resolve(JSON.stringify(engine));
+        browser.pending.delete(msg.id);
+      },
+      terminate: () => {},
+    };
+    const overWasmCommands = await browser.commands();
+
+    for (const [where, got] of [
+      ["over HTTP", overHttpCommands],
+      ["over the desktop command", overDesktopCommands],
+      ["in the browser", overWasmCommands],
+    ]) {
+      ok(
+        `the registry reaches the client as a list, ${where}`,
+        Array.isArray(got) && got[0]?.he === "הדגשה",
+      );
+    }
+    ok(
+      "…and the template registry the same way",
+      Array.isArray(overHttpTemplates) && overHttpTemplates[0]?.he === "מכתב",
+    );
+    // The third list under a name: the Girsa queue. It was the one this test
+    // found by walking the registry rather than by remembering it, and a `catch`
+    // that returns `[]` is what kept it quiet.
+    const realFetch2 = globalThis.fetch;
+    globalThis.fetch = async () => answer({ ok: true, inbox: [{ id: "a1" }] });
+    const arrivals = await new HttpBackend().inbox();
+    globalThis.fetch = realFetch2;
+    ok("the arrival queue reaches the client as a list too", Array.isArray(arrivals) && arrivals[0]?.id === "a1");
   }
 
   // ---------------------------------------- `jump` and the file it answers with

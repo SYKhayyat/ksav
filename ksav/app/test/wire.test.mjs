@@ -305,6 +305,37 @@ const SEAM = [
     ts: "Arrival",
     optional: [],
   },
+  // And the three **lists** those rows are rows of, wrapped by the seam (#228).
+  //
+  // `Reply` accepts an object and refuses anything else, so a registry or a queue
+  // travels under its own name. These literals are the whole difference between a
+  // toolbar and a "registries failed" notice, and they went in without a row the
+  // first time — which is why the registries were refused by the engine's own
+  // check from #215 until #228 with every fence green.
+  {
+    what: "commands: the registry, wrapped under the name it travels in",
+    file: "services.rs",
+    // The anchor sits *inside* the literal, not at its opening: `literalAt` walks
+    // back from the fragment to the `json!({` that contains it, and an anchor
+    // beginning at that very bracket has nothing before it to walk back to.
+    at: '"commands": rows',
+    ts: "CommandList",
+    optional: [],
+  },
+  {
+    what: "templates: the same wrap, for the template registry",
+    file: "services.rs",
+    at: '"templates": rows',
+    ts: "TemplateList",
+    optional: [],
+  },
+  {
+    what: "inbox: the queue, wrapped the same way",
+    file: "services.rs",
+    at: '"inbox": rows',
+    ts: "InboxList",
+    optional: [],
+  },
   //
   // ------------------------------------------------ git: eighteen operations
   //

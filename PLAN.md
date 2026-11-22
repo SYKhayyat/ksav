@@ -29,6 +29,26 @@ everyone else. Linux packaging stays distro-neutral, with no Nix-only paths.
 Clear these before any milestone work. The older ledger, with the reasons each
 item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
+### The desktop render check, after two years of not being able to run here
+
+Both found in one sitting because #227 made it possible for check 12 to say
+anything true on this machine at all. Neither is a NixOS problem: the first was in
+our check, the second in our wire.
+
+- [x] **#227** the render check pinned X11 by *deleting* `WAYLAND_DISPLAY`, which
+      pins nothing (GTK landed on the broken Wayland path anyway, `dPR -1/96`) and
+      which disarmed the app's own guard, since `main.rs` needs that variable
+      **present** to choose X11. **Closed**: the check asks for `GDK_BACKEND=x11`,
+      the same way the app does (`d886d45`).
+- [x] **#228** the `commands` and `templates` registries answered a JSON **array**
+      into an envelope whose one shape is an object, so `Reply::relayed` refused
+      them from every transport since `d16de52` (#215) — no toolbar, no Insert
+      menu, no palette, no completions, in the browser build as much as the
+      desktop one. `inbox` was the third, found by the test rather than by
+      reading. **Closed**: each list travels under its own name
+      (`relayed_list`), the client unwraps the name, and `engine/tests/registries.rs`
+      spans the seam that three fences all looked past.
+
 ### The 2026-11-19 audit — filed straight to the top
 
 Seven findings, each measured rather than read, and each with a mechanism

@@ -438,6 +438,30 @@ export interface SefarimAnswer {
 }
 
 /**
+ * The three answers that are a **list under a name** (#228).
+ *
+ * A body's one shape is an object (`Reply` in `engine/src/services.rs`), so a list
+ * cannot be the answer itself — it is carried under the name of the thing it is.
+ * These three were the lists that arrived as bare arrays, and the engine refused
+ * them as "something that is not an object" from every transport: the toolbar had
+ * no registry, and the Girsa handoff arrived nowhere, silently.
+ *
+ * Declared here rather than inline at the three `await`s, because the names are a
+ * contract with `services.rs::relayed_list` — and `test/wire.test.mjs` reads these
+ * keys against that literal, so a rename on one side goes red instead of becoming
+ * an empty ribbon.
+ */
+export interface CommandList {
+  commands?: CommandDef[];
+}
+export interface TemplateList {
+  templates?: TemplateDef[];
+}
+export interface InboxList {
+  inbox?: Arrival[];
+}
+
+/**
  * One template, as `engine/src/templates.rs` shapes it.
  *
  * **Re-exported, not re-declared.** This was a hand-written mirror of that

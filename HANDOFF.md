@@ -35,6 +35,16 @@ sittings, in the order it was done:
   shape of its own choosing; `app/test/wire.test.mjs` and `tests/reply.rs` (96
   answers driven from the registry) hold the wire.
 - **#217** a separator-splitting fence that caught a real wire bug on the way.
+- **#227 and #228** the render check can run on this machine, and it immediately
+  paid for itself twice. #227: the check pinned X11 by deleting `WAYLAND_DISPLAY`,
+  which pins nothing and disarmed the app's own guard — it now asks for
+  `GDK_BACKEND=x11` the way `main.rs` does. #228: with that fixed, check 12's only
+  remaining complaint was `the ribbon has no command groups`, and it was right —
+  `commands` and `templates` relayed a JSON **array** into an envelope whose one
+  shape is an object, so `Reply::relayed` had refused them from every transport
+  since #215. `inbox` was the third list, found by the new test rather than by
+  reading. The check now passes here: `dPR 1, viewport 1280×708, header 137px,
+  ribbon 8 groups with no overlap`.
 - **#213** the bracket ceiling and the writer's own budget. A 166 KB body of
   stray `]` cost two minutes of CPU (re-measured on this tree: 10,000 stray
   1.81 s, 20,000 9.89 s, 40,000 55.3 s; a real 563 KB sefer 0.22 s) and nothing

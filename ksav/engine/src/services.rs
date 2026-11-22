@@ -411,12 +411,57 @@ pub fn error_json(message: &str) -> String {
 // own them — `commands.rs` alone has a table of forty-odd entries with examples —
 // so they are relayed rather than rebuilt here, and `Reply::relayed` is what makes
 // "relayed" mean *checked* rather than *hoped for*.
+//
+// The first two answer a **list**, and a list is not an object, so relaying the
+// text as it stands was refused by that same check (#228): `/commands` answered
+// "the service answered with something that is not an object" from every
+// transport, the client's `registriesArrived` called it a failed fetch, and every
+// build drew the *registries failed* notice instead of a ribbon. Nothing here
+// noticed for a day because the fences that touch it assert the *source* JSON
+// (`registry_wire.rs`) or the columns a stub answers (`wire.test.mjs`), and none
+// of them asks a service what it actually returns.
+//
+// So the list is named by the service that carries it, the way `sefarim` already
+// names its own. Two properties come with that: the answer is an object, which is
+// the envelope's one shape, and the client reads a key rather than deciding what
+// shape a body has this time.
 fn commands(_: &str) -> Reply {
-    Reply::relayed(crate::commands::commands_json())
+    relayed_list(
+        "commands",
+        crate::commands::commands_json(),
+        |rows| serde_json::json!({ "commands": rows }),
+    )
 }
 
 fn templates(_: &str) -> Reply {
-    Reply::relayed(crate::templates::templates_json())
+    relayed_list(
+        "templates",
+        crate::templates::templates_json(),
+        |rows| serde_json::json!({ "templates": rows }),
+    )
+}
+
+/// A registry list, relayed under a name.
+///
+/// The check is not belt-and-braces: it is the one place a *list* enters an
+/// envelope whose shape is an object, so a registry that stopped being a list
+/// would otherwise be silently wrapped into `{"value": …}` and reach a client
+/// that asked for an array. `Reply::relayed` then checks the object it is given,
+/// so both halves are the seam's own and neither is the caller's promise.
+fn relayed_list(
+    name: &str,
+    text: String,
+    wrap: impl FnOnce(Vec<serde_json::Value>) -> serde_json::Value,
+) -> Reply {
+    match serde_json::from_str::<serde_json::Value>(&text) {
+        Ok(serde_json::Value::Array(rows)) => Reply::relayed(wrap(rows).to_string()),
+        Ok(_) => Reply::fail(format!(
+            "הרשומה {name} אינה רשימה · the {name} registry is not a list"
+        )),
+        Err(e) => Reply::fail(format!(
+            "הרשומה {name} אינה JSON · the {name} registry is not JSON: {e}"
+        )),
+    }
 }
 
 fn sefarim(_: &str) -> Reply {
@@ -454,8 +499,17 @@ mod disk {
 /// rather than a hole it has to know about.
 mod girsa {
     #[cfg(not(target_arch = "wasm32"))]
+    /// The queue drain, which is a **list** and is named as one (`inbox`), for
+    /// the reason the two registries are: a body's one shape is an object, and
+    /// relaying an array here was refused by `Reply::relayed` as the wrong shape
+    /// (#228). The client was typed to receive an array, so it read an object and
+    /// the Girsa handoff sat there quietly not arriving.
     pub fn inbox(input: &str) -> super::Reply {
-        super::Reply::relayed(crate::post::drain_json(input))
+        super::relayed_list(
+            "inbox",
+            crate::post::drain_json(input),
+            |rows| serde_json::json!({ "inbox": rows }),
+        )
     }
 
     /// `{"phrase": "…", "except": null, "search": false}` → Girsa's answer.

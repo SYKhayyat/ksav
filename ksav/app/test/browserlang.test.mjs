@@ -453,6 +453,37 @@ export async function run() {
       .flat().filter((s) => HEBREW.test(s));
     ok("the app boots into Hebrew with plenty on screen", heBefore.length > 50);
     check("and the document is right-to-left", await page.getAttribute("html", "dir"), "rtl");
+
+    // ------------------------------------------------ the ribbon is *built*
+    //
+    // #228: the engine refused its own registry (`commands` and `templates`
+    // relayed a JSON array into an envelope whose shape is an object) from #215
+    // until #228, so every build drew "registries failed" where the ribbon
+    // belongs — for a week, with the app suite, the wire comparator and the
+    // engine suite all green, because every one of them answered the *stub* or
+    // the *source text* and none of them asked a booted application what it had.
+    //
+    // This file already boots the real bundle against the real engine (the wasm
+    // one: `dist/` carries it), which makes two assertions here the cheapest
+    // end-to-end fence in the repository — the whole path from the const table in
+    // `commands.rs` to a group of buttons in a header.
+    const chrome0 = await page.evaluate(() => ({
+      groups: document.querySelectorAll("header .tb-group").length,
+      failed: document.querySelectorAll("header .toolbar-failed").length,
+      notice: (document.querySelector("[role=status], .chrome-notice")?.textContent ?? "").trim(),
+    }));
+    // A bundle with no wasm engine in it is not the product — both `ci.yml` and
+    // `deploy.yml` ship `npm run build:wasm` — so this fails rather than skips,
+    // and says which build is missing. Without that sentence a plain
+    // `npm run build` reads as "#228 came back".
+    const engineInBundle = readdirSync(join(DIST, "assets")).some((f) => f.endsWith(".wasm"));
+    ok(
+      "the bundle carries the wasm engine the registry comes from",
+      engineInBundle,
+      "no .wasm in dist/assets; this bundle is not the shipping one — build it with `npm run build:wasm`",
+    );
+    ok("the ribbon is built from the engine's registry", chrome0.groups > 0, `${chrome0.groups} groups`);
+    check("and it is not the registry-failed notice", chrome0.failed, 0);
     // The switch, pressed the way a writer presses it: the toolbar button whose
     // accessible name is "שפה". Found by its name in the *old* language on
     // purpose — that is the only way a writer can find it.

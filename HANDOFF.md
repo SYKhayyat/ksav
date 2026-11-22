@@ -4,7 +4,7 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-11-22 (the debt audit is fully closed)
+## Current handoff — 2026-11-23 (the audit is closed and #202 with it)
 
 The 2026-11-19 debt audit (`PLAN.md` §Dept) is **fully answered**: #218–#225
 filed, fixed, fenced, pushed and closed, one at a time. The work of the last
@@ -35,6 +35,17 @@ sittings, in the order it was done:
   shape of its own choosing; `app/test/wire.test.mjs` and `tests/reply.rs` (96
   answers driven from the registry) hold the wire.
 - **#217** a separator-splitting fence that caught a real wire bug on the way.
+- **#202** a link in a document is no longer a navigation. The sanitizer had
+  already limited the schemes; a *surviving* `https:` link still replaced the
+  editor (and, in the desktop build, asked the webview to load a new document
+  inside the window that carries the IPC bridge). Now `app/src/openlink.ts`
+  intercepts the click — walking up from the hit-area `<rect>`, bounded by the
+  page's own `<svg>` — and hands the URL to `app/src-tauri/src/open.rs`, which
+  re-checks the same four schemes and opens the system browser. One policy,
+  three ends. **Limit**: the click path was not exercised in a real webview; this
+  box's WebKitGTK session reports a negative `devicePixelRatio` (the #103
+  defect), so the gate's `desktop render scale` check fails here before and
+  after, verified by stashing.
 
 The one value left from the audit's own list that is nobody's yet: **#213** — a
 compile *budget* is a product decision (how long may the engine spend before it
@@ -54,11 +65,12 @@ Two traps still cost real time if forgotten:
   same four strings measures the memo (0.08 ms for a 634 KB document). Use eight
   texts to evict.
 - `ksav/app/src-tauri` cannot `cargo check` in a bare shell: it needs GTK and
-  `glib-2.0.pc`. The two `(svc.call)(&input).json()` sites changed in #215 have
-  not been compiled here; CI does.
+  `glib-2.0.pc`. Use
+  `nix develop .#desktop --command bash -c "cd ksav && node tools/gate.mjs shell"`,
+  which also runs the shell's own tests.
 
-Counts live in `ksav/README.md` and are fenced by the suite: 14,239 editor
-assertions across 164 files; 1214 engine tests across 91 binaries.
+Counts live in `ksav/README.md` and are fenced by the suite: 14,277 editor
+assertions across 165 files; 1214 engine tests across 91 binaries.
 
 ## Handoff — 2026-11-18 (the audit closed, and three fuzzers)
 

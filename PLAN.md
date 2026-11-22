@@ -159,12 +159,12 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
       range inside the document and between its own delimiters, `parent`/`children` agreeing,
       determinism, no throws, plus the anti-vacuity counts (2,447 calls) and a bounded-cost
       check. Mutation-tested: `nodes[0].to = text.length + 1` reddens with the seed named.
-- [ ] #215 four services answer a failure in three different wire shapes (`jump` `{}`,
+- [x] #215 four services answer a failure in three different wire shapes (`jump` `{}`,
       `reveal` `{"points": []}`, `places` `{"places": []}`, `spell`/`suggest` `{error}` with no
       `ok`, the rest `services::error_json`). Measured by `engine/tests/fuzz.rs`, which sends the
       same garbage to every service in the registry and asserts only what is true of all of
-      them. The uniformity decision is the owner's, because the wire is a contract with the
-      installed app.
+      them. The uniformity decision was the owner's, because the wire is a contract with the
+      installed app — taken and landed as `Reply`; see the audit entry above.
 - [ ] #213 a 166 KB document of brackets costs two minutes of CPU: Typst's markup parse is
       quadratic (release: 10,000 stray `]` 0.49 s, 40,000 6.92 s, 160,000 126.96 s) and
       nothing here has a compile budget. Found while answering the stack question that
@@ -285,9 +285,12 @@ section at the top of this plan.
   `#read()`, `../../../` out of the package root) are already refused by test. Assets
   arrive as bytes behind `diagnose_name`, and the preview's SVG goes through an
   allow-list generated from a measured vocabulary. Two findings: **#202** — a
-  document's `#link` was a navigation with the scheme of its choice, now restricted to
-  the web and opened in a new tab (`81c8d5e`), with the desktop's navigation policy
-  left open; **#203** — two decompression routes (`unzip` for a `.docx`, inflate for a
+  document's `#link` was a navigation with the scheme of its choice, restricted to the
+  web by the sanitizer in `81c8d5e` and then **closed** (`659ebd8`): the surviving
+  link was still a navigation, so the click is now intercepted (`app/src/openlink.ts`)
+  and handed to the shell (`app/src-tauri/src/open.rs`), which opens it in the
+  system's browser after re-checking the same four schemes. Three ends, one policy,
+  and each end refuses rather than trusting the one before; **#203** — two decompression routes (`unzip` for a `.docx`, inflate for a
   share link) let the input decide how much memory to allocate, now bounded as chunks
   arrive (`e4e5b88`). Unverified and recorded there: where a link goes in the installed
   build, and the runtime CSP header.

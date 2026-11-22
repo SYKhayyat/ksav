@@ -156,7 +156,7 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
 - [x] #187 gate sweeps read workflows as lines, not as a graph. The parser landed in 7ed8d69; it now reads both matrix spellings and reports what it could not understand (`ad52d40`).
 - [x] #186 the "Run it" step in `release.yml` is broken on Windows under pwsh. Anchored on `$GITHUB_WORKSPACE`, the Windows leg runs it under `pwsh`, and the gate refuses a bare relative path (`818d4e5`).
 - [x] #198 the assembled app's two export checks still wait for a Playwright download, which #127 removed. Fixed in `.github/scripts/acceptance.mjs`: the export steps install a `ksav_save_export` stand-in (so the *desktop* route runs, which is the one that ships), decode the base64 body and assert a PDF, the filename and the dialog's filter — then remove the stand-in so later steps are a browser again.
-- [ ] Check #140 (the audit index) and close it if nothing is left open. As of 2026-11-15 every child was closed except ledger debts #163 and #164, which are in the Debt section above. Ask the owner before closing.
+- [x] #140 (the audit index) — **closed**: all seventeen children (#141–#157) verified closed one by one; the two residues that remain are #163 and #164, in the Debt section above by design.
 - [x] #188 `main.ts` is 3,536 lines against a target of ~1,500. **Closed** at **1,473**:
       the waves were done by the other session (3,536 → 1,457, ledger in the issue), and this
       pass verified the resolving test *is* a fence rather than a number in a file — padded
@@ -196,7 +196,7 @@ Exit: CI on `main` is fully green, and every check that CI reports actually ran.
       operator's `KSAV_COMPILE_TIMEOUT_MS` still reaches everyone who never asked). Fenced by
       `engine/tests/budget.rs`: 160,000 stray closers answer in milliseconds with **one**
       sentence; 20,000 balanced pairs still lay out; both ceilings asserted from both sides.
-- [ ] Check #22 (the `main.ts` split) and close it if every split wave is done. As of 2026-11-15 they were, but `main.ts` was still about 3,500 lines against a target of about 1,500. That gap is in the Debt section above. Ask the owner before closing.
+- [x] #22 (the `main.ts` split) — **closed**: 1,490 lines against a 1,500 fence in `runner.test.mjs`, nine waves, all under #188.
 
 ## ◆ D0 — Do we decide the UI and backend direction now?
 
@@ -265,9 +265,23 @@ and Windows, for **two weeks** without losing text, and the second UAT pass
   `path-not-allowed` refusal and the disk's `os error 28`/`5`/`30` alike, and `saveAs`
   put its write inside the `catch` that means "dismissed". Both now name the cause,
   with sentences for a full disk and a read-only volume that did not exist. Fenced at
-  the seam with the real `invoke` and a real read-only file. Still needs the owner's
-  machine: a crash under `taskkill`, a genuinely full volume, and the outside-change
-  prompt seen by a person. The Linux half is untouched.
+  the seam with the real `invoke` and a real read-only file.
+  **Linux half, done as far as this machine reaches**: `the_disk_s_own_words_reach_the_writer_verbatim`
+  (`src-tauri/src/lib.rs`) asks the operating system first and then requires our writer
+  to produce **the same string** — so it asserts *verbatim pass-through* rather than
+  merely "some error", on any box at any privilege, and it is the Windows test too. It
+  exercises a read-only file (EACCES, not EROFS: the volume is fine and the mode is not),
+  a read-only directory, and a file whose folder was renamed (ENOENT). The old version
+  of this test tolerated `Ok(())` with the note *"root ignores the mode"*, which is why
+  "the Linux half is untouched" was true: on a non-root box it asserted something, on
+  root nothing, and nothing said which. And `diagnostics.test.mjs` was missing the two
+  sentences Linux actually produces — `Permission denied (os error 13)` and
+  `No such file or directory (os error 2)` — so a Save-As into a renamed folder read
+  "failed · details on hover" in English.
+  Still needs the owner's machine: a crash under `taskkill`, the outside-change prompt
+  seen by a person, and **a genuinely full volume — #230, because nothing unprivileged
+  can make `std::fs::write` return ENOSPC on Linux** (EFBIG is a different errno and a
+  different sentence; a tmpfs needs `CAP_SYS_ADMIN`).
 - [ ] #14 second human UAT pass by the owner, on the real installed build.
 - [ ] Tag v0.2.x as the "daily driver" release.
 

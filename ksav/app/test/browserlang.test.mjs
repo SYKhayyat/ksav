@@ -472,18 +472,31 @@ export async function run() {
       failed: document.querySelectorAll("header .toolbar-failed").length,
       notice: (document.querySelector("[role=status], .chrome-notice")?.textContent ?? "").trim(),
     }));
-    // A bundle with no wasm engine in it is not the product — both `ci.yml` and
-    // `deploy.yml` ship `npm run build:wasm` — so this fails rather than skips,
-    // and says which build is missing. Without that sentence a plain
-    // `npm run build` reads as "#228 came back".
+    // **Which bundle this is matters, so it is asked rather than assumed.**
+    //
+    // Two builds exist and both are legitimate: `npm run build:wasm` puts the
+    // engine *in* the bundle (the browser app, deployed), and `npm run build` /
+    // `npx vite build` leaves it at the other end of a wire (this frontend built
+    // for the desktop shell, and what `ci.yml`'s editor job builds). Only the
+    // first can have a ribbon with no server running; the second would report
+    // "registries failed" here however healthy it is, because nothing in this
+    // file starts an engine. Asserting the ribbon for both would have made a
+    // legitimate build look like #228 — the exact wrong diagnosis #229 is about.
+    //
+    // What that costs, stated rather than hidden: **no workflow installs a
+    // browser**, so this file skips in CI, and the CI-side end-to-end fence is
+    // `desktop render scale` (`tools/render-check.mjs`, the `desktop shell` job).
+    // That is where #228 was found, as `ribbonGroups: 0`.
     const engineInBundle = readdirSync(join(DIST, "assets")).some((f) => f.endsWith(".wasm"));
-    ok(
-      "the bundle carries the wasm engine the registry comes from",
-      engineInBundle,
-      "no .wasm in dist/assets; this bundle is not the shipping one — build it with `npm run build:wasm`",
-    );
-    ok("the ribbon is built from the engine's registry", chrome0.groups > 0, `${chrome0.groups} groups`);
-    check("and it is not the registry-failed notice", chrome0.failed, 0);
+    if (engineInBundle) {
+      ok("the ribbon is built from the engine's registry", chrome0.groups > 0, `${chrome0.groups} groups`);
+      check("and it is not the registry-failed notice", chrome0.failed, 0);
+    } else {
+      console.log(
+        "SKIPPED the ribbon: this dist keeps the engine at the other end of a wire, and no server " +
+          "runs in this test — build with `npm run build:wasm` to assert it (CI asserts it in `desktop render scale`)",
+      );
+    }
     // The switch, pressed the way a writer presses it: the toolbar button whose
     // accessible name is "שפה". Found by its name in the *old* language on
     // purpose — that is the only way a writer can find it.

@@ -1527,21 +1527,106 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&chosen).unwrap(), "טקסט");
 
         // …and the disk's refusal does *not* carry it, even for a path we allowed.
-        let mut perms = std::fs::metadata(&chosen).unwrap().permissions();
+        // The three disk cases live in their own test below, where the assertion
+        // is that the sentence arrives **verbatim** rather than merely "some error".
+    }
+
+    /// **The Linux half of data safety, at the seam where the sentence is made.**
+    ///
+    /// #201's Windows pass asserted that a read-only file is reported as the disk
+    /// talking rather than as a refusal of ours; it did that by tolerating
+    /// `Ok(())` with the note *"root on a POSIX box ignores the mode"*. That
+    /// tolerance is the whole reason the Linux half was described as untouched:
+    /// on a non-root box it asserted something, on root it asserted nothing, and
+    /// nothing said which had happened.
+    ///
+    /// This test asks the operating system first — `std::fs::write` on the same
+    /// path — and then requires our writer to produce **the same string**. The
+    /// question is not "did it fail" but "did the disk's own sentence reach the
+    /// writer without being wrapped, replaced or softened", which is exactly what
+    /// `diagnostics.ts` needs in order to name the cause, and it is answerable on
+    /// any box, at any privilege, on any platform:
+    ///
+    /// - a mode that does not bite (root) skips the case *having said so*,
+    ///   instead of passing silently;
+    /// - a missing parent directory fails for everybody, so at least one disk
+    ///   refusal is always exercised;
+    /// - no sentence is hard-coded here, so the same test is the Windows test.
+    #[test]
+    fn the_disk_s_own_words_reach_the_writer_verbatim() {
+        let dir = std::env::temp_dir().join("ksav-disk-words");
+        std::fs::create_dir_all(&dir).unwrap();
+        let allowed = AllowedPaths::default();
+
+        let mut exercised = 0;
+        let mut check = |label: &str, path: &std::path::Path| {
+            let expected = std::fs::write(path, "בדיקה").expect_err("the disk refuses this one");
+            allowed.allow(path);
+            let got = write_allowed(&allowed, path.to_str().unwrap(), "בדיקה")
+                .expect_err("our writer must refuse it too");
+            assert!(
+                !got.starts_with(REFUSED),
+                "{label}: the disk's answer must not be dressed as our own refusal: {got}"
+            );
+            assert_eq!(
+                got,
+                expected.to_string(),
+                "{label}: the operating system's sentence must arrive verbatim — the webview                  matches these words to name the cause, so a paraphrase is a silent loss"
+            );
+            exercised += 1;
+        };
+
+        // 1. A read-only file. `set_readonly(true)` clears every write bit; on a
+        //    Unix box that is `0444`, and as its own owner the write is EACCES.
+        //    Under root the mode does not bite, `std::fs::write` succeeds, and the
+        //    case is skipped — loudly.
+        let ro = dir.join("read-only.ksav");
+        std::fs::write(&ro, "").unwrap();
+        let mut perms = std::fs::metadata(&ro).unwrap().permissions();
         perms.set_readonly(true);
-        std::fs::set_permissions(&chosen, perms.clone()).unwrap();
-        match write_allowed(&allowed, chosen.to_str().unwrap(), "עוד") {
-            // Root on a POSIX box ignores the mode; there is nothing to assert.
-            Ok(()) => {}
-            Err(e) => assert!(
-                !e.starts_with(REFUSED),
-                "the disk's own words reach the writer, unserialized: {e}"
-            ),
+        std::fs::set_permissions(&ro, perms).unwrap();
+        if std::fs::write(&ro, "בדיקה").is_err() {
+            check("a read-only file", &ro);
+        } else {
+            eprintln!(
+                "note: 'a read-only file' skipped — this process can write through the mode \
+                 (running as root?). The other cases below still run."
+            );
         }
-        // Restore by removing the file rather than by clearing the flag: clippy
-        // is right that `set_readonly(false)` means "world writable" on a Unix
-        // box, and the file is about to be deleted anyway.
-        let _ = std::fs::remove_file(&chosen);
+        let _ = std::fs::remove_file(&ro);
+
+        // 2. A file whose directory is gone: the Save-As that named a folder which
+        //    was renamed or unmounted while the document was open. Always fails.
+        check("a missing parent directory", &dir.join("gone").join("sefer.ksav"));
+
+        // 3. A read-only *directory* — a volume mounted `ro`, or a folder the
+        //    writer's own permissions withdrew. The file inside it is writable, so
+        //    this is a different errno from case 1 on Linux (EACCES on the parent),
+        //    and on Windows a different message again.
+        let rod = dir.join("ro-dir");
+        std::fs::create_dir_all(&rod).unwrap();
+        std::fs::write(rod.join("sefer.ksav"), "").unwrap();
+        let mut dperms = std::fs::metadata(&rod).unwrap().permissions();
+        dperms.set_readonly(true);
+        std::fs::set_permissions(&rod, dperms).unwrap();
+        let inside = rod.join("sefer.ksav");
+        if std::fs::write(&inside, "בדיקה").is_err() {
+            check("a read-only directory", &inside);
+        } else {
+            eprintln!("note: 'a read-only directory' skipped — this process writes through the mode.");
+        }
+        let mut dperms = std::fs::metadata(&rod).unwrap().permissions();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            dperms.set_mode(0o755);
+        }
+        #[cfg(not(unix))]
+        dperms.set_readonly(false);
+        std::fs::set_permissions(&rod, dperms).unwrap();
+        let _ = std::fs::remove_dir_all(&rod);
+
+        assert!(exercised >= 1, "at least one disk refusal must actually be exercised");
     }
 
     #[test]

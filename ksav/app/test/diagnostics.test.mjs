@@ -34,6 +34,17 @@ export async function run() {
     // family already answers — asserted so a future reader can see the gap is
     // deliberate rather than missed.
     ["Access is denied. (os error 5)", "save_file", "הרשאה"],
+    // The two sentences **Linux** puts on a save, which this table was missing.
+    // A read-only file as its owner is EACCES, not EROFS: the volume is fine and
+    // the mode is not, so the permission family is the right one and the
+    // read-only family above would be a wrong answer. And a Save-As whose folder
+    // was renamed gives ENOENT, which no spelling in this table matched — a
+    // writer would have read "failed · details on hover" in English.
+    // Both are produced by `std::fs::write` and passed through verbatim by
+    // `ksav_write_file`, asserted on the Rust side by
+    // `the_disk_s_own_words_reach_the_writer_verbatim`.
+    ["Permission denied (os error 13)", "save_file", "הרשאה"],
+    ["No such file or directory (os error 2)", "save_file", "אינו נמצא"],
   ];
   for (const [message, doing, wanted] of cases) {
     const t = troubleSaid(message, doing);

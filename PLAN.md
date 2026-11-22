@@ -39,10 +39,17 @@ waiting on a feature.
 - [x] **#225** the wire comparator covers 11 of 18 services. **Closed**: 19 → 45
       seam rows with a registry-driven fence over `engine/src/services.rs`; two drift
       findings fixed (five mutants red).
-- [ ] **#215** four services answer a failure in three different wire shapes and
-      nothing on the wire says which. Claimed; the fix is a `Reply` type whose only
-      constructors are `ok(payload)`/`fail(message)`, so a new service *cannot*
-      answer in its own shape.
+- [x] **#215** four services answered a failure in three different wire shapes and
+      nothing on the wire said which. **Closed**: `Service.call` returns a `Reply`
+      whose only constructors are `ok(payload)`, `fail(message)` and
+      `relayed(json-text)` — checked, not trusted, because it is the one place
+      somebody else's JSON reaches this wire. `Reply::json` is the only writer of
+      the envelope, so a fourth shape does not typecheck. Measured: 96 answers from
+      five garbage requests to all 18 services, every one carrying a boolean `ok`
+      and either an `error` sentence or the diagnostics that say why. Fenced by
+      `engine/tests/reply.rs` (driven from `SERVICES`, so a nineteenth service is
+      covered the moment it is registered) and row by row in
+      `app/test/wire.test.mjs`.
 - [x] **#218** one compile at sefer size costs **3.4 s** (634 KB, 258 pages, warm,
       over the loopback) and nothing measures the curve. **Closed**: the curve is not
       in the layout — layout is ~0.1 ms a page and flat; the seconds were page

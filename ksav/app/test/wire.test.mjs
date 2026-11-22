@@ -62,23 +62,21 @@ const SRC = path.resolve(HERE, "..", "src");
 const SEAM = [
   {
     what: "compile: the pages, their fingerprints and the diagnostics",
-    file: "lib.rs",
+    file: "wire.rs",
     at: '"pages_hash": fingerprints',
     ts: "CompileResult",
     // `html` belongs to the `format: "html"` answer and no other; its own rows
     // are below.
     optional: ["html"],
   },
-  {
-    what: "compile, when the request would not read",
-    file: "lib.rs",
-    at: '"pages_hash": [],',
-    ts: "CompileResult",
-    optional: ["html", "asset_cache"],
-  },
+  // Two rows stood here — *compile, when the request would not read* and
+  // *assemble, when the request would not read* — each pointing at a hand-built
+  // object with `ok: false` and **no `error`**. `#215` made both of them the one
+  // shared refusal below, which is the point: a refused compile and a refused
+  // spell are now the same literal, so there is one row for them and not three.
   {
     what: "an html compile that produced a document",
-    file: "lib.rs",
+    file: "wire.rs",
     at: '"ok": true, "html": html',
     ts: "CompileResult",
     // Nothing is laid out for HTML: no pages, no fingerprints, no PDF, no
@@ -87,14 +85,14 @@ const SEAM = [
   },
   {
     what: "an html compile that failed",
-    file: "lib.rs",
+    file: "wire.rs",
     at: '"html": serde_json::Value::Null',
     ts: "CompileResult",
     optional: ["pages_svg", "pages_hash", "pdf_base64", "typst_source", "pages_lines", "pages_text", "note_markers"],
   },
   {
     what: "assemble: the document as Typst, with nothing laid out",
-    file: "lib.rs",
+    file: "wire.rs",
     at: '"prelude_name": PRELUDE_PATH',
     ts: "AssembledSource",
     // The prelude pair is #130's compact arrangement; the self-contained answer
@@ -103,18 +101,22 @@ const SEAM = [
     optional: [],
   },
   {
-    what: "assemble, when the request would not read",
-    file: "lib.rs",
-    at: '                "typst_source": "",',
-    ts: "AssembledSource",
-    optional: ["prelude", "prelude_name"],
-  },
-  {
     what: "jump: which line of which file a click on a page came from",
     file: "jump.rs",
     at: '"line": origin.map_or(s.line',
     ts: "Located",
     optional: [],
+  },
+  {
+    // A click on a part of the page that prints none of the writer's own text.
+    // `{}` before `#215`, and now `{ok: true}` with the envelope and nothing in
+    // it — an *answer* with no location, which is why every field of `Located`
+    // is optional here and why this is a row and not an excuse.
+    what: "jump: a click where no line of the document printed",
+    file: "jump.rs",
+    at: "json!({})",
+    ts: "Located",
+    optional: ["line", "column", "file"],
   },
   {
     what: "reveal: everywhere on the pages one place in the body ended up",
@@ -148,11 +150,24 @@ const SEAM = [
     file: "services.rs",
     at: '"error": message',
     ts: "CompileResult",
-    // The refusal is deliberately a superset of the compile shape, so a failed
-    // `/compile` reads identically whatever produced it. It carries no
-    // fingerprints, no html, no missing assets and no page runs, because nothing
-    // was laid out; `error` is the key it adds, and it is in `EXTRA_SENT`.
-    optional: ["pages_hash", "html", "missing_assets", "asset_cache", "pages_lines", "pages_text", "note_markers"],
+    // The refusal **is** the compile shape, not a subset of it (`#215`): a failed
+    // `/compile` is read by `compile.ts` with no branch on whether the answer was
+    // a refusal, so every key it walks has to be present here too. `error` is the
+    // key a refusal adds, and it is in `EXTRA_SENT`. Two keys are absent by
+    // design: `html` belongs to the `format: "html"` answer, and `asset_cache`
+    // describes a cache negotiation that a refusal never reached.
+    optional: ["html", "asset_cache"],
+  },
+  {
+    // The errand's acknowledgement. `mekoros` is otherwise exempt — its answers
+    // are Girsa's own JSON, handed through — but *this* answer is the engine's:
+    // it is what comes back when the request asked Girsa to open its search
+    // rather than to answer, and nothing on the TypeScript side used to say so.
+    what: "mekoros: Girsa's search was brought up",
+    file: "services.rs",
+    at: '"opened": true',
+    ts: "Opened",
+    optional: [],
   },
   {
     what: "linkify: the markup with its mareh mekomos linked",
@@ -241,13 +256,9 @@ const SEAM = [
     // claim about the answer and not a gap in the row.
     optional: ["suggestions"],
   },
-  {
-    what: "spell, when the request would not read",
-    file: "spell/mod.rs",
-    at: '"error": format!("malformed spell request',
-    ts: "Refusable",
-    optional: [],
-  },
+  // `spell, when the request would not read` used to have its own literal here —
+  // `{"error": "malformed spell request: …"}`, with an `error` and no `ok`. It is
+  // the shared refusal now (#215), and it is checked by the row above.
   {
     what: "suggest: words near the one that was not recognised",
     file: "spell/mod.rs",
@@ -451,7 +462,10 @@ const ANSWERS = {
   jump: ["Located"],
   reveal: ["Revealed"],
   places: ["Places"],
-  spell: ["SpellResult", "Misspelling", "Refusable"],
+  // `Refusable` is not here: it is the *modifier* the editor intersects with an
+  // answer (`Linkified & Refusable`) rather than a shape any service answers in,
+  // and since `#215` a refusal is the one shared literal with its own row.
+  spell: ["SpellResult", "Misspelling"],
   suggest: ["Suggestions"],
   commands: ["CommandDef"],
   templates: ["TemplateDef"],
@@ -635,6 +649,10 @@ function allAt(rust, at) {
  */
 const SWEPT = [
   "lib.rs",
+  // `#222` cut the compile pipeline out of `lib.rs`; the literals this file
+  // compares moved with it, and a swept list that still named only `lib.rs`
+  // would have found nothing and reported the seam as intact.
+  "wire.rs",
   "jump.rs",
   "services.rs",
   "git.rs",

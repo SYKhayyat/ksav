@@ -29,6 +29,7 @@ use crate::assets::Assets;
 use typst::diag::Warned;
 
 use crate::diagnostics::{Diagnostic, Located};
+use crate::services::Reply;
 use crate::{
     assemble_source, compile_parts, effective_lang, engine_for, include, main_source, notemarks,
     pagelines, pagetext, prelude_text, DocConfig, Wants, PRELUDE_PATH,
@@ -48,23 +49,14 @@ use crate::{
 /// parses but carries no usable document — because they need the same answer: a
 /// failed compile that says why. Anything that renders a page here would be
 /// rendering a page nobody asked for.
-pub(crate) fn malformed_request(reason_he: &str, reason_en: &str) -> String {
-    serde_json::json!({
-        "ok": false,
-        "pages_svg": [],
-        "pages_hash": [],
-        "pdf_base64": serde_json::Value::Null,
-        "diagnostics": [{
-            "severity": "error",
-            "message": format!("{reason_he} · {reason_en}"),
-        }],
-        "typst_source": "",
-        "pages_lines": [],
-        "pages_text": [],
-        "note_markers": [],
-        "missing_assets": [],
-    })
-    .to_string()
+pub(crate) fn malformed_request(reason_he: &str, reason_en: &str) -> Reply {
+    // Through `Reply::fail` rather than hand-built (#215). This used to write its
+    // own object with `ok: false` and no `error` key — the compile shape — so a
+    // caller that asks `error` on a refused compile got `undefined` while the
+    // same question on a refused `spell` got a sentence. One envelope, one place
+    // it is written, and the compile-shaped fields in it so `compile.ts` still
+    // reads a refusal the way it reads a failed layout.
+    Reply::fail(format!("{reason_he} · {reason_en}"))
 }
 
 /// Why a request could not be read at all, in both languages.
@@ -176,20 +168,14 @@ pub(crate) fn read_document(input_json: &str) -> Result<DocumentRequest, Unreada
 /// diagnostics being the ones `#כלול` can produce on its own, since a chapter
 /// that does not exist is a hole in the exported file and the writer should be
 /// told before they send it to a printer.
-pub fn assemble_request(input_json: &str) -> String {
+pub fn assemble_request(input_json: &str) -> Reply {
     let d = match read_document(input_json) {
         Ok(d) => d,
-        Err(why) => {
-            return serde_json::json!({
-                "ok": false,
-                "typst_source": "",
-                "diagnostics": [{
-                    "severity": "error",
-                    "message": format!("{} · {}", why.he, why.en),
-                }],
-            })
-            .to_string()
-        }
+        // A request that cannot be read is a **refusal** — the document was
+        // never looked at — and not a verdict on a document with problems. Two
+        // different answers, and `assembling` reports both at `ok: false`; the
+        // difference is this one carries `error` and no `typst_source` (#215).
+        Err(why) => return Reply::fail(format!("{} · {}", why.he, why.en)),
     };
     let diagnostics: Vec<Diagnostic> = d
         .expanded
@@ -212,17 +198,16 @@ pub fn assemble_request(input_json: &str) -> String {
     } else {
         (assemble_source(&d.expanded.text, &d.cfg), String::new())
     };
-    serde_json::json!({
+    Reply::ok(serde_json::json!({
         "ok": diagnostics.is_empty(),
         "typst_source": source,
         "prelude": prelude,
         "prelude_name": PRELUDE_PATH,
         "diagnostics": diagnostics,
-    })
-    .to_string()
+    }))
 }
 
-pub fn compile_request(input_json: &str) -> String {
+pub fn compile_request(input_json: &str) -> Reply {
     use base64::Engine as _;
     let DocumentRequest { v, expanded, cfg } = match read_document(input_json) {
         Ok(d) => d,
@@ -236,8 +221,10 @@ pub fn compile_request(input_json: &str) -> String {
 
     // `{"format": "html"}` asks for the web export instead of a paged render.
     if v.get("format").and_then(|x| x.as_str()) == Some("html") {
-        return match compile_html(body, &cfg, &assets) {
-            Ok(html) => serde_json::json!({ "ok": true, "html": html, "diagnostics": [], "missing_assets": missing_assets, "asset_cache": "sha256" }),
+        return Reply::ok(match compile_html(body, &cfg, &assets) {
+            Ok(html) => {
+                serde_json::json!({ "ok": true, "html": html, "diagnostics": [], "missing_assets": missing_assets, "asset_cache": "sha256" })
+            }
             Err(diags) => serde_json::json!({
                 "ok": false,
                 "html": serde_json::Value::Null,
@@ -245,8 +232,7 @@ pub fn compile_request(input_json: &str) -> String {
                 "missing_assets": missing_assets,
                 "asset_cache": "sha256",
             }),
-        }
-        .to_string();
+        });
     }
 
     // Previews don't want a PDF or the assembled source; export and print do,
@@ -345,7 +331,7 @@ pub fn compile_request(input_json: &str) -> String {
         .pdf
         .as_ref()
         .map(|p| base64::engine::general_purpose::STANDARD.encode(p));
-    serde_json::json!({
+    Reply::ok(serde_json::json!({
         "ok": result.ok(),
         // Each entry is the page's SVG, or `null` when the client said it already
         // holds the page with that fingerprint.
@@ -375,8 +361,7 @@ pub fn compile_request(input_json: &str) -> String {
         // engine omits it, so they can safely fall back to sending bytes rather
         // than entering a missing/retry round trip on every request.
         "asset_cache": "sha256",
-    })
-    .to_string()
+    }))
 }
 
 /// Compile to Typst's native HTML — real reflowable web content.

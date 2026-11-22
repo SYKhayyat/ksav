@@ -8,6 +8,19 @@ fn call(text: &str) -> Value {
     serde_json::from_str(&services::call("scan", &input)).expect("scan returns JSON")
 }
 
+/// The service's answer with the envelope taken off.
+///
+/// The oracle is `spans.ts`'s belief about a document — `scanWire`'s own shape —
+/// and `ok` is not one of those beliefs: it is the wire's envelope, added by
+/// `Reply::json` after the scanner has spoken (#215). Comparing the two bodies
+/// with `ok` in them would say the oracle is stale whenever the envelope
+/// changes, which is a different fact about a different file.
+fn payload(answer: Value) -> Value {
+    let mut object = answer.as_object().expect("an answer is an object").clone();
+    object.remove("ok");
+    Value::Object(object)
+}
+
 #[test]
 fn scan_matches_every_typescript_oracle_service_exactly() {
     let oracle: Value = serde_json::from_str(include_str!("fixtures/scan-oracle.json"))
@@ -21,7 +34,14 @@ fn scan_matches_every_typescript_oracle_service_exactly() {
             "missing service for {}",
             doc["id"]
         );
-        assert_eq!(call(text), doc["service"], "scan parity for {}", doc["id"]);
+        let answer = call(text);
+        assert_eq!(answer["ok"], true, "every scan answer says it worked");
+        assert_eq!(
+            payload(answer),
+            doc["service"],
+            "scan parity for {}",
+            doc["id"]
+        );
     }
 }
 
@@ -53,6 +73,9 @@ fn the_service_is_registered_and_returns_the_wire_shape() {
             "delims",
             "frames",
             "heads",
+            // The envelope, from `Reply::json` (#215) — this list is exact on
+            // purpose, so a key arriving unannounced is a red test.
+            "ok",
             "raws",
             "strictComments",
             "strings",
@@ -181,7 +204,8 @@ fn utf16_offsets_are_correct_for_ranges_and_recovery() {
 #[test]
 fn json_unpaired_surrogates_are_rejected_without_scanning() {
     for input in [r#"{"text":"\uD800"}"#, r#"{"text":"\uDC00"}"#] {
-        let answer: Value = serde_json::from_str(&ksav_engine::scan::scan_request(input)).unwrap();
+        let answer: Value =
+            serde_json::from_str(&ksav_engine::scan::scan_request(input).json()).unwrap();
         assert_eq!(answer["ok"], false, "{input}");
         assert!(answer["error"].is_string(), "{input}");
     }

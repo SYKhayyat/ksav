@@ -671,7 +671,7 @@ fn a_request_reports_which_language_flagged_a_word() {
     })
     .to_string();
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).expect("json");
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req).json()).expect("json");
     let misses = out["misspellings"].as_array().unwrap();
     let pairs: Vec<(&str, &str)> = misses
         .iter()
@@ -686,7 +686,7 @@ fn a_request_reports_both_lexicon_sizes() {
     // The interface says which languages it checks; it can only say so honestly
     // if the engine tells it what it actually loaded.
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request("{\"text\":\"\"}")).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request("{\"text\":\"\"}").json()).unwrap();
     let he = out["lexicon_sizes"]["he"].as_u64().unwrap();
     let en = out["lexicon_sizes"]["en"].as_u64().unwrap();
     assert!(he > 30_000, "Hebrew lexicon reported as {he}");
@@ -701,7 +701,7 @@ fn english_offsets_are_utf16_units_not_bytes() {
     let text = "כתב הרמב\"ם that this is entirley so";
     let req = serde_json::json!({ "text": text }).to_string();
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req).json()).unwrap();
     let m = &out["misspellings"][0];
     let start = m["start"].as_u64().unwrap() as usize;
     let len = m["len"].as_u64().unwrap() as usize;
@@ -718,9 +718,9 @@ fn a_request_can_teach_the_english_checker_a_word() {
     let plain = serde_json::json!({ "text": text }).to_string();
     let taught = serde_json::json!({ "text": text, "user_words": "Guttenmacher" }).to_string();
     let a: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&plain)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&plain).json()).unwrap();
     let b: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&taught)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&taught).json()).unwrap();
     assert_eq!(a["misspellings"].as_array().unwrap().len(), 1);
     assert_eq!(
         b["misspellings"].as_array().unwrap().len(),

@@ -1177,7 +1177,8 @@ mod tests {
     #[test]
     fn a_preview_carries_no_pdf_and_an_export_does() {
         let body = serde_json::json!({ "body": "שלום" }).to_string();
-        let preview: serde_json::Value = serde_json::from_str(&compile_request(&body)).unwrap();
+        let preview: serde_json::Value =
+            serde_json::from_str(&compile_request(&body).json()).unwrap();
         assert_eq!(preview["ok"], true);
         assert!(!preview["pages_svg"].as_array().unwrap().is_empty());
         assert!(
@@ -1186,7 +1187,8 @@ mod tests {
         );
 
         let export = serde_json::json!({ "body": "שלום", "want_pdf": true }).to_string();
-        let exported: serde_json::Value = serde_json::from_str(&compile_request(&export)).unwrap();
+        let exported: serde_json::Value =
+            serde_json::from_str(&compile_request(&export).json()).unwrap();
         assert!(exported["pdf_base64"]
             .as_str()
             .is_some_and(|s| !s.is_empty()));
@@ -1197,7 +1199,8 @@ mod tests {
         // Falling back to an absent body compiled one blank page and called it
         // `ok: true`, so a truncated upload silently wiped the preview.
         for bad in ["", "garbage", "{\"body\": ", "{\"body\":\"a\nb\"}"] {
-            let out: serde_json::Value = serde_json::from_str(&compile_request(bad)).unwrap();
+            let out: serde_json::Value =
+                serde_json::from_str(&compile_request(bad).json()).unwrap();
             assert_eq!(out["ok"], false, "{bad:?} must not report success");
             assert!(
                 out["pages_svg"].as_array().is_some_and(|p| p.is_empty()),
@@ -1211,7 +1214,7 @@ mod tests {
         }
         // A well-formed request is unaffected.
         let good = serde_json::json!({ "body": "שלום" }).to_string();
-        let out: serde_json::Value = serde_json::from_str(&compile_request(&good)).unwrap();
+        let out: serde_json::Value = serde_json::from_str(&compile_request(&good).json()).unwrap();
         assert_eq!(out["ok"], true);
     }
 
@@ -1231,7 +1234,7 @@ mod tests {
         ];
         for bad in cases {
             let out: serde_json::Value =
-                serde_json::from_str(&compile_request(&bad.to_string())).unwrap();
+                serde_json::from_str(&compile_request(&bad.to_string()).json()).unwrap();
             assert_eq!(out["ok"], false, "{bad} must not report success");
             assert!(
                 out["pages_svg"].as_array().is_some_and(|p| p.is_empty()),
@@ -1247,7 +1250,7 @@ mod tests {
         // An *empty* body is not malformed — it is a new document, and it must
         // still render its one blank page rather than being called an error.
         let empty = serde_json::json!({ "body": "" }).to_string();
-        let out: serde_json::Value = serde_json::from_str(&compile_request(&empty)).unwrap();
+        let out: serde_json::Value = serde_json::from_str(&compile_request(&empty).json()).unwrap();
         assert_eq!(out["ok"], true, "an empty document is legitimate");
         assert_eq!(out["pages_svg"].as_array().unwrap().len(), 1);
     }
@@ -1273,7 +1276,7 @@ mod tests {
         // 75 KB of prelude in an 84 KB response, for a one-page document, read by
         // nothing on screen. The one caller that wants it asks.
         let preview = serde_json::json!({ "body": "שלום" }).to_string();
-        let p: serde_json::Value = serde_json::from_str(&compile_request(&preview)).unwrap();
+        let p: serde_json::Value = serde_json::from_str(&compile_request(&preview).json()).unwrap();
         assert_eq!(p["ok"], true);
         assert_eq!(
             p["typst_source"].as_str(),
@@ -1282,7 +1285,7 @@ mod tests {
         );
 
         let export = serde_json::json!({ "body": "שלום", "want_source": true }).to_string();
-        let e: serde_json::Value = serde_json::from_str(&compile_request(&export)).unwrap();
+        let e: serde_json::Value = serde_json::from_str(&compile_request(&export).json()).unwrap();
         assert!(
             e["typst_source"]
                 .as_str()
@@ -1295,7 +1298,7 @@ mod tests {
     fn a_page_the_client_already_holds_comes_back_as_null() {
         // The first compile hands over every page and names them.
         let ask = serde_json::json!({ "body": "שלום עולם" }).to_string();
-        let first: serde_json::Value = serde_json::from_str(&compile_request(&ask)).unwrap();
+        let first: serde_json::Value = serde_json::from_str(&compile_request(&ask).json()).unwrap();
         let hashes: Vec<String> = first["pages_hash"]
             .as_array()
             .unwrap()
@@ -1309,7 +1312,8 @@ mod tests {
         // names it and sends nothing.
         let again =
             serde_json::json!({ "body": "שלום עולם", "have_pages": hashes.clone() }).to_string();
-        let second: serde_json::Value = serde_json::from_str(&compile_request(&again)).unwrap();
+        let second: serde_json::Value =
+            serde_json::from_str(&compile_request(&again).json()).unwrap();
         assert!(
             second["pages_svg"][0].is_null(),
             "an unchanged page must not be sent twice"
@@ -1320,7 +1324,8 @@ mod tests {
         // something. Nothing may depend on the two lists lining up by position.
         let other =
             serde_json::json!({ "body": "טקסט אחר לגמרי", "have_pages": hashes }).to_string();
-        let third: serde_json::Value = serde_json::from_str(&compile_request(&other)).unwrap();
+        let third: serde_json::Value =
+            serde_json::from_str(&compile_request(&other).json()).unwrap();
         assert!(
             third["pages_svg"][0].is_string(),
             "a page the client has never seen must be sent"
@@ -1441,7 +1446,7 @@ mod tests {
                 v[k] = val.clone();
             }
             let out: serde_json::Value =
-                serde_json::from_str(&compile_request(&v.to_string())).unwrap();
+                serde_json::from_str(&compile_request(&v.to_string()).json()).unwrap();
             out["pages_lines"].as_array().cloned().unwrap_or_default()
         };
         assert!(
@@ -1512,7 +1517,7 @@ mod tests {
                 v[k] = val.clone();
             }
             let out: serde_json::Value =
-                serde_json::from_str(&compile_request(&v.to_string())).unwrap();
+                serde_json::from_str(&compile_request(&v.to_string()).json()).unwrap();
             out["note_markers"].as_array().cloned().unwrap_or_default()
         };
         assert!(

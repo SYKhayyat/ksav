@@ -133,12 +133,13 @@ fn main() {
         let mut typed = 0usize;
         // One first, so the measurement is not of a cold font cache.
         let _ =
-            ksav_engine::compile_request(&serde_json::json!({ "body": base.clone() }).to_string());
+            ksav_engine::compile_request(&serde_json::json!({ "body": base.clone() }).to_string())
+                .json();
         let ms = median_ms(5, || {
             typed += 1;
             let body = format!("{base}\n{}", "א".repeat(typed));
             let request = serde_json::json!({ "body": body }).to_string();
-            std::hint::black_box(ksav_engine::compile_request(&request));
+            std::hint::black_box(ksav_engine::compile_request(&request).json());
         });
         println!("{sections:>10}  {ms:>10.1}ms");
     }

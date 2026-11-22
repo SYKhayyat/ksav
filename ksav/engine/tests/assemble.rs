@@ -16,15 +16,15 @@
 use serde_json::{json, Value};
 
 fn assemble(request: &Value) -> Value {
-    serde_json::from_str(&ksav_engine::assemble_request(&request.to_string())).unwrap()
+    serde_json::from_str(&ksav_engine::assemble_request(&request.to_string()).json()).unwrap()
 }
 
 /// The old route: a full compile, asked for the source.
 fn compiled_source(request: &Value) -> Value {
     let mut with_source = request.clone();
     with_source["want_source"] = json!(true);
-    serde_json::from_str::<Value>(&ksav_engine::compile_request(&with_source.to_string())).unwrap()
-        ["typst_source"]
+    serde_json::from_str::<Value>(&ksav_engine::compile_request(&with_source.to_string()).json())
+        .unwrap()["typst_source"]
         .clone()
 }
 
@@ -157,7 +157,7 @@ fn a_missing_chapter_is_reported_rather_than_silently_dropped() {
 #[test]
 fn an_unreadable_request_says_so_instead_of_assembling_a_blank() {
     for bad in ["not json at all", "{}", "{\"body\": 7}"] {
-        let out: Value = serde_json::from_str(&ksav_engine::assemble_request(bad)).unwrap();
+        let out: Value = serde_json::from_str(&ksav_engine::assemble_request(bad).json()).unwrap();
         assert_eq!(out["ok"], false, "for `{bad}`");
         assert_eq!(out["typst_source"], "", "for `{bad}`");
         assert!(

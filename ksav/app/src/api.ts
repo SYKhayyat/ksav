@@ -622,6 +622,18 @@ export interface AssembleOpts {
 /** Every response can be a refusal: `error_json` is a superset of the compile
  *  shape with an `error` on it, so *"a refusal never has to be told apart from
  *  the failure of the thing refused"* (`services.rs`). */
+/**
+ * `/mekoros` with `search: true`: Girsa's own search was brought up.
+ *
+ * The answer to *run that search* rather than *find that phrase*. It carries one
+ * field and the editor ignores it — the errand is the point — but it has a name
+ * so the wire comparator can hold the engine's literal against something. An
+ * answer no interface describes is a shape nobody is checking (`#215`).
+ */
+export interface Opened {
+  opened: boolean;
+}
+
 export interface Refusable {
   error?: string;
 }

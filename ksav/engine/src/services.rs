@@ -105,9 +105,15 @@ pub struct Service {
     pub path: &'static str,
     pub cost: Cost,
     pub reach: Reach,
-    /// JSON in, JSON out — the same contract in all four builds. A `Get`
+    /// JSON in, an answer out — the same contract in all four builds. A `Get`
     /// service is handed an empty string.
-    pub call: fn(&str) -> String,
+    ///
+    /// A [`Reply`] and not a `String`, because a `String` is what let three
+    /// shapes live here at once (#215): a service could answer `{}` and nothing
+    /// in the type said whether that meant *no answer* or *the answer is empty*.
+    /// The envelope is written in one place — [`Reply::json`] — and a service
+    /// cannot reach the wire without choosing to have succeeded or refused.
+    pub call: fn(&str) -> Reply,
 }
 
 const fn svc(
@@ -116,7 +122,7 @@ const fn svc(
     path: &'static str,
     cost: Cost,
     reach: Reach,
-    call: fn(&str) -> String,
+    call: fn(&str) -> Reply,
 ) -> Service {
     Service {
         name,
@@ -228,13 +234,19 @@ pub fn route(method: Method, path: &str) -> Option<&'static Service> {
 /// Call a service by name. Used by the wasm and desktop bindings, which address
 /// services by name rather than by URL.
 pub fn call(name: &str, input: &str) -> String {
+    call_reply(name, input).json()
+}
+
+/// The same call, before the envelope is written — for the two bindings that do
+/// their own scheduling and need the answer as data rather than as text.
+pub fn call_reply(name: &str, input: &str) -> Reply {
     match find(name) {
         Some(s) => (s.call)(input),
         // Reachable only from a caller that made the name up: the generated
         // TypeScript union is the only thing that produces these strings, and it
         // is generated from the table above. Answered rather than panicked
         // because a wasm panic poisons the module for the rest of the session.
-        None => error_json(&format!(
+        None => Reply::fail(format!(
             "אין שירות בשם {name} · no engine service named {name}"
         )),
     }
@@ -263,34 +275,152 @@ pub fn services_json() -> String {
     serde_json::Value::Array(list).to_string()
 }
 
+/// One service's answer, before it is written out.
+///
+/// # Why a type and not a `String` (#215)
+///
+/// The seam was `fn(&str) -> String`, and a `String` makes no promise about
+/// its contents. Four services answered a failure in three different shapes —
+/// `jump` with `{}`, `reveal` with `{"points": []}`, `spell` with `{"error": …}`
+/// and no `ok` — while `error_json`'s own comment claimed to be *"the shape
+/// every caller can read"*. Nothing compared them, because nothing could: the
+/// signature said only "text".
+///
+/// So the answer has a type now, with three constructors and no fourth:
+///
+///   - [`Reply::ok`] — *this call worked, and here is what it produced*;
+///   - [`Reply::fail`] — *this call did not work, and here is why, in words the
+///     writer can read*;
+///   - [`Reply::relayed`] — *something else produced this JSON* (Girsa over the
+///     loopback, `git.rs`'s seventeen operations), and it is checked here rather
+///     than trusted.
+///
+/// The envelope — `ok`, `error` — is written in exactly one place, [`Reply::json`],
+/// so a service cannot ship a shape of its own choosing. Adding a fourth shape
+/// is not a discipline problem any more; it does not typecheck.
+#[derive(Debug)]
+pub enum Reply {
+    /// The call worked. The payload is the answer; `ok: true` is added to it.
+    Answer(serde_json::Value),
+    /// The call did not work. The sentence is the reason, and it goes into
+    /// `error` for the caller and into `diagnostics` for a client that reads a
+    /// compile's refusal.
+    Refused(String),
+}
+
+impl Reply {
+    /// *This worked.* The payload must be a JSON object — an answer is a thing
+    /// with names in it — and if it already carries its own `ok`, **that one is
+    /// kept**: `compile` answers `ok: false` when the document has errors, and
+    /// that is an answer about the sefer rather than a refusal of the call.
+    /// Overwriting it with `true` would be the envelope lying about a document
+    /// that did not lay out.
+    pub fn ok(payload: impl Into<serde_json::Value>) -> Reply {
+        Reply::Answer(payload.into())
+    }
+
+    /// *This did not work.* Answered rather than panicked everywhere: the wasm
+    /// build poisons the module on a panic, so an ordinary mistake has to be a
+    /// sentence.
+    pub fn fail(message: impl Into<String>) -> Reply {
+        Reply::Refused(message.into())
+    }
+
+    /// A JSON answer produced by something else — Girsa over the loopback, or one
+    /// of `git.rs`'s operations, which already answer with their own `ok`.
+    ///
+    /// # Why this exists rather than a bare `String` pass-through
+    ///
+    /// It is the one place the engine still takes somebody else's JSON onto its
+    /// wire, so it is the one place that checks. Text that is not JSON, and JSON
+    /// that is not an object, become a **stated refusal** instead of being
+    /// forwarded: the client would otherwise receive a 200 with a body its
+    /// reader cannot parse, which is the failure mode this whole ticket is about
+    /// one layer up. Well-formed text is accepted as-is, and the envelope is
+    /// still written by [`Reply::json`].
+    pub fn relayed(text: impl Into<String>) -> Reply {
+        let text = text.into();
+        match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(v @ serde_json::Value::Object(_)) => Reply::Answer(v),
+            Ok(_) => Reply::fail(
+                "השירות החזיר ערך שאינו אובייקט · the service answered with something that is not \
+                 an object",
+            ),
+            Err(e) => Reply::fail(format!(
+                "השירות החזיר טקסט שאינו JSON · the service answered with text that is not JSON: {e}"
+            )),
+        }
+    }
+
+    /// The wire form. **The only writer of the envelope.**
+    pub fn json(self) -> String {
+        match self {
+            Reply::Refused(message) => error_json(&message),
+            Reply::Answer(value) => {
+                let mut object = match value {
+                    serde_json::Value::Object(o) => o,
+                    // An answer that is not an object still arrives inside one,
+                    // so a caller never has to branch on the shape of the body.
+                    other => {
+                        let mut o = serde_json::Map::new();
+                        o.insert("value".to_string(), other);
+                        o
+                    }
+                };
+                object.entry("ok").or_insert(serde_json::Value::Bool(true));
+                serde_json::Value::Object(object).to_string()
+            }
+        }
+    }
+}
+
 /// A failure, in the shape every caller can read.
 ///
 /// Deliberately a superset: the compile-shaped fields so a failed `/compile`
 /// reads identically whatever produced it, and an `error` key so the callers
 /// that check `out.error` (mekoros, linkify) see it too. One shape means a
 /// refusal never has to be told apart from the failure of the thing refused.
+///
+/// Written by [`Reply::json`] and by the paths that have no service around them —
+/// the HTTP dispatcher's own refusals, and `git.rs`, whose operations answer
+/// their own `ok` inside a domain that is not this envelope's business. Every
+/// *service* goes through [`Reply`], and `test/reply` in the engine's tests holds
+/// them all to it. (#215)
 pub fn error_json(message: &str) -> String {
     serde_json::json!({
         "ok": false,
         "error": message,
+        // The **compile-shaped** fields, because a refused compile and a compile
+        // that failed have to read identically on the client: `compile.ts` walks
+        // these without checking whether the answer was a refusal, and a missing
+        // key here is a `TypeError` there rather than an error message (#215).
         "pages_svg": [],
+        "pages_hash": [],
         "pdf_base64": serde_json::Value::Null,
         "diagnostics": [{ "severity": "error", "message": message }],
         "typst_source": "",
+        "pages_lines": [],
+        "pages_text": [],
+        "note_markers": [],
+        "missing_assets": [],
     })
     .to_string()
 }
 
-fn commands(_: &str) -> String {
-    crate::commands::commands_json()
+// The three registries. Their bodies are built as JSON text by the modules that
+// own them — `commands.rs` alone has a table of forty-odd entries with examples —
+// so they are relayed rather than rebuilt here, and `Reply::relayed` is what makes
+// "relayed" mean *checked* rather than *hoped for*.
+fn commands(_: &str) -> Reply {
+    Reply::relayed(crate::commands::commands_json())
 }
 
-fn templates(_: &str) -> String {
-    crate::templates::templates_json()
+fn templates(_: &str) -> Reply {
+    Reply::relayed(crate::templates::templates_json())
 }
 
-fn sefarim(_: &str) -> String {
-    crate::sefarim::catalog_json()
+fn sefarim(_: &str) -> Reply {
+    Reply::relayed(crate::sefarim::catalog_json())
 }
 
 /// The services that need the machine rather than the sibling application.
@@ -301,13 +431,13 @@ fn sefarim(_: &str) -> String {
 /// be told the second one.
 mod disk {
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn git(body: &str) -> String {
-        crate::git::git_request(body)
+    pub fn git(body: &str) -> super::Reply {
+        super::Reply::relayed(crate::git::git_request(body))
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn git(_: &str) -> String {
-        super::error_json(
+    pub fn git(_: &str) -> super::Reply {
+        super::Reply::fail(
             "ניהול גרסאות זמין ביישום המותקן, שבו למסמך יש מקום בכונן · \
              version control needs the installed application, where a document has a place on disk",
         )
@@ -324,8 +454,8 @@ mod disk {
 /// rather than a hole it has to know about.
 mod girsa {
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn inbox(input: &str) -> String {
-        crate::post::drain_json(input)
+    pub fn inbox(input: &str) -> super::Reply {
+        super::Reply::relayed(crate::post::drain_json(input))
     }
 
     /// `{"phrase": "…", "except": null, "search": false}` → Girsa's answer.
@@ -334,7 +464,7 @@ mod girsa {
     /// answering — one service rather than two, because it is one question with
     /// two endings and the HTTP contract already said so.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn mekoros(body: &str) -> String {
+    pub fn mekoros(body: &str) -> super::Reply {
         #[derive(serde::Deserialize)]
         struct Asked {
             phrase: String,
@@ -344,37 +474,37 @@ mod girsa {
             search: bool,
         }
         let Ok(asked) = serde_json::from_str::<Asked>(body) else {
-            return super::error_json(
+            return super::Reply::fail(
                 "הבקשה אינה מכילה ביטוי לחיפוש · the request carries no phrase to look for",
             );
         };
         if asked.search {
             return match crate::post::search_in_girsa(&asked.phrase) {
-                Ok(()) => r#"{"opened":true}"#.to_string(),
-                Err(why) => super::error_json(&why),
+                Ok(()) => super::Reply::ok(serde_json::json!({ "opened": true })),
+                Err(why) => super::Reply::fail(&why),
             };
         }
         match crate::post::where_from(&asked.phrase, asked.except.as_deref()) {
-            Ok(answer) => answer,
-            Err(why) => super::error_json(&why),
+            Ok(answer) => super::Reply::relayed(answer),
+            Err(why) => super::Reply::fail(&why),
         }
     }
 
     /// `{"text": "…"}` → `{"text": "…with the citations live…"}`.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn linkify(body: &str) -> String {
+    pub fn linkify(body: &str) -> super::Reply {
         #[derive(serde::Deserialize)]
         struct Asked {
             text: String,
         }
         let Ok(asked) = serde_json::from_str::<Asked>(body) else {
-            return super::error_json(
+            return super::Reply::fail(
                 "הבקשה אינה מכילה טקסט לסימון · the request carries no text to mark up",
             );
         };
         match crate::post::linkify(&asked.text) {
-            Ok(text) => serde_json::json!({ "text": text }).to_string(),
-            Err(why) => super::error_json(&why),
+            Ok(text) => super::Reply::ok(serde_json::json!({ "text": text })),
+            Err(why) => super::Reply::fail(&why),
         }
     }
 
@@ -387,7 +517,7 @@ mod girsa {
     /// a sefer being written is the one surprise the whole arrangement is built
     /// to avoid.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn refresh(body: &str) -> String {
+    pub fn refresh(body: &str) -> super::Reply {
         #[derive(serde::Deserialize)]
         struct Asked {
             markup: String,
@@ -397,7 +527,7 @@ mod girsa {
             nikud: Option<bool>,
         }
         let Ok(asked) = serde_json::from_str::<Asked>(body) else {
-            return super::error_json(
+            return super::Reply::fail(
                 "הבקשה אינה מכילה מסמך לרענון · the request carries no document to refresh",
             );
         };
@@ -406,15 +536,14 @@ mod girsa {
             // `post::Refreshing`. Offered, never applied: the document is
             // rewritten here so the editor has one thing to insert, and whether
             // to insert it is the writer's.
-            Ok(got) => serde_json::json!({
+            Ok(got) => super::Reply::ok(serde_json::json!({
                 "quotes": got.quotes,
                 "total": got.quotes.len(),
                 "trouble": got.quotes.iter().filter(|q| q.trouble.is_some()).count(),
                 "moved": got.moved.rows(),
                 "retargeted": got.retargeted,
-            })
-            .to_string(),
-            Err(why) => super::error_json(&why),
+            })),
+            Err(why) => super::Reply::fail(&why),
         }
     }
 
@@ -422,30 +551,30 @@ mod girsa {
     /// sentence with a bilingual name spliced into it twice, which is what the
     /// first draft of this did and which reads as neither language.
     #[cfg(target_arch = "wasm32")]
-    fn no_library(he: &str, en: &str) -> String {
-        super::error_json(&format!(
+    fn no_library(he: &str, en: &str) -> super::Reply {
+        super::Reply::fail(&format!(
             "{he} זמין רק ביישום המותקן, שגרסא פתוחה לצדו · \
              {en} needs the installed application, where Girsa runs beside it"
         ))
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn inbox(_: &str) -> String {
+    pub fn inbox(_: &str) -> super::Reply {
         no_library("תיבת המקורות", "the source inbox")
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn mekoros(_: &str) -> String {
+    pub fn mekoros(_: &str) -> super::Reply {
         no_library("איתור מקור", "finding a source")
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn linkify(_: &str) -> String {
+    pub fn linkify(_: &str) -> super::Reply {
         no_library("סימון ציטוטים", "marking up citations")
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn refresh(_: &str) -> String {
+    pub fn refresh(_: &str) -> super::Reply {
         no_library("רענון המקורות", "refreshing a document's sources")
     }
 
@@ -456,7 +585,7 @@ mod girsa {
     /// error. A save must never fail because the sibling application is closed,
     /// and this is a courtesy to it rather than a step in saving.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn saved_here(body: &str) -> String {
+    pub fn saved_here(body: &str) -> super::Reply {
         #[derive(serde::Deserialize)]
         struct Saved {
             path: String,
@@ -466,7 +595,7 @@ mod girsa {
             forget: bool,
         }
         let Ok(saved) = serde_json::from_str::<Saved>(body) else {
-            return super::error_json("הבקשה אינה מכילה נתיב · the request carries no path");
+            return super::Reply::fail("הבקשה אינה מכילה נתיב · the request carries no path");
         };
         // Still not an error — a save must never fail because the sibling
         // application is closed — but the outcomes are no longer collapsed:
@@ -474,16 +603,16 @@ mod girsa {
         // different facts, and `why` carries which one happened.
         let told = crate::post::document(&saved.path, saved.name.as_deref(), saved.forget);
         match told {
-            Ok(()) => serde_json::json!({ "told": true }).to_string(),
-            Err(why) => serde_json::json!({ "told": false, "why": why }).to_string(),
+            Ok(()) => super::Reply::ok(serde_json::json!({ "told": true })),
+            Err(why) => super::Reply::ok(serde_json::json!({ "told": false, "why": why })),
         }
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn saved_here(_: &str) -> String {
+    pub fn saved_here(_: &str) -> super::Reply {
         // A browser tab has no file path to tell anybody about, and saying so
         // as an *error* would make an ordinary save report a failure.
-        serde_json::json!({ "told": false }).to_string()
+        super::Reply::ok(serde_json::json!({ "told": false }))
     }
 
     /// The Source Packet on the clipboard, **already rendered to markup**.
@@ -504,25 +633,25 @@ mod girsa {
     /// because turning that into a silent plain-text paste is what the schema
     /// version exists to prevent.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn clipboard_source(_: &str) -> String {
+    pub fn clipboard_source(_: &str) -> super::Reply {
         let Some(json) = crate::clipboard::source_on_clipboard() else {
-            return serde_json::json!({ "markup": serde_json::Value::Null }).to_string();
+            return super::Reply::ok(serde_json::json!({ "markup": serde_json::Value::Null }));
         };
         match crate::source::insert(&json, girsa_ksav::CitationPlacement::Mekor) {
             Ok(markup) if crate::source::looks_double_encoded(&markup) => {
-                super::error_json(crate::source::DOUBLE_ENCODED)
+                super::Reply::fail(crate::source::DOUBLE_ENCODED)
             }
-            Ok(markup) => serde_json::json!({ "markup": markup }).to_string(),
-            Err(e) => super::error_json(&e.to_string()),
+            Ok(markup) => super::Reply::ok(serde_json::json!({ "markup": markup })),
+            Err(e) => super::Reply::fail(e.to_string()),
         }
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn clipboard_source(_: &str) -> String {
+    pub fn clipboard_source(_: &str) -> super::Reply {
         // Not `no_library`: a browser tab pasting text is not an error and must
         // not be reported as one. The honest answer is *there is no packet*,
         // which is also true and which the caller already knows how to handle.
-        serde_json::json!({ "markup": serde_json::Value::Null }).to_string()
+        super::Reply::ok(serde_json::json!({ "markup": serde_json::Value::Null }))
     }
 }
 

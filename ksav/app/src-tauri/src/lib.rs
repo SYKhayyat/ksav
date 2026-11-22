@@ -138,10 +138,13 @@ async fn ksav_call(name: String, input: String) -> Result<String, String> {
     match svc.cost {
         // Laying out a document, checking a page of Hebrew, waiting on the
         // loopback: none of that belongs on the thread that draws the window.
-        Cost::Layout | Cost::Work => offload(move || (svc.call)(&input)).await,
+        // `.json()` here and not in the engine's `call`: this binding picks the
+        // thread, so it has to hold the answer before it holds the text. The
+        // envelope is still written once, by `Reply::json` (#215).
+        Cost::Layout | Cost::Work => offload(move || (svc.call)(&input).json()).await,
         // A registry read or a queue drain. Going through the blocking pool for
         // these would cost more in scheduling than the work itself.
-        Cost::Quick => Ok((svc.call)(&input)),
+        Cost::Quick => Ok((svc.call)(&input).json()),
     }
 }
 

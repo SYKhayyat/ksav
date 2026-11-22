@@ -38,6 +38,7 @@ import type {
   Linkified,
   Located,
   Mekoros,
+  Opened,
   PagePoint,
   Places,
   Refreshing,
@@ -350,7 +351,10 @@ abstract class ServiceClient {
 
   /** The same service, asked to open Girsa's search instead of answering. */
   async searchInGirsa(phrase: string): Promise<void> {
-    await this.ask("mekoros", { phrase, search: true });
+    // Typed rather than dropped on the floor: the answer says `opened`, and an
+    // engine that stopped saying so would otherwise be a silent change to a
+    // shape nothing reads (`#215`).
+    await this.ask<Opened>("mekoros", { phrase, search: true });
   }
 
   async linkify(text: string): Promise<string> {

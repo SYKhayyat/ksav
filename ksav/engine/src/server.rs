@@ -409,14 +409,16 @@ impl Drop for Slot {
 }
 
 fn run_service(svc: &'static Service, body: String) -> String {
+    // The answer is a `Reply` all the way to the door — the envelope is written
+    // once, by `Reply::json`, here and in the other two bindings (#215).
     match svc.cost {
         Cost::Layout => run_bounded(body, compile_deadline(), compile_slots(), |b| {
-            (svc.call)(&b)
+            (svc.call)(&b).json()
         }),
         // Everything else answers from a registry, a queue or the loopback, and
         // the pool's own worker is the right place for it: capping a spell check
         // behind a stuck compile is the failure the pool exists to prevent.
-        Cost::Work | Cost::Quick => (svc.call)(&body),
+        Cost::Work | Cost::Quick => (svc.call)(&body).json(),
     }
 }
 

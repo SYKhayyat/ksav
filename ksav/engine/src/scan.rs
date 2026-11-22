@@ -610,17 +610,17 @@ fn scan_text(text: &str) -> Value {
 ///
 /// Input: `{ "text": string }`. Invalid JSON and a missing/non-string `text`
 /// are refusals in the same error shape as every other engine service.
-pub fn scan_request(input_json: &str) -> String {
+pub fn scan_request(input_json: &str) -> crate::services::Reply {
     let value: Value = match serde_json::from_str(input_json) {
         Ok(value) => value,
         Err(error) => {
-            return crate::services::error_json(&format!("malformed scan request: {error}"));
+            return crate::services::Reply::fail(format!("malformed scan request: {error}"));
         }
     };
     let Some(text) = value.get("text").and_then(Value::as_str) else {
-        return crate::services::error_json("malformed scan request: text must be a string");
+        return crate::services::Reply::fail("malformed scan request: text must be a string");
     };
-    scan_text(text).to_string()
+    crate::services::Reply::ok(scan_text(text))
 }
 
 #[cfg(test)]
@@ -628,7 +628,7 @@ mod tests {
     use super::*;
 
     fn response(text: &str) -> Value {
-        serde_json::from_str(&scan_request(&json!({ "text": text }).to_string())).unwrap()
+        serde_json::from_str(&scan_request(&json!({ "text": text }).to_string()).json()).unwrap()
     }
 
     #[test]
@@ -645,6 +645,10 @@ mod tests {
                 "delims",
                 "frames",
                 "heads",
+                // The envelope's, added by `Reply::json` (#215): the scan's
+                // answer says `ok` like every other service's, and this list is
+                // exact so that a key arriving unannounced is a red test.
+                "ok",
                 "raws",
                 "strictComments",
                 "strings",
@@ -722,7 +726,7 @@ mod tests {
     #[test]
     fn malformed_and_unterminated_requests_are_clear() {
         for input in ["not json", "{}", r#"{"text": 7}"#] {
-            let error: Value = serde_json::from_str(&scan_request(input)).unwrap();
+            let error: Value = serde_json::from_str(&scan_request(input).json()).unwrap();
             assert_eq!(error["ok"], false);
             assert!(error["error"].is_string());
         }

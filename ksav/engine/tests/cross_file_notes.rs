@@ -22,7 +22,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 fn compile(request: Value) -> Value {
-    serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap()
+    serde_json::from_str(&ksav_engine::compile_request(&request.to_string()).json()).unwrap()
 }
 
 fn diagnostics(out: &Value) -> Vec<Value> {

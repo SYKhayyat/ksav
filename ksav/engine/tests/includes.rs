@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 fn compile(request: Value) -> Value {
-    serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap()
+    serde_json::from_str(&ksav_engine::compile_request(&request.to_string()).json()).unwrap()
 }
 
 fn diagnostics(out: &Value) -> Vec<Value> {
@@ -238,8 +238,9 @@ fn the_places_service_answers_with_the_list_and_the_first_beside_it() {
         "line": 2,
         "file": "מתבנית",
     });
-    let out: Value = serde_json::from_str(&ksav_engine::jump::places_request(&request.to_string()))
-        .unwrap_or_else(|e| panic!("places did not answer with json: {e}"));
+    let out: Value =
+        serde_json::from_str(&ksav_engine::jump::places_request(&request.to_string()).json())
+            .unwrap_or_else(|e| panic!("places did not answer with json: {e}"));
     let places: Vec<u64> = out["places"]
         .as_array()
         .expect("places is an array")
@@ -295,7 +296,8 @@ fn the_places_service_says_so_rather_than_inventing_an_answer() {
             "file": file,
         });
         let out: Value =
-            serde_json::from_str(&ksav_engine::jump::places_request(&request.to_string())).unwrap();
+            serde_json::from_str(&ksav_engine::jump::places_request(&request.to_string()).json())
+                .unwrap();
         assert_eq!(
             out["places"].as_array().map(|a| a.len()),
             Some(0),
@@ -306,13 +308,21 @@ fn the_places_service_says_so_rather_than_inventing_an_answer() {
             "{why} invented an answer rather than saying none: {out}"
         );
     }
-    // A malformed request is an empty answer, not a panic — the same shape every
-    // other service in this file answers with.
-    let out: Value = serde_json::from_str(&ksav_engine::jump::places_request("not json")).unwrap();
-    assert_eq!(out["places"].as_array().map(|a| a.len()), Some(0));
-    let out: Value =
-        serde_json::from_str(&ksav_engine::jump::places_request(r#"{"line":1}"#)).unwrap();
-    assert_eq!(out["places"].as_array().map(|a| a.len()), Some(0));
+    // A malformed request is a **stated refusal**, not an empty answer (#215).
+    // It used to be `{"places": []}`, which is the same body a real search that
+    // found nothing returns — the client could not tell "your request was
+    // garbage" from "there is no such chapter", and only one of those is a
+    // mistake the writer can fix.
+    for bad in ["not json", r#"{"line":1}"#] {
+        let out: Value = serde_json::from_str(&ksav_engine::jump::places_request(bad).json())
+            .unwrap_or_else(|e| panic!("{bad}: {e}"));
+        assert_eq!(out["ok"], false, "{bad}: {out}");
+        assert!(
+            out["error"].as_str().unwrap_or("").contains("בקשת מקומות"),
+            "{bad}: {out}"
+        );
+        assert!(out.get("places").is_none(), "{bad}: {out}");
+    }
 }
 
 #[test]

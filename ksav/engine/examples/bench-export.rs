@@ -43,11 +43,11 @@ fn main() {
 
         // One of each first, so neither pays for a cold font cache or a cold
         // `OnceLock` that the other would then be measured against.
-        let _ = ksav_engine::compile_request(&request);
-        let _ = ksav_engine::assemble_request(&quick_request);
+        let _ = ksav_engine::compile_request(&request).json();
+        let _ = ksav_engine::assemble_request(&quick_request).json();
 
         let t = Instant::now();
-        let slow = ksav_engine::compile_request(&request);
+        let slow = ksav_engine::compile_request(&request).json();
         let compile_ms = t.elapsed().as_secs_f64() * 1000.0;
 
         // Enough repetitions that the timer has something to measure.
@@ -55,7 +55,7 @@ fn main() {
         let t = Instant::now();
         let mut quick = String::new();
         for _ in 0..reps {
-            quick = ksav_engine::assemble_request(&quick_request);
+            quick = ksav_engine::assemble_request(&quick_request).json();
         }
         let assemble_ms = t.elapsed().as_secs_f64() * 1000.0 / reps as f64;
 

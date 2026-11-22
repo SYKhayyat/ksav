@@ -506,7 +506,7 @@ fn a_spell_request_returns_located_misses() {
     })
     .to_string();
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).expect("json");
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req).json()).expect("json");
     let misses = out["misspellings"].as_array().unwrap();
     assert_eq!(misses.len(), 1, "got {misses:?}");
     assert_eq!(misses[0]["word"], "כשכשכשכש");
@@ -524,7 +524,8 @@ fn a_spell_request_returns_located_misses() {
 fn a_request_can_turn_half_of_the_dictionary_off() {
     let misses = |body: serde_json::Value| -> Vec<String> {
         let out: serde_json::Value =
-            serde_json::from_str(&ksav_engine::spell::spell_request(&body.to_string())).unwrap();
+            serde_json::from_str(&ksav_engine::spell::spell_request(&body.to_string()).json())
+                .unwrap();
         out["misspellings"]
             .as_array()
             .unwrap()
@@ -577,7 +578,7 @@ fn offsets_are_utf16_and_correct_across_several_misses() {
     let text = "זזזזזז שלום ססססס עולם טטטטט";
     let req = serde_json::json!({ "text": text }).to_string();
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req).json()).unwrap();
     let m = out["misspellings"].as_array().unwrap();
     assert_eq!(m.len(), 3, "got {m:?}");
     // The forward pass must match the straightforward prefix-walk for every word.
@@ -603,9 +604,9 @@ fn a_request_can_carry_the_writers_own_dictionary() {
     let taught = serde_json::json!({ "text": text, "user_words": "כשכשכשכש" }).to_string();
 
     let a: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&plain)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&plain).json()).unwrap();
     let b: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&taught)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&taught).json()).unwrap();
     assert_eq!(a["misspellings"].as_array().unwrap().len(), 1);
     assert_eq!(
         b["misspellings"].as_array().unwrap().len(),
@@ -618,13 +619,13 @@ fn a_request_can_carry_the_writers_own_dictionary() {
 fn suggestions_can_be_asked_for_inline_or_per_word() {
     let req = serde_json::json!({ "text": "שלומ", "suggest": true, "limit": 3 }).to_string();
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req).json()).unwrap();
     let m = &out["misspellings"][0];
     assert!(m["suggestions"].as_array().is_some_and(|s| !s.is_empty()));
 
     let one = serde_json::json!({ "word": "שלומ", "limit": 3 }).to_string();
     let out2: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::suggest_request(&one)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::suggest_request(&one).json()).unwrap();
     assert!(!out2["suggestions"].as_array().unwrap().is_empty());
 }
 
@@ -637,7 +638,7 @@ fn request_offsets_are_utf16_units_not_bytes() {
     let text = "אבגד כשכשכשכש";
     let req = serde_json::json!({ "text": text }).to_string();
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::spell::spell_request(&req)).unwrap();
+        serde_json::from_str(&ksav_engine::spell::spell_request(&req).json()).unwrap();
     let m = &out["misspellings"][0];
     let start = m["start"].as_u64().unwrap() as usize;
     let len = m["len"].as_u64().unwrap() as usize;

@@ -99,7 +99,7 @@ fn a_hashed_asset_is_cached_and_then_resolves_without_its_bytes() {
 fn compile_responses_advertise_the_sha_asset_cache_capability() {
     let request = serde_json::json!({ "body": "שלום" });
     let response: serde_json::Value =
-        serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap();
+        serde_json::from_str(&ksav_engine::compile_request(&request.to_string()).json()).unwrap();
     assert_eq!(response["asset_cache"], "sha256");
 }
 
@@ -506,7 +506,7 @@ fn a_document_with_one_unreadable_image_still_renders() {
     // reach a writer through `compile_request`'s diagnostics, and a test that
     // built its `Assets` by hand would not be able to see whether they do.
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::compile_request(&request.to_string())).unwrap();
+        serde_json::from_str(&ksav_engine::compile_request(&request.to_string()).json()).unwrap();
     assert_eq!(
         out["ok"], true,
         "one unreadable image costs the preview: {out:?}"
@@ -742,7 +742,7 @@ fn the_direction_helper_leaves_a_document_it_does_not_understand_alone() {
 fn an_html_request_returns_html_rather_than_pages() {
     let req = serde_json::json!({ "body": "#כותרת2[כותרת]", "format": "html" }).to_string();
     let out: serde_json::Value =
-        serde_json::from_str(&ksav_engine::compile_request(&req)).expect("valid json");
+        serde_json::from_str(&ksav_engine::compile_request(&req).json()).expect("valid json");
     assert_eq!(out["ok"], true, "diagnostics: {:?}", out["diagnostics"]);
     assert!(out["html"].as_str().unwrap().contains("<h2>כותרת</h2>"));
 }

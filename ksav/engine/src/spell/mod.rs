@@ -746,7 +746,7 @@ fn for_request(
 /// per miss, which the editor only wants when a menu is actually being opened.
 /// Output: `{misspellings: [{start, len, word, lang, suggestions?}],
 /// lexicon_size, lexicon_sizes: {he, en}}`.
-pub fn spell_request(input_json: &str) -> String {
+pub fn spell_request(input_json: &str) -> crate::services::Reply {
     // A malformed request is refused, not answered with a clean bill: the
     // `unwrap_or(Null)` this used to be read unparseable input as *empty text*
     // and reported zero misspellings — silence wearing the shape of an answer,
@@ -755,10 +755,7 @@ pub fn spell_request(input_json: &str) -> String {
     let v: serde_json::Value = match serde_json::from_str(input_json) {
         Ok(v) => v,
         Err(e) => {
-            return serde_json::json!({
-                "error": format!("malformed spell request: {e}"),
-            })
-            .to_string();
+            return crate::services::Reply::fail(format!("malformed spell request: {e}"));
         }
     };
     let text = v.get("text").and_then(|x| x.as_str()).unwrap_or("");
@@ -812,20 +809,26 @@ pub fn spell_request(input_json: &str) -> String {
         .collect();
 
     let (he_size, en_size) = checker.sizes();
-    serde_json::json!({
+    crate::services::Reply::ok(serde_json::json!({
         "misspellings": found,
         // Kept as the total for callers that only ever wanted "how much does it
         // know"; the split is what an interface needs to name the languages.
         "lexicon_size": he_size + en_size,
         "lexicon_sizes": { "he": he_size, "en": en_size },
-    })
-    .to_string()
+    }))
 }
 
 /// JSON-in / JSON-out suggestions for a single word.
 /// Input: `{word, user_words?, limit?}` → `{suggestions: [...]}`.
-pub fn suggest_request(input_json: &str) -> String {
-    let v: serde_json::Value = serde_json::from_str(input_json).unwrap_or(serde_json::Value::Null);
+pub fn suggest_request(input_json: &str) -> crate::services::Reply {
+    // Refused rather than read as *no word* (#215): the `unwrap_or(Null)` this
+    // replaces turned unparseable input into an empty suggestion list, which is
+    // indistinguishable from "nothing to suggest" — the same silence `spell`
+    // above spent a paragraph rejecting.
+    let v: serde_json::Value = match serde_json::from_str(input_json) {
+        Ok(v) => v,
+        Err(e) => return crate::services::Reply::fail(format!("malformed suggest request: {e}")),
+    };
     let word = v.get("word").and_then(|x| x.as_str()).unwrap_or("");
     let user_words = v.get("user_words").and_then(|x| x.as_str()).unwrap_or("");
     let limit = v.get("limit").and_then(|x| x.as_u64()).unwrap_or(6) as usize;
@@ -834,5 +837,5 @@ pub fn suggest_request(input_json: &str) -> String {
     let layers = hebrew::Layers::from_json(v.get("hebrew"));
     let (he, en) = for_request(user_words, layers);
     let checker = Checker::new(Some(&he), Some(&en));
-    serde_json::json!({ "suggestions": checker.suggest(word, limit) }).to_string()
+    crate::services::Reply::ok(serde_json::json!({ "suggestions": checker.suggest(word, limit) }))
 }

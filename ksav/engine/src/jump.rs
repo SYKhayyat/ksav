@@ -40,6 +40,7 @@
 //! place and has nothing to blame.
 
 use crate::assets::Assets;
+use crate::services::Reply;
 use crate::{DocConfig, PagedDocument};
 use typst::introspection::PagedPosition;
 use typst::layout::{Abs, Point};
@@ -233,13 +234,25 @@ fn byte_of(text: &str, offset: usize, at: BodySpot) -> Option<usize> {
 // command and the wasm binding all hand their body straight through, so there is
 // one contract and three callers rather than three contracts.
 
-/// `{body, page, x_pt, y_pt, …DocConfig}` → `{line, column}` or `{}`.
-pub fn jump_request(input_json: &str) -> String {
+/// `{body, page, x_pt, y_pt, …DocConfig}` → `{ok, line, column}` — or `{ok: true}`
+/// with no `line`, which is the honest answer for a click where no line prints.
+///
+/// # `{}` was the answer to two different things (#215)
+///
+/// A malformed request and a click on a blank part of the page both came back as
+/// `{}`. The client reads "no `line`" as *nothing to jump to* and copes, so this
+/// was never a bug report — but it meant the wire could not tell a caller *your
+/// request was garbage* from *there is nothing under this click*, and only one of
+/// those is the writer's problem. A malformed request is a refusal now, with a
+/// sentence; a click that lands nowhere is an answer with no `line` in it.
+pub fn jump_request(input_json: &str) -> Reply {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(input_json) else {
-        return "{}".to_string();
+        return Reply::fail("בקשת ניווט אינה JSON תקין · the jump request is not valid JSON");
     };
     let Some(body) = v.get("body").and_then(|b| b.as_str()) else {
-        return "{}".to_string();
+        return Reply::fail(
+            "בקשת ניווט אינה מכילה גוף מסמך · the jump request carries no document body",
+        );
     };
     let num = |k: &str| v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0);
     let at = PagePoint {
@@ -260,24 +273,27 @@ pub fn jump_request(input_json: &str) -> String {
     match to_source(&expanded.text, &DocConfig::from_json(&v), &assets, at) {
         Some(s) => {
             let origin = expanded.origin_of(s.line);
-            serde_json::json!({
+            Reply::ok(serde_json::json!({
                 "line": origin.map_or(s.line, |o| o.line),
                 "column": s.column,
                 "file": origin.and_then(|o| o.file.clone()),
-            })
-            .to_string()
+            }))
         }
-        None => "{}".to_string(),
+        // Nothing prints at that point. An answer, and not a refusal: the call
+        // did what it was asked and the page has no line there.
+        None => Reply::ok(serde_json::json!({})),
     }
 }
 
 /// `{body, line, column, …DocConfig}` → `{points: [{page, x_pt, y_pt}]}`.
-pub fn reveal_request(input_json: &str) -> String {
+pub fn reveal_request(input_json: &str) -> Reply {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(input_json) else {
-        return r#"{"points":[]}"#.to_string();
+        return Reply::fail("בקשת הצגה אינה JSON תקין · the reveal request is not valid JSON");
     };
     let Some(body) = v.get("body").and_then(|b| b.as_str()) else {
-        return r#"{"points":[]}"#.to_string();
+        return Reply::fail(
+            "בקשת הצגה אינה מכילה גוף מסמך · the reveal request carries no document body",
+        );
     };
     let (assets, _, _) = Assets::from_request(&v);
     let expanded = crate::include::expand(
@@ -294,7 +310,7 @@ pub fn reveal_request(input_json: &str) -> String {
         column: v.get("column").and_then(|x| x.as_u64()).unwrap_or(1).max(1) as usize,
     };
     let points = from_cursor(&expanded.text, &DocConfig::from_json(&v), &assets, at);
-    serde_json::json!({ "points": points }).to_string()
+    Reply::ok(serde_json::json!({ "points": points }))
 }
 
 /// `{body, line, file, …DocConfig}` → `{places: [line], first: line}`.
@@ -315,12 +331,14 @@ pub fn reveal_request(input_json: &str) -> String {
 /// not this one — and a client that picked "the first of the list" would be
 /// reimplementing the reading-order rule on the other side of a wire, which is
 /// where it would drift.
-pub fn places_request(input_json: &str) -> String {
+pub fn places_request(input_json: &str) -> Reply {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(input_json) else {
-        return r#"{"places":[]}"#.to_string();
+        return Reply::fail("בקשת מקומות אינה JSON תקין · the places request is not valid JSON");
     };
     let Some(body) = v.get("body").and_then(|x| x.as_str()) else {
-        return r#"{"places":[]}"#.to_string();
+        return Reply::fail(
+            "בקשת מקומות אינה מכילה גוף מסמך · the places request carries no document body",
+        );
     };
     let expanded = crate::include::expand(
         body,
@@ -330,7 +348,7 @@ pub fn places_request(input_json: &str) -> String {
     let asked = v.get("line").and_then(|x| x.as_u64()).unwrap_or(1).max(1) as usize;
     let file = v.get("file").and_then(|x| x.as_str());
     let places = expanded.lines_of(file, asked);
-    serde_json::json!({
+    Reply::ok(serde_json::json!({
         "places": places,
         // `None` rather than `asked`, because "this line is in no part" and "this
         // line is the body itself" are different answers and collapsing them is
@@ -338,8 +356,7 @@ pub fn places_request(input_json: &str) -> String {
         "first": expanded.line_of(file, asked),
         "file": file,
         "line": asked,
-    })
-    .to_string()
+    }))
 }
 
 #[cfg(test)]
@@ -505,25 +522,44 @@ mod tests {
     }
 
     /// The wire shape, both ways, including what a request nobody can read gets.
+    ///
+    /// `#215`: unreadable input used to come back as `{}` and `{"points": []}` —
+    /// two different shapes, neither carrying `ok`, both indistinguishable from
+    /// an empty answer. A refusal is now a refusal and says why, and a click that
+    /// lands nowhere is still an answer.
     #[test]
     fn the_wire_answers_in_shape() {
         let ask =
             serde_json::json!({ "body": "שלום עולם", "page": 0, "x_pt": 100.0, "y_pt": 100.0 });
-        let out: serde_json::Value = serde_json::from_str(&jump_request(&ask.to_string())).unwrap();
-        assert!(out.is_object());
+        let out = json_value(jump_request(&ask.to_string()));
+        assert_eq!(out["ok"], true);
 
         let ask = serde_json::json!({ "body": "שלום עולם", "line": 1, "column": 1 });
-        let out: serde_json::Value =
-            serde_json::from_str(&reveal_request(&ask.to_string())).unwrap();
+        let out = json_value(reveal_request(&ask.to_string()));
+        assert_eq!(out["ok"], true);
         assert!(out["points"].is_array());
 
-        assert_eq!(jump_request("not json"), "{}");
-        assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&reveal_request("not json")).unwrap()
-                ["points"]
-                .as_array()
-                .map(|a| a.len()),
-            Some(0)
+        let out = json_value(jump_request("not json"));
+        assert_eq!(out["ok"], false);
+        assert!(
+            out["error"]
+                .as_str()
+                .unwrap_or("")
+                .contains("אינה JSON תקין"),
+            "{out}"
         );
+        let out = json_value(reveal_request("not json"));
+        assert_eq!(out["ok"], false);
+        // A refusal carries the reason and **no payload**: answering
+        // `{"points": []}` beside an error is what made an unreadable request
+        // look like a request that found nothing (#215).
+        assert!(out.get("points").is_none(), "{out}");
+        assert!(out.get("line").is_none(), "{out}");
+    }
+
+    /// The wire text, parsed — what every caller does with it, one line instead of
+    /// four.
+    fn json_value(reply: crate::services::Reply) -> serde_json::Value {
+        serde_json::from_str(&reply.json()).unwrap()
     }
 }

@@ -35,6 +35,14 @@ sittings, in the order it was done:
   shape of its own choosing; `app/test/wire.test.mjs` and `tests/reply.rs` (96
   answers driven from the registry) hold the wire.
 - **#217** a separator-splitting fence that caught a real wire bug on the way.
+- **#229** the boot test now looks at the chrome. `browserlang.test.mjs` was the
+  one test loading the built bundle against the real engine and it asserted
+  everything about that boot except whether the application had a toolbar — which
+  is how #228 survived a week of green. Three assertions now: `.tb-group` is
+  non-empty, `.toolbar-failed` is zero, and `dist/assets` carries a `.wasm` at all
+  (failing with the build command, because a bundle with no engine is not the
+  product). Cost, stated so nobody is surprised: the fence needs the wasm engine
+  built — `node tools/wasmbuild.mjs` took **35 minutes** here.
 - **#227 and #228** the render check can run on this machine, and it immediately
   paid for itself twice. #227: the check pinned X11 by deleting `WAYLAND_DISPLAY`,
   which pins nothing and disarmed the app's own guard — it now asks for

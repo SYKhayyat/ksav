@@ -4,7 +4,63 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-11-18 (the audit closed, and three fuzzers)
+## Current handoff — 2026-11-22 (the debt audit is fully closed)
+
+The 2026-11-19 debt audit (`PLAN.md` §Dept) is **fully answered**: #218–#225
+filed, fixed, fenced, pushed and closed, one at a time. The work of the last
+sittings, in the order it was done:
+
+- **#224** eslint + typescript-eslint, 98 findings → 0, never silenced; the gate
+  runs it as check 13.
+- **#220** every silent `catch` carries a `// silent: <why>` marker; the count is
+  the fence.
+- **#221** the compile answer's cast named and narrowed (`WireCompileResult`).
+- **#223** eight dead exports deleted, 57 un-exported, the seam fenced.
+- **#219** the side panes *ask for* the shared scan instead of taking one — the
+  pane refresh went from ~86 ms per 200 ms of typing to one scan shared four ways.
+- **#218** the issue said pagination was superlinear; the measurement said the
+  layout is flat and the seconds are page **writing**, which now runs on every
+  core (`pagesvg.rs`). The diagnosis in the issue was half wrong; the commit says
+  so. `engine/tests/fuzz.rs` had not compiled since #215's commit because nothing
+  ran the whole suite by name — fixed.
+- **#222** `engine/src/lib.rs` 6,231 lines → **343**: five cuts (`config.rs`,
+  `geometry.rs`, `lang/`, `layout.rs`, `wire.rs`) plus the 2,011 lines of unit
+  tests to `unit_tests.rs`, all moves, no caller's path moved (`pub use`
+  re-exports). Fenced by `engine/tests/structure.rs`. The app's reader that
+  sliced `pub struct DocConfig` out of `lib.rs` by text moved to `config.rs`.
+- **#215** a `Reply` type at the service seam: `ok(payload)` / `fail(message)` /
+  `relayed(text)` — the last one *parsed and required to be an object*, because
+  it is the one place somebody else's JSON reaches this wire. `Reply::json` is
+  the only envelope writer, in all four bindings, so a service cannot ship a
+  shape of its own choosing; `app/test/wire.test.mjs` and `tests/reply.rs` (96
+  answers driven from the registry) hold the wire.
+- **#217** a separator-splitting fence that caught a real wire bug on the way.
+
+The one value left from the audit's own list that is nobody's yet: **#213** — a
+compile *budget* is a product decision (how long may the engine spend before it
+refuses?) and it is marked waiting on the owner. Never picked up during the
+audit; it is the last item `PLAN.md` had on its always-first list.
+
+Of the older ledger: #171 is an index page whose findings were all actioned
+(#189 is layer 3); #140 is similar, with #163 (2-preview desync) and #164
+(`e.code`/`e.key`) left as pay-conditioned residues. The decision on closing
+those two index pages as superseded is still the user's.
+
+Two traps still cost real time if forgotten:
+
+- `node test/run.mjs` **refuses to run while generated fixtures are stale** and
+  prints no `FAIL` — check exit codes, not output.
+- `spans.ts` memoises four scans keyed on the text; timing the walk over the
+  same four strings measures the memo (0.08 ms for a 634 KB document). Use eight
+  texts to evict.
+- `ksav/app/src-tauri` cannot `cargo check` in a bare shell: it needs GTK and
+  `glib-2.0.pc`. The two `(svc.call)(&input).json()` sites changed in #215 have
+  not been compiled here; CI does.
+
+Counts live in `ksav/README.md` and are fenced by the suite: 14,239 editor
+assertions across 164 files; 1214 engine tests across 91 binaries.
+
+## Handoff — 2026-11-18 (the audit closed, and three fuzzers)
 
 The lamdan report that `PLAN.md` had been carrying is **fully answered** (#210):
 all seventeen rows the first triage could not open were opened, and the answer

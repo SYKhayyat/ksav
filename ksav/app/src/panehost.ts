@@ -31,6 +31,7 @@ import { closeMenus } from "./panels";
 import { splitterFor } from "./panedrag";
 import { applyPreview, drawCurrentInto, currentPages, pageBox } from "./preview";
 import { isPlainClick, pageUnder, pointInPage, clickedChapter } from "./jump";
+import { linkAt, followLink } from "./openlink";
 import { lineInDocument } from "./diagview";
 import { offsetOf } from "./errorlines";
 import { compileNow, bodyOnScreen } from "./compile";
@@ -608,6 +609,18 @@ function wirePreviewClicks(host: HTMLElement) {
     // A drag that ended here is a selection, not a click: the reader is copying
     // a rendered line, and moving the caret would take the selection with it.
     if (!isPlainClick(window.getSelection())) return;
+    // **A link is followed, not laid out** (#202). The page under the pointer may
+    // carry an `<a>` — a `#link` the writer typed — and a click on one used to be
+    // a navigation *inside the webview*: the application's own window loading
+    // somebody's website, or, in the desktop build, a local file carrying the
+    // IPC bridge. `openlink.ts` routes it out of the application instead, and the
+    // `preventDefault` is what stops the webview acting on it first.
+    const href = linkAt(e.target, pageUnder(e.target)?.node.querySelector("svg") ?? null);
+    if (href) {
+      e.preventDefault();
+      voidAction("general", () => followLink(href));
+      return;
+    }
     voidAction("general", () => jumpFromClick(e));
   });
 }

@@ -41,6 +41,11 @@
 /// away from a `setup` closure — see the table in its header.
 mod scheme;
 
+/// A document's link, opened outside the application (#202). Its own module for
+/// the same reason: the scheme list is a policy question, and it is asked of the
+/// shell as well as of the page.
+mod open;
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -431,6 +436,29 @@ fn decode_base64(text: &str) -> Result<Vec<u8>, String> {
     base64::engine::general_purpose::STANDARD
         .decode(text.as_bytes())
         .map_err(|e| format!("the export's bytes were not valid base64: {e}"))
+}
+
+/// Follow a link the writer clicked in the preview, outside the application.
+///
+/// The half of #202 a webview cannot do for itself. `svgsafe.ts` decides which
+/// links survive into the preview and `openlink.ts` intercepts the click; this
+/// is the door they hand the URL to, and it is the last of the three checks.
+///
+/// The scheme list is [`open::openable`]'s, and the refusal is a sentence rather
+/// than a silent no-op: the page says what it would not open, which is the
+/// difference between *this link does nothing* and *this link asked for
+/// something the application will not do*.
+#[tauri::command]
+fn ksav_open_external(url: String) -> Result<(), String> {
+    // Policy first, and in a pure function (`open::refusal`), so that the check
+    // that runs is the check that is tested. `open::spawn` has no opinion of its
+    // own — it is three lines of `Command::new` — so there is nowhere for a URL
+    // to slip past this.
+    if let Some(why) = open::refusal(&url) {
+        log::info!("refused to open a link: {url}");
+        return Err(why);
+    }
+    open::spawn(&url)
 }
 
 /// Overwrite an already-chosen file — this is what plain Save does.
@@ -1022,7 +1050,8 @@ macro_rules! ksav_commands {
             ksav_confirm_write,
             ksav_dictionary_read,
             ksav_dictionary_write,
-            ksav_dictionary_where
+            ksav_dictionary_where,
+            ksav_open_external
             $(, $extra),*
         ]
     };

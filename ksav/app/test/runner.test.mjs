@@ -325,8 +325,16 @@ export function nothingIsCopiedBackIn() {
   //     decide whether it checks anything. No value it reads reaches anything;
   //     the only thing it can do with what it finds is fail. The same sentence
   //     as `wire.test.mjs`, and the same condition on it.
+  //   - `openlink.test.mjs` reads the **shell's** Rust (`app/src-tauri/src/`),
+  //     not the engine's, and reads two things: the scheme list a clicked link
+  //     may be opened under, and whether the refusal runs before the spawn.
+  //     #202 is one policy with three ends — sanitizer, click router, shell —
+  //     and a disagreement between the last two is a link that is visible and
+  //     dead, or one the page ships and the shell refuses. Nothing it reads
+  //     reaches the bundle; it can only refuse. (`open.rs` reads the page back,
+  //     so the same agreement is held from the other side, under `cargo test`.)
   {
-    const allowed = ["facts.mjs", "docfacts.mjs", "wire.test.mjs", "skips.test.mjs"];
+    const allowed = ["facts.mjs", "docfacts.mjs", "wire.test.mjs", "skips.test.mjs", "openlink.test.mjs"];
     const guilty = files
       .filter(([f]) => !allowed.includes(path.basename(f)))
       .filter(([, s]) => /\.rs"|\.rs'|\.rs`/.test(s))

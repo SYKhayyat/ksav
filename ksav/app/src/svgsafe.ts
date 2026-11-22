@@ -166,8 +166,15 @@ const DANGEROUS_URL = /^\s*(?:javascript|vbscript|data:text\/html)/iu;
  */
 const LINK_SCHEME = /^(?:https?|mailto|tel):/iu;
 
-/** Does this `<a>` href's scheme, if it has one, belong on the open web? */
-function linkable(href: string): boolean {
+/**
+ * Does this `<a>` href's scheme, if it has one, belong on the open web?
+ *
+ * Exported since `#202`: the click that a surviving link turns into is routed by
+ * `openlink.ts`, and a second list of allowed schemes on that side is a second
+ * list to get wrong. One rule, used by the sanitizer that keeps the attribute
+ * and by the router that acts on it.
+ */
+export function linkable(href: string): boolean {
   const t = href.trim();
   const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/u.exec(t);
   if (!scheme) return true; // relative, or a `#` fragment

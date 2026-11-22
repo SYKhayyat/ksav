@@ -442,6 +442,31 @@ pub(crate) fn apparatus_is_named_as_kind(
     false
 }
 
+/// Commands whose notes render into the page *footer* rather than expanding the
+/// text region — these are the ones that need a reserved region at the page foot.
+///
+/// These are prefixes: `מדף_` stands for `מדף_א`, `מדף_בדרגה` and the rest of
+/// that family. The list is a second statement of something `ksav.typ` already
+/// says — which apparatuses register through `_ap_note` with a footer label —
+/// and a second statement that nothing compares to the first is how a list goes
+/// stale. So `the_page_foot_reserve_list_matches_the_prelude` derives the family
+/// out of the prelude and checks this against it in both directions: a new
+/// footer-rendered alias that is missing here fails, and an entry here that no
+/// longer names anything fails too. The failure it prevents is quiet and ugly —
+/// the page keeps its full text height and the apparatus runs off the bottom
+/// edge of the sheet.
+///
+/// It is **two** lists, one per apparatus, and that is not tidiness.
+///
+/// They are separate mechanisms that share one reserve: `#מדף_א…ז` are *tiers*,
+/// ordered layers of one apparatus, and `#הערה_זרם("שם")` are *named peer
+/// streams*, independent apparatuses that happen to sit at the same foot. Each
+/// declares its fixed region heights in its own configuration command, in its
+/// own shape, and the footer renders the bands and then the streams into the
+/// same reserved block — so what the page needs is the sum of the two. Held as
+/// one list, the reserve could only ever be read off one of them, which is
+/// exactly what went wrong: `#הגדרות_זרמים` was never read at all.
+///
 /// Every `#name(…)` declaration in the shape, keyed by the first positional
 /// argument — which for both of these commands is the thing's own name.
 pub(crate) fn channel_declarations(

@@ -61,8 +61,14 @@ waiting on a feature.
 - [x] **#221** the compile answer re-declared in a cast. **Closed**: `WireCompileResult`
       + `dictionaryOf`, the cast named and narrowed. Fenced by
       `app/test/typecasts.test.mjs`.
-- [ ] **#222** `engine/src/lib.rs` is 6,231 lines and 160 items across three
+- [x] **#222** `engine/src/lib.rs` was 6,231 lines and 160 items across three
       concerns — the file the app's own split (#22/#188) would have been made from.
+      **Closed**: five cuts, moves only — `config.rs` (1,107), `geometry.rs` (651),
+      `lang/` (946), `layout.rs` (975), `wire.rs` (482), and the 1,995 lines of unit
+      tests to `unit_tests.rs`. `lib.rs` is **343 lines**: declarations, re-exports,
+      font list, two Typst-argument helpers. No caller's path moved. Fenced by
+      `engine/tests/structure.rs` (ceiling, "no types in the crate root", the five
+      cuts present with their jobs, and a compile still answering at the old path).
 - [x] **#223** eight exported values have no caller at all. **Closed**: 8 deleted,
       57 un-exported, `wasmpkg/` excluded by design. Fenced by
       `app/test/modulesurface.test.mjs`.

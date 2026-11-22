@@ -137,11 +137,15 @@ export function disagreements() {
   // `DocConfig`'s fields, from the struct rather than from `impl Default` —
   // the struct is the declaration, and it is the one rustfmt will always keep
   // one field per line.
-  const lib = rust("lib.rs");
-  const at = lib.indexOf("pub struct DocConfig {");
-  const body = at < 0 ? null : lib.slice(at, lib.indexOf("\n}", at));
+  // `#222` cut the engine's `lib.rs` into `config`, `geometry`, `lang`, `layout`
+  // and `wire`; the struct is `config.rs` now, and this reader followed it. A
+  // reader that silently found nothing would have compared zero fields against
+  // forty-one and reported the difference as a defaults mismatch.
+  const config = rust("config.rs");
+  const at = config.indexOf("pub struct DocConfig {");
+  const body = at < 0 ? null : config.slice(at, config.indexOf("\n}", at));
   if (body === null) {
-    out.push("  document defaults (engine/src/lib.rs): `pub struct DocConfig` is not there");
+    out.push("  document defaults (engine/src/config.rs): `pub struct DocConfig` is not there");
   } else {
     // A `#[serde(skip)]` field is a real field and not a **default**, so it is
     // absent from `doc_defaults` by design — which is what happened to
@@ -158,7 +162,7 @@ export function disagreements() {
     const wanted = Object.keys(f.doc_defaults).length;
     if (fields !== wanted) {
       out.push(
-        `  document defaults (engine/src/lib.rs): ${fields} fields on \`DocConfig\`, ` +
+        `  document defaults (engine/src/config.rs): ${fields} fields on \`DocConfig\`, ` +
           `${wanted} in facts.gen.json`,
       );
     }

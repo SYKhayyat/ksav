@@ -87,7 +87,15 @@ Two traps still cost real time if forgotten:
   texts to evict.
 - `ksav/app/src-tauri` cannot `cargo check` in a bare shell: it needs GTK and
   `glib-2.0.pc`. Use
-  `nix develop .#desktop --command bash -c "cd ksav && node tools/gate.mjs shell"`,
+  `nix develop .#desktop --command bash -c "cd ksav && node tools/gate.mjs shell"`
+
+**And one more, found the hard way:** the Chromium path this file used to name for
+`KSAV_CHROMIUM` was garbage-collected out of the store, and `browserlang.test.mjs`
+does not fail when that happens — it **skips**, which the runner reports as `1
+file(s) asserted nothing`. On this box the working paths are
+`/nix/store/b3zmxxdfbv1q13fy1vkgxaszmnkwkf0z-chromium-151.0.7922.137/bin/chromium`
+and `google-chrome` in the user profile. Check `ls -d /nix/store/*chromium*/bin/chromium`
+before believing a green editor run that says 0 browser assertions.,
   which also runs the shell's own tests.
 
 Counts live in `ksav/README.md` and are fenced by the suite: 14,277 editor
@@ -188,7 +196,7 @@ protocol that kept them apart on 2026-11-17:
 
 - Environment: `nix develop /home/shaul/ksav [--command ...]`; full gate
   needs `#desktop` + `KSAV_CHROMIUM` — current path:
-  `/nix/store/7y0iz98mpfkb18ww37gzy2sjvlha3cdg-chromium-156.0.8078.47/bin/chromium`
+  `/nix/store/7y0iz98mpfkb18ww37gzy2sjvlha3cdg-chromium-151.0.7922.137/bin/chromium`
   (the 152 path in older notes is gone; re-fetch with
   `nix-shell -p chromium --run 'which chromium'` when GC eats it).
 - Gate: tsc → build → full suite → README rekey → `node tools/imports.mjs`.

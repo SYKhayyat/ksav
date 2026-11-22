@@ -163,4 +163,24 @@ export async function run() {
     const said = whyNoAnswer([], "main");
     ok("an empty label list is a mismatch, not a success", said.includes("has no window labelled"));
   }
+
+  // --- the chosen environment is the one the window gets (#227) -------------
+  //
+  // `renderEnv` is tested on its own, and a check that computed the right
+  // environment and then started the child without it would pass every one of
+  // those assertions. So the seam is asserted here, in the source, the way the
+  // rest of this file reads it: the child's environment is the session's plus
+  // what was chosen, and nothing is taken back out of it afterwards.
+  {
+    const source = read("tools/render-check.mjs");
+    const composed = source.indexOf("{ ...process.env, ...env,");
+    ok("the child is started with the session's environment plus the chosen one", composed > 0);
+    ok(
+      "…and nothing is deleted from it afterwards",
+      !/delete\s+childEnv\[/u.test(source),
+    );
+    // The record keeps what was chosen, so a red run can be read without
+    // guessing which backend it measured.
+    ok("…and the run records it", source.includes("env,\n    notes,"));
+  }
 }

@@ -13,6 +13,17 @@
 // applying the software knobs on a developer's machine (so the check stops
 // measuring the rendering path users get), and missing a machine that has no
 // render node (so the timeout comes back with no explanation).
+//
+// # The backend, and the second wrong answer (#227)
+//
+// Choosing X11 used to be done by **deleting `WAYLAND_DISPLAY`** from the child's
+// environment, on the theory that it pinned the run to one backend. Measured, it
+// pinned nothing — on a Wayland session the X display is XWayland, so GTK landed
+// on the broken path anyway (`devicePixelRatio -1/96`, the viewport
+// `-122880×-70656`) — and it disarmed the app's own guard, which needs
+// `WAYLAND_DISPLAY` present to choose X11. The assertions below therefore say
+// what was *chosen* (`GDK_BACKEND`), not what was taken away, because the second
+// is a fact about a variable while the first is the fact about the backend.
 
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -38,8 +49,9 @@ export async function run() {
 
   {
     const r = renderEnv({ display: ":0", waylandDisplay: undefined, renderNodes: NODE, platform: LINUX });
-    ok("a machine with a render node keeps WebKit's default renderer", Object.keys(r.env).length === 0);
+    ok("a machine with a render node keeps WebKit's default renderer", !r.env.WEBKIT_DISABLE_DMABUF_RENDERER);
     ok("and it is not described as software", r.software === false);
+    ok("X11 is still asked for, so two runs measure the same backend", r.env.GDK_BACKEND === "x11");
   }
 
   // --- a machine without one (the CI runner) --------------------------------
@@ -56,20 +68,27 @@ export async function run() {
 
   {
     const r = renderEnv({ display: ":0", waylandDisplay: "wayland-0", renderNodes: NODE, platform: LINUX });
-    ok("with both displays present, Wayland is cleared so X11 is measured", r.cleared.includes("WAYLAND_DISPLAY"));
-    ok("and the note says why the backend was pinned", r.notes.some((n) => n.includes("pins X11")));
+    ok("with both displays present, GTK is asked for X11", r.env.GDK_BACKEND === "x11");
+    ok("and the note says why the backend was chosen", r.notes.some((n) => n.includes("GDK_BACKEND=x11")));
+    // The deletion that used to be the mechanism is gone, and this is the
+    // assertion that keeps it gone: the session reaches the app as a real
+    // session's would, so the app's own guard is exercised rather than bypassed.
+    ok("and nothing is taken away from the session any more", !("cleared" in r));
   }
 
   {
     const r = renderEnv({ display: ":0", waylandDisplay: undefined, renderNodes: NODE, platform: LINUX });
-    ok("X11 alone clears nothing", r.cleared.length === 0);
+    ok("X11 alone is chosen the same way", r.env.GDK_BACKEND === "x11");
   }
 
-  // A Wayland-only session must not have its display removed: it is the only
-  // display there is, and dropping it would turn #103's own case into "no display".
+  // A Wayland-only session cannot be asked for X11: there is no X server to
+  // reach, so the request would start a window that never opens. The run then
+  // measures the Wayland path — which is where #103 lives — and says so, rather
+  // than failing with a backend nobody chose.
   {
     const r = renderEnv({ display: undefined, waylandDisplay: "wayland-0", renderNodes: NODE, platform: LINUX });
-    ok("Wayland alone is left alone", r.cleared.length === 0);
+    ok("a Wayland-only session is not asked for X11", r.env.GDK_BACKEND === undefined);
+    ok("and the note says the run measures Wayland", r.notes.some((n) => n.includes("measures the Wayland path")));
   }
 
   // --- other platforms use their own webview --------------------------------

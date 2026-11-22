@@ -12,9 +12,10 @@
 //
 // On NixOS 26.05 under native Wayland, WebKitGTK 2.52.5 gives the page
 // `devicePixelRatio = -1/96` and `innerWidth = -96 × outerWidth`. The chrome
-// collapses and the editor is unusable. `GDK_BACKDEN`/`GDK_BACKEND=x11` avoids
-// it, which `src-tauri/src/main.rs` now arranges on startup, and the cause is
-// still unknown (#103).
+// collapses and the editor is unusable. `GDK_BACKEND=x11` avoids it, which
+// `src-tauri/src/main.rs` arranges on startup and `tools/renderenv.mjs` asks for
+// here, and the cause is upstream (#103, and `tauri#12004` for the same fault in
+// an unrelated project).
 //
 // Nothing measured that. A `cargo test` never opens a window, so the entire
 // shipped UI had no coverage at all — which is why this file is #101, filed when
@@ -378,7 +379,7 @@ if (invokedDirectly) {
 
   // What this machine can render with, decided before the window is asked.
   const nodes = renderNodes();
-  const { env, cleared, notes } = renderEnv({
+  const { env, notes } = renderEnv({
     display: process.env.DISPLAY,
     waylandDisplay: process.env.WAYLAND_DISPLAY,
     renderNodes: nodes,
@@ -394,12 +395,10 @@ if (invokedDirectly) {
     ...recorded.facts,
     renderNodes: nodes,
     env,
-    cleared,
     notes,
     sessionBus: process.env.DBUS_SESSION_BUS_ADDRESS ? "set" : "absent",
   };
   const childEnv = { ...process.env, ...env, KSAV_DPR_OUT: answer, KSAV_DPR_BOOT: boot };
-  for (const key of cleared) delete childEnv[key];
 
   /** How far the shell got, from the milestones it appends as it goes (#189). */
   function phasesSaid() {
@@ -420,7 +419,8 @@ if (invokedDirectly) {
     const facts = [
       `  session:   DBUS_SESSION_BUS_ADDRESS=${process.env.DBUS_SESSION_BUS_ADDRESS ?? "(unset)"}`,
       `  display:   DISPLAY=${process.env.DISPLAY ?? "(unset)"}, ` +
-        `WAYLAND_DISPLAY=${cleared.includes("WAYLAND_DISPLAY") ? "(pinned to X11)" : (process.env.WAYLAND_DISPLAY ?? "(unset)")}`,
+        `WAYLAND_DISPLAY=${process.env.WAYLAND_DISPLAY ?? "(unset)"}` +
+        `, backend: ${env.GDK_BACKEND ? `GDK_BACKEND=${env.GDK_BACKEND} (asked for)` : "left to GTK"}`,
       `  rendering: ${nodes.length ? nodes.join(", ") : "no DRM render node — software path"}` +
         (Object.keys(env).length ? ` (${Object.entries(env).map(([k, v]) => `${k}=${v}`).join(" ")})` : ""),
       `  phases:    ${phasesSaid()}`,

@@ -1248,6 +1248,9 @@ export const EN: Dict = {
   showWhitespaceNote:
     "Off by default: a space between two words is prose, and a paragraph of Hebrew is unreadable with a dot between every pair. What is marked is only what is not prose — runs of spaces, a trailing space, a leading one, and any tab.",
   keepMenuPositionLabel: "Menus reopen where they were left",
+  shellVariantLabel: "Interface",
+  shellVariantMenus: "Menus only",
+  shellVariantToolbar: "Menus and toolbar",
   proseStripLabel: "Show the context strip in plain prose too",
   proseStripNote:
     "Off by default. The context strip carries the operations for the list or table the caret is " +
@@ -1632,6 +1635,8 @@ export const EN: Dict = {
   "sc.reviewPanel": "Review panel",
   "sc.toggleLang": "Switch interface language",
   "sc.toggleTheme": "Switch theme",
+  "sc.shellMenus": "Menus only",
+  "sc.shellToolbar": "Menus and toolbar",
   "sc.settingsDrawer": "Settings",
   "btn.שער": "Part",
   "btn.תת_שער": "Subpart",

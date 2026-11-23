@@ -19,6 +19,7 @@ import { t, tf } from "./i18n";
 import { whoHolds } from "./bindings";
 import { keybindings } from "./keyhint";
 import { settings, saveSettings, docConfig, type Field, type PageSetup } from "./settings";
+import { readShell, type ShellSettings } from "./shellsettings";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP } from "./scrollpolicy";
 import type { Settings } from "./settings";
 import { hasKey } from "./i18n";
@@ -282,6 +283,32 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
   return el("label", { class: "set-row" }, [
     el("span", { "data-i18n": labelKey }, [t(labelKey)]),
     sel,
+  ]);
+}
+
+/**
+ * One field of the nested `shell` setting (#233, §7). `selectRow` writes a
+ * top-level key, and `shell` is one object, so this writes the whole object with
+ * the one field changed — the rest rides along as stored. `data-setting` names
+ * the field with its path, `shell.variant`, so the row is findable the same way.
+ */
+function shellSelectRow<F extends keyof ShellSettings>(labelKey: string, field: F, options: [ShellSettings[F], string][]) {
+  const live = readShell(settingsWiring().live("shell"));
+  return el("label", { class: "set-row" }, [
+    el("span", { "data-i18n": labelKey }, [t(labelKey)]),
+    el(
+      "select",
+      {
+        "data-setting": "shell." + field,
+        onChange: (e: Event) => {
+          const v = (e.target as HTMLSelectElement).value as ShellSettings[F];
+          settingsWiring().write("shell", { ...readShell(settingsWiring().live("shell")), [field]: v });
+        },
+      },
+      options.map(([value, label]) =>
+        el("option", { value: String(value), ...(live[field] === value ? { selected: "selected" } : {}) }, [label]),
+      ),
+    ),
   ]);
 }
 
@@ -819,6 +846,12 @@ export function buildSettingsDrawer(): HTMLElement {
       ["whole", t("clickSelectsWhole")],
     ]),
     checkRow("keepMenuPositionLabel", "keepMenuPosition"),
+    // Which shell is drawn — the menus alone, or the menus and the toolbar row.
+    // The tabs shell joins this list in step 4, when there is one to draw.
+    shellSelectRow("shellVariantLabel", "variant", [
+      ["menus", t("shellVariantMenus")],
+      ["toolbar", t("shellVariantToolbar")],
+    ]),
     // Off by default, and the note says what the strip is — because a writer
     // who has never seen it cannot decide about a control they cannot picture,
     // and the one who turned it off wants to know what they turned off.

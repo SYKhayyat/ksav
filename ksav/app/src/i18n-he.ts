@@ -1286,6 +1286,9 @@ export const HE: Dict = {
   showWhitespaceNote:
     "כבוי כברירת מחדל: רווח בין שתי מילים הוא טקסט, ומילים מנוקדות הן לא נראות עם נקודות ביניהן. מה שמסומן הוא רק מה שאינו טקסט — רווחים כפולים, רווח בסוף שורה, רווח בראש שורה, וכל טאב.",
   keepMenuPositionLabel: "תפריטים נפתחים במקום שבו הושארו",
+  shellVariantLabel: "ממשק",
+  shellVariantMenus: "תפריטים בלבד",
+  shellVariantToolbar: "תפריטים וסרגל כלים",
   proseStripLabel: "רצועת ההקשר מופיעה גם בטקסט רגיל",
   proseStripNote:
     "כבוי כברירת מחדל. רצועת ההקשר מראה את פעולות הרשימה או הטבלה שהסמן עומד בתוכה; " +
@@ -1692,6 +1695,8 @@ export const HE: Dict = {
   "sc.reviewPanel": "לוח הביקורת",
   "sc.toggleLang": "החלפת שפת הממשק",
   "sc.toggleTheme": "החלפת ערכת צבעים",
+  "sc.shellMenus": "תפריטים בלבד",
+  "sc.shellToolbar": "תפריטים וסרגל כלים",
   "sc.settingsDrawer": "הגדרות",
   "btn.שער": "שער",
   "btn.תת_שער": "תת שער",

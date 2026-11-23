@@ -289,7 +289,11 @@ export function buildHeader(): HTMLElement {
         : "copy",
   );
 
-  return el("header", { role: "banner" }, [
+  // Which shell (#233, §6–§7). The *menus* variant is the floor and nothing else;
+  // the *toolbar* variant adds its one row. The *tabs* variant draws the toolbar
+  // until its own renderer lands (step 4).
+  const variant = settings.shell?.variant ?? "toolbar";
+  return el("header", { role: "banner", "data-shell": variant }, [
     el("div", { class: "brand" }, [
       el("span", { class: "brand-name" }, [t("appName")]),
       el("small", {}, [t("tagline")]),
@@ -310,7 +314,7 @@ export function buildHeader(): HTMLElement {
         el("small", { class: "doc-file", id: "doc-file" }, [name.line]),
       ],
     ),
-    buildToolbar(),
+    ...(variant === "menus" ? [] : [buildToolbar()]),
     // The menu bar and the runtime.view chips are navigation, and saying so is what
     // gives a screen-reader user a way to skip past forty-odd controls to the
     // editor. The page had no landmarks at all.

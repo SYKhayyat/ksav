@@ -13,6 +13,7 @@ import { makeWiring } from "./wiring";
 import * as runtime from "./runtime";
 import type { Lang } from "./i18n";
 import { budgetFromSettings } from "./compiletime";
+import { readShell, SHELL_DEFAULTS, type ShellSettings } from "./shellsettings";
 
 export type Layout = "two" | "page" | "source";
 export type PreviewSide = "left" | "right" | "top" | "bottom";
@@ -219,6 +220,11 @@ export interface Settings {
    * preference rather than a mistake. See `lazyMenu`.
    */
   keepMenuPosition?: boolean;
+  /**
+   * The furniture: which shell is drawn and how (#233, `ui-architecture.md` §7).
+   * Always whole once loaded — `loadSettings` runs it through `readShell`.
+   */
+  shell?: ShellSettings;
   /**
    * Let the context strip appear in plain prose as well as in structure.
    *
@@ -734,6 +740,7 @@ export const DEFAULTS: Settings = {
   indentMinWords: 4,
   indentPercent: 50,
   keepMenuPosition: false,
+  shell: { ...SHELL_DEFAULTS },
   proseStrip: false,
   spellcheck: true,
   spellcheckComments: false,
@@ -947,6 +954,9 @@ export function loadSettings(): Settings {
     if (rescued) s.newDocument = rescued;
   }
   for (const key of PAGE_FIELDS) delete s[key];
+  // Whole and valid, field by field: a blob from before the shell settings has
+  // none, and a hand-edited one may have a variant this build does not draw.
+  s.shell = readShell(raw.shell);
   return s;
 }
 

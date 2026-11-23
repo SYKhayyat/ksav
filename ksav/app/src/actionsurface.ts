@@ -61,6 +61,7 @@ import { selectTab, closeTab, newTab, newDocTab } from "./tabstrip";
 import * as runtime from "./runtime";
 import { setStatus } from "./runtime";
 import { settings, saveSettings, docConfig, setSetting } from "./settings";
+import { readShell, type ShellVariant } from "./shellsettings";
 import { swapPaneToward } from "./panedrag";
 import { t, tf } from "./i18n";
 import { takeSnapshot } from "./snapshots";
@@ -408,7 +409,20 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       ["settingsDrawer", "settings"],
     ] as const
   ).map(([id, chip]) => ({ id, run: () => (CHIP_RUN[chip](), true) })),
+  // Which shell is drawn (#233, §7) — from View as well as the drawer, because
+  // the furniture is something a writer changes while looking at it. The rest
+  // of the shell object rides along untouched.
+  ...(
+    [
+      ["shellMenus", "menus"],
+      ["shellToolbar", "toolbar"],
+    ] as const
+  ).map(([id, variant]) => ({ id, run: () => (setShellVariant(variant), true) })),
 ];
+
+function setShellVariant(variant: ShellVariant): void {
+  setSetting("shell", { ...readShell(settings.shell), variant });
+}
 
 let inAction = 0;
 

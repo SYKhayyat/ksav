@@ -787,6 +787,15 @@ function applySettingChange(key: import("./settings").Field, value: unknown): vo
     }
     rerenderChrome();
     for (const [v, at] of wasAt) v.scrollDOM.scrollTop = at;
+  } else if (key === "shell") {
+    // A different shell over the same document (#233, §7): the header is
+    // rebuilt from the placements and the editor is not touched — so the caret
+    // stays where it was, and each pane's scroll is put back after the header
+    // above it changed height.
+    const wasAt = new Map<EditorView, number>();
+    for (const v of sourceViews()) wasAt.set(v, v.scrollDOM.scrollTop);
+    rerenderChrome();
+    for (const [v, at] of wasAt) v.scrollDOM.scrollTop = at;
   } else if (key === "theme") {
     applyTheme();
     toEveryPane(themeCompartment.reconfigure(editorTheme(settings.theme === "dark")));

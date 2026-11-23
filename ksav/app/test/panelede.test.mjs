@@ -22,6 +22,7 @@ import { check, ok, notOk } from "./harness.mjs";
 import { nowhere } from "./source.mjs";
 import { MAX_LEVEL } from "../.tmp-test/spans.mjs";
 import { DEFAULT_KEYS } from "../.tmp-test/bindings.mjs";
+import { shellPlace } from "../.tmp-test/placement.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
@@ -102,9 +103,11 @@ export async function run() {
     );
     // The menu offers all of them too — the surface a writer who does not know
     // the chord actually reaches for.
+    // The menu is drawn from the placements now (#233), so "offered" is "placed":
+    // a level with no place has no row.
     ok(
       "the menu offers every level",
-      /length: heads\.MAX_LEVEL \}, \(_, i\) => i \+ 1\)\.map\(\(level\) =>\s*\n\s*el\("button"/.test(RIBBON),
+      Array.from({ length: MAX_LEVEL }, (_, i) => shellPlace(`foldLevel${i + 1}`)?.menu).every((m) => m === "view"),
     );
     ok(`MAX_LEVEL is what both count off`, MAX_LEVEL >= 9);
   }
@@ -144,6 +147,9 @@ export async function run() {
       ok(`${id} has a key`, !!DEFAULT_KEYS[id]);
       ok(`...and a name`, new RegExp(`"sc\\.${id}": "`).test(I18N));
     }
-    ok("and a menu row each", /t\("entityActs"\)/.test(RIBBON));
+    ok(
+      "and a menu row each",
+      ["entitySelect", "entityUnwrap", "entityRemove"].every((id) => shellPlace(id)?.group === "entity"),
+    );
   }
 }

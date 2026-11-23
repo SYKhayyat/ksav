@@ -1,13 +1,10 @@
 import { check, ok } from "./harness.mjs";
 import {
-  ACTION_HOME,
   EXPORTS,
-  aliasDesc,
   chips,
   docTitle,
-  exportItems,
-  fileItems,
   isSep,
+  saveAsLabel,
   templateItems,
 } from "../.tmp-test/header.mjs";
 import { setLang, t } from "../.tmp-test/i18n.mjs";
@@ -206,10 +203,9 @@ export async function run() {
     // keeps*; without it the browser can only push a copy into the downloads
     // folder. Calling both of them "Save as…" promises a binding that will not
     // exist, which is the sort of promise this application is careful about.
-    const real = fileItems(true).find((e) => e.id === "saveAs").label;
-    const copy = fileItems(false).find((e) => e.id === "saveAs").label;
+    const real = saveAsLabel(true);
+    const copy = saveAsLabel(false);
     ok("save-as says which one it means", real !== copy, `${real} / ${copy}`);
-    check("and nothing else moves with it", fileItems(true).length, fileItems(false).length);
     // And it says **download**, not "save a copy". That word is load-bearing in
     // two other places: `savedInBrowserWhy` — the sentence Ctrl+S hovers with in
     // a browser that cannot write files — sends the writer to this row by name,
@@ -218,7 +214,7 @@ export async function run() {
     // promise there is no way to keep here.
     for (const lang of ["he", "en"]) {
       setLang(lang);
-      const said = fileItems(false).find((e) => e.id === "saveAs").label;
+      const said = saveAsLabel(false);
       ok(`the copy row names the download in ${lang}`, said === t("saveCopy"), said);
       ok(`…and the Ctrl+S sentence points at that row in ${lang}`, !!t("savedInBrowserWhy"));
     }
@@ -229,7 +225,11 @@ export async function run() {
     // menu that will grow a ninth item nothing can reach — and
     // `.github/scripts/acceptance.mjs` finds these by `data-export`, which is
     // the id.
-    const items = exportItems();
+    // Every route is placed, so every one is drawn — and drawn as `data-export`.
+    const { BUILT_IN } = await import("../.tmp-test/actionsurface.mjs");
+    const { placed } = await import("../.tmp-test/placement.mjs");
+    const PLACED = placed({ builtIns: BUILT_IN.map((a) => a.id), commands: [], macros: [], styles: [] });
+    const items = EXPORTS.map((id) => PLACED.find((a) => a.id === id)).filter(Boolean);
     check("every export is addressable", items.length, EXPORTS.length);
     // It was nine, and the ninth was the PDF route with a `window.prompt` in
     // front of it. A page range is an argument, not a route: holding it as one
@@ -244,8 +244,8 @@ export async function run() {
     ok("there is more than one route out", EXPORTS.length > 1);
     check("no route is listed twice", new Set(EXPORTS).size, EXPORTS.length);
     check(
-      "…by an id, not by a localised label",
-      items.filter((r) => !r.id || !r.label).map((r) => r.id),
+      "…all of them in File",
+      items.filter((r) => r.place.menu !== "file").map((r) => r.id),
       [],
     );
     ok("…and the PDF one is in there", items.some((r) => r.id === "exportPdf"));
@@ -339,24 +339,14 @@ export async function run() {
   // that description names the owning menu rather than being empty or a repeat
   // of the label.
   {
-    check("New document is the library's, not the disk's", ACTION_HOME.newDoc, "documents");
-    check("Save as is the disk's, not the library's", ACTION_HOME.saveAs, "file");
-    check("the owning menu's row is not marked as an alias", aliasDesc("saveAs", "file"), undefined);
-    // Save-as keeps its second door and marks it; New document does not — the
-    // owner's call on 2026-11-17 was to remove the duplicate rather than mark
-    // it, since there is nothing to be compatible with yet. So the assertion is
-    // an absence, which is the stronger form: a row added back to File fails
-    // here before it can ship as the duplicate UAT 25 found.
-    check(
-      "File has no New document — Documents is its one home",
-      fileItems(true).filter((e) => !isSep(e) && e.id === "newDoc").map((e) => e.id),
-      [],
-    );
-    ok(
-      "…and an entry under File would be marked if one ever came back",
-      (aliasDesc("newDoc", "file") ?? "").includes("Documents"),
-      aliasDesc("newDoc", "file"),
-    );
-    check("Save as is owned here and carries nothing", fileItems(true).find((e) => !isSep(e) && e.id === "saveAs")?.desc, undefined);
+    // Since #233 "one home" is not a table beside the menus: `placed()` gives
+    // every action exactly one place, so a second door cannot be drawn at all.
+    const { BUILT_IN } = await import("../.tmp-test/actionsurface.mjs");
+    const { placed } = await import("../.tmp-test/placement.mjs");
+    const PLACED = placed({ builtIns: BUILT_IN.map((a) => a.id), commands: [], macros: [], styles: [] });
+    const home = (id) => PLACED.filter((a) => a.id === id).map((a) => a.place.menu);
+    check("New document is the library's, not the disk's", home("newDoc"), ["docs"]);
+    check("Save as is the disk's, not the library's", home("saveAs"), ["file"]);
+    check("no action has two homes", PLACED.length, new Set(PLACED.map((a) => a.id)).size);
   }
 }

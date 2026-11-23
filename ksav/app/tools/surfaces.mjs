@@ -275,7 +275,7 @@ export const RECIPES = new Map([
         "selector because the label beside it is translated and the run is in Hebrew.",
       drive: async (p) => {
         await p.click('[data-menu="insert"] .menu-btn');
-        await p.click('[data-menu="insert"] .menu-item:has-text("∑")');
+        await p.click('[data-menu="insert"] [data-action="insertFormula"]');
         await p.waitFor("#form-modal.open", 10_000);
       },
     },

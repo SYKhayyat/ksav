@@ -120,33 +120,34 @@ ok("the registry was parsed at all", commands.length > 90);
 // about the registry and agreed with itself, which is the exact failure it was
 // written to catch, one layer up.
 //
-// So the surface is read. `ribbon.ts` builds the Insert menu by walking the
-// registry and dropping exactly one thing, and that is what makes `!deprecated`
-// a true statement about reachability rather than a definition of it. If the
-// generator ever grows a second filter, this goes red and the ~100 per-command
-// claims below stop being true all at once — which is why they can now be one
-// `filter` instead of a hundred `ok`s.
+// So the surface is read. Since #233 the menus are drawn from `placed()`, which
+// walks the registry and drops exactly one thing, and `shellmenu.ts` draws a row
+// for every action it is handed. Those two together are what make `!deprecated`
+// a true statement about reachability rather than a definition of it. If
+// `placed()` ever grows a second filter, this goes red and the ~100
+// per-command claims below stop being true all at once.
+const { BUILT_IN } = await import("../.tmp-test/actionsurface.mjs");
+const { placed, menuTree } = await import("../.tmp-test/placement.mjs");
+const PLACED = placed({ builtIns: BUILT_IN.map((a) => a.id), commands, macros: [], styles: [] });
+const placedHe = new Set(PLACED.filter((a) => a.command).map((a) => a.command.he));
+const SHELLMENU = read("shellmenu.ts");
+const menuOf = (id) => PLACED.find((a) => a.id === id)?.place.menu;
 {
-  const build = RIBBON.slice(RIBBON.indexOf("const cats: string[] = []"));
-  const loop = build.slice(0, build.indexOf("\n  }\n"));
-  ok("the Insert menu is built from the registry, not a list", /for \(const c of runtime\.commandsReg/.test(loop));
-  ok("its categories come from the registry too", /for \(const c of runtime\.commandsReg\) if \(!cats\.includes/.test(build));
-  ok("it writes the registry's own snippet", /insertSnippet\(c\.insert\)/.test(loop));
-  const filter = /commandsReg\.filter\(\(x\) => ([^)]*)\)/.exec(loop);
-  ok("the menu's filter was found", !!filter);
   check(
-    "and the only command it drops is a deprecated one",
-    filter[1].replace(/x\.category === cat && ?/, "").trim(),
-    "!x.deprecated",
+    "every command placed() drops is a deprecated one",
+    commands.filter((c) => !placedHe.has(c.he) && !c.deprecated).map((c) => c.he),
+    [],
   );
+  ok("the menus draw every placed action of a group", /for \(const a of g\.items\) out\.push\(row\(a, h\)\)/.test(SHELLMENU));
+  ok("a command row writes the registry's own snippet", /insertSnippet\(a\.command!\.insert\)/.test(SHELLMENU));
   // Greyed, not hidden: a command that is illegal where the caret is stays in
   // the menu with the reason on it. That is what keeps "offered" and "usable
   // here" two different questions, and it is the reason this file can talk
   // about reachability without knowing where the caret is.
-  ok("an illegal command is greyed rather than dropped", /disabled: legality\.ok \? null/.test(loop));
+  ok("an illegal command is greyed rather than dropped", /legalAt\(/.test(SHELLMENU) && /disabled: why \?/.test(SHELLMENU));
 }
 
-const inInsertMenu = (c) => !c.deprecated;
+const inInsertMenu = (c) => placedHe.has(c.he);
 check(
   "every command with no written exemption is offered in the chrome",
   commands.filter((c) => !NOT_OFFERED[c.he] && !inInsertMenu(c)).map((c) => c.he),
@@ -214,26 +215,26 @@ ok(
   "the tiered note is not in the toolbar",
   !MAIN.includes('noteBtn("tieredNote"'),
 );
+const NOTES = menuTree(PLACED).find((m) => m.menu === "notes");
+const notesRows = NOTES ? NOTES.groups.flatMap((g) => g.items.map((a) => a.id)) : [];
 for (const action of ["footnote", "endnote", "tieredNote"]) {
-  ok(
-    `${action} is in the Insert menu`,
-    new RegExp(`noteItem\\(\\s*"${action}"`).test(RIBBON),
-  );
+  ok(`${action} is in the Notes menu`, notesRows.includes(action));
 }
 // …and the note on a note is not a *top-level* offer, which is what the margin
 // note asked for. It sat third, above the chooser, as though it were one of the
 // two things a person opens Insert to do; it is a second note hung off one that
 // already exists, so in ordinary prose there is nothing for it to hang off.
 {
-  const chooser = RIBBON.indexOf("onClick: openNotesChooser");
-  const tiered = RIBBON.search(/noteItem\(\s*"tieredNote"/);
-  ok("the note on a note is offered below the chooser, not above it", chooser < tiered);
+  ok(
+    "the note on a note is offered below the chooser, not above it",
+    notesRows.indexOf("notesChooser") >= 0 && notesRows.indexOf("notesChooser") < notesRows.indexOf("tieredNote"),
+  );
   // Greyed with its reason where it cannot act, which is this menu's own rule
   // for every other command: an item that silently vanishes when the caret moves
   // is a product that looks broken.
-  const item = RIBBON.slice(tiered, tiered + 500);
-  ok("…and it says why when the caret is not in a note", item.includes("whyNoteOnNoteNeedsANote"));
-  ok("…on the evidence of the caret, not of a setting", item.includes("noteDepthAt("));
+  const rule = SHELLMENU.slice(SHELLMENU.indexOf('a.id === "tieredNote"'), SHELLMENU.indexOf('a.id === "tieredNote"') + 200);
+  ok("…and it says why when the caret is not in a note", rule.includes("whyNoteOnNoteNeedsANote"));
+  ok("…on the evidence of the caret, not of a setting", rule.includes("noteDepthAt("));
 }
 
 // And the cosmetic alias is no longer advertised anywhere.
@@ -348,7 +349,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   ok("the bullet button makes one of a selection", read("insert.ts").includes('kind: "rewrite"'));
   ok("…and the shell performs it", read("insert.ts").includes('answer.kind === "rewrite"'));
   ok("it is an action of its own", MAIN.includes('id: "makeList"'));
-  ok("…named in the Format menu", RIBBON.includes('t("makeList")'));
+  check("…placed in the Format menu", menuOf("makeList"), "format");
   for (const lang of ["he", "en"]) {
     ok(`…and described in ${lang}`, !!DICTS[lang].makeListLede);
   }
@@ -399,7 +400,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
     ok(`${id} is an action`, MAIN.includes(`id: "${id}"`));
     // A name and a description, in the menu, at the point of use — the lede is
     // where "does this reach the page?" is actually answered.
-    ok(`…${id} names itself in the Insert menu`, RIBBON.includes(`name: "${id}"`));
+    check(`…${id} is placed in the Insert menu`, menuOf(id), "insert");
     for (const lang of ["he", "en"]) {
       ok(`…and says what it does in ${lang}`, !!DICTS[lang][id + "Lede"], id);
     }
@@ -412,7 +413,7 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
   for (const level of [1, 2, 3]) {
     ok(`foldLevel${level} is an action`, MAIN.includes("id: `foldLevel${level}`"));
   }
-  ok("…and reaches the Format menu", RIBBON.includes('t("foldLevels")'));
+  check("…and reaches the View menu", menuOf("foldLevel1"), "view");
 }
 
 // ------------------------------------------------- every action has a key

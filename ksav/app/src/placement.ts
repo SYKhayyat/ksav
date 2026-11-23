@@ -263,7 +263,9 @@ const commandId = (he: string): string => "cmd:" + he;
  */
 export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   // File
-  newDoc: { menu: "docs", group: "docTabs", glyph: "＋" },
+  newDoc: { menu: "docs", group: "library", glyph: "＋", order: -3 },
+  renameDoc: { menu: "docs", group: "library", order: -2 },
+  duplicateDoc: { menu: "docs", group: "library", order: -1 },
   open: { menu: "file", group: "fileOpen", glyph: "📂" },
   save: { menu: "file", group: "fileOpen", glyph: "💾" },
   saveAs: { menu: "file", group: "fileOpen" },
@@ -319,7 +321,7 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   hiddenBreak: { menu: "format", group: "breaks", glyph: "⏎", order: -1 },
   // Notes
   tieredNote: { menu: "notes", group: "notes", face: true, glyph: "⁑" },
-  notesChooser: { menu: "notes", group: "notes", glyph: "✻" },
+  notesChooser: { menu: "notes", group: "notes", glyph: "✻", order: -1 },
   renumber: { menu: "notes", group: "numbering", face: true },
   renderNotes: { menu: "notes", group: "numbering" },
   markInsert: { menu: "notes", group: "review", face: true },
@@ -582,4 +584,57 @@ export function resolveKey(key: string, list: readonly PlacedAction[]): PlacedAc
 /** The i18n key of a short label: `btn.<id>`, with `cmd:` dropped for engine commands. */
 export function btnKey(a: Pick<PlacedAction, "id" | "command">): string {
   return "btn." + (a.command && a.id.startsWith("cmd:") ? a.command.he : a.id);
+}
+
+// ---------------------------------------------------------------- the menus
+
+/**
+ * The rows a menu draws that are not actions — a list, a box, a sentence.
+ *
+ * Named, so the parity fence can say every row the hand-written menus drew is
+ * either a placed action or one of these, and a renderer can say how to draw
+ * each. `before` rows open the group; `after` rows close it.
+ *
+ * - `openDocs`: the session's open documents, each with ⧉ and ⌄.
+ * - `docsLegend`: what ⧉, ⌄ and × mean, drawn with the rows (#128).
+ * - `library`: every document there is, each with ⧉ and ×.
+ * - `templates`: the user's templates and the built-in ones.
+ * - `pages`: the export menu's page-range box.
+ * - `macroNone`: "no saved macros", when there are none.
+ * - `contentsDepth`: how deep the contents goes, beside the row that makes one.
+ */
+export type MenuExtra = "openDocs" | "docsLegend" | "library" | "templates" | "pages" | "macroNone" | "contentsDepth";
+
+export const MENU_EXTRAS: Readonly<Record<string, { before?: readonly MenuExtra[]; after?: readonly MenuExtra[] }>> = {
+  library: { after: ["openDocs", "docsLegend", "library"] },
+  templates: { after: ["templates"] },
+  export: { before: ["pages"] },
+  macros: { after: ["macroNone"] },
+  indexes: { after: ["contentsDepth"] },
+};
+
+/** One menu: its groups in order, each with its rows. */
+export interface MenuNode {
+  menu: MenuId;
+  groups: { group: string; items: PlacedAction[]; before: readonly MenuExtra[]; after: readonly MenuExtra[] }[];
+}
+
+/**
+ * The menu bar, as a tree — menu → group → rows.
+ *
+ * A group with no rows and no extras is dropped (the bar shows no empty
+ * heading); a group with only extras stays — Templates is all list.
+ */
+export function menuTree(list: readonly PlacedAction[]): MenuNode[] {
+  return MENUS.map((menu) => ({
+    menu,
+    groups: GROUPS[menu]
+      .map((group) => ({
+        group,
+        items: list.filter((a) => a.place.menu === menu && a.place.group === group),
+        before: MENU_EXTRAS[group]?.before ?? [],
+        after: MENU_EXTRAS[group]?.after ?? [],
+      }))
+      .filter((g) => g.items.length || g.before.length || g.after.length),
+  }));
 }

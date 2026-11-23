@@ -52,7 +52,7 @@ import { openPalette } from "./palette";
 import { openPanel, isPanelOpen } from "./panels";
 import { openSearchPanel } from "@codemirror/search";
 import { openSpellMenu } from "./spellcheck";
-import { openSwitcher, goToLastDoc, closeOpenDoc, newDoc } from "./docswitch";
+import { openSwitcher, goToLastDoc, closeOpenDoc, newDoc, renameDoc, duplicateDoc } from "./docswitch";
 import { renderAllNotes } from "./apparatus-lint";
 import { renumberAll } from "./numbering-lint";
 import { rerenderChrome } from "./layout";
@@ -198,6 +198,9 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "save", run: () => (saveFile(), true) },
   { id: "open", run: () => (openFile(), true) },
   { id: "newDoc", run: () => (newDoc(), true) },
+  // The Documents menu's two rows that were not actions (#233).
+  { id: "renameDoc", run: () => (voidAction("save_file", () => renameDoc()), true) },
+  { id: "duplicateDoc", run: () => (voidAction("save_file", () => duplicateDoc(runtime.currentDoc.id)), true) },
   { id: "markInsert", run: () => (markReview("insert"), true) },
   { id: "markDelete", run: () => (markReview("delete"), true) },
   { id: "addComment", run: () => (addComment(), true) },

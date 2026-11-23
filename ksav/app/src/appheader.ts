@@ -62,17 +62,8 @@ import { openHistory } from "./snapshots";
 import { openHelp } from "./help";
 import { toggleSettings } from "./settingsdrawer";
 import { paneTree } from "./panestate";
-import {
-  buildToolbar,
-  buildDocsMenu,
-  buildMacroMenu,
-  buildFormatMenu,
-  buildSourcesMenu,
-  buildTableMenu,
-  buildInsertMenu,
-  lazyMenu,
-  menu,
-} from "./ribbon";
+import { buildToolbar } from "./ribbon";
+import { buildMenus } from "./shellmenu";
 import { makeWiring } from "./wiring";
 
 // ------------------------------------------------------------------- wiring
@@ -241,38 +232,13 @@ function pagesHint(): string {
   return tf("pagesChosen", pagerange.select(spec, currentPages()).length, total);
 }
 
-/**
- * One export route, and — when a range is set — whether it can honour it.
- *
- * The reason the finding says was never given. It is said at the point of use
- * and only when it is relevant: six rows permanently captioned "this format has
- * no pages" is noise, and the same six rows silently ignoring a range the writer
- * just typed is the bug.
- */
-function exportItem(row: header.MenuRow, run: () => void): HTMLElement {
-  const btn = el("button", { class: "menu-item", "data-export": row.id, onClick: run }, [row.label]);
-  const why = pagerange.whyNoRange(row.id);
-  if (!why || !exports.pagesSpec().spans) return btn;
-  btn.append(el("span", { class: "menu-why" }, [t(why)]));
-  return btn;
-}
-
 export function buildHeader(): HTMLElement {
-  // The second line is drawn when a row has one. Until #128 nothing did: the
-  // interface had a `desc` field its own type declared, a menu builder that
-  // dropped it, and templates that built their rows by hand to get one.
-  const menuItem = (row: header.MenuRow, run: () => void, extra: Record<string, string> = {}) =>
-    el("button", { class: "menu-item", ...extra, onClick: run }, [
-      row.label,
-      ...(row.desc ? [el("span", { class: "menu-desc" }, [row.desc])] : []),
-    ]);
-
   const templatesByMenu = new Map(templatesForMenu().map((tpl) => [tpl.he, tpl]));
   const users = userTemplates();
   const usersById = new Map(users.map((u) => [u.id, u]));
-  const templatesMenu = menu(
-    "templates",
-    "📄 " + t("templates"),
+  // The templates are rows in File ▸ Templates, drawn here because the list is
+  // this module's to read.
+  const templateRows = () =>
     header
       .templateItems(
         templatesForMenu().map((tpl) => ({ ...tpl, id: tpl.he })),
@@ -305,32 +271,7 @@ export function buildHeader(): HTMLElement {
           el("b", {}, [entry.label]),
           el("span", { class: "menu-desc" }, [entry.desc ?? ""]),
         ]);
-      }),
-  );
-
-  const fileMenu = menu(
-    "file",
-    "📁 " + t("file"),
-    header
-      .fileItems(files.supportsRealFiles())
-      // A type guard rather than a cast, so the id that reaches `FILE_RUN` is
-      // the union and not `string` — which is the whole point of the union.
-      .filter((e): e is { id: header.FileItemId } & header.MenuRow => !header.isSep(e))
-      .map((e) => menuItem(e, FILE_RUN[e.id])),
-  );
-
-  // The Skins menu is gone: presets now live inside the Styles panel, next to
-  // the settings they overwrite, where the relationship is visible.
-
-  // Rebuilt on every open, because the page count in the hint is the count of
-  // the document as it stands and the range is whatever the writer last typed.
-  const exportMenu = lazyMenu("export", "⬇ " + t("export"), () => [
-    pagesRow(),
-    ...header.exportItems().map((row) =>
-      exportItem(row, EXPORT_RUN[row.id]),
-    ),
-  ]);
-
+      });
   // The state comes from the save layer, not from a guess here: `hasUnsavedFileChanges`
   // answers *is the file behind the editor*, and `canWriteBack` answers *is there a
   // file behind the editor at all* — the copy tier is a name with nothing behind
@@ -373,17 +314,9 @@ export function buildHeader(): HTMLElement {
     // The menu bar and the runtime.view chips are navigation, and saying so is what
     // gives a screen-reader user a way to skip past forty-odd controls to the
     // editor. The page had no landmarks at all.
-    el("nav", { class: "menubar", "aria-label": t("menubar") }, [
-      buildInsertMenu(),
-      buildFormatMenu(),
-      buildTableMenu(),
-      buildSourcesMenu(),
-      buildMacroMenu(),
-      buildDocsMenu(),
-      fileMenu,
-      templatesMenu,
-      exportMenu,
-    ]),
+    // Every menu, from the placements (#233): which menu holds a thing is
+    // `placement.ts`'s statement, not the order somebody wrote builders in.
+    el("nav", { class: "menubar", "aria-label": t("menubar") }, buildMenus({ pages: () => [pagesRow()], templates: templateRows })),
     el("div", { class: "spacer" }),
     el(
       "div",

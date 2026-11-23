@@ -33,7 +33,7 @@
 // left to the caller is a decision left in the god-file. `i18n.ts` is a pure
 // module; a test sets the language and reads the string a writer would see.
 
-import { t, tf, getLang } from "./i18n";
+import { t, getLang } from "./i18n";
 import type { Settings } from "./settings";
 
 /**
@@ -285,12 +285,8 @@ export function isSep(e: MenuEntry): e is { sep: true } {
 }
 
 /**
- * The File menu.
- *
- * `realFiles` is `files.supportsRealFiles()`: with the File System Access API
- * the last item saves *to a file the writer keeps*, and without it the browser
- * can only push a copy into the downloads folder. Calling both of those "Save
- * as…" would promise a binding that is not going to exist.
+ * The File menu's own verbs, as a union so `FILE_RUN` is checked against it.
+ * Where each one is drawn is `placement.ts`'s business now (#233).
  */
 export type FileItemId =
   | "open"
@@ -302,32 +298,14 @@ export type FileItemId =
   | "shareReview"
   | "saveAsTemplate";
 
-export function fileItems(realFiles: boolean): (({ id: FileItemId } & MenuRow) | { sep: true })[] {
-  return [
-    // **No New document here, deliberately** (#128).
-    //
-    // It lived in both menus: *File ▸ New document* for the muscle memory every
-    // editor has, and *Documents ▸ New document* because that is where a writer
-    // looks for their own documents — and UAT 25 read the pair as one more thing
-    // it could not tell apart. Marking the duplicate ("Also in Documents") was
-    // the conservative first step; the owner's call was to remove it, and he is
-    // right that there is nothing to be compatible with yet. One action, one
-    // home: **Documents**, which is what a new document is — an entry in the
-    // library, not a file. `ACTION_HOME` still records that, so a second door
-    // cannot be added back without a test noticing.
-    { id: "open", label: t("open") },
-    { id: "save", label: t("save") },
-    { id: "saveAs", label: realFiles ? t("saveAs") : t("saveCopy") },
-    { id: "importWord", label: t("importWord") },
-    // The second way in, and the reason `importWord`'s flow stopped being a
-    // function about Word. Org is where a bochur's notes live when they are not
-    // in Word, and it is the only interchange format on the list whose structure
-    // — a tree of headings with footnotes hanging off it — is this one's own.
-    { id: "importOrg", label: t("importOrg") },
-    { id: "shareRead", label: t("shareRead") },
-    { id: "shareReview", label: t("shareReview") },
-    { id: "saveAsTemplate", label: t("saveAsTemplate") },
-  ];
+/**
+ * Save-as's label. With the File System Access API it saves *to a file the
+ * writer keeps*, and without it the browser can only push a copy into the
+ * downloads folder. Calling both of those "Save as…" would promise a binding
+ * that is not going to exist.
+ */
+export function saveAsLabel(realFiles: boolean): string {
+  return realFiles ? t("saveAs") : t("saveCopy");
 }
 
 /**
@@ -385,10 +363,6 @@ export const EXPORTS = [
  * menus. Found by adding a ninth route.
  */
 export type ExportId = (typeof EXPORTS)[number];
-
-export function exportItems(): ({ id: ExportId } & MenuRow)[] {
-  return EXPORTS.map((id) => ({ id, label: t(id) }));
-}
 
 /** A template as the menu needs it, whichever of the two kinds it is. */
 export interface TemplateChoice {
@@ -476,37 +450,4 @@ export function docTitle(
       : `${t("fileNameLabel")}: ${fileName}` +
         (kind === "saved" ? "" : ` · ${kind === "copy" ? t("stateCopy") : t("stateUnsaved")}`);
   return { title: name, file: fileName, line, label: `${t("rename")}: ${name}` };
-}
-
-/**
- * Which menu owns each action that could reasonably appear in two (#128).
- *
- * UAT 25/26 found *New document* and *Save as* in both **Documents** and
- * **File**, with nothing to say which was the real one. The report's own rule is
- * the one applied here: *one canonical home, and a deliberate alias clearly
- * marked*. So the split follows the two things the menus are actually about —
- * **Documents** is the library (what exists, what is open, what it is called)
- * and **File** is the disk (where it is, in what format, and out) — and an entry
- * that lives in the wrong one for reachability's sake says so, using
- * [`aliasDesc`] and the `alsoIn` string.
- */
-export const ACTION_HOME: Record<string, "file" | "documents"> = {
-  // Documents owns it, and **only** Documents carries it: the File menu's copy
-  // was removed on 2026-11-17 rather than marked (#128). The entry stays in the
-  // table because it is the fact a reader wants (*where does a new document
-  // live*) and because `aliasDesc` reads it: an entry added back under File
-  // would immediately be marked — or, with this comment removed, immediately
-  // noticed by `header.test.mjs`.
-  newDoc: "documents",
-  saveAs: "file",
-};
-
-/** The "Also in …" line for an alias row, or `undefined` for the canonical one. */
-export function aliasDesc(
-  id: string,
-  here: "file" | "documents",
-): string | undefined {
-  const home = ACTION_HOME[id];
-  if (!home || home === here) return undefined;
-  return tf("alsoIn", t(home === "file" ? "file" : "documents"));
 }

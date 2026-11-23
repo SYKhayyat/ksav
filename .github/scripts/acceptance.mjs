@@ -1264,7 +1264,7 @@ async function main() {
   current = "export";
   const mark = since();
   await desktopSaveDialog();
-  await clickVisible("the Export menu", '[data-menu="export"] .menu-btn');
+  await clickVisible("the File menu", '[data-menu="file"] .menu-btn');
   await page.waitForSelector('[data-export="exportPdf"]', { timeout: 5_000 });
   await clickVisible("the Export → PDF item", '[data-export="exportPdf"]');
   let bytes = null;
@@ -1307,7 +1307,7 @@ async function main() {
   // the application built, which is where a command nobody remembered to
   // classify would actually come from.
   current = "org";
-  await clickVisible("the Export menu", '[data-menu="export"] .menu-btn');
+  await clickVisible("the File menu", '[data-menu="file"] .menu-btn');
   await page.waitForSelector('[data-export="exportOrg"]', { timeout: 5_000 });
   await clickVisible("the Export → Org item", '[data-export="exportOrg"]');
   try {
@@ -1804,10 +1804,10 @@ async function main() {
      * so precisely: "resolved to 8 elements", none of them visible.
      */
     async function openDocsMenu() {
-      const row = page.locator('[data-menu="documents"] [data-doc]').first();
+      const row = page.locator('[data-menu="docs"] [data-doc]').first();
       if (await row.isVisible().catch(() => false)) return;
-      await clickVisible("the Documents menu", '[data-menu="documents"] .menu-btn');
-      await page.waitForSelector('[data-menu="documents"] [data-doc]', { timeout: 10_000 });
+      await clickVisible("the Documents menu", '[data-menu="docs"] .menu-btn');
+      await page.waitForSelector('[data-menu="docs"] [data-doc]', { timeout: 10_000 });
     }
     /** Whichever document row is marked as the one we are in. */
     async function currentDocId() {
@@ -1815,7 +1815,7 @@ async function main() {
       return await page.evaluate(
         () =>
           document
-            .querySelector('[data-menu="documents"] [data-doc].active')
+            .querySelector('[data-menu="docs"] [data-doc].active')
             ?.getAttribute("data-doc") ?? null,
       );
     }
@@ -1845,7 +1845,7 @@ async function main() {
       // have landed, and `settled` would sit for thirty seconds waiting for a
       // second compile that nothing is going to ask for. It did exactly that.
       const before = await compiles();
-      await clickVisible(`the row for ${id}`, `[data-menu="documents"] [data-doc="${id}"]`);
+      await clickVisible(`the row for ${id}`, `[data-menu="docs"] [data-doc="${id}"]`);
       await page.waitForFunction(
         (n) =>
           /** @type {any} */ (window).__ksavStatus.slice(n).some((e) => e.cls === ""),
@@ -1876,7 +1876,7 @@ async function main() {
     page.once("dialog", (d) => void d.accept("השני"));
     await act("a second document", async () => {
       await openDocsMenu();
-      await clickVisible("New document", '[data-menu="documents"] [data-doc-action="new"]');
+      await clickVisible("New document", '[data-menu="docs"] [data-action="newDoc"]');
     });
     const idB = await currentDocId();
     check("the second document is a different one", typeof idB === "string" && idB !== idA, `${idA} / ${idB}`);
@@ -1947,7 +1947,11 @@ async function main() {
   // screen" and fail this.
   {
     await clickVisible("the Sources menu", '[data-menu="sources"] .menu-btn');
-    const items = page.locator('[data-menu="sources"] .menu-item');
+    // The menu holds the whole Sources family now (#233); the three errands are
+    // named by their action ids rather than by being the menu's only rows.
+    const items = page.locator('[data-menu="sources"]').locator(
+      '[data-action="citePhrase"], [data-action="linkifyCitations"], [data-action="refreshSources"]',
+    );
     const count = await items.count();
     check("all three errands are in it", count === 3, `${count} items in the menu`);
     const words = (await items.allTextContents()).join(" ");
@@ -1959,7 +1963,7 @@ async function main() {
       check(`${each} is named rather than keyed`, !words.includes("sc." + each), words);
     }
     const before = await said();
-    await clickVisible("the first errand", '[data-menu="sources"] .menu-item');
+    await clickVisible("the first errand", '[data-menu="sources"] [data-action="citePhrase"]');
     await page.waitForFunction(
       (was) => (document.getElementById("status")?.textContent ?? "") !== was,
       before,
@@ -2132,8 +2136,8 @@ async function main() {
     );
 
     const mark = since();
-    await clickVisible("the Documents menu", '[data-menu="documents"] .menu-btn');
-    await clickVisible("New document", '[data-menu="documents"] [data-doc-action="new"]');
+    await clickVisible("the Documents menu", '[data-menu="docs"] .menu-btn');
+    await clickVisible("New document", '[data-menu="docs"] [data-action="newDoc"]');
     await page.waitForFunction(
       () => (document.querySelector(".source-pane .cm-content")?.textContent ?? "x").length < 5,
       undefined,

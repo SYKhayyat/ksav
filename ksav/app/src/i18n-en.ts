@@ -39,7 +39,6 @@ export const EN: Dict = {
   stateUnsaved: "not saved",
   // A second entry onto an action the other menu owns is allowed, and says which
   // menu owns it (#128). Silence would be the duplicate the report found.
-  alsoIn: "Also in {0}",
   // The three glyphs on a document row, spelled out where they are rather than
   // in a tooltip that exists only on hover (#128).
   rowGlyphLegend: "\u29c9 new arrangement \u00b7 \u2304 close \u00b7 \u00d7 delete",
@@ -1379,6 +1378,8 @@ export const EN: Dict = {
   "sc.save": "Save",
   "sc.open": "Open",
   "sc.newDoc": "New document",
+  "sc.renameDoc": "Rename document",
+  "sc.duplicateDoc": "Duplicate document",
   "sc.undo": "Undo",
   "sc.redo": "Redo",
   "sc.palette": "Commands",

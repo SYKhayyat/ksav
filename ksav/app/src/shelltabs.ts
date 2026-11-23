@@ -34,7 +34,8 @@ let openTab = "home";
 //
 // Table and Notes are also *contextual* (§4, §5): standing in a table or a note
 // brings its tab forward. `contextbar.ts` knows where the caret is and calls
-// `setContext` on every move; nothing here reads the document.
+// `runtime.caretContext` on every move, which lands in `setContext` below;
+// nothing here reads the document.
 
 /** The tabs a caret can ask for. */
 export type ContextTab = "table" | "notes";
@@ -90,6 +91,7 @@ export function setContext(next: ContextTab | null): void {
   }
   fillContextRow();
 }
+runtime.onCaretContext((structureHere, noteDepth) => setContext(contextOf(structureHere, noteDepth)));
 
 /** The toolbar shell's second row: empty and hidden until the caret is in a table or a note. */
 export function contextRow(): HTMLElement {

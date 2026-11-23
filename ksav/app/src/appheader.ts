@@ -166,6 +166,10 @@ export const EXPORT_RUN: Record<header.ExportId, () => void> = {
   print: exports.doPrint,
 };
 
+// The action table runs these too, by id, through `runtime` (#233: a direct
+// import from `actionsurface.ts` closed a cycle through the shell's menu).
+runtime.onHeaderRuns({ chip: CHIP_RUN, file: FILE_RUN, export: EXPORT_RUN });
+
 /** The header's view of the world, gathered in one place. */
 function headerState(): header.HeaderState {
   return {

@@ -106,8 +106,9 @@ export async function run() {
 
   // ------------------------------------------------- 5. who calls it
   const bar = src("contextbar.ts");
-  ok("the context bar reports the caret's context", bar.includes("setContext(contextOf(around, noteDepthAt(doc, pos)))"));
-  ok("before any early return", bar.indexOf("setContext(") < bar.indexOf("if (here.length === 0)"));
+  ok("the context bar reports the caret's context", bar.includes("runtime.caretContext(around, noteDepthAt(doc, pos))"));
+  ok("before any early return", bar.indexOf("runtime.caretContext(") > 0 && bar.indexOf("runtime.caretContext(") < bar.indexOf("if (here.length === 0)"));
+  ok("and the tabs hear it, through runtime (no import cycle)", src("shelltabs.ts").includes("runtime.onCaretContext((structureHere, noteDepth) => setContext(contextOf(structureHere, noteDepth)))"));
   ok("the toolbar shell mounts the row", src("appheader.ts").includes("[buildPinnedTab(), contextRow()]"));
   ok("the drawer has the contextual checkbox", src("settingsdrawer.ts").includes('shellCheckRow("shellContextualLabel", "contextual")'));
 }

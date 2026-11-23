@@ -4,7 +4,41 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
-## Current handoff — 2026-11-23 (the audit is closed and #202 with it)
+## Current handoff — 2026-11-23 (the shell wave, #233, on `shell-placements`)
+
+`docs/ui-architecture.md` §11's eight steps are built, one commit each, on branch **`shell-placements`** — not yet merged; the user reviews it as
+a whole. The decision is `decisions/2026-11-23-the-shell-is-built-from-placements.md`.
+
+- **1** `placement.ts`: every action has one home (`placed()`), fenced as data.
+- **2** the menu bar is rendered from `placed()`; the hand-written lists are gone.
+- **3** `shell` settings (`shellsettings.ts`, a leaf) and the *menus* variant.
+- **4** the tab renderer (`shelltabs.ts`) and the *tabs* variant.
+- **5** the toolbar is a pinned tab; `ribbon.buildToolbar` is gone.
+- **6** contextual tabs for tables and notes.
+- **7** `RibbonLayout` (`ribbonlayout.ts`): default, migration against `known`,
+  import/export.
+- **8** the customize drawer (`ribboncustomize.ts`, pure edits in
+  `ribbonedit.ts`): an ARIA tree whose arrows follow the UI direction, live
+  writes to `settings.shell`, right-click on a button and a tab header.
+
+Not done, and said so in §13: drag and drop in the tree (keyboard and buttons
+only). `importui.test.mjs` has two failures that predate the wave (*it either
+imports or says why*, *the document survived the refusal*), measured on a
+non-wasm dist; `acceptance.mjs` was not run here.
+
+**The per-step checks were not the gate.** Steps 1–8 each ran the typechecker,
+the linter and the suite, but not `tools/imports.mjs` or the engine's
+`product_words`. The full gate after step 8 found what that missed, fixed in a
+ninth commit: three import cycles through the shell's menu (`contextbar →
+shelltabs`, step 6; `actionsurface → ribboncustomize`, step 8; and `appheader →
+shellmenu`, step 3, which closed an old `actionsurface → appheader` edge).
+They now go through `runtime` hooks: `caretContext`, `openCustomize`,
+`runHeader`. It also found 51 new UI words missing from
+`lexicon-he-product.txt` (regenerated) and two tree-local keys backticked in §8,
+which the readme key fence reads as product bindings. Run `node tools/gate.mjs`,
+not a subset, before calling a step green.
+
+## Handoff — 2026-11-23 (the audit is closed and #202 with it)
 
 The 2026-11-19 debt audit (`PLAN.md` §Dept) is **fully answered**: #218–#225
 filed, fixed, fenced, pushed and closed, one at a time. The work of the last

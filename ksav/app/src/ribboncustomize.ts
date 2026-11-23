@@ -26,6 +26,7 @@ import { closeMenus, closePanel, isPanelOpen, mountPanel, openPanel } from "./pa
 import * as files from "./files";
 import { askText } from "./formmodal";
 import { voidAction } from "./asyncaction";
+import * as runtime from "./runtime";
 import { setStatus } from "./runtime";
 
 // ---------------------------------------------------------------- the state
@@ -113,6 +114,7 @@ export function openCustomize(at?: TreeNode): void {
   render();
   openPanel("ribbon-drawer");
 }
+runtime.onOpenCustomize(() => openCustomize());
 
 // ---------------------------------------------------------------- the tree
 

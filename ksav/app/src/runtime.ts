@@ -20,6 +20,7 @@ import { history } from "@codemirror/commands";
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { Backend, CommandDef, CompileResult, TemplateDef } from "./api";
+import type { ChipId, ExportId, FileItemId } from "./header";
 import type { KsavDoc } from "./docs";
 import type { FileBinding } from "./files";
 
@@ -275,6 +276,47 @@ export function onRerenderChrome(fn: () => void) {
 }
 export function onOpenDoc(fn: (id: string) => Promise<void>) {
   openDocHook = fn;
+}
+
+// Where the caret stands, for the contextual tabs (#233, §4). `contextbar.ts`
+// knows the caret and `shelltabs.ts` owns the tabs; the hook keeps the first
+// from importing the second (which would close a cycle back through the menu).
+let caretContextHook: (structureHere: string | undefined, noteDepth: number) => void = () => {};
+export function onCaretContext(fn: (structureHere: string | undefined, noteDepth: number) => void) {
+  caretContextHook = fn;
+}
+/** The caret moved: the structure it is in (if any) and how deep in notes. */
+export function caretContext(structureHere: string | undefined, noteDepth: number): void {
+  caretContextHook(structureHere, noteDepth);
+}
+
+// The customize drawer (#233, §8). Its command is a built-in action, and
+// `actionsurface.ts` sits under the menu the drawer reads, so it asks through here.
+let customizeHook: () => void = () => {};
+export function onOpenCustomize(fn: () => void) {
+  customizeHook = fn;
+}
+/** Open ☰ ▸ View ▸ Customize the ribbon…. */
+export function openCustomize(): void {
+  customizeHook();
+}
+
+// The header's run tables (`appheader.ts`: `CHIP_RUN`, `FILE_RUN`, `EXPORT_RUN`),
+// which the action table also runs. `appheader.ts` draws the shell, the shell
+// reads the action table, so the action table asks for them through here.
+export interface HeaderRuns {
+  chip: Record<ChipId, () => void>;
+  file: Record<FileItemId, () => void>;
+  export: Record<ExportId, () => void>;
+}
+let headerRuns: HeaderRuns | null = null;
+export function onHeaderRuns(r: HeaderRuns) {
+  headerRuns = r;
+}
+/** Run one of the header's verbs by its table and id. */
+export function runHeader<K extends keyof HeaderRuns>(kind: K, id: keyof HeaderRuns[K]): void {
+  const table = headerRuns?.[kind] as Record<PropertyKey, () => void> | undefined;
+  table?.[id]?.();
 }
 
 /** Rebuild the header and the settings drawer from current state. */

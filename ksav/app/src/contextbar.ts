@@ -21,7 +21,6 @@ import { openPanel, closePanel } from "./panels";
 import { keybindings, hintFor } from "./keyhint";
 import { docTextOf } from "./spans";
 import { noteDepthAt } from "./notes";
-import { contextOf, setContext } from "./shelltabs";
 
 const { chromeWiring } = chrome;
 
@@ -63,7 +62,7 @@ export function updateContextBar() {
   const around = structure.structureNear(doc, pos)?.structure;
   dismissForeignHydra(around ?? null);
   // The contextual tabs (#233, §4): Table in a table, Notes in a note.
-  setContext(contextOf(around, noteDepthAt(doc, pos)));
+  runtime.caretContext(around, noteDepthAt(doc, pos));
 
   // The paragraph-style readout follows the caret whether or not the ribbon has
   // anything to show, so it is updated before the early return below.

@@ -47,7 +47,6 @@ import { openGit } from "./gitui";
 import { openHelp } from "./help";
 import { openHydra } from "./hydra";
 import { openKeys } from "./keysdrawer";
-import { openCustomize } from "./ribboncustomize";
 import { openMinimap, closeMinimap, minimapIsOpen } from "./minimapstrip";
 import { openPalette } from "./palette";
 import { openPanel, isPanelOpen } from "./panels";
@@ -56,7 +55,6 @@ import { openSpellMenu } from "./spellcheck";
 import { openSwitcher, goToLastDoc, closeOpenDoc, newDoc, renameDoc, duplicateDoc } from "./docswitch";
 import { renderAllNotes } from "./apparatus-lint";
 import { renumberAll } from "./numbering-lint";
-import { rerenderChrome } from "./layout";
 import { revealCursor, revealPlaces } from "./reveal";
 import { selectTab, closeTab, newTab, newDocTab } from "./tabstrip";
 import * as runtime from "./runtime";
@@ -70,7 +68,6 @@ import { toggleIsolate } from "./bidi";
 import type { Placement } from "./minimap";
 import { undo, redo } from "@codemirror/commands";
 import { voidAction } from "./asyncaction";
-import { CHIP_RUN, EXPORT_RUN, FILE_RUN } from "./appheader";
 import { EXPORTS } from "./header";
 import { openNotesChooser } from "./noteschooser";
 import { openFormula } from "./formulas";
@@ -155,7 +152,7 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "commandsDrawer", run: () => (openCommands(), true) },
   { id: "gitPanel", run: () => (openGit(), true) },
   { id: "keysDrawer", run: () => (openKeys(), true) },
-  { id: "ribbonCustomize", run: () => (openCustomize(), true) },
+  { id: "ribbonCustomize", run: () => (runtime.openCustomize(), true) },
   // Which sefer a search reads is a setting, so which surface opens is too.
   // `source` is the default and is what this has always done — the editor's own
   // find panel over the buffer. The other two open the find drawer, which is
@@ -388,9 +385,9 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "sectionSetup", run: () => (openSectionSetup(), true) },
   ...(["saveAs", "importWord", "importOrg", "shareRead", "shareReview", "saveAsTemplate"] as const).map((id) => ({
     id,
-    run: () => (FILE_RUN[id](), true),
+    run: () => (runtime.runHeader("file", id), true),
   })),
-  ...EXPORTS.map((id) => ({ id, run: () => (EXPORT_RUN[id](), true) })),
+  ...EXPORTS.map((id) => ({ id, run: () => (runtime.runHeader("export", id), true) })),
   // The chips' verbs, under the action ids the placements use. A chip id is
   // the header's word for its button (`theme`, `language`); the action id is
   // the verb (`toggleTheme`, `toggleLang`), because an action id is what a
@@ -410,7 +407,7 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
       ["history", "history"],
       ["settingsDrawer", "settings"],
     ] as const
-  ).map(([id, chip]) => ({ id, run: () => (CHIP_RUN[chip](), true) })),
+  ).map(([id, chip]) => ({ id, run: () => (runtime.runHeader("chip", chip), true) })),
   // Which shell is drawn (#233, §7) — from View as well as the drawer, because
   // the furniture is something a writer changes while looking at it. The rest
   // of the shell object rides along untouched.
@@ -577,6 +574,6 @@ function stepZoom(by: number): boolean {
   setStatus(`${t(surface === "source" ? "zoomSource" : "zoom")} ${zoom.percent(next)}`, "");
   // The panel is where the number lives; if it is open it must not go on showing
   // the old one.
-  if (isPanelOpen("settings-drawer")) rerenderChrome();
+  if (isPanelOpen("settings-drawer")) runtime.rerenderChrome();
   return true;
 }

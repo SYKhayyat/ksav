@@ -333,8 +333,8 @@ The quick path is the same operations from a **right-click on a ribbon button**
 (*rename / hide / customize…*). Every right-click action is also in the dialog, so
 nothing depends on a mouse.
 
-Keyboard: the left tree is a `tree`; `Alt+↑/↓` reorders the focused node, `Space`
-toggles ●/○, `Delete` removes, `F2` renames. Drag and drop works too, but it is
+Keyboard: the left tree is a `tree`; Alt+↑/↓ reorders the focused node, `Space`
+toggles ●/○, `Delete` removes, F2 renames. Drag and drop works too, but it is
 never the only way to do something.
 
 ### The data
@@ -367,7 +367,7 @@ interface RibbonLayout {
 - A renamed or user-created tab has the one name the writer typed. Built-in tabs
   that are not renamed keep following `lang`.
 - An imported file is validated before it is applied: unknown actions are dropped
-  and counted ("3 commands in this file do not exist in this version"), never run.
+  and counted ("N commands in this file do not exist in this version"), never run.
 
 ## 9 · Labels and language
 

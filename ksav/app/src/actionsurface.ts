@@ -68,6 +68,12 @@ import { toggleIsolate } from "./bidi";
 import type { Placement } from "./minimap";
 import { undo, redo } from "@codemirror/commands";
 import { voidAction } from "./asyncaction";
+import { CHIP_RUN, EXPORT_RUN, FILE_RUN } from "./appheader";
+import { EXPORTS } from "./header";
+import { openNotesChooser } from "./noteschooser";
+import { openFormula } from "./formulas";
+import { openSectionSetup } from "./sectionsetup";
+import { insertImage } from "./assets";
 
 export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // Every action that inserts a registry command, generated from the one table
@@ -129,6 +135,9 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // because it lives in `BREAK_COMMAND` with the family — the same reason
   // `hiddenBreak` is hand-listed here rather than generated.
   { id: "lineBreak", run: () => insertCommand(BREAK_COMMAND.lineBreak) },
+  // The fourth break. It had a menu row and no action, so it was the one break
+  // a writer could not bind, find in the palette, or put on a tab (#233).
+  { id: "columnBreak", run: () => insertCommand(BREAK_COMMAND.columnBreak) },
   // `paraBreak` and `pageBreak` used to be hand-written here. They are in
   // `ACTION_COMMAND` now, so their doors are generated with every other command
   // action above — which is what makes the registry row for each print the key
@@ -361,6 +370,41 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // *"or automatic turned off and taken by hand"* was asking for: turning the
   // clock off is no use if the hand has nowhere to press.
   { id: "snapshot", run: () => (void takeSnapshot(true), true) },
+  // Every row the menus drew that was not an action (#233). The shell is drawn
+  // from `placement.ts`, which places actions, so a menu row with no action
+  // behind it is a row the data cannot state. Each one delegates to the table
+  // that already ran it — the header's run tables, the insert menu's openers —
+  // so there is still one implementation of each, and the async ones keep
+  // their `voidAction` (`asyncaction.test.mjs` reads those tables).
+  { id: "notesChooser", run: () => (openNotesChooser(), true) },
+  { id: "insertImage", run: () => (voidAction("general", () => insertImage()), true) },
+  { id: "insertFormula", run: () => (openFormula(), true) },
+  { id: "sectionSetup", run: () => (openSectionSetup(), true) },
+  ...(["saveAs", "importWord", "importOrg", "shareRead", "shareReview", "saveAsTemplate"] as const).map((id) => ({
+    id,
+    run: () => (FILE_RUN[id](), true),
+  })),
+  ...EXPORTS.map((id) => ({ id, run: () => (EXPORT_RUN[id](), true) })),
+  // The chips' verbs, under the action ids the placements use. A chip id is
+  // the header's word for its button (`theme`, `language`); the action id is
+  // the verb (`toggleTheme`, `toggleLang`), because an action id is what a
+  // writer binds and reads in the palette.
+  ...(
+    [
+      ["stylesPanel", "styles"],
+      ["outline", "outline"],
+      ["notesPane", "notesPane"],
+      ["marksPane", "marksPane"],
+      ["reviewPanel", "review"],
+      ["toggleLang", "language"],
+      ["prose", "prose"],
+      ["arrangement", "arrangement"],
+      ["toggleTheme", "theme"],
+      ["nikud", "nikud"],
+      ["history", "history"],
+      ["settingsDrawer", "settings"],
+    ] as const
+  ).map(([id, chip]) => ({ id, run: () => (CHIP_RUN[chip](), true) })),
 ];
 
 let inAction = 0;

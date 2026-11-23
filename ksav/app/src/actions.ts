@@ -242,7 +242,7 @@ export function actionForCommand(he: string): CommandAction | undefined {
  * (structure, styles) are this module's neighbours; the saved macros arrive as
  * a resolved id→name map, so this file never imports the recorder.
  */
-import { t, tf } from "./i18n";
+import { hasKey, t, tf } from "./i18n";
 import * as structure from "./structure";
 import * as styles from "./styles";
 
@@ -253,6 +253,11 @@ export function actionName(id: string, savedNames: ReadonlyMap<string, string>):
   // is the "shipped unnamed" row `bindings.test.mjs` exists to refuse.
   const style = styles.styleOfAction(id);
   if (style) return tf("styleActionName", style);
-  return savedNames.get(id) ?? t("sc." + id);
+  // `sc.<id>` first; then the bare id, which is how the rows the menus drew
+  // before they were actions (`saveAs`, `exportPdf`, `outline`) were already
+  // named — a second key with the same words would be two names to keep in
+  // step. `t` falls back to the key itself, so the raw `sc.` is still what an
+  // unnamed action prints, and `bindings.test.mjs` still refuses it.
+  return savedNames.get(id) ?? (!hasKey("sc." + id) && hasKey(id) ? t(id) : t("sc." + id));
 }
 

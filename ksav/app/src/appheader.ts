@@ -97,7 +97,7 @@ export function wireHeader(w: HeaderWiring): void {
 /** The wiring, for this module. */
 const headerWiring = (): HeaderWiring => headerWire.get();
 
-const CHIP_RUN: Record<header.ChipId, () => void> = {
+export const CHIP_RUN: Record<header.ChipId, () => void> = {
   undo: () => void undo(runtime.view),
   redo: () => void redo(runtime.view),
   styles: openStyles,
@@ -120,6 +120,58 @@ const CHIP_RUN: Record<header.ChipId, () => void> = {
   record: toggleRecording,
   help: openHelp,
   settings: toggleSettings,
+};
+
+// Keyed by the union, not by `string`. See `header.ExportId` for what that
+// buys and what it was one keystroke away from costing.
+// **Every entry here goes through `voidAction`** (#125).
+//
+// Four of them were wired as bare function references — `open: openFile`,
+// `saveAs: saveFileAs` — which reads as tidy and is not: `menuItem` installs
+// the value as a click handler, `openFile` awaits a native picker, a file read,
+// an IndexedDB write and a binding comparison, and any of those rejecting is an
+// unhandled promise rejection, which this app's crash handler treats as a
+// crash. So File ▸ Open *could* take the writer to the crash panel — the UAT
+// report's items 13 and 15 — while the two import routes beside it, which had
+// just been given internal catches, could not.
+//
+// `voidAction` is the approved form (`asyncaction.ts`): it starts the promise,
+// does not wait, and reports a failure as a status line. A cancelled picker
+// throws `CANCELLED` and says nothing, which is why cancelling is quiet.
+//
+// Nothing here is a bare function reference: every entry is a `voidAction`
+// call, and `asyncaction.test.mjs` reads this table and fails if one is not.
+// `newDoc` is no longer among them — *File ▸ New document* was removed in
+// #128, and Documents is its one home.
+export const FILE_RUN: Record<header.FileItemId, () => void> = {
+  open: () => voidAction("save_file", () => openFile()),
+  save: () => voidAction("save_file", () => saveFile()),
+  saveAs: () => voidAction("save_file", () => saveFileAs()),
+  importWord: () => voidAction("save_file", () => importWord()),
+  importOrg: () => voidAction("save_file", () => importOrg()),
+  shareRead: () => voidAction("general", () => copyShareLink(false)),
+  shareReview: () => voidAction("general", () => copyShareLink(true)),
+  saveAsTemplate: () => voidAction("save_file", () => saveAsTemplate()),
+};
+
+// Every asynchronous route, through `voidAction` for the same reason as the
+// File menu's table above (#125): `exportPdf` awaits a compile and a decode, and
+// `void exports.exportPdf()` on a rejection is a crash panel rather than a
+// sentence. All seven are asynchronous now — Markdown, Org and text used to
+// return a string and a file with nothing to reject, and since #127 each one
+// awaits the writer's answer to *where should this go*, which can reject. The
+// fence in `asyncaction.test.mjs` caught them the moment they changed.
+export const EXPORT_RUN: Record<header.ExportId, () => void> = {
+  exportPdf: () => voidAction("general", () => exports.exportPdf()),
+  exportWord: () => voidAction("general", () => exports.exportWord()),
+  copyForWord: () => voidAction("general", () => exports.copyForWord()),
+  exportHtml: () => voidAction("general", () => exports.exportHtml()),
+  exportMarkdown: () => voidAction("general", () => exports.exportMarkdown()),
+  exportOrg: () => voidAction("general", () => exports.exportOrg()),
+  exportText: () => voidAction("general", () => exports.exportText()),
+  exportTypst: () => voidAction("general", () => exports.exportTypst()),
+  exportTypstCompact: () => voidAction("general", () => exports.exportTypstCompact()),
+  print: exports.doPrint,
 };
 
 /** The header's view of the world, gathered in one place. */
@@ -256,37 +308,6 @@ export function buildHeader(): HTMLElement {
       }),
   );
 
-  // Keyed by the union, not by `string`. See `header.ExportId` for what that
-  // buys and what it was one keystroke away from costing.
-  // **Every entry here goes through `voidAction`** (#125).
-  //
-  // Four of them were wired as bare function references — `open: openFile`,
-  // `saveAs: saveFileAs` — which reads as tidy and is not: `menuItem` installs
-  // the value as a click handler, `openFile` awaits a native picker, a file read,
-  // an IndexedDB write and a binding comparison, and any of those rejecting is an
-  // unhandled promise rejection, which this app's crash handler treats as a
-  // crash. So File ▸ Open *could* take the writer to the crash panel — the UAT
-  // report's items 13 and 15 — while the two import routes beside it, which had
-  // just been given internal catches, could not.
-  //
-  // `voidAction` is the approved form (`asyncaction.ts`): it starts the promise,
-  // does not wait, and reports a failure as a status line. A cancelled picker
-  // throws `CANCELLED` and says nothing, which is why cancelling is quiet.
-  //
-  // Nothing here is a bare function reference: every entry is a `voidAction`
-  // call, and `asyncaction.test.mjs` reads this table and fails if one is not.
-  // `newDoc` is no longer among them — *File ▸ New document* was removed in
-  // #128, and Documents is its one home.
-  const FILE_RUN: Record<header.FileItemId, () => void> = {
-    open: () => voidAction("save_file", () => openFile()),
-    save: () => voidAction("save_file", () => saveFile()),
-    saveAs: () => voidAction("save_file", () => saveFileAs()),
-    importWord: () => voidAction("save_file", () => importWord()),
-    importOrg: () => voidAction("save_file", () => importOrg()),
-    shareRead: () => voidAction("general", () => copyShareLink(false)),
-    shareReview: () => voidAction("general", () => copyShareLink(true)),
-    saveAsTemplate: () => voidAction("save_file", () => saveAsTemplate()),
-  };
   const fileMenu = menu(
     "file",
     "📁 " + t("file"),
@@ -301,25 +322,6 @@ export function buildHeader(): HTMLElement {
   // The Skins menu is gone: presets now live inside the Styles panel, next to
   // the settings they overwrite, where the relationship is visible.
 
-  // Every asynchronous route, through `voidAction` for the same reason as the
-  // File menu above (#125): `exportPdf` awaits a compile and a decode, and
-  // `void exports.exportPdf()` on a rejection is a crash panel rather than a
-  // sentence. All seven are asynchronous now — Markdown, Org and text used to
-  // return a string and a file with nothing to reject, and since #127 each one
-  // awaits the writer's answer to *where should this go*, which can reject. The
-  // fence in `asyncaction.test.mjs` caught them the moment they changed.
-  const EXPORT_RUN: Record<header.ExportId, () => void> = {
-    exportPdf: () => voidAction("general", () => exports.exportPdf()),
-    exportWord: () => voidAction("general", () => exports.exportWord()),
-    copyForWord: () => voidAction("general", () => exports.copyForWord()),
-    exportHtml: () => voidAction("general", () => exports.exportHtml()),
-    exportMarkdown: () => voidAction("general", () => exports.exportMarkdown()),
-    exportOrg: () => voidAction("general", () => exports.exportOrg()),
-    exportText: () => voidAction("general", () => exports.exportText()),
-    exportTypst: () => voidAction("general", () => exports.exportTypst()),
-    exportTypstCompact: () => voidAction("general", () => exports.exportTypstCompact()),
-    print: exports.doPrint,
-  };
   // Rebuilt on every open, because the page count in the hint is the count of
   // the document as it stands and the range is whatever the writer last typed.
   const exportMenu = lazyMenu("export", "⬇ " + t("export"), () => [

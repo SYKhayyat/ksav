@@ -582,7 +582,7 @@ function render(): void {
         el("div", { class: "rc-tools" }, [
           button("rcAddTab", () => voidAction("general", addTab), "addTab"),
           button("rcAddGroup", () => voidAction("general", addGroup), "addGroup", !!selTab),
-          button("rcMerge", () => next && selTab && edit((l) => E.merge(l, selTab.id, next.id)), "merge", !!next),
+          button("rcMerge", () => next && selTab && edit((l) => E.merge(l, selTab.id, next.id)), "merge", !!next && !!selTab),
           button("rcUp", () => sel && edit((l) => E.move(l, sel, -1)), "up", !!sel),
           button("rcDown", () => sel && edit((l) => E.move(l, sel, 1)), "down", !!sel),
           button("rcToggleFace", () => sel && "action" in sel && edit((l) => E.toggleFace(l, sel)), "face", !!sel && "action" in sel),

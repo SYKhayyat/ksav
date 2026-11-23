@@ -126,7 +126,11 @@ export async function run() {
   check("and leaves the other tabs", E.resetTab(messy, "home", list).tabs.slice(1), messy.tabs.slice(1));
   check("a user tab has no default", E.resetTab(added.layout, "user:mine", list), added.layout);
   const m2 = E.merge(base, t1.id, t2.id);
-  check("a merged tab goes back to the first it was", tab(E.resetTab(m2, t1.id, list), t1.id).from, [t1.id]);
+  const r2 = E.resetTab(m2, t1.id, list);
+  check("a merged tab goes back to the first it was", tab(r2, t1.id).from, [t1.id]);
+  check("and the tab it absorbed comes back, right after", ids(r2).slice(0, 2), [t1.id, t2.id]);
+  check("with its groups, not a copy of the first's", tab(r2, t2.id).groups.map((g) => g.id), t2.groups.map((g) => g.id));
+  check("no tab is drawn twice", new Set(ids(r2)).size, ids(r2).length);
 
   check("no edit touched the layout it was given", JSON.stringify(base), frozen);
 }

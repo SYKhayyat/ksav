@@ -54,7 +54,10 @@ function shown(): ShownTab[] {
 
 /** The tab a contextual answer, or a pinned toolbar, means: the one that is that built-in tab. */
 function tabFor(tabs: readonly ShownTab[], id: string): ShownTab | undefined {
-  return tabs.find((n) => n.tab === id) ?? tabs.find((n) => (n.from as readonly string[]).includes(id));
+  // A tab the writer hid is not brought forward by anything — not the toolbar's
+  // pin, not the caret entering a table (§8: hide is hide).
+  const live = tabs.filter((n) => !n.hidden);
+  return live.find((n) => n.tab === id) ?? live.find((n) => (n.from as readonly string[]).includes(id));
 }
 
 const groupName = (g: TabGroup) => groupLabel(g.group, g.name);
@@ -331,7 +334,7 @@ export function buildPinnedTab(): HTMLElement {
     ]);
   }
   const tree = shown();
-  const node = tabFor(tree, shell.toolbarTab) ?? tabFor(tree, "home") ?? tree[0];
+  const node = tabFor(tree, shell.toolbarTab) ?? tabFor(tree, "home") ?? tree.find((n) => !n.hidden) ?? tree[0];
   const glyphs = shell.labels === "names+glyphs";
   return el(
     "div",

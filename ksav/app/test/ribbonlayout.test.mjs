@@ -195,6 +195,13 @@ export async function run() {
     ok("and its ⋯", dom(g1).includes('"data-menu":"more-user:g1"'));
     check("a built-in tab not renamed follows lang", tabName({ tab: "home" }), tabName(shownTabs(undefined, list)[0]));
 
+    // A hidden tab is hidden everywhere: the pin and the caret do not bring it back.
+    const hid = structuredClone(mine);
+    hid.tabs.find((t) => t.id === "home").hidden = true;
+    settings.shell = { ...SHELL_DEFAULTS, variant: "toolbar", toolbarTab: "home", ribbon: hid };
+    notOk("a pinned toolbar does not draw a hidden tab", buildPinnedTab()["data-tab"] === "home");
+    settings.shell = { ...SHELL_DEFAULTS, variant: "tabs", ribbon: mine };
+
     strip.children.find((b) => b["data-tab"] === "home").click();
     setContext("table");
     check("Table merged into a user tab: the caret still finds it", strip.children.find((b) => b["aria-selected"] === "true")["data-tab"], "user:k1");

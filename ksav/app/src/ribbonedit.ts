@@ -247,17 +247,22 @@ export function whereIs(l: RibbonLayout, action: string): { tab: string; group: 
 
 /**
  * One built-in tab back to §5: its name, its groups, its commands, shown. A
- * merged tab goes back to the first tab it was; a tab of the writer's own has
+ * merged tab goes back to the tabs it was, each where §5 has it; a tab of the writer's own has
  * no default and is left as it is.
  */
 export function resetTab(l: RibbonLayout, tab: string, list: readonly PlacedAction[]): RibbonLayout {
   const out = copy(l);
   const i = out.tabs.findIndex((t) => t.id === tab);
-  const base = i < 0 ? undefined : fromOf(out.tabs[i])[0];
-  const fresh = base && defaultLayout(list).tabs.find((t) => t.id === base);
+  const sources = i < 0 ? [] : fromOf(out.tabs[i]);
+  const defaults = defaultLayout(list).tabs;
+  const fresh = sources.length ? defaults.find((t) => t.id === sources[0]) : undefined;
   if (!fresh) return out;
-  out.tabs[i] = fresh;
+  // The others it absorbed come back too, right after it: a merge deleted them,
+  // and their commands are still `known`, so nothing else would ever re-add them.
+  const back = sources.slice(1).flatMap((id) => (out.tabs.some((t) => t.id === id) ? [] : defaults.filter((t) => t.id === id)));
+  out.tabs.splice(i, 1, fresh, ...back);
   // Two tabs with one id is two tabs the renderer cannot tell apart.
-  out.tabs = out.tabs.filter((t, j) => j === i || t.id !== fresh.id);
+  const kept = new Set<RibbonTab>([fresh, ...back]);
+  out.tabs = out.tabs.filter((t) => kept.has(t) || ![fresh, ...back].some((f) => f.id === t.id));
   return out;
 }

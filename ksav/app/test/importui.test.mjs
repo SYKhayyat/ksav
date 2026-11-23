@@ -22,7 +22,7 @@
 // system's file dialog, which is the one part a browser test cannot have.
 
 import { check, ok, notOk } from "./harness.mjs";
-import { openApp } from "./pageserve.mjs";
+import { engineInBundle, openApp } from "./pageserve.mjs";
 
 /** A stored (uncompressed) `.docx` around one paragraph of Hebrew. */
 function docx(text) {
@@ -165,6 +165,31 @@ export async function run() {
     console.log(`SKIPPED importui: ${app.skip}`);
     return;
   }
+  // **Which bundle this is, asked rather than assumed** — the same question
+  // `browserlang.test.mjs` asks, for a reason this file found the hard way.
+  //
+  // Two builds are legitimate: `npm run build:wasm` puts the engine *in* the
+  // bundle, and `npx vite build` (what `ci.yml`'s editor job builds) leaves it at
+  // the other end of a wire, with no server running in this test. On the second,
+  // an import still converts and still lands — but the compile it triggers
+  // answers `✗ שגיאת רשת`, which is the *correct* reply to a service nothing is
+  // listening on, and that error takes the status slot **by design**:
+  // `holdStatus` in `runtime.ts` says an error compile outranks a held report,
+  // because a document that no longer compiles is the more urgent fact.
+  //
+  // So exactly two assertions are about a compile having answered — the import
+  // report *and* the report that survives it (#231) — and in a wire bundle they
+  // are measuring the absent engine rather than the import. They skip, out loud,
+  // and the rest of the file runs: the conversion, the document, the name, the
+  // failure sentences and the crash panel are all the editor's own work. The two
+  // that skip are fenced where an engine exists — `ci.yml`'s `browser engine` job
+  // builds the offline bundle and runs `node test/run.mjs importui browserlang`
+  // against it, which is the only build where a compile can answer.
+  const engine = engineInBundle();
+  const noEngine =
+    "SKIPPED the import report: this dist keeps the engine at the other end of a wire, so the " +
+    "compile answers `network error` and outranks the report by design — build with " +
+    "`npm run build:wasm` to read it (CI does, in `browser engine`)";
   const { page, close } = app;
   try {
     const start = await page.evaluate(READ);
@@ -176,7 +201,8 @@ export async function run() {
     // The one case that must *succeed* — because a test suite where every import
     // fails cannot tell "reported honestly" from "nothing ever worked".
     const good = await importVia(page, "ייבוא מ־Word", { name: "מבחן.docx", bytes: docx("שלום מעולם") });
-    ok("a valid .docx imports", good.status.includes("יובא"), good.status);
+    if (engine) ok("a valid .docx imports", good.status.includes("יובא"), good.status);
+    else console.log(noEngine);
     notOk("and no crash panel appears", good.crash);
     ok("its words are on the page", good.text.includes("שלום מעולם"), good.text.slice(0, 80));
     ok("and the document is named after the file", good.title.includes("מבחן"), good.title);
@@ -187,11 +213,13 @@ export async function run() {
     // compile has had every chance to overwrite it.
     await page.waitForTimeout(1500);
     const afterCompile = await settle(page);
-    ok(
-      "and the report is still there once the compile has finished (#231)",
-      afterCompile.status.includes("יובא"),
-      afterCompile.status,
-    );
+    if (engine) {
+      ok(
+        "and the report is still there once the compile has finished (#231)",
+        afterCompile.status.includes("יובא"),
+        afterCompile.status,
+      );
+    }
 
     // -------------------------------------------------- UAT 16: Word, broken
     //

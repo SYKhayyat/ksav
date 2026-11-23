@@ -29,6 +29,43 @@ everyone else. Linux packaging stays distro-neutral, with no Nix-only paths.
 Clear these before any milestone work. The older ledger, with the reasons each
 item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
+### Three jobs read #228 and #229 backwards, so CI was red without saying why
+
+M0's exit line is *"CI on `main` is fully green"*, and it was not: every push
+from `022391f` onward came back red in the same three jobs — `the Emacs package`,
+`browser engine` and `editor`. Two of the three were the same defect as #228, one
+layer out: a reader that still took the pre-#228 **bare array**. The third was
+#229's lesson in a file that had not learned it — a test asserting what an engine
+answered, in the one job that builds no engine.
+
+- [x] **#234** two readers still take the pre-#228 bare array, and one of them is
+      the **shipped Emacs package**: `.github/scripts/wasm-smoke.mjs` read
+      `call("commands").length` and iterated `call("templates")` (measured at
+      `a2566ff`: `TypeError: templates is not iterable`), and
+      `ksav/editors/emacs/ksav-write.el::ksav-commands`/`ksav-templates` returned
+      the envelope itself, so `M-x ksav-insert-command` offered `ok · commands`
+      and `ksav-command-named` found nothing — no error, because a two-element
+      alist is a good alist. The live half of the Emacs suite skips without an
+      engine, and this machine's engine binary was three days old, which is how a
+      wire change reached an installed package with every local run green.
+      **Closed**: both read the name the list travels under, and the comment in
+      `ksav-engine.el:353` that had justified the old read (*"`/commands` answers
+      with a bare array"*) is corrected rather than deleted. Measured: Emacs
+      **63/63** with a freshly built engine and byte-compile clean; the smoke
+      check `all checks passed — the browser engine works`.
+- [x] **#235** `importui.test.mjs` failed 5 of 24 in the `editor` job from the day
+      it was written, and no job ran it where it could pass. `npx vite build`
+      leaves `__WASM__` false, so an import's compile answers `✗ שגיאת רשת` and —
+      by design, `runtime.ts::holdStatus` — takes the status slot every assertion
+      in the file reads. **Closed**: the file asks
+      `pageserve.mjs::engineInBundle()` (the reader `browserlang` already had, now
+      one spelling for both) and skips exactly the two assertions a compile has to
+      answer, naming the build command; the other 22 run in both bundles. The two
+      that skip are fenced where an engine exists: the `browser engine` job now
+      ends with `npm test -- importui browserlang`. Measured — wire bundle `22
+      passed`, offline bundle `24 passed`, the pair together `48 passed, 0
+      failed`.
+
 ### A fence asked about a phrase where the question was a pattern
 
 `ac499fc`. The lint check went red on this machine for the first time, and all

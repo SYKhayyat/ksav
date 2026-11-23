@@ -36,9 +36,19 @@ difference is deliberate: the services are a contract between this code and an
 engine, while the commands are a vocabulary that a running engine already
 publishes.  Asking means `M-x ksav-insert-command' offers exactly what the
 engine you are talking to knows, including commands added after this package
-was written."
+was written.
+
+The list travels under its own name, which is the engine's answer shape since
+#228: `/commands' is a *list*, a reply body's one shape is an object, so the
+registry is relayed as an object with an `ok' and a `commands' key.  This
+function read the
+envelope itself, so `seq-remove' walked two conses and `alist-get' found no
+`deprecated' anywhere — no error, no empty list, just a command table that
+quietly stopped being a command table.  The live test
+`ksav-live-offers-the-engines-own-vocabulary' caught it in CI and nothing else
+could have."
   (seq-remove (lambda (c) (eq t (alist-get 'deprecated c)))
-              (ksav-call "commands" nil)))
+              (alist-get 'commands (ksav-call "commands" nil))))
 
 (defun ksav--command-label (c)
   "How command C is offered, in `ksav-language'."
@@ -90,8 +100,12 @@ something runs there; CI does, and that is how this was found."
 ;;;; ------------------------------------------------------------ the templates
 
 (defun ksav-templates ()
-  "Every document template the engine carries."
-  (ksav-call "templates" nil))
+  "Every document template the engine carries.
+
+Under the name it travels under, for the reason `ksav-commands' gives: read as
+the envelope this was an alist of two entries, so `ksav-new-from-template'
+offered `ok' and `templates' as if they were the engine's templates."
+  (alist-get 'templates (ksav-call "templates" nil)))
 
 (defun ksav--template-label (tpl)
   "How template TPL is offered, in `ksav-language'."

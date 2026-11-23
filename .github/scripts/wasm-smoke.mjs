@@ -84,10 +84,17 @@ check(
 
 // The registries drive the toolbar, the palette and the menus. Empty ones are a
 // working editor with nothing in it, which is not a passing state.
-const commands = call("commands");
-const templates = call("templates");
-check("command registry is populated", commands.length > 50, `${commands.length} commands`);
-check("template registry is populated", templates.length > 0, `${templates.length} templates`);
+//
+// **Under their own names.** A registry is a *list* and a reply body's one shape
+// is an object, so since #228 each travels as `{ok: true, commands: [...]}` —
+// this file went on reading the array and the whole job has been red since:
+// `commands.length` was `undefined` and `templates` was not iterable at all. A
+// smoke check that agrees with the engine it was written beside stops being a
+// check the moment that engine changes shape, and nothing re-reads it but CI.
+const commands = call("commands").commands;
+const templates = call("templates").templates;
+check("command registry is populated", Array.isArray(commands) && commands.length > 50, `${commands?.length} commands`);
+check("template registry is populated", Array.isArray(templates) && templates.length > 0, `${templates?.length} templates`);
 
 // Every template, because these are what a new document starts from: one that
 // does not compile is the first thing a writer would ever see go wrong.

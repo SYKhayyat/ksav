@@ -378,6 +378,26 @@ jobs:
         working-directory: ./ksav/app
         run: node ../../.github/scripts/wasm-smoke.mjs
 
+      # And then the two browser files that need an engine they cannot reach.
+      #
+      # This is the only job whose `dist/` carries the engine *inside* the bundle,
+      # so it is the only place where a test that reads what a compile answered
+      # can be told the truth. `editor` builds the wire-the-engine-away bundle
+      # (`npx vite build`) and no server runs there, so `importui` skips with the
+      # reason and `browserlang` skips the ribbon assertion: both say so out loud
+      # instead of passing over nothing, and the fences they carry run here.
+      #
+      # `playwright-core` drives the Chrome the runner already ships, which is why
+      # this costs an install already done above and not a browser download.
+      #
+      # The **filtered** form, spelled the one way the gate's backward sweep
+      # permits it: two files out of a suite the gate runs whole elsewhere. It is
+      # not a second copy of a check — the gate still owns `editor suite`, and
+      # this is that suite's browser half asked where an engine exists.
+      - name: Drive the offline bundle in a browser
+        working-directory: ./ksav/app
+        run: npm test -- importui browserlang
+
   # The half of the process that was missing.
   #
   # Every job above this one checks a part. This one boots the product — the

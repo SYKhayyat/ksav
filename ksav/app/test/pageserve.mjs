@@ -23,6 +23,29 @@ export const APP = resolve(HERE, "..");
 export const DIST = join(APP, "dist");
 export const SRC = join(APP, "src");
 
+/**
+ * Does the bundle in `dist/` carry the engine, or does it expect a server?
+ *
+ * Two builds are legitimate and only one of them can answer a compile with
+ * nothing else running: `npm run build:wasm` puts the wasm engine inside the
+ * bundle (the browser app, deployed) and `npm run build` / `npx vite build`
+ * leaves the engine at the other end of a wire (the frontend for the desktop
+ * shell, and what `ci.yml`'s editor job builds). A test that asserts what the
+ * engine answered has to ask this first, or it is measuring the absence of a
+ * server and calling it a defect in the application.
+ *
+ * Asked as a file in `assets/` rather than as a flag, because that is what the
+ * browser will have.
+ */
+export function engineInBundle() {
+  try {
+    return readdirSync(join(DIST, "assets")).some((f) => f.endsWith(".wasm"));
+  } catch {
+    // silent: no `dist/` at all, and `openApp` says so far more usefully
+    return false;
+  }
+}
+
 /** The newest file under `dir`, as an mtime in ms — 0 when it holds no files. */
 export function newestFile(dir) {
   let newest = 0;

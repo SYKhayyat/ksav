@@ -350,8 +350,15 @@ reached only when there really is nothing else."
         (err (alist-get 'error answer)))
     (cond
      (err err)
-     ;; `ok' present and false.  Absent `ok' is not a refusal: `/commands'
-     ;; answers with a bare array and says nothing about itself.
+     ;; `ok' present and false.  Absent `ok' is not a refusal.  This comment
+     ;; used to add *"`/commands' answers with a bare array and says nothing
+     ;; about itself"* as the example, and that sentence stopped being true at
+     ;; #228 — every service answers the envelope now, `/commands' and
+     ;; `/templates' included, under their own names.  It was the reason the two
+     ;; readers in `ksav-write.el' went on reading a bare array after the wire
+     ;; changed, so it is corrected rather than deleted: absent `ok' is still not
+     ;; a refusal, for services that have no diagnostics to offer and for an
+     ;; engine older than this package.
      ((and ok (null (cdr ok)) (null (alist-get 'diagnostics answer)))
       "the engine refused and said nothing about why")
      (t nil))))

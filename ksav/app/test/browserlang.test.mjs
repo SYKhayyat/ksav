@@ -80,9 +80,9 @@
 import { check, ok } from "./harness.mjs";
 import { markPattern } from "../.tmp-test/engine.gen.mjs";
 import { readFile } from "node:fs/promises";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { DIST, assertFreshBuild, baseOf, browser, serve } from "./pageserve.mjs";
+import { DIST, assertFreshBuild, baseOf, browser, engineInBundle, serve } from "./pageserve.mjs";
 
 /** Hebrew script, the thing a switch is supposed to remove. */
 const HEBREW = /[֐-׿]/;
@@ -294,8 +294,7 @@ export async function run() {
     // browser**, so this file skips in CI, and the CI-side end-to-end fence is
     // `desktop render scale` (`tools/render-check.mjs`, the `desktop shell` job).
     // That is where #228 was found, as `ribbonGroups: 0`.
-    const engineInBundle = readdirSync(join(DIST, "assets")).some((f) => f.endsWith(".wasm"));
-    if (engineInBundle) {
+    if (engineInBundle()) {
       ok("the ribbon is built from the engine's registry", chrome0.groups > 0, `${chrome0.groups} groups`);
       check("and it is not the registry-failed notice", chrome0.failed, 0);
     } else {

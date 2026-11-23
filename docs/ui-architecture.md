@@ -1,223 +1,438 @@
 # The shell: menus as the floor, tabs as a switch
 
-*A proposal, not a record. Nothing here is decided until the owner picks inside
-it; when they do, the choice becomes a dated file in [`decisions/`](../decisions/)
-and this page becomes the spec the shell is built to.*
+*The spec the shell is built to. The owner's choices are recorded in
+[`decisions/2026-11-23-the-shell-is-built-from-placements`](../decisions/2026-11-23-the-shell-is-built-from-placements.md);
+this page is the living version and is edited as the build teaches us things.*
 
 ## 1 · What this decides, and what it does not
 
 It decides **how the shell is shaped**: where a command lives, how many ways there
-are to reach it, and what a writer can switch off. It does not decide the visual
-skin, the icon set, or the technology underneath — see §10 for the last of those,
-because #117 proposes replacing the frontend outright and the answer here has to
-survive whichever way that goes.
+are to reach it, how the furniture is built from data, and what a writer can
+change. It does not decide the visual skin, the icon set, or the technology
+underneath (§12, #117).
 
 The reference is **LibreOffice's architecture, not its wardrobe**: menus are the
-floor that never goes away, a notebookbar-style tab strip is a switch a writer can
-turn on, and both are views of one table. LibreOffice has accreted three kinds of
-toolbar chrome and four icon sizes; we are copying the switch and the taxonomy, not
-the accumulation.
+floor that never goes away, a tab strip is a switch a writer can turn on, and both
+are views of one table. In LibreOffice's Tabbed interface the menu bar folds into a
+`☰` button by default and View ▸ Menubar brings it back; we copy that, the switch
+and the taxonomy, not the accumulated toolbars.
 
 ## 2 · What exists today, in one line each
 
 | surface | where | the honest problem |
 |---|---|---|
-| menu bar | `ribbon.ts`, `lazyMenu` — File, Documents, Export, Insert, Format, Table, Sources, Macros | correct and complete, but two of them (File, Documents) are about the *library*, and six are about the *document* |
-| toolbar | `ribbon.buildToolbar` — groups of buttons, `header .tb-group` | one row of glyph buttons with no names, and only a fraction of the commands fit, so it is a *partial* surface with no rule for what belongs |
-| command palette | `palette.ts` | the real answer for regulars, and invisible to a new writer |
-| keyboard map | `DEFAULT_KEYS`, shown by `keysdrawer.ts` | complete, and only useful after somebody has learned the names |
-| contextual strip | `contextbar.ts` | appears near the caret; previously the only home of several list operations |
-| drawers and panels | `stylespanel`, `settingsdrawer`, `noteschooser`, `commandsdrawer` | the remaining commands live in whichever of five places they were written into |
+| menu bar | `ribbon.ts`, `lazyMenu` — File, Documents, Export, Insert, Format, Table, Sources, Macros | each menu is hand-written; `MENU_OF` sends `torah`, `reference`, `review` and `layout` to Insert while a Sources menu exists beside it |
+| toolbar | `ribbon.buildToolbar` | one row of unnamed glyphs, a fraction of the commands, no rule for what belongs |
+| command palette | `palette.ts` | the real answer for regulars, invisible to a new writer |
+| keyboard map | `DEFAULT_KEYS`, `keysdrawer.ts` | complete, useful only after the names are learned |
+| contextual strip | `contextbar.ts` | knows *what is around the caret* |
+| drawers and panels | `stylespanel`, `settingsdrawer`, `noteschooser`, `commandsdrawer` | commands live in whichever of five places they were written into |
 
-Five surfaces, no statement about which holds what. That is the actual defect — not
-that any one of them is ugly. `#128` fixed the sharpest end of it (one home per
-action, and an identity line a writer can read); this page fixes the rest.
-
-The table that already exists is the important part: **`actionsurface.BUILT_IN`
-is every action the shell can run**, and `menus.MENU_OF` is the rule for which
-menu a registry category belongs in. The tab strip is not a new taxonomy. It is a
-third view onto those two tables, beside the menu tree and the keyboard map.
+Five surfaces and no statement of which holds what. The defect is the missing
+statement, and the fix is to make placement **data** that every surface renders.
 
 ## 3 · The model
 
-Three statements, and everything else in this page follows from them.
+1. **Every action has exactly one menu home.** Enforced by the type: `Place.menu`
+   is required (§4).
+2. **A tab is a view, never a home.** `Place.tab` is optional and defaults from the
+   menu; there is no way to write a tab placement without a menu placement.
+3. **A writer can turn the tabs off and lose nothing.** Menus are the floor.
+4. **Nothing in the shell is laid out by hand.** Menus, tabs, Home, the toolbar and
+   the contextual tabs are all renderings of one list of placed actions.
+5. **Every word the shell draws exists in Hebrew and English**, and follows
+   `settings.lang` — the interface language, which is not the document's
+   (`2026-08-12-nothing-ever-asked-what-language-the-interface-was`).
 
-1. **Every action has exactly one home in the menu tree.** `header.ACTION_HOME`
-   is the mechanism for the ones with a second door (Save as lives in File and in
-   Documents; the Documents copy says *Also in File*). An action with no menu row
-   is a defect, not a shortcut.
-2. **A tab strip is a view, never a home.** Every button on a tab names an action
-   that is also in a menu, and a fence asserts that. A tab that holds something no
-   menu holds is a second taxonomy growing back.
-3. **A writer can turn the tab strip off and lose nothing.** The menus are the
-   floor; the tabs are for the people who want everything one level up.
+## 4 · Placement is data
 
-## 4 · Three variants, one setting
+### The record
 
-A single preference, `shell` — *how much furniture* — with three values. This is
-the LibreOffice `View ▸ User Interface` switch, reduced to the three that differ
-in something other than taste:
+```ts
+// placement.ts
+export type TabId = "home" | "insert" | "layout" | "table" | "notes" | "sources" | "view";
 
-| variant | what the writer sees | who it is for |
+export interface Place {
+  menu: MenuId;     // required — the floor
+  group: string;    // section in the menu, button group on the tab (i18n key)
+  tab?: TabId;      // defaults to TAB_OF_MENU[menu]
+  face?: boolean;   // drawn on the tab row; otherwise reachable behind the group's "⋯"
+  home?: boolean;   // also drawn on the Home tab
+  order?: number;   // within the group; otherwise registry / declaration order
+  glyph?: string;   // optional icon; the label is always drawn beside it on a tab
+}
+```
+
+Two rules are applied by `placed()` itself, so nobody has to remember them per row:
+
+- **A `*_config` command (`הגדרות_…`) is never on `face`.** It goes into its group's
+  `⚙` list at the end of the group: every group that has settings gets one `⚙`
+  button that lists them, after the `⋯`. There are about fifty of these, and drawing them as
+  buttons would make every tab a wall of "how X is set".
+- **A deprecated command has no place** (`#הערה_על_הערה`, `#הערה_א`). It stays in
+  the palette and completions for old documents. A fence asserts that deprecated
+  and placed are disjoint.
+
+A tab button's label is a **short label** (`btn.<id>` in i18n, e.g. *סמן הוספה*
+for the review command `#הוספה`, so it doesn't collide with the tab called
+הוספה). It falls back to the command's name with `_` read as a space.
+
+`MenuId` grows to the full menu bar (§5). An action's **label** and **description**
+are not in the record — they come from i18n by id (`sc.<id>`, `<id>Lede`) for shell
+actions and from the registry's own Hebrew/English pair for engine commands.
+
+### Where each kind of action gets its `Place`
+
+| kind | source of the action | source of the place |
 |---|---|---|
-| **תפריטים** · *menus* | the identity line, then the menu bar. No toolbars, no tabs. | the writer who types and uses the keyboard; the smallest build; the one that must never be able to lose a command |
-| **תפריטים וסרגל** · *menus + toolbar* | menus, plus today's one row of grouped buttons | the current default, kept because it works |
-| **לשוניות** · *tabs* | menus (or a `☰` that opens the same tree), plus a tab strip over a row of named buttons | the writer who came from Word and expects to see the verbs |
+| shell actions | `actionsurface.BUILT_IN` | a `place` field on each entry, beside `id` and `run` |
+| engine commands (`#הערה`, `#מעבר_עמוד`, …) | the registry, `commands.rs` | `PLACE_OF_CATEGORY` (the grown-up `MENU_OF`), then `PLACE_OVERRIDE` keyed by command name |
+| generated actions | macros, custom styles (`actionsurface.ts`) | assigned where they are generated: macros → Tools, styles → Format / Home's styles group |
+| the writer's own ribbon | `settings.shell.ribbon` | replaces the default tab layout (§8); it can arrange the tabs however it likes but cannot touch `menu` |
 
-The switch lives in **View** and in the settings drawer, and it persists like every
-other preference (`settings.ts`; `2026-08-12-no-preference-ever-survived-a-reload`
-is the record of what happens when a setting is drawn but not stored).
+The engine still does not decide the menubar: the category is what a command is
+*about*, and where it is shown remains the client's table, as `menus.ts` argues.
+`PLACE_OVERRIDE` is where mixed categories are split — `block` and `layout` both
+hold "put a thing on the page" and "set up the page", so the page half is
+overridden to the Layout tab rather than the engine growing a new category.
 
-Two consequences that are cheap to state now and expensive to discover later:
+### Building
 
-- **The keyboard map is the same in all three.** A chord is a property of the
-  action, not of the furniture, so switching the shell must not change what any
-  key does. This is a fence, not a promise: the same action must be reachable by
-  its chord in every variant.
-- **Switching re-renders; it does not rebuild the app.** The variant chooses which
-  containers `appheader.buildHeader` mounts, so a switch is a DOM swap over an
-  editor that does not reload. Losing the caret position on a settings change is
-  the kind of thing a writer reports as data loss.
+```ts
+export function placed(): PlacedAction[]   // { id, label, desc, place, run }
+```
 
-## 5 · The tab set
+One function collects all four sources, merges in order, and returns the list.
+Every surface is a pure function of it:
 
-Named for a writer, not for the engine, and few. Tabs are the *document*; the
-library and the file stay in menus, because a sefer is not a tab (see Q2).
+- **menus**: group by `menu` → `group`; each item is label, chord, description.
+  This replaces the hand-written item lists in `ribbon.ts` (`buildSourcesMenu`,
+  `buildTableMenu`, …).
+- **tabs**: group by `tab` → `group`; draw `face` items as named buttons; each
+  group ends in `⋯`, which opens that menu section.
+- **Home**: the `home: true` items, grouped by their own `group`.
+- **toolbar**: the tab renderer pinned to one tab with the tab headers hidden.
+- **contextual tab**: the tab renderer filtered to one tab, mounted when
+  `contextbar.ts` reports the caret is in a table or a note.
 
-| tab | holds | where it comes from |
+`placed()` is recomputed when settings, the macro list or the custom styles
+change, and the shell re-renders from it. It never rebuilds the editor.
+
+## 5 · What goes where
+
+### Names
+
+The names follow **Hebrew Word and LibreOffice**, because that is the shell a
+Hebrew-speaking writer has already used. The Torah-specific words are the ones a
+yeshiva bochur already says: *מראי מקומות*, *מפתחות*, *דיבור המתחיל*, not a
+translation of an English term.
+
+**Menu bar**, in document direction:
+
+| he | en | holds |
 |---|---|---|
-| **בית** · *home* | the everyday text verbs: undo, styles, emphasis, alignment, direction, the list controls | registry categories `style`, `align`; list actions |
-| **הכנס** · *insert* | things that put something new on the page | categories `heading`, `list`, `footnote`, `block`, `math`, `image` |
-| **פריסה** · *layout* | page size, margins, columns, page breaks, sections, numbering | categories `layout`, `table`-independent page actions |
-| **טבלאות** · *tables* | insert, and the twenty operations that act on a table; cell configuration | category `table`, `structure` table verbs |
-| **מקורות** · *sources* | notes, apparatus, citations, Girsa's three routes, the review marks | categories `torah`, `reference`, `review` |
-| **תצוגה** · *view* | panes, zoom, prose-only, the shell switch, theme, language | `panes`, `zoom`, `hiding`, `settings` |
+| **קובץ** | File | new, open, save, save as, export (submenu), print, snapshots, git |
+| **מסמכים** | Documents | the library: switch, recent, close, new document tab |
+| **עריכה** | Edit | undo, redo, find, replace, spelling, heal brackets |
+| **הוספה** | Insert | things put on the page |
+| **עיצוב** | Format | text, paragraph, styles, and **Page** (the Layout tab's menu home) |
+| **טבלה** | Table | the table and its operations |
+| **הערות** | Notes | notes, note systems, numbering, references, review |
+| **מקורות** | Sources | sefer structure, מראי מקומות, Girsa, מפתחות |
+| **תצוגה** | View | panes, zoom, folding, the shell switch, theme, language |
+| **כלים** | Tools | macros, keyboard, commands, **customize the ribbon…**, settings |
+| **עזרה** | Help | help, keys, about |
 
-The `MENU_OF` table gains a second column — `TAB_OF` — so a category has one menu
-and one tab, and a fence fails if either is missing. That is the whole mechanism:
-the tab strip cannot drift from the menus because it is not written down anywhere
-the menus are not.
+`עריכה`, `הערות`, `תצוגה`, `כלים` and `עזרה` are new; Export folds into File and
+Macros into Tools. `הוספה`, `קובץ`, `מסמכים` and `מקורות` are already the i18n strings.
 
-**Contextual tabs** (LibreOffice's *contextual groups*): when the caret is inside a
-table or a note, a tab appears for it, drawn from the same category. It is a view
-that appears and disappears — never an action that exists only there. `contextbar.ts`
-already knows how to answer *what is around the caret*, so this is wiring, not
-invention.
+**Tabs:** **בית** · **הוספה** · **פריסה** · **טבלה** · **הערות** · **מקורות** · **תצוגה**
+(Home · Insert · Layout · Table · Notes · Sources · View).
+
+### The default ribbon
+
+Each group shows its **face** buttons, then `⋯` (the rest of the group), then `⚙`
+(its `הגדרות_…` commands) when it has any. A face holds at most six buttons per
+group by default, so a tab fits on a laptop screen in Hebrew.
+
+**בית · Home**: what a writer reaches for every minute. Everything here is a `home`
+pick; each item's menu home is elsewhere.
+
+| group | face | behind `⋯` |
+|---|---|---|
+| עריכה | undo, redo | find |
+| גופן | הדגשה, נטוי, קו תחתון, סימון, גדול, קטן | קו חוצה, עילי, תחתי, רברבתי, כתב רש"י, צבע, רקע, גופן שונה, גודל גופן, מרווח אותיות, קוד, עיצוב |
+| פסקה | ימין, מרכז, שמאל | מימין לשמאל, משמאל לימין |
+| סגנונות | the first custom styles | the styles panel |
+| מבנה | כותרת 1, כותרת 2, כותרת 3, סימן, סעיף | אות, דיבור המתחיל, שער, תת שער |
+| הערות | הערה, הערה ב | הערתסיום |
+
+The `הערות` group on Home is there because a footnote is the most-used command in
+a sefer. Its own tab has the rest.
+
+**הוספה · Insert**
+
+| group | face | `⋯` | `⚙` |
+|---|---|---|---|
+| כותרות | שער, תת שער, כותרת… | כותרת בהערה | headings, title, subtitle, h1–h9 |
+| רשימות | רשימה, ממוספרת, ממוספרת עברית | פריט, רשימת הגדרות | lists |
+| בלוקים | ציטוט, תיבה, מקור | הערת צד, אזהרה, הצלחה | each box |
+| אובייקטים | טבלה, תמונה, נוסחה | נוסחה בשורה | image, formulas |
+| שונות | קו מפריד, חסר | כלול (a chapter from another document) | rule |
+
+**פריסה · Layout** (menu home: עיצוב ▸ עמוד)
+
+| group | face | `⋯` |
+|---|---|---|
+| עמוד | מקטע עמוד, כותרת עליונה, כותרת תחתונה | |
+| מעברים | מעבר עמוד, מעבר טור | מעבר שורה, מעבר פסקה |
+| טורים | טורים | |
+| מרווחים | מרווח, הזחה | רווח אופקי |
+
+**טבלה · Table**: also the contextual tab when the caret is in a table.
+
+| group | face | `⋯` |
+|---|---|---|
+| טבלה | טבלה | |
+| שורות ועמודות | insert row above/below, insert column before/after, delete row, delete column | the rest of the table verbs |
+| תאים | מיזוג, כותרת תא, תא | split, cell configuration |
+| ⚙ | | tables |
+
+**הערות · Notes**: also the contextual tab when the caret is in a note.
+
+| group | face | `⋯` |
+|---|---|---|
+| הערות | הערה, הערה ב, הערה ג, tiered note | הערה בדרגה |
+| הערות סיום | הערתסיום, הערות בסוף | הערות בסוף צד |
+| הערות צד | עם הערות צד, הערת גיליון | עם הערות דו צד, הערת ימין, הערת שמאל |
+| מערכות הערות | ערוץ, אזור, הצג אזור | מדור א–ג, הערות מדורגות, מדף א–ג, הערה זרם, הערה בשם, גוף הערה, גופי הערות |
+| מספור | התחל מספור, המשך מספור, renumber | מונה, render notes |
+| הפניות | הפניה, סמן, הפניה להערה | |
+| סקירה | סמן הוספה, סמן מחיקה, הערת עורך | review view |
+
+Each group's `⚙` collects its own `הגדרות_…` (notes, note text, numbering, bands,
+page-bands, streams, endnotes, counters, review).
+
+**מקורות · Sources**
+
+| group | face | `⋯` |
+|---|---|---|
+| מבנה הספר | סימן, סעיף, אות, דיבור המתחיל | עם פירוש |
+| מראי מקומות | מראה מקום, ציון, גמרא, פסוק, ציון מקור | |
+| גירסא | חפש מקור לקטע, קשר מראי מקומות, רענן מקורות | hydra |
+| מפתחות | תוכן, מפתח מקורות, מפתח ענינים, ערך | רשימת סימונים |
+
+**תצוגה · View**
+
+| group | face | `⋯` |
+|---|---|---|
+| חלונות | swap panes, minimap | pane zoom, narrow/widen |
+| קיפול | fold all, unfold all | fold to level 1–6, fold lists to depth |
+| תצוגה | prose only, zoom in, zoom out | reveal places |
+| ממשק | shell switch, theme, interface language | **customize the ribbon…** |
+
+### The rules behind the defaults
+
+So the next command added lands in the right place without a meeting:
+
+1. A category's default tab is `TAB_OF_MENU[menu]`; `PLACE_OVERRIDE` is for the
+   exceptions, and it is short.
+2. `face` is the **noun form** of a group: the command a writer would name if
+   asked "what is in here". Variants and "at any level" forms go behind `⋯`.
+3. `הגדרות_…` → `⚙`. Deprecated → not placed.
+4. Home holds **per-minute** verbs only; a command used once per document (title,
+   table of contents) is never a Home pick.
 
 ## 6 · The header, top to bottom
 
 ```
-שֵׁם הַמְחַבֵּר · kuntres.ksav · not saved        ⚙ ◐ ?        ← identity + chrome
-[File] [Documents] [Export] [Insert] [Format] [Table] [Sources] [Macros]   ← menus (floor)
-┌ בית ┬ הכנס ┬ פריסה ┬ טבלאות ┬ מקורות ┬ תצוגה ┐                    ← tabs (optional)
-│  ↶ ↷ │ H1 H2 │ • ≡ ⇥ │ … │                      ← named buttons
-└──────┴──────┴─────┴────┴────────┴───────┘
+שֵׁם הַמְחַבֵּר · kuntres.ksav · not saved                 ⚙ ◐ ?   ← identity + chrome
+menus variant:   [קובץ] [מסמכים] [עריכה] [הוספה] [עיצוב] … [עזרה]
+toolbar variant: menus, then one row: the Home tab without headers
+tabs variant:    [☰ תפריט] ┌ בית ┬ הוספה ┬ פריסה ┬ טבלה ┬ הערות ┬ מקורות ┬ תצוגה ┐
+                           │ ↶ ↷ │ ב נ ק │ ⋯ ⚙ │ …                       ← named buttons
 ```
 
-- **Identity first, and it is a sentence** — `#128` landed that: `header.docTitle()`
-  returns `{title, file, line, label}`, drawn by one function, so the header and the
-  title bar cannot disagree again.
-- **The chips stay where they are.** The chip bar is the interface's report on its
-  own state; it is not part of the furniture and moving it is not part of this.
-- **In the tabs variant the menu bar remains.** A `☰` that hides the floor would make
-  the floor a rumour. LibreOffice keeps its menus visible in the tabbed notebookbar
-  for the same reason: the fast lane is beside the slow lane, not instead of it.
+- **Identity first, and it is a sentence** (`header.docTitle()`, #128).
+- **The chips stay where they are**; they report state and are not furniture.
+- **In the tabs variant the menu bar folds into `☰ תפריט`.** The button has a
+  name, is always visible, and opens the same tree, so the floor is still visible.
+  A writer who wants the full menu bar back turns on `shell.menubar` (§7).
 
-## 7 · Labels, not glyphs
+## 7 · Settings change the UI
 
-`#128` settled the *row* controls with a permanent legend rather than wider rows.
-The tab strip must not reopen that question: **a button that is not universally
-understood carries its name.** In a table of ten buttons, three glyphs and seven
-names reads as unfinished; that is why the tab row is *named buttons* and the
-menu rows keep glyphs, where the menu's own text is the name.
+Everything the writer can change lives in one settings object, persisted by
+`settings.ts` and edited in the settings drawer, the View menu and the customize
+dialog (§8):
 
-RTL: the tab row is a `tablist` in document direction, the tabs flow right to left,
-and nothing in it mirrors its glyph (`#136`'s lesson about the alignment buttons).
-The arrow keys move along the flow, not along the screen.
+```ts
+shell: {
+  variant: "menus" | "toolbar" | "tabs";   // default "toolbar"
+  menubar: "auto" | "always";              // tabs variant: "auto" folds into ☰
+  toolbarTab: string;                      // which tab the toolbar variant pins (default home)
+  labels: "names" | "names+glyphs";        // a button always has its name
+  contextual: boolean;                     // contextual table / notes tabs
+  ribbon?: RibbonLayout;                   // absent = the default ribbon of §5
+}
+```
 
-## 8 · What this costs, per surface
+plus the existing `lang` (interface language) and theme.
 
-- `menus.ts`: `TAB_OF` beside `MENU_OF`; `categoriesIn` gains a sibling.
-- `ribbon.ts`: the group table becomes a *tab* table — the groups that already exist
-  are the natural content of the Home and Insert tabs, which is why this is a
-  reshaping rather than a rewriting.
-- `appheader.buildHeader`: mounts one of three containers by variant.
-- `settings.ts`, `settingsdrawer.ts`: one preference, one control, one persistence row.
-- `header.ts`: unchanged — the identity line is already right.
-- `actionsurface.ts`: unchanged — the table already holds everything, which is the
-  reason the whole proposal is affordable.
+- Changing any of these re-renders the shell from `placed()`; the caret and the
+  scroll stay put.
+- **The keyboard map is the same under every setting.** A chord belongs to the
+  action, not the furniture.
+- A narrow window collapses the tab strip to `☰ תפריט` and says so; there is no
+  horizontally scrolling tab row.
 
-## 9 · The fences, and what each would have caught
+## 8 · Customizing the ribbon
+
+### What a writer can do
+
+One dialog, **כלים ▸ התאמת הסרגל…** (Tools ▸ Customize the ribbon…), also reachable
+from right-clicking the tab strip. Everything in it applies live behind the dialog,
+so the writer sees the ribbon change as they edit it.
+
+```
+┌ התאמת הסרגל ─────────────────────────────────────────────────────────┐
+│ הסרגל שלי                         │ כל הפקודות                        │
+│ ▾ בית                     👁 ✎ 🗑 │ [ חיפוש…               ] [הכול ▾] │
+│    ▾ גופן                         │  הדגשה        עיצוב · בית         │
+│       ● הדגשה                     │  מראה מקום    מקורות · מקורות     │
+│       ● נטוי                      │  הערת עורך    הערות · הערות       │
+│       ○ קו חוצה   (מאחורי ⋯)      │  …                                │
+│    ▸ פסקה                         │                                   │
+│ ▸ הוספה                           │        [ ← הוסף ]                 │
+│ ▸ הלשונית שלי             👁 ✎ 🗑 │                                   │
+│ [+ לשונית] [+ קבוצה] [מזג לשוניות] │                                   │
+│ [↑] [↓]  [על הסרגל / מאחורי ⋯]     │                                   │
+├────────────────────────────────────┴──────────────────────────────────┤
+│ [איפוס הלשונית] [איפוס הכול]  [ייבוא…] [ייצוא…]            [סגירה]    │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+- **Tabs:** add a new tab, rename, hide (👁), delete, reorder, **merge** two tabs
+  (the second's groups are appended to the first, and the merged tab keeps the
+  first's name until renamed).
+- **Groups:** add, rename, delete, reorder, move to another tab.
+- **Commands:** add any command, from the searchable list on the left, to any group;
+  remove; reorder; and toggle **on the ribbon (●) / behind `⋯` (○)**. The list
+  shows where each command currently lives in the menus and on the ribbon. A filter
+  narrows it by menu, or to "not on my ribbon".
+- **A command may appear on more than one tab.** A writer's own *Kuntres* tab
+  with siman, seif, הערה and מראה מקום is the point of this dialog.
+- **Reset** one tab or everything, back to §5.
+- **Import / export** the layout as a file, so a chavrusa or a whole yeshiva can
+  share one ribbon.
+- **The menus are not editable.** The dialog says so in one line: *every command
+  remains in its menu; this changes only the ribbon.* That sentence is why the
+  dialog can be this powerful without any risk of a command becoming unfindable.
+
+The quick path is the same operations from a **right-click on a ribbon button**
+(*move to ⋯ / remove from tab / add to Home / customize…*) and on a tab header
+(*rename / hide / customize…*). Every right-click action is also in the dialog, so
+nothing depends on a mouse.
+
+Keyboard: the left tree is a `tree`; `Alt+↑/↓` reorders the focused node, `Space`
+toggles ●/○, `Delete` removes, `F2` renames. Drag and drop works too, but it is
+never the only way to do something.
+
+### The data
+
+```ts
+interface RibbonLayout {
+  version: 1;
+  tabs: {
+    id: string;                        // built-in TabId, or "user:<uuid>"
+    from?: TabId[];                    // built-in tabs this one is, or merges
+    name?: string;                     // set when renamed; built-in names stay bilingual otherwise
+    hidden?: boolean;
+    groups: {
+      id: string;
+      name?: string;
+      items: { action: string; face: boolean }[];
+    }[];
+  }[];
+  known: string[];                     // every action id that existed when it was saved
+}
+```
+
+- The first edit copies the default ribbon into `ribbon`; **reset** deletes it.
+- **Commands added in a later version** are the ones not in `known`. They are added
+  to their default group in whichever saved tab lists the default tab in `from`.
+  If that tab was deleted, they go behind the `⋯` of a tab the writer kept. They
+  are never dropped, and the dialog marks them *new* once.
+- **Commands removed in a later version** are dropped from the layout when it is
+  loaded, silently, and a fence checks that loading never throws on an unknown id.
+- A renamed or user-created tab has the one name the writer typed. Built-in tabs
+  that are not renamed keep following `lang`.
+- An imported file is validated before it is applied: unknown actions are dropped
+  and counted ("3 commands in this file do not exist in this version"), never run.
+
+## 9 · Labels and language
+
+- A tab button that is not universally understood carries its name; `labels`
+  can add glyphs but cannot remove names.
+- Every tab name, menu name, group name, short label and description exists in
+  `i18n-he.ts` and `i18n-en.ts`; engine commands use the registry's own pair.
+  Switching `lang` re-renders the shell, and the customize dialog, with no reload.
+- RTL: the tab row is a `tablist` in interface direction, arrows move along the
+  flow, and no glyph is mirrored (#136).
+
+## 10 · The fences
 
 | fence | what goes red if it is reverted |
 |---|---|
-| every `BUILT_IN` action has a menu home | an action reachable only from a tab, a palette or a chord |
-| every tab button names an action that is also in a menu | the second taxonomy this page exists to prevent |
-| every registry category has a menu **and** a tab | a category that silently appears in neither |
-| the variant persists and restores the same DOM | the setting that is drawn but not stored (`2026-08-12`) |
-| a chord works in all three variants | the shell switch changing what the keyboard does |
-| the boot fence asserts the variant that was asked for | a build that boots into the wrong shell — the shape of #229 |
-| the tab strip is a `tablist` with arrow-key movement | a keyboard user locked out of the furniture |
+| `Place.menu` is required (type) | an action reachable only from a tab, the palette or a chord |
+| `RibbonLayout` has no way to name a menu (type) | a customisation that hides a command |
+| every `BUILT_IN` and generated action has a `place`; deprecated ones have none | an orphan, or a deprecated command advertised |
+| no `*_config` command is on a default `face` | a tab full of "how X is set" |
+| every registry category has a `PLACE_OF_CATEGORY` row; every override names a real command | a missing section; a dead override |
+| every placed action, group, menu, tab and short label has Hebrew **and** English | an id drawn in one language |
+| each default group has ≤ 6 face buttons | a default tab becoming a wall |
+| menus from `placed()` hold every item the old hand-written menus held | the conversion dropping an item |
+| a saved ribbon survives a version that adds and one that removes actions | a writer's layout lost, or a new command invisible on their ribbon |
+| a ribbon with every tab deleted still leaves a working `☰ תפריט` | customising your way out of the app |
+| export → import round-trips; an import with unknown ids loads and reports them | a shared layout that breaks another install |
+| every `shell` setting, including `ribbon`, persists and restores the same DOM | the setting drawn but not stored (`2026-08-12`) |
+| a chord works under every variant and every ribbon | the furniture changing what the keyboard does |
+| the boot fence asserts the requested variant | booting into the wrong shell (#229) |
+| the tab strip is a `tablist` and the dialog tree a `tree`, with keyboard reordering, in both languages | a keyboard user locked out |
 
-## 10 · What this does not decide
+## 11 · Order of work
 
-**#117** proposes replacing this whole frontend with a native Rust `egui` ribbon
-(storytold/wordcraft). That is a technology decision, and it is bigger than this
-page — but note what survives it: the taxonomy in §3 and §5 is a statement about
-*ksav*, not about TypeScript. Whichever frontend is chosen, it needs one action
-table, one menu placement per category, a menu floor, and a tab strip that is a
-view. The work here is therefore not thrown away by #117; it is the specification
-#117 would have to satisfy.
+All of it lands in this wave, on one branch, in this order. Each step leaves the
+tree green, so it can be reviewed in pieces even though it ships together.
 
-Also out of scope: the icon set, the visual skin, the panes' contents, #118's
-prose-only editor surface (orthogonal — the furniture does not care how much of the
-page the editor holds).
+1. **The data.** `placement.ts`: `Place`, `TAB_OF_MENU`, `PLACE_OF_CATEGORY`,
+   `PLACE_OVERRIDE`, `placed()`, the `⚙` and deprecated rules; `place` on every
+   `BUILT_IN` entry, macro and style; the §5 names and short labels in both
+   languages; the data fences. No visible change.
+2. **Menus from data.** The menu bar rendered from `placed()`; the new menus; Export
+   into File, Macros into Tools; the parity fence; the hand-written lists deleted.
+3. **The `shell` settings** and their controls; the *menus* variant; persistence
+   and boot fences.
+4. **The tab renderer**: tabs, Home, `⋯`, `⚙`, `☰ תפריט`; the *tabs* variant.
+5. **The toolbar as a pinned tab**, replacing `ribbon.buildToolbar`.
+6. **Contextual tabs** for tables and notes, from `contextbar.ts`.
+7. **`RibbonLayout`**: load, save, version migration (`known`), import/export, and
+   their fences, rendered by the same tab renderer.
+8. **The customize dialog** and the right-click shortcuts, with its keyboard
+   tree; then the RTL, keyboard and both-languages checks across every variant.
 
-## 11 · Open questions, each with a recommendation
+## 12 · What this does not decide
 
-**Q1 · Which variant is the default?** *Recommendation: menus + toolbar.* It is what
-exists, it is what has been driven, and the tab strip then ships as an opt-in that
-nobody is forced into. The alternative — tabs by default — is defensible for a
-Word-shaped product, and it is one line either way; the point is that it is chosen
-rather than defaulted into.
+**#117** proposes a native Rust `egui` frontend. Whatever is chosen, §3–§5 and §8's
+data are statements about *ksav*: one action list, one menu home per action, a
+menu floor, tabs as a view, placements and the writer's ribbon as data. A
+different frontend inherits this page as its spec.
 
-**Q2 · Is File a tab?** *Recommendation: no.* LibreOffice's tabbed notebookbar does
-have a File tab, and for ksav it would undo `#128`: the file and the library are
-statements about a *file*, and the tab strip is about the page. They stay in the
-menu bar, where they already have one home each.
+Out of scope: the icon set, the visual skin, the panes' contents, #118's prose-only
+editor surface, and customizing the **menus** (deliberately never).
 
-**Q3 · Does the menu bar stay visible in the tabs variant?** *Recommendation: yes.*
-Covered in §6; stated as a question because the answer decides whether a `☰` is a
-second door or the only one.
+## 13 · Left to the build
 
-**Q4 · What happens in a narrow window?** *Recommendation: the tab strip collapses
-to the menus, and says so on the switch* — not a horizontally scrolling tab row.
-A writer on a half-screen should lose the fast lane, never a command.
-
-**Q5 · The Hebrew names.** The six in §5 are proposed, not settled. `בית` and `הכנס`
-are the conventional translations; `פריסה` and `מקורות` are choices a writer should
-hear aloud before we spend them on six permanent labels.
-
-**Q6 · Do the two optical levels survive contact?** The tab row and the menu row are
-both horizontal strips of words in a right-to-left page. If they read as two
-answers to one question on screen (which is #128's complaint one storey up), the
-answer is not a third strip: it is fewer tabs, or the menu bar folding into the
-`☰` behind a single labelled button.
-
-## 12 · Order of work
-
-Each step is shippable and fenced on its own, and each one is smaller than it looks
-because the tables already exist.
-
-1. `TAB_OF` beside `MENU_OF`, with the fence that every category has both — no UI
-   change yet, so the taxonomy is reviewable before anything moves on screen.
-2. The orphan fence: every `BUILT_IN` action has a menu home. Whatever it finds is
-   real, and cheap to fix while nothing else is moving.
-3. The `shell` preference and the *menus* variant — the floor, with no tabs. This is
-   the variant that has to be complete, so it is built first.
-4. The tab strip, from `TAB_OF`, in the *tabs* variant.
-5. Contextual tabs, from what `contextbar.ts` already answers.
-6. The boot fence for the variant, and the RTL / keyboard checks on `tablist`.
-
-Deciding after step 1 means the expensive part (2–6) has a spec; deciding after
-step 3 means the tab strip is a rendering of a table somebody has already read.
+- The exact verbs of the twenty table operations on the Table tab's face are
+  chosen from `structure`'s list in step 1, by the §5 rules.
+- Short labels where the command name reads badly on a button are written in
+  step 1 and reviewed as one table in both languages.

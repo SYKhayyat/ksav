@@ -371,7 +371,7 @@ async fn ksav_save_file(
         return Ok(None);
     };
     let path = path.into_path().map_err(|e| e.to_string())?;
-    std::fs::write(&path, contents).map_err(|e| e.to_string())?;
+    write_beside(&path, contents).map_err(|e| e.to_string())?;
     // Recorded after the write, so the entry keys on the file that now exists.
     allowed.allow(&path);
     Ok(Some(path.to_string_lossy().to_string()))
@@ -420,7 +420,7 @@ async fn ksav_save_export(
     };
     let path = path.into_path().map_err(|e| e.to_string())?;
     let bytes = decode_base64(&base64)?;
-    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    write_beside(&path, bytes).map_err(|e| e.to_string())?;
     allowed.allow(&path);
     Ok(Some(path.to_string_lossy().to_string()))
 }
@@ -476,6 +476,56 @@ async fn ksav_write_file(
     write_allowed(&allowed, &path, &contents)
 }
 
+/// Write a file so that a failure leaves the one already there alone.
+///
+/// `std::fs::write` truncates the target and *then* writes, so a save that runs
+/// out of room destroys the document at the exact moment it cannot save it.
+/// Measured on a full tmpfs (#230, #232): the file came back holding the first
+/// few kilobytes of the version that failed to land, and the version that was
+/// there was gone.
+///
+/// So every document write goes beside and is renamed over — the shape
+/// `ksav_dictionary_write` has used since the dictionary was written, and for the
+/// same reason. `rename` inside one directory is atomic on both platforms we
+/// ship, so a reader sees the old file or the new one, never half of either.
+///
+/// Three details that are not decoration:
+///
+/// - the target is opened for writing **without** truncation first, so a
+///   read-only file is refused by the operating system, in its own words, before
+///   anything is renamed over it. A rename needs write permission on the
+///   *directory*, not on the file, so without this a read-only document would be
+///   silently replaced — the fix would open a hole where the bug was;
+/// - the neighbour carries the pid, so two windows saving the same document at
+///   the same moment cannot write each other's half;
+/// - the neighbour is removed on failure, because a stray temp file in the
+///   writer's folder is our mess and not theirs. (`rename` is the last step, so a
+///   crash between the two leaves a temp file rather than a truncated sefer —
+///   the trade this whole function is for.)
+fn write_beside(path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+    if path.exists() {
+        std::fs::OpenOptions::new().write(true).open(path)?;
+    }
+    let dir = match path.parent() {
+        Some(d) if !d.as_os_str().is_empty() => d,
+        _ => Path::new("."),
+    };
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "document".to_string());
+    let temp = dir.join(format!(".{name}.saving-{}", std::process::id()));
+    if let Err(e) = std::fs::write(&temp, contents) {
+        let _ = std::fs::remove_file(&temp);
+        return Err(e);
+    }
+    if let Err(e) = std::fs::rename(&temp, path) {
+        let _ = std::fs::remove_file(&temp);
+        return Err(e);
+    }
+    Ok(())
+}
+
 /// The rule, in a function a test can call without a `tauri::State`.
 ///
 /// Two answers with two different meanings travel out of here, and the split is
@@ -489,7 +539,7 @@ fn write_allowed(allowed: &AllowedPaths, path: &str, contents: &str) -> Result<(
             "{REFUSED}: refusing to write to a path that was not chosen in a dialog: {path}"
         ));
     }
-    std::fs::write(&p, contents).map_err(|e| e.to_string())
+    write_beside(&p, contents).map_err(|e| e.to_string())
 }
 
 /// May this path be written without a dialog?
@@ -1552,6 +1602,21 @@ mod tests {
     /// - a missing parent directory fails for everybody, so at least one disk
     ///   refusal is always exercised;
     /// - no sentence is hard-coded here, so the same test is the Windows test.
+    ///
+    /// # The full disk, and why it is case 4 rather than a missing case (#230)
+    ///
+    /// ENOSPC is the one disk refusal an unprivileged process cannot provoke on
+    /// Linux. `ulimit -f` gives EFBIG — a different errno and a different
+    /// sentence, which is the thing under test; `setrlimit(RLIMIT_FSIZE)` the
+    /// same; a small filesystem needs `mount -t tmpfs`, and a loop device needs
+    /// `losetup`. So the case runs **where somebody has made one**, and says so
+    /// when it has not, instead of being quietly absent:
+    ///
+    /// ```text
+    /// sudo mount -t tmpfs -o size=512k tmpfs /tmp/ksav-full
+    /// sudo chown $USER /tmp/ksav-full      # so the test can fill it
+    /// cargo test --features dpr-probe the_disk_s_own_words   # …then unmount
+    /// ```
     #[test]
     fn the_disk_s_own_words_reach_the_writer_verbatim() {
         let dir = std::env::temp_dir().join("ksav-disk-words");
@@ -1630,6 +1695,63 @@ mod tests {
         dperms.set_readonly(false);
         std::fs::set_permissions(&rod, dperms).unwrap();
         let _ = std::fs::remove_dir_all(&rod);
+
+        // 4. A full disk — ENOSPC. Only here if somebody mounted one; see the
+        //    doc comment above. The filler is written **first**: a 512 kB tmpfs
+        //    is not full until something is in it, and a case that ran against
+        //    an empty one would pass by writing the file successfully.
+        {
+            let full = std::path::Path::new("/tmp/ksav-full");
+            if full.is_dir() {
+                use std::io::Write;
+                // A file that is already there, written while there is room.
+                // The half of a failed save that matters more than its sentence is
+                // that the version on the disk survives it.
+                let victim = full.join("existing.ksav");
+                let was = "הטקסט שהיה על הדיסק";
+                std::fs::write(&victim, was).expect("room on the tmpfs for the victim");
+                allowed.allow(&victim);
+
+                let filler = full.join("filler");
+                let mut f = std::fs::File::create(&filler).expect("a filler file on the tmpfs");
+                let chunk = vec![0u8; 4096];
+                let mut filled = 0u64;
+                while f.write_all(&chunk).is_ok() {
+                    filled += chunk.len() as u64;
+                }
+                f.flush().ok();
+                drop(f);
+                assert!(
+                    filled > 0,
+                    "the filler wrote nothing, so the disk is not full"
+                );
+                check("a full disk", &full.join("sefer.ksav"));
+
+                // **The sentence is the smaller half.** A save that cannot happen
+                // must not take the document with it: the file on the disk goes on
+                // holding what it held.
+                //
+                // The content is bigger than what is there, which is the case that
+                // happens: a document grows between saves, and the saved file is
+                // truncated to make room for the version that no longer fits.
+                let bigger = "טקסט חדש ".repeat(900);
+                let refused = write_allowed(&allowed, victim.to_str().unwrap(), &bigger);
+                assert!(refused.is_err(), "the save must fail on a full disk");
+                assert_eq!(
+                    std::fs::read_to_string(&victim).unwrap_or_default(),
+                    was,
+                    "a save that fails must leave the file that was already there"
+                );
+
+                let _ = std::fs::remove_file(&filler);
+            } else {
+                eprintln!(
+                    "note: 'a full disk' skipped — no tmpfs at /tmp/ksav-full. This is ENOSPC, \
+                     the one refusal an unprivileged process cannot provoke (#230). To run it: \
+                     sudo mount -t tmpfs -o size=512k tmpfs /tmp/ksav-full"
+                );
+            }
+        }
 
         assert!(
             exercised >= 1,

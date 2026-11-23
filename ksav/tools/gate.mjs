@@ -243,6 +243,78 @@ export const CHECKS = [
     // and makes the editor unusable while every unit test stays green (#101).
     why: "The shipped UI had no coverage at all — a cargo test never opens a window.",
   },
+  // ---------------------------------------------------------------- the elisp
+  //
+  // The Emacs package had no checks in this runner at all, which cost twice.
+  //
+  // First, nobody could run them from a plain checkout: `node tools/gate.mjs` was
+  // the one command the README documents, and the package's 66 tests lived only in
+  // `ci.yml`, so a worker editing `.el` code had no inner loop that ran them and a
+  // green gate said nothing about the package.
+  //
+  // Second, and this is the one that shipped: the client has its own reader for
+  // every service, and #234 moved two services to the envelope and left two
+  // readers behind — `M-x ksav-insert-command` offered `ok · commands` to anybody
+  // who installed it. `ksav-write.el` and `ksav-engine.el` were edited by a
+  // commit whose gate never opened them.
+  {
+    id: "emacs-compile",
+    group: "emacs",
+    tree: "emacs",
+    name: "Emacs package byte-compile",
+    cwd: "editors/emacs",
+    // A program, not a library. `needs` carried only `pkg` until this check
+    // existed, and a need that cannot say "the machine has no Emacs" would have
+    // reported a desk without Emacs as a red package — #181's fault in a
+    // different costume.
+    needs: { bin: "emacs" },
+    // Every `.el` in the directory, not a list: the list was written when there
+    // were three and a fourth arrived generated.
+    command: ["emacs", "-Q", "--batch", "-L", ".", "-l", "gate-options.el", "-f", "batch-byte-compile", "./*.el"],
+    // A byte-compile warning in an elisp package is what a `tsc` error is in the
+    // editor: it compiles either way, and the warning is the only thing that will
+    // ever mention a free variable or a function that is not there.
+    why: "A warning about a free variable is the only thing that mentions a function that is gone.",
+  },
+  {
+    id: "emacs-tests",
+    group: "emacs",
+    tree: "emacs",
+    name: "Emacs package tests",
+    cwd: "editors/emacs",
+    needs: { bin: "emacs" },
+    // The offline half **asked for by name**. It used to be decided by looking
+    // for a `ksav' binary, which made it a live run on any machine that had one
+    // installed — the check that is supposed to need nothing took eight minutes
+    // and failed on exactly that. See `ksav-tests--engine-wanted-p'.
+    env: { KSAV_EMACS_TEST_OFFLINE: "1" },
+    command: ["emacs", "-Q", "--batch", "-L", ".", "-l", "ksav.el", "-l", "ksav-tests.el", "-f", "ert-run-tests-batch-and-exit"],
+    why: "The client has its own reader for every service, and nothing here called one.",
+  },
+  // The suite twice, and the two runs are two different claims about two
+  // different machines.
+  //
+  // This one is the package's *live* half: half of `ksav-tests.el` drives a real
+  // engine — a real Typst compile, a real PDF, the real Hebrew speller — and
+  // without one those tests skip. The skip is honest and declared, and a green
+  // tick over fifteen tests that did not run is the lie #91 is about, so this
+  // check sets `KSAV_EMACS_LIVE` and the absence of a binary becomes an error.
+  //
+  // The engine is a **build product**, not an installed program: `engine/target`
+  // is ignored, so a fresh clone has no binary and has done nothing wrong. The
+  // need says so in those words and `runCheck` puts its directory in front of the
+  // search path, which is what `ksav-start` finds it through.
+  {
+    id: "emacs-tests-live",
+    group: "emacs",
+    tree: "emacs",
+    name: "Emacs package tests, live",
+    cwd: "editors/emacs",
+    needs: { bin: "emacs", built: "engine/target/release/ksav" },
+    env: { KSAV_EMACS_LIVE: "1" },
+    command: ["emacs", "-Q", "--batch", "-L", ".", "-l", "ksav.el", "-l", "ksav-tests.el", "-f", "ert-run-tests-batch-and-exit"],
+    why: "Fifteen tests skip without an engine, and the one that catches a dead front end is among them.",
+  },
 ];
 
 /**
@@ -314,11 +386,33 @@ export function select(names) {
  * about one platform's linker, and the default `process.platform` made this
  * answer about the reader's machine rather than about the check (#193).
  */
-export function missingNeed(check, has = pkgConfigHas, platform = process.platform) {
+export function missingNeed(
+  check,
+  has = pkgConfigHas,
+  platform = process.platform,
+  hasBin = (bin) => onPath(bin, process.env.PATH ?? "", platform),
+) {
   if (!check.needs) return null;
   const scope = check.needs.appliesTo;
   const scoped = !scope || [].concat(scope).includes(platform);
   if (!scoped) return null;
+  // A *program*, which is what `emacs` is — the first need here that is not a
+  // library `pkg-config` can answer about. Same rule as #181 and #193: "this
+  // machine has no Emacs" is a fact about the machine and not a verdict on the
+  // package, so it gets a `-` rather than a failure.
+  if (check.needs.bin) {
+    const built = providedByBuild(check.needs, platform);
+    const answeredByBuild = built ? path.basename(built).replace(/\.exe$/i, "") : null;
+    const gone = [].concat(check.needs.bin).find((b) => b !== answeredByBuild && !hasBin(b));
+    if (gone) return check.needs;
+    // `built` names a binary this tree produces rather than one installed
+    // anywhere. Absent, that is also a fact about the checkout — `engine/target`
+    // is ignored, so a fresh clone has no binary and has done nothing wrong — and
+    // it is the difference between the live half of the package's suite running
+    // and skipping, so it is a need rather than a footnote in the command.
+    if (check.needs.built && !built) return check.needs;
+    return null;
+  }
   if (has(check.needs.pkg)) return null;
   return check.needs;
 }
@@ -326,6 +420,50 @@ export function missingNeed(check, has = pkgConfigHas, platform = process.platfo
 function pkgConfigHas(name) {
   const done = spawnSync("pkg-config", ["--exists", name], { stdio: "ignore" });
   return done.status === 0;
+}
+
+/**
+ * Is `bin` a program this shell can run?
+ *
+ * The directories are walked rather than the program spawned: a check that ran
+ * `emacs --version` to answer "is there an emacs" would pay a second of start-up
+ * on every gate run, and the question is about the directory, not the version.
+ */
+export function onPath(bin, pathVar = process.env.PATH ?? "", platform = process.platform) {
+  const exts = platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+  return pathVar
+    .split(path.delimiter)
+    .filter(Boolean)
+    .some((dir) => exts.some((ext) => existsSync(path.join(dir, bin + ext))));
+}
+
+/**
+ * The binary a `built` need names, if this checkout has built one.
+ *
+ * Separate from `missingNeed` because `runCheck` needs the same answer to put
+ * the directory in front of the search path — and two implementations of "where
+ * is the engine binary" would disagree about `.exe` on the first Windows run.
+ */
+export function providedByBuild(needs, platform = process.platform) {
+  if (!needs?.built) return null;
+  const base = path.join(KSAV, needs.built);
+  const file = platform === "win32" && !base.endsWith(".exe") ? `${base}.exe` : base;
+  return existsSync(file) ? file : null;
+}
+
+/**
+ * One sentence about what a check is missing, for the `-` line.
+ *
+ * It used to be `need.pkg is not in this shell`, written out at both call sites,
+ * which was true while every need was a `pkg-config` library. A missing *program*
+ * is not in a shell, it is not on the machine, and a `built` binary is not built
+ * yet — three different sentences for three different things to do about it.
+ */
+export function needLabel(need) {
+  if (!need) return "";
+  if (need.pkg) return `${need.pkg} is not in this shell`;
+  if (need.built) return `${need.built} is not built here`;
+  return `${[].concat(need.bin).join(" and ")} is not on this machine's search path`;
 }
 
 /**
@@ -341,6 +479,10 @@ function pkgConfigHas(name) {
 export function howToRun(check, names, platform = process.platform) {
   const inner = `cd ksav/${check.cwd} && ${check.command.join(" ")}`;
   if (!check.needs) return inner;
+  // `nix develop` is advice about a *system library* and the dev shell that
+  // carries it. A missing program or an unbuilt binary is fixed by installing the
+  // program or running the build, neither of which a dev shell knows about.
+  if (check.needs.bin) return inner;
   if (platform !== "linux") return inner;
   const group = names?.length ? names.join(" ") : check.group;
   return (
@@ -381,7 +523,7 @@ export function summarise(results, skipped, names = []) {
   // the whole of #181 is that the first was being reported as the third.
   const lines = results.map((r) =>
     r.unmeasured
-      ? `– ${r.check.name.padEnd(32)} not measured here: ${r.unmeasured.pkg} is not in this shell`
+      ? `– ${r.check.name.padEnd(32)} not measured here: ${needLabel(r.unmeasured)}`
       : `${r.ok ? "✓" : "✗"} ${r.check.name.padEnd(32)} ${r.secs.toFixed(1)}s`,
   );
 
@@ -419,7 +561,7 @@ export function summarise(results, skipped, names = []) {
       ` ${skipped.length} did not run:`,
   );
   for (const c of skipped) lines.push(`  ${c.id.padEnd(16)} ${c.cwd}: ${c.command.join(" ")}`);
-  const elsewhere = skipped.filter((c) => c.needs);
+  const elsewhere = skipped.filter((c) => c.needs?.shell);
   if (elsewhere.length) {
     lines.push(
       `\n${elsewhere.length} of those need the desktop shell, which is where their system libraries are:`,
@@ -450,6 +592,13 @@ export const GATE_VERBS = [
   // to be re-spelled in four files — two of them in directories the sweep never
   // opened. It lives in `ksav/tools/wasmbuild.mjs` now.
   "wasm-pack build",
+  // The Emacs package's two commands, added when they moved here. The verdict
+  // sweep is what makes "everything calls the runner" true rather than intended,
+  // and it was only ever as complete as this list: a `.el` suite spelled out in a
+  // workflow was invisible to it, which is how the package's tests stayed outside
+  // the gate for as long as they did.
+  "batch-byte-compile",
+  "ert-run-tests-batch-and-exit",
 ];
 
 /** One check, run where it belongs. Returns the seconds it took, or null if it failed. */
@@ -459,6 +608,16 @@ function runCheck(check, release) {
   if (release && check.releasable) argv.push("--release");
   const shown = argv.join(" ");
 
+  // `env` and `built` are how a check states the two things the Emacs package
+  // needs and nothing else here did: a variable that makes its skips errors, and
+  // a binary that is a **build product** rather than a program installed
+  // somewhere. The package finds the engine through `executable-find`, so the
+  // directory the build put it in has to be in front of `PATH` — spelled once,
+  // here, instead of in every job and every reader's shell history.
+  const env = { ...process.env, ...(check.env ?? {}) };
+  const built = providedByBuild(check.needs);
+  if (built) env.PATH = `${path.dirname(built)}${path.delimiter}${env.PATH ?? ""}`;
+
   console.log(`\n→ ${check.name}  (${check.cwd}: ${shown})`);
   const began = process.hrtime.bigint();
   // Through a shell, because `npx` and `cargo` are `.cmd` shims on Windows and
@@ -466,7 +625,7 @@ function runCheck(check, release) {
   // argument array: node deprecates the second form under `shell: true`
   // (DEP0190) precisely because the arguments are concatenated anyway. Every
   // word here is a literal in this file, so there is nothing to inject.
-  const done = spawnSync(shown, { cwd, stdio: "inherit", shell: true });
+  const done = spawnSync(shown, { cwd, env, stdio: "inherit", shell: true });
   const secs = Number(process.hrtime.bigint() - began) / 1e9;
 
   if (done.error) {
@@ -512,7 +671,7 @@ function main() {
     const need = missingNeed(check);
     if (need) {
       console.log(
-        `\n– ${check.name}  (${check.cwd}) — not run: ${need.pkg} is not in this shell`,
+        `\n– ${check.name}  (${check.cwd}) — not run: ${needLabel(need)}`,
       );
       results.push({ check, secs: 0, ok: true, shown: check.command.join(" "), unmeasured: need });
       continue;

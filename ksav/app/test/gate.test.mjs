@@ -46,6 +46,8 @@ import {
   NEED_FIELD,
   howToRun,
   missingNeed,
+  needLabel,
+  providedByBuild,
   select,
   summarise,
   verdict,
@@ -547,6 +549,134 @@ export async function run() {
     check("a real failure fails either way", [verdict(broke, false), verdict(broke, true)], [1, 1]);
   }
 
+  // ------------------------------------------------- a need that is not a library
+  //
+  // `needs` held only `pkg` until the Emacs package joined the gate, and every
+  // sentence about a missing need was written as though it did — the `–` line
+  // said "gdk-3.0 is not in this shell", and `howToRun` offered `nix develop
+  // .#desktop` for it. The package's need is an **Emacs**, which is a program,
+  // and its engine is a **build product**: neither is in a dev shell, and a
+  // message that says so sends a reader to install the wrong thing.
+  //
+  // The rule underneath is #181's and #193's, unchanged: a missing need is a fact
+  // about the machine and not a verdict on the tree. What is new is that the fact
+  // can be "no Emacs", "no engine built yet", or "no Emacs in this `nix` shell",
+  // and the three need three different sentences.
+  {
+    const emacs = CHECKS.filter((c) => c.group === "emacs");
+    check(
+      "the Emacs package's checks are in the gate",
+      emacs.map((c) => c.id),
+      ["emacs-compile", "emacs-tests", "emacs-tests-live"],
+    );
+    ok("…and each says it is about the elisp", emacs.every((c) => c.tree === "emacs"), emacs.map((c) => c.tree).join(" "));
+
+    const compile = CHECKS.find((c) => c.id === "emacs-compile");
+    const offline = CHECKS.find((c) => c.id === "emacs-tests");
+    const tests = CHECKS.find((c) => c.id === "emacs-tests-live");
+    // Two runs of one suite, and the difference is the claim: one measures the
+    // package with no engine at all (which is what a newer Emacs job has), the
+    // other refuses to let the live half skip.
+    ok("the offline run needs no engine", offline.needs.built === undefined, JSON.stringify(offline.needs));
+    ok("…and the live run needs one", !!tests.needs.built, JSON.stringify(tests.needs));
+
+    ok("no Emacs on this machine is a fact, not a failure", !!missingNeed(compile, () => true, "linux", () => false));
+    ok("…and Emacs here is not a reason to skip", missingNeed(compile, () => true, "linux", () => true) === null);
+
+    // The engine, as a build product. A fresh clone has never built one, and
+    // that is not a fault in the tree — but it *is* the difference between the
+    // live half of the suite running and skipping, so it is a need and not a
+    // detail of the command.
+    const unbuilt = { ...tests.needs, built: "engine/target/never-built-here/ksav" };
+    ok("an unbuilt engine is a fact too", !!missingNeed({ ...tests, needs: unbuilt }, () => true, "linux", () => true));
+    ok(
+      "…and it is reported as unbuilt rather than as absent",
+      needLabel(unbuilt).includes("not built here"),
+      needLabel(unbuilt),
+    );
+    ok(
+      "…and a missing program is reported as a missing program",
+      needLabel({ bin: "emacs" }).includes("search path"),
+      needLabel({ bin: "emacs" }),
+    );
+    ok(
+      "…and a missing library still names the shell that has it",
+      needLabel({ pkg: "gdk-3.0", shell: "desktop" }).includes("in this shell"),
+      needLabel({ pkg: "gdk-3.0", shell: "desktop" }),
+    );
+
+    // A build product answers for its own name, so `built` alone is not a second
+    // thing to have on the search path.
+    ok(
+      "a built binary answers for the program it is",
+      missingNeed(
+        { ...tests, needs: { bin: "ksav" } },
+        () => true,
+        "linux",
+        (bin) => bin === "emacs",
+      ) !== null ||
+        providedByBuild({ built: "engine/target/release/ksav" }) !== null,
+      providedByBuild({ built: "engine/target/release/ksav" }) ?? "not built",
+    );
+    ok(
+      "…and the build directory is what goes in front of the search path",
+      providedByBuild({ built: "engine/target/release/ksav" }) === null ||
+        providedByBuild({ built: "engine/target/release/ksav" }).replace(/[\\/]ksav(\.exe)?$/u, "").endsWith("engine/target/release"),
+      String(providedByBuild({ built: "engine/target/release/ksav" })),
+    );
+    ok(
+      "a binary that was never built is not found",
+      providedByBuild({ built: "engine/target/never-built-here/ksav" }) === null,
+    );
+
+    // The live half cannot go back to skipping: the skip is honest, and a green
+    // tick over fifteen tests that did not run is what #91 is about.
+    ok("the suite's live half is required by the check", tests.env?.KSAV_EMACS_LIVE === "1", String(tests.env?.KSAV_EMACS_LIVE));
+    // And the other half asks for itself rather than being inferred from what
+    // happens to be installed: this desk has a `ksav' in `~/.local/bin', and the
+    // check that must need nothing took eight minutes and failed because the
+    // package found it and ran the live half against it.
+    ok(
+      "…and the offline half is asked for by name",
+      offline.env?.KSAV_EMACS_TEST_OFFLINE === "1",
+      String(offline.env?.KSAV_EMACS_TEST_OFFLINE),
+    );
+    ok(
+      "…and its command is the one this file's sweep knows",
+      tests.command.join(" ") === "emacs -Q --batch -L . -l ksav.el -l ksav-tests.el -f ert-run-tests-batch-and-exit",
+      tests.command.join(" "),
+    );
+    ok(
+      "…and the byte-compile's is too",
+      GATE_VERBS.includes("batch-byte-compile") && GATE_VERBS.includes("ert-run-tests-batch-and-exit"),
+      GATE_VERBS.join(", "),
+    );
+
+    ok(
+      "a missing program is not a missing dev shell",
+      !howToRun(compile, undefined, "linux").includes("nix develop"),
+      howToRun(compile, undefined, "linux"),
+    );
+    ok(
+      "…so the reader gets the command",
+      howToRun(compile, undefined, "linux") === `cd ksav/${compile.cwd} && ${compile.command.join(" ")}`,
+      howToRun(compile, undefined, "linux"),
+    );
+
+    // And the sentence a whole run ends with, for a machine with no Emacs.
+    const said = summarise(
+      CHECKS.map((check) =>
+        check === compile
+          ? { check, secs: 0, ok: true, shown: "", unmeasured: check.needs }
+          : { check, secs: 0.1, ok: true, shown: "" },
+      ),
+      [],
+      [],
+    ).join("\n");
+    ok("a machine with no Emacs is not told the gate is green", !said.includes("the gate is green"), said);
+    ok("…and is told what it is missing", said.includes("not measured here: emacs"), said);
+  }
+
   // ------------------------------------------------------- forward: CI runs them
 
   const workflowPath = path.join(ROOT, WORKFLOW);
@@ -559,20 +689,46 @@ export async function run() {
   const invoked = new Set();
   let invocations = 0;
   const unrequired = [];
+  const excused = [];
   for (const [, line] of wLines) {
     if (!line.includes(RUNNER)) continue;
     invocations += 1;
     const after = line.slice(line.indexOf(RUNNER) + RUNNER.length).trim();
-    const named = after.split(/\s+/).filter((w) => w && !w.startsWith("-"));
+    // The metal, not the comment beside it: one job says *in words* which check
+    // it cannot measure, and its words are not names of groups.
+    const bare = after.replace(/#.*$/, "").trim();
+    const named = bare.split(/\s+/).filter((w) => w && !w.startsWith("-"));
     if (!named.length) for (const g of NAMES) invoked.add(g);
     for (const w of named) invoked.add(w);
     // A runner cannot answer "is this machine able to build the shell?" honestly
     // by guessing, and a check it could not measure is a check it did not run. On
     // CI that is a broken image, not a desk with the wrong shell open, so every
     // invocation there requires what it selects (#181).
-    if (!after.split(/\s+/).includes("--require")) unrequired.push(line.trim());
+    if (bare.split(/\s+/).includes("--require")) continue;
+    // One job is the exception, and it has to ask for the exception itself. The
+    // Emacs job that runs the *offline* half on an Emacs newer than the floor
+    // has no engine on purpose — the fault it was written for is one where no
+    // engine gets started, so the assertion that catches it needs none — and
+    // making it require `emacs-tests` would demand a Typst build to prove
+    // something about an Emacs version.
+    //
+    // So the exemption is the runner's own words, on the line: `not measured
+    // here: <check id>`. The phrase is what the gate prints for exactly this
+    // fact, and a comment that uses it is quoting the tool that would otherwise
+    // have printed it. Silently dropping `--require` stays a failure.
+    const marker = line.indexOf("not measured here:");
+    if (marker !== -1) {
+      excused.push([line.trim(), CHECKS.filter((c) => line.slice(marker).includes(c.id))]);
+      continue;
+    }
+    unrequired.push(line.trim());
   }
   check("every invocation on a runner requires what it runs", unrequired, []);
+  check(
+    "…and one that does not names the check it cannot measure",
+    excused.filter(([, named]) => named.length === 0).map(([line]) => line),
+    [],
+  );
 
   ok("the workflow calls the runner", invocations > 0);
 

@@ -66,6 +66,29 @@ answered, in the one job that builds no engine.
       passed`, offline bundle `24 passed`, the pair together `48 passed, 0
       failed`.
 
+### A whole test suite that only CI could run
+
+`node tools/gate.mjs` is the one command the repository documents and the one
+`ci.yml` splits by group. The Emacs package's 66 tests were spelled out in
+`ci.yml` and nowhere else, so `gate.mjs emacs` answered *no such group or tree*:
+a worker editing `.el` code had no inner loop, and #234 — a wire change that left
+two readers behind and shipped `ok · commands` to an installed package — went
+through a commit whose gate never opened one of its files.
+
+- [x] **#239** `group: emacs`, `tree: emacs`, three checks: the byte-compile
+      (warnings as errors, `.elc` into a temp directory rather than beside the
+      sources), the offline half asked for by name (`KSAV_EMACS_TEST_OFFLINE`),
+      and the live half with the engine as a **build product** rather than an
+      installed program. **Closed**: `needs` grew from a library to a program and
+      a binary, with a sentence for each — "not in this shell", "not on this
+      machine's search path", "not built here" — and `GATE_VERBS` now carries both
+      commands, so a re-spelling outside the runner is red (verified by putting
+      one back).
+- The finding inside the finding: the offline half was decided by looking for a
+      `ksav` on `exec-path`, so on a machine that has one installed the check
+      that must need nothing ran the live half against it — eight minutes and a
+      failure. Measured after the fix: compile 1.3 s, offline 1.1 s, live 12.6 s.
+
 ### A client with no wire-shape fence, which is how a wire change shipped
 
 The desktop application has had one since #225/#215: `app/test/wire.test.mjs` walks

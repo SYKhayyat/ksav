@@ -46,7 +46,12 @@ export async function run() {
   // has to be a claim about all of it. Reading `ksav.el` alone is how a check
   // survives a split and stops covering the thing it was written for: two of
   // these went green by moving.
-  const shipped = files.filter((f) => f.endsWith(".el") && f !== "ksav-tests.el");
+  // The denylist from the packaging tool, not a copy of it. A copy here would
+  // sweep this directory with a different answer than the tarball does, and the
+  // first file to notice would be `gate-options.el` — a byte-compile recipe that
+  // is not package code at all.
+  const { NOT_SHIPPED: notShipped } = await import("../tools/emacs-package.mjs");
+  const shipped = files.filter((f) => f.endsWith(".el") && !notShipped.includes(f));
   const packageSource = shipped.map((f) => code(read(f))).join("\n");
 
   // ------------------------------------------------- it asks for real services

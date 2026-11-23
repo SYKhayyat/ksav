@@ -579,20 +579,44 @@ green throughout."
 (defun ksav-tests--engine-wanted-p ()
   "Should the live tests run, and is that a choice or a requirement?
 
+Three states, and the third one was paid for.
+
 Returns t when there is an engine to talk to.  Signals when there is not *and*
-`KSAV_EMACS_LIVE' is set — which is what CI does, so the half of this file that
-proves this package talks to a real engine cannot quietly stop running on the
-one machine whose job is to run it."
-  (let ((have (and (executable-find ksav-executable) t)))
-    (when (and (not have) (getenv "KSAV_EMACS_LIVE"))
-      (error "KSAV_EMACS_LIVE is set and there is no `%s' on exec-path" ksav-executable))
-    have))
+`KSAV_EMACS_LIVE' is set — which is what the gate's live check does, so the half
+of this file that proves this package talks to a real engine cannot quietly stop
+running on the one machine whose job is to run it.
+
+And returns nil when `KSAV_EMACS_TEST_OFFLINE' is set, **whether or not** there
+is an engine on `exec-path'.  The gate runs this suite twice: once as the
+package's own decisions, which must hold with nothing installed, and once as the
+wire to a real engine.  The first of those was decided by looking for a `ksav'
+binary, and the machine this was written on has one in `~/.local/bin' — so the
+run that is supposed to need nothing quietly became a live run against whatever
+binary happened to be there.  It hung for eight minutes and failed, in the one
+check whose whole claim is that it is quick and needs nothing.  Naming the
+offline half is the fix: a half asked for by name is the half that runs."
+  (cond
+   ((and (getenv "KSAV_EMACS_TEST_OFFLINE") (getenv "KSAV_EMACS_LIVE"))
+    (error "KSAV_EMACS_TEST_OFFLINE and KSAV_EMACS_LIVE ask for opposite halves"))
+   ((getenv "KSAV_EMACS_TEST_OFFLINE") nil)
+   (t
+    (let ((have (and (executable-find ksav-executable) t)))
+      (when (and (not have) (getenv "KSAV_EMACS_LIVE"))
+        (error "KSAV_EMACS_LIVE is set and there is no `%s' on exec-path" ksav-executable))
+      have))))
+
+(defun ksav-tests--engine-skip-reason ()
+  "Why the live tests are not running, in words that say where they do run."
+  (if (getenv "KSAV_EMACS_TEST_OFFLINE")
+      (concat "the offline half was asked for (KSAV_EMACS_TEST_OFFLINE); the live"
+              " half runs as `node tools/gate.mjs emacs-tests-live'")
+    (format "no %s binary on exec-path" ksav-executable)))
 
 (defmacro ksav-tests--with-engine (&rest body)
   "Run BODY against a real engine, or skip when there is none."
   (declare (indent 0))
   `(if (not (ksav-tests--engine-wanted-p))
-       (ert-skip "no ksav binary on exec-path")
+       (ert-skip (ksav-tests--engine-skip-reason))
      (unwind-protect (progn ,@body) (ksav-stop))))
 
 (ert-deftest ksav-live-compiles-a-document ()

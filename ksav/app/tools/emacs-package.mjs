@@ -51,17 +51,29 @@ export { EMACS };
  * with `-L .`; it fails on the first machine that installs it, with a
  * `void-function` for code that is plainly right there in the repository.
  *
- * `ksav-tests.el` is the one exclusion. It is a real suite and it is the
- * *package's* suite, run by CI against a real engine, but it requires `ert` and
- * exists to be run from the checkout; shipping it adds a file nobody loads and
- * a byte-compile of code about the package rather than of the package. MELPA's
- * own convention is the same.
+ * Two exclusions, and both are files about the package rather than in it.
+ *
+ * `ksav-tests.el` is a real suite and it is the *package's* suite, run by CI
+ * against a real engine, but it requires `ert` and exists to be run from the
+ * checkout; shipping it adds a file nobody loads and a byte-compile of code
+ * about the package rather than of the package. MELPA's own convention is the
+ * same.
+ *
+ * `gate-options.el` is the byte-compile settings the gate loads before it
+ * compiles the package — warnings as errors, and `.elc' files into a temp
+ * directory instead of beside the sources. It is a build recipe, and a recipe
+ * shipped to readers is a file that can only ever be wrong.
+ *
+ * Exported rather than kept here: this list had a second copy in
+ * `app/test/emacs.test.mjs`, which swept the directory with its own denylist and
+ * so would have read a byte-compile recipe as package source. One list, asked
+ * twice — the same reason `GATE_VERBS` is exported.
  *
  * Ordered dependencies-first — the generated tables, then the files that use
  * them, then the front door — which is what `-pkg.el` and a reader both want.
  * Nothing depends on it: every file `require`s what it uses.
  */
-const NOT_SHIPPED = ["ksav-tests.el"];
+export const NOT_SHIPPED = ["ksav-tests.el", "gate-options.el"];
 const LOAD_ORDER = ["ksav-services.el", "ksav-release.el", "ksav-engine.el"];
 
 export const PACKAGE_FILES = [

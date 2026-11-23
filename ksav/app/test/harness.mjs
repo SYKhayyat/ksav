@@ -382,12 +382,32 @@ export function check(name, got, want) {
   record(name, g === w, `got  ${g}\n  want ${w}`);
 }
 
-export function ok(name, value) {
-  record(name, !!value, `got ${JSON.stringify(value)}, wanted something truthy`);
+// `ok` and `notOk` take **the same third argument `check` takes**, and this one
+// was dropped for the whole life of the suite.
+//
+// 842 of 2,493 call sites pass a detail — `${rows.length} handlers`, `got
+// ${JSON.stringify(out)}`, the status slot's own words — and every one of them
+// was computed, handed over, and thrown away. So a red `ok` said
+//
+//     FAIL a valid .docx imports
+//       got false, wanted something truthy
+//
+// which names the assertion and not the observation, and the observation is the
+// only thing that tells a reader whether the code is wrong or the fixture is.
+// It cost an hour twice over on 2026-11-23 (`#235`): the failure above needed a
+// throwaway probe to learn that the slot said `✗ שגיאת רשת`. `check` prints both
+// sides and has always been readable; the two most-used assertions were not.
+//
+// The detail is printed **only when the assertion fails**, because `record`
+// prints nothing on a pass and the suite's output is one line per file that went
+// red. Passed details are therefore free, which is why this can be changed
+// without making the suite louder.
+export function ok(name, value, detail) {
+  record(name, !!value, `got ${JSON.stringify(value)}, wanted something truthy${detail ? `\n  ${detail}` : ""}`);
 }
 
-export function notOk(name, value) {
-  record(name, !value, `got ${JSON.stringify(value)}, wanted something falsy`);
+export function notOk(name, value, detail) {
+  record(name, !value, `got ${JSON.stringify(value)}, wanted something falsy${detail ? `\n  ${detail}` : ""}`);
 }
 
 /** Assert that an async call rejects, and optionally with a particular name. */

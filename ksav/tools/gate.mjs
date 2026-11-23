@@ -356,6 +356,63 @@ export const NEED_FIELD = "needs";
 /** The groups, in the order they appear above. */
 export const GROUPS = [...new Set(CHECKS.map((c) => c.group))];
 
+/**
+ * What each group is, in one line, for `--help`.
+ *
+ * A table rather than a field on every check: the group is the unit a person
+ * asks for and the unit `ci.yml` splits jobs on, so the sentence belongs to the
+ * group and not to the fourth check that happens to be filed under it.
+ */
+export const GROUP_NOTES = {
+  fmt: "formatting, in all three Rust trees",
+  editor: "the application: import graph, typecheck, lints, the whole suite",
+  engine: "the engine crate: lints, tests, and the wasm target still compiles",
+  shell: "the desktop shell — needs WebKitGTK, which is the `desktop` dev shell",
+  emacs: "the Emacs package: byte-compile, then the suite offline and live",
+  wasm: "the wasm build of the engine, in the browser and on a wire",
+};
+
+/** The flags, so that a typo is an error rather than a quietly weaker run. */
+export const FLAGS = ["--release", "--require", "--help", "-h"];
+
+/**
+ * What `node tools/gate.mjs --help` prints.
+ *
+ * `docs/your-first-change.md` tells a reader that `--help` lists the groups, and
+ * it did not: `--help` fell through `args.filter((a) => !a.startsWith("-"))` and
+ * ran **the whole gate**, sixteen checks and two cargo builds, on a page that
+ * promised a list. Worse in the other direction, because the same filter made
+ * `--require` a word that may be misspelled: a workflow that said `--requird`
+ * would run every check, skip the ones it cannot build, and pass. Silently.
+ *
+ * So unknown flags are an error now, and the help is a function rather than a
+ * paragraph — `gate.test.mjs` holds it to the groups and the checks it claims to
+ * list.
+ */
+export function usage() {
+  const lines = [
+    "everything that has to pass before a push, as one command",
+    "",
+    "  node tools/gate.mjs                  every check",
+    "  node tools/gate.mjs <name> …         part of it",
+    "  node tools/gate.mjs [name …] --require   a check this shell cannot build is a failure",
+    "  node tools/gate.mjs [name …] --release   the cargo checks that take it, with it",
+    "",
+    "A name is a group (a kind of check) or a tree (a body of code). Naming a",
+    "tree runs every check about that tree, formatting included.",
+    "",
+    "groups:",
+    ...GROUPS.map((g) => `  ${g.padEnd(8)} ${GROUP_NOTES[g] ?? ""}`.trimEnd()),
+    "",
+    "trees:",
+    `  ${TREES.join(" ")}`,
+    "",
+    `checks (${CHECKS.length}):`,
+    ...CHECKS.map((c) => `  ${c.id.padEnd(18)} ${c.group}/${c.tree}  ${c.cwd}: ${c.command.join(" ")}`),
+  ];
+  return lines;
+}
+
 /** The trees, in the order they appear above. */
 export const TREES = [...new Set(CHECKS.map((c) => c.tree))];
 
@@ -644,6 +701,18 @@ function main() {
   // and saying so in the same red as a real failure is what teaches people to
   // stop reading the gate (#181).
   const require = args.includes("--require");
+  if (args.includes("--help") || args.includes("-h") || args.includes("help")) {
+    console.log(usage().join("\n"));
+    return;
+  }
+  // A flag this file does not have is a typo, and every one of them was silently
+  // a *weaker* run: `--requird` skipped what it could not build instead of
+  // failing, and `--releasee` quietly ran debug. Neither says anything.
+  const unknownFlag = args.filter((a) => a.startsWith("-") && !FLAGS.includes(a));
+  if (unknownFlag.length) {
+    console.error(`no such flag: ${unknownFlag.join(", ")}\n\nnode tools/gate.mjs --help`);
+    process.exit(2);
+  }
   const wanted = args.filter((a) => !a.startsWith("-"));
 
   const unknown = wanted.filter((g) => !NAMES.includes(g));

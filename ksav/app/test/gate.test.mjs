@@ -35,15 +35,19 @@
 
 import { check, ok } from "./harness.mjs";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import {
   CHECKS,
+  FLAGS,
   GROUPS,
+  GROUP_NOTES,
   TREES,
   NAMES,
   GATE_VERBS,
   KSAV,
   NEED_FIELD,
+  usage,
   howToRun,
   missingNeed,
   needLabel,
@@ -52,7 +56,7 @@ import {
   summarise,
   verdict,
 } from "../../tools/gate.mjs";
-import { ROOT, livingPages } from "./docfacts.mjs";
+import { ROOT, livingPages, says } from "./docfacts.mjs";
 
 /** The workflow the *forward* sweep is about: the one that runs on every push. */
 const WORKFLOW = ".github/workflows/ci.yml";
@@ -675,6 +679,57 @@ export async function run() {
     ).join("\n");
     ok("a machine with no Emacs is not told the gate is green", !said.includes("the gate is green"), said);
     ok("…and is told what it is missing", said.includes("not measured here: emacs"), said);
+  }
+
+  // --------------------------------------------------------- the help, and the flags
+  //
+  // `docs/your-first-change.md` told a reader that `node tools/gate.mjs --help`
+  // lists the groups. It did not: `--help` fell through the filter that drops
+  // flags and ran **the whole gate** — sixteen checks and two cargo builds, on a
+  // page that promised a list, from a reader who had just been told the gate is
+  // the only way to run anything.
+  //
+  // The same filter made every flag forgiving in the wrong direction. `--require`
+  // is what turns "could not measure this" into a failure on a runner; spelled
+  // `--requird` it was dropped, and the run passed while measuring less than the
+  // workflow above it believed. So flags are a list now, and a word that is not
+  // on it is an error.
+  {
+    const help = usage();
+    check(
+      "the help lists every group",
+      GROUPS.filter((g) => !help.some((line) => line.trimStart().startsWith(g))),
+      [],
+    );
+    check(
+      "…and every check, by id",
+      CHECKS.filter((c) => !help.some((line) => line.includes(c.id))),
+      [],
+    );
+    ok(
+      "…and each group says what it is",
+      GROUPS.every((g) => (GROUP_NOTES[g] ?? "").length > 10),
+      GROUPS.map((g) => `${g}: ${(GROUP_NOTES[g] ?? "").length}`).join(", "),
+    );
+    // The page's promise, and the help's answer, in one assertion: the sentence
+    // is in a living page, so it is a claim about today and not a quotation.
+    ok(
+      "the page that promises the help is telling the truth",
+      says(readFileSync(path.join(ROOT, "docs/your-first-change.md"), "utf8"), "`node tools/gate.mjs --help` lists the groups"),
+    );
+
+    // Both flags that change what a run *means*. `--release` only picks a
+    // profile; `--require` is the one that decides whether an unmeasured check
+    // stops a push, and it was silently droppable.
+    ok("the flags that change a verdict are declared", ["--require", "--release"].every((f) => FLAGS.includes(f)), FLAGS.join(" "));
+
+    const bogus = spawnSync(process.execPath, [path.join(KSAV, "tools/gate.mjs"), "--requird"], {
+      encoding: "utf8",
+    });
+    check("a mistyped flag is an error", bogus.status, 2);
+    ok("…and says where the flags are", (bogus.stderr ?? "").includes("--help"), (bogus.stderr ?? "").slice(0, 60));
+    const helped = spawnSync(process.execPath, [path.join(KSAV, "tools/gate.mjs"), "--help"], { encoding: "utf8" });
+    check("…and --help runs nothing", helped.status, 0);
   }
 
   // ------------------------------------------------------- forward: CI runs them

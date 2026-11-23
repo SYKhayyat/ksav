@@ -66,6 +66,22 @@ answered, in the one job that builds no engine.
       passed`, offline bundle `24 passed`, the pair together `48 passed, 0
       failed`.
 
+### A flag that was a promise, and a flag that could be misspelled
+
+`docs/your-first-change.md` told a reader that `node tools/gate.mjs --help` lists
+the groups. `main()` drops every word starting with `-`, so `--help` selected
+nothing — and nothing means the whole gate. A page that promises a list ran
+sixteen checks and two cargo builds instead.
+
+- [x] **#240** `FLAGS` is a list and a word that is not on it exits 2 with a
+      pointer to `--help`; `usage()` prints the invocations, the flags, each group
+      with a one-line note, and every check with its command. **Closed.** The
+      finding under the finding: `--require` is what turns "could not measure
+      this" into a failure, and misspelled it was silently dropped, so a workflow
+      could measure less than it said and exit 0. Fenced by sweeping the help
+      against `GROUPS` and `CHECKS`, and by running the runner twice — `--requird`
+      must exit 2, `--help` must exit 0 before any check is selected.
+
 ### A whole test suite that only CI could run
 
 `node tools/gate.mjs` is the one command the repository documents and the one

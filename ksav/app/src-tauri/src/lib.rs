@@ -1597,7 +1597,10 @@ mod tests {
 
         // 2. A file whose directory is gone: the Save-As that named a folder which
         //    was renamed or unmounted while the document was open. Always fails.
-        check("a missing parent directory", &dir.join("gone").join("sefer.ksav"));
+        check(
+            "a missing parent directory",
+            &dir.join("gone").join("sefer.ksav"),
+        );
 
         // 3. A read-only *directory* — a volume mounted `ro`, or a folder the
         //    writer's own permissions withdrew. The file inside it is writable, so
@@ -1613,7 +1616,9 @@ mod tests {
         if std::fs::write(&inside, "בדיקה").is_err() {
             check("a read-only directory", &inside);
         } else {
-            eprintln!("note: 'a read-only directory' skipped — this process writes through the mode.");
+            eprintln!(
+                "note: 'a read-only directory' skipped — this process writes through the mode."
+            );
         }
         let mut dperms = std::fs::metadata(&rod).unwrap().permissions();
         #[cfg(unix)]
@@ -1626,7 +1631,10 @@ mod tests {
         std::fs::set_permissions(&rod, dperms).unwrap();
         let _ = std::fs::remove_dir_all(&rod);
 
-        assert!(exercised >= 1, "at least one disk refusal must actually be exercised");
+        assert!(
+            exercised >= 1,
+            "at least one disk refusal must actually be exercised"
+        );
     }
 
     #[test]

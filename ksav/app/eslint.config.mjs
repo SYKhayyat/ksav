@@ -17,7 +17,20 @@ export default tseslint.config(
   {
     // Not this program's writing: the wasm glue `wasm-bindgen` emits, the build
     // output, and the fixtures the suite generates at run start.
-    ignores: ["dist/**", "node_modules/**", "wasmpkg/**", ".tmp-test/**", "test/.fixtures/**"],
+    //
+    // `**/wasmpkg/**`, not `wasmpkg/**`. The glue is written to `src/wasmpkg/`,
+    // and a pattern anchored at the config's own directory matched nothing — the
+    // lint pass then read a generated JavaScript file and reported twenty-two
+    // findings about `console`, `WebAssembly` and `TextEncoder` not being
+    // defined. It only surfaced the first time a full wasm build happened on this
+    // machine, because until then the file was not there to lint.
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "**/wasmpkg/**",
+      ".tmp-test/**",
+      "test/.fixtures/**",
+    ],
   },
 
   js.configs.recommended,

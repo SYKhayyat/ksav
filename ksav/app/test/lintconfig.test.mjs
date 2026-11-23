@@ -58,10 +58,39 @@ export async function run() {
     "`no-floating-promises` is a question about an expression's type",
   );
 
-  ok(
-    "the generated wasm glue and the fixtures are not linted",
-    /wasmpkg\//u.test(config) && /\.tmp-test\//u.test(config),
-  );
+  // **The pattern, evaluated — because the phrase-level version passed for a
+  // year while matching nothing.** The glue `wasm-bindgen` writes lives at
+  // `src/wasmpkg/`, and the ignore was `wasmpkg/**`: anchored where no file is.
+  // The lint pass went on to read a generated JavaScript file and report
+  // twenty-two findings about `console` and `WebAssembly` not being defined;
+  // it surfaced only when a full wasm build first happened on this machine,
+  // because until then there was no such file to lint. `wasmpkg/` appearing in
+  // the config was true the whole time, which is what this assertion used to
+  // ask and why it was worth nothing.
+  {
+    const listed = [...(/ignores:\s*\[([\s\S]*?)\]/u.exec(config)?.[1] ?? "").matchAll(/"([^"]+)"/gu)].map(
+      (m) => m[1],
+    );
+    const matches = (glob, path) => {
+      const rx = glob
+        .split("**")
+        .map((part) => part.split("*").map((s) => s.replace(/[.+?^${}()|[\]\\]/gu, "\\$&")).join("[^/]*"))
+        .join(".*");
+      return new RegExp(`^${rx}$`, "u").test(path);
+    };
+    ok("the config lists patterns to ignore", listed.length >= 3, `${listed.length}: ${listed.join(" ")}`);
+    ok("…including the fixtures the suite generates", listed.some((g) => matches(g, "test/.fixtures/scan.json")), listed.join(" "));
+    ok(
+      "the generated wasm glue is ignored, as a pattern and not as a phrase",
+      listed.some((g) => matches(g, "src/wasmpkg/ksav_wasm.js")),
+      listed.join(" "),
+    );
+    ok(
+      "…and the application's own source is not, so the ignore is not a blanket",
+      !listed.some((g) => matches(g, "src/compile.ts")),
+      listed.join(" "),
+    );
+  }
 
   {
     const pkg = JSON.parse(read("package.json"));

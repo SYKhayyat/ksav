@@ -29,6 +29,22 @@ everyone else. Linux packaging stays distro-neutral, with no Nix-only paths.
 Clear these before any milestone work. The older ledger, with the reasons each
 item was accepted at the time, is `decisions/2026-10-22-accepted-debts.md`.
 
+### A fence asked about a phrase where the question was a pattern
+
+`ac499fc`. The lint check went red on this machine for the first time, and all
+twenty-two findings were in `src/wasmpkg/ksav_wasm.js` — the glue `wasm-bindgen`
+writes, complaining that `console` and `WebAssembly` are undefined. The ignore was
+`"wasmpkg/**"`, anchored at the config's directory, while the glue lives at
+`src/wasmpkg/`: the pattern matched no file. `lintconfig.test.mjs` asserted
+`/wasmpkg\//.test(config)` — that the *word* was in the file, which it was.
+
+It is the same class as `indexOf(a) < indexOf(b)` reading `true` when `a` is
+absent: **a fence that asks whether a string appears where the question was
+whether a pattern matches.** The fence now evaluates the patterns (glue ignored,
+fixtures ignored, `src/compile.ts` not ignored), and the reason it could not
+surface earlier is that this box had never completed a 35-minute wasm build until
+today — a lint pass over a file that does not exist has nothing to say.
+
 ### Two fences were reading a stopwatch, and only saw it under load
 
 Found because a full-suite run failed twice in one afternoon and passed when the

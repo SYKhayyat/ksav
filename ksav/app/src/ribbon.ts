@@ -16,13 +16,11 @@ import * as heads from "./headings";
 import * as styles from "./styles";
 import { ALIGN_ORDER, settings } from "./settings";
 import { edgeAt } from "./alignment";
-import { getLang, t, tf, hasKey, type Lang } from "./i18n";
-import { el, iconBtn, tbGroup, noticeHost } from "./dom";
+import { getLang, t, tf, hasKey } from "./i18n";
+import { el, iconBtn, noticeHost } from "./dom";
 import { closeMenus, toggleMenu } from "./panels";
 import { hintFor, hintIsMode } from "./keyhint";
-import { docLang, insertSnippet, tieredNoteHere } from "./insert";
-import { openPalette } from "./palette";
-
+import { docLang, insertSnippet } from "./insert";
 import { docTextOf } from "./spans";
 import { typstString } from "./typst-escape";
 import { scheduleCompile } from "./compile";
@@ -192,7 +190,7 @@ export function docTextNow(): string {
  *     heading that is the Headings section at *this* level; for a custom style it
  *     is that style's own knobs.
  */
-function paragraphStyleControl(): HTMLElement {
+export function paragraphStyleControl(): HTMLElement {
   const sel = el("select", {
     id: "heading-level",
     class: "heading-select",
@@ -378,7 +376,7 @@ let highlightColour = styles.DEFAULT_HIGHLIGHT;
  * something belongs there, and pressing it re-runs the registry load rather than
  * doing nothing.
  */
-function missingControl(glyph: string, command: string): HTMLElement {
+export function missingControl(glyph: string, command: string): HTMLElement {
   return iconBtn(
     glyph,
     t("registryMissing"),
@@ -399,9 +397,10 @@ function missingControl(glyph: string, command: string): HTMLElement {
  * the argument takes any colour and a fixed palette would be the product being
  * narrower than the document format again.
  */
-function highlightControl(writing: Lang): HTMLElement {
+export function highlightControl(label: string): HTMLElement {
+  const writing = docLang();
   const cmd = runtime.commandsReg.find((c) => c.he === "סימון");
-  if (!cmd) return missingControl("▨", "סימון");
+  if (!cmd) return missingControl(label, "סימון");
   const name = writing === "he" ? cmd.he : cmd.en;
   const desc = getLang() === "he" ? cmd.desc_he : cmd.desc_en;
   const swatch = el("input", {
@@ -429,231 +428,31 @@ function highlightControl(writing: Lang): HTMLElement {
   // would make every use two gestures, and the second one invisible.
   swatch.addEventListener("change", apply);
   return el("span", { class: "tb-split" }, [
-    iconBtn("🖍", `${desc} · #${name}`, apply, "", { "data-command": cmd.he }),
+    el("button", { class: "tb-btn ribbon-btn", type: "button", title: `${desc} · #${name}`, "data-command": cmd.he, onClick: apply }, [label]),
     swatch,
   ]);
 }
 
 /**
- * A note button, labelled with its name *and* its shortcut.
+ * The three edges, in the order `settings.ALIGN_ORDER` offers them (#136), by
+ * the command each one runs.
  *
- * `snippet: null` means "read the caret" — the tiered note is `#הערה_א` in
- * prose, `#הערה_ב` inside a note and `#הערה_ג` inside two, which is the only
- * way one button can mean "a note on this".
+ * The paragraph group draws its alignment faces in this order, not the order
+ * `HOME` lists them in, so the ribbon and the settings control cannot come to
+ * different opinions about the order. In an English interface the old
+ * hand-written row showed the right-align button on the left of its group. The
+ * glyphs name edges (`⇤` left, `≡` centre, `⇥` right) and do not mirror, so
+ * neither does the order: the row is pinned left-to-right in `styles.css`.
  */
-function noteBtn(action: string, glyph: string, snippet: string | null): HTMLElement {
-  const hint = hintFor(action);
-  const title = t("sc." + action) + (hint ? ` · ${hint}` : "");
-  // `iconBtn` writes `title` **and** `aria-label` from the one string above, so
-  // one `data-i18n-both` covers both — and the chord is an argument rather than
-  // part of the key, because `Ctrl+Shift+F` is `Ctrl+Shift+F` in Hebrew and the
-  // sentence around it is not. Measured 2026-09-27: this one function left every
-  // note button in Hebrew after a switch to English.
-  const i18n: Record<string, string> = hint
-    ? { "data-i18n-both": "msg.shortcut", "data-i18n-both-args": JSON.stringify([`:sc.${action}`, hint]) }
-    : { "data-i18n-both": `sc.${action}` };
-  return iconBtn(
-    glyph,
-    title,
-    () => {
-      const st = runtime.view.state;
-      insertSnippet(snippet ?? tieredNoteHere(docTextOf(st.doc), st.selection.main.from));
-    },
-    "",
-    { "data-action": action, ...i18n },
-  );
-}
+const ALIGN_BUTTON: Record<(typeof ALIGN_ORDER)[number], { he: string; glyph: string }> = {
+  left: { he: "שמאל", glyph: "⇤" },
+  center: { he: "מרכז", glyph: "≡" },
+  right: { he: "ימין", glyph: "⇥" },
+};
 
-export function buildToolbar(): HTMLElement {
-  const lang = getLang();
-  // No commands at all is not a state this product can be in, and drawing an
-  // empty toolbar would present it as one. Said in words, in the surface the
-  // writer is looking at, with the retry the notice already carries.
-  if (runtime.commandsReg.length === 0) {
-    return el("div", { class: "toolbar toolbar-empty", role: "toolbar", "aria-label": t("toolbar") }, [
-      el("span", { class: "toolbar-failed", role: "status" }, [t("registriesFailed")]),
-    ]);
-  }
-  // Two languages in one tooltip, and they are not the same question. The
-  // *description* is the interface's, because it is being read; the **command
-  // name** is the document's, because it is what the button is about to write.
-  // An English toolbar reading "Bold text · #הדגשה" over a button that inserts
-  // `#bold` is naming something that will not be in the document.
-  const writing = docLang();
-  const byName = (he: string) => runtime.commandsReg.find((c) => c.he === he);
-  /**
-   * A button in a group its category does not name, with the reason why.
-   *
-   * The ribbon groups by *what a writer reaches for*; the registry groups by
-   * *what a command is*. Those two agree almost everywhere, and where they do
-   * not, the disagreement is a product decision worth writing down rather than
-   * a mistake worth hiding. `toolbar.test.mjs` checks membership against the
-   * registry and lets a `guest` through — so the check stays total, and every
-   * exception to it is one line away from the button it excuses.
-   *
-   * `why` is never read at runtime. It is there to be read by a person, and to
-   * make declaring a guest cost a sentence of justification rather than nothing.
-   */
-  const guest = (he: string, label: string, _why: string) => b(he, label);
-  const b = (he: string, label: string) => {
-    const c = byName(he);
-    if (!c) return missingControl(label, he);
-    const title = lang === "he" ? c.desc_he : c.desc_en;
-    return iconBtn(label, `${title} · #${writing === "he" ? c.he : c.en}`, () => insertSnippet(c.insert), "", {
-      "data-command": c.he,
-    });
-  };
-
-  /**
-   * The three edges, in the order `settings.ALIGN_CHOICES` offers them (#136).
-   *
-   * Built from that list rather than typed out here, so the ribbon and the
-   * settings control cannot come to different opinions about the order — which
-   * is exactly what they had, and what a writer saw as the right-align button
-   * sitting on the left of its group in an English interface. The glyphs name
-   * edges (`⇤` left, `≡` centre, `⇥` right) and do not mirror, so neither does
-   * the order: the row is pinned left-to-right in `styles.css` and reads the
-   * same in Hebrew and in English.
-   */
-  const ALIGN_BUTTON: Record<(typeof ALIGN_ORDER)[number], { he: string; glyph: string }> = {
-    left: { he: "שמאל", glyph: "⇤" },
-    center: { he: "מרכז", glyph: "≡" },
-    right: { he: "ימין", glyph: "⇥" },
-  };
-  /**
-   * One alignment button, which knows which edge it is and whether that edge is
-   * the paragraph's already.
-   *
-   * `data-align` is the vocabulary the state is written and read in — `data-command`
-   * names the command, and the Hebrew spelling of a command is not the answer to
-   * "which of these three is on". `refreshAlignState` fills `aria-pressed` from
-   * the paragraph the caret is in, the way B/I would if the ribbon showed their
-   * state; until it runs, every one of them says `false`, which is what a ribbon
-   * built before the editor exists actually knows.
-   */
-  const alignBtn = (edge: (typeof ALIGN_ORDER)[number]) => {
-    const c = byName(ALIGN_BUTTON[edge].he);
-    if (!c) return missingControl(ALIGN_BUTTON[edge].glyph, ALIGN_BUTTON[edge].he);
-    const title = lang === "he" ? c.desc_he : c.desc_en;
-    return iconBtn(
-      ALIGN_BUTTON[edge].glyph,
-      `${title} · #${writing === "he" ? c.he : c.en}`,
-      () => insertSnippet(c.insert),
-      "tb-align-btn",
-      { "data-command": c.he, "data-align": edge, "aria-pressed": "false" },
-    );
-  };
-  const alignGroup = tbGroup(
-    t("cat.align"),
-    ALIGN_ORDER.map((edge) => alignBtn(edge)),
-    "tb-align",
-  );
-
-  return el("div", { class: "toolbar", role: "toolbar", "aria-label": t("toolbar") }, [
-    tbGroup(t("cat.style"), [
-      b("הדגשה", "B"),
-      b("נטוי", "I"),
-      b("קו_תחתון", "U"),
-      b("קו_חוצה", "S"),
-      highlightControl(writing),
-    ]),
-    // The paragraph-style control, which is a word processor's single most-used
-    // widget and which Ksav did not have. Three fixed buttons could only reach
-    // three of nine levels, and could not tell the writer which one they were
-    // standing in — a dropdown does both, and is where a Word user looks first.
-    // **"Styles", not "Headings".** Reported from the writing side: *"it says
-    // Heading, when it should be styles"*, and they were right about what the
-    // group holds. The dropdown under this label offers body text, the nine
-    // heading levels, **every style the writer has defined in this document**,
-    // and "new style…" — so a label naming one of those four was telling a
-    // writer their own styles were somewhere else. It is the Styles group in
-    // every word processor there is, for the same reason.
-    //
-    // Its own key rather than a changed one: `cat.heading` is the *command
-    // registry's* category, and the Insert menu's Headings section is correctly
-    // named by it.
-    tbGroup(t("styleGroup"), [paragraphStyleControl()]),
-    tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1.")]),
-    // Its own group, because a table is not a list.
-    //
-    // `#טבלה` sat in the group captioned "Lists" until a writer said so:
-    // *"Table is still under lists. That is not at all accurate."* — and
-    // "still" is the word that matters. `menus.ts` had already given tables
-    // their own menu, and `commands.rs` had already categorised every table
-    // command as `table`; the ribbon is hand-assembled and had never heard of
-    // either. So the taxonomy was fixed in the two places that publish it and
-    // wrong in the one place a writer actually looks.
-    //
-    // The captions here **are** registry category keys, which is what makes
-    // `toolbar.test.mjs` able to check membership against the registry rather
-    // than against a second list. That check is the point of this change: one
-    // misfiled button is a nuisance, and the mechanism that let it stay misfiled
-    // through a taxonomy rewrite is the defect.
-    tbGroup(t("cat.table"), [b("טבלה", "▦")]),
-    // The toolbar told the truth about one of these three.
-    //
-    // `†` was right. `⁑` inserted `#הערה_על_הערה`, which sounds like the tiered
-    // mechanism and is a cosmetic alias — 0.6pt smaller and slanted, in the same
-    // block and the same running sequence — while the real tiered note had no
-    // button at all. And the endnote, which the engine has always had, was
-    // reachable from nowhere: no button, no Insert item, and picking it out of
-    // the palette silently lost every note because nothing wrote the dump call.
-    // A writer clicks what the toolbar offers, so the toolbar has to offer the
-    // thing it names.
-    // Three, not four. `⁑` — a note *on* a note, which renders as a slightly
-    // smaller, indented, separately-lettered entry in the same block — is a real
-    // sefer apparatus and a rare one, and the toolbar is the most expensive
-    // surface in the product. It keeps its Insert-menu item, its place in the
-    // Notes chooser and `Ctrl+Shift+N`; it does not keep a button beside the
-    // footnote that nearly everybody actually wants.
-    tbGroup(t("cat.footnote"), [
-      noteBtn("footnote", "†", "#הערה[|]"),
-      noteBtn("endnote", "⁋", "#הערתסיום[|]"),
-      // And the third one was a blue box.
-      //
-      // This was `b("הערת_צד", "▣")` — `#הערת_צד`, which the registry calls
-      // `callout` and describes as *תיבת הדגשה (כחול)*. Its Hebrew name reads
-      // "side note", it sat between the footnote and the endnote, and a writer
-      // who wanted a note down the margin pressed it and got a blue box. The
-      // real margin note, `#הערת_גיליון`, had no button at all — only the Notes
-      // chooser, under "margin", for whoever thought to look.
-      //
-      // Which is the same sentence as the paragraph above about `⁑`, written
-      // about a different button in the same group. A note button that inserts
-      // something other than a note is this group's recurring failure, and
-      // `toolbar.test.mjs` now checks the group against the registry so the
-      // third instance is caught by a test rather than by a writer.
-      noteBtn("sidenote", "▣", "#הערת_גיליון[|]"),
-    ]),
-    alignGroup,
-    tbGroup(t("cat.torah"), [
-      // A guest, declared rather than smuggled.
-      //
-      // `#ציטוט` is a block quote and the registry is right to categorise it
-      // `block`. It is here because of what a writer setting a sefer is doing
-      // when they reach for the toolbar: quoting is the gesture that sits
-      // beside siman, se'if and mareh makom, and the block-quote category holds
-      // nothing else anyone reaches for at that moment.
-      //
-      // `guest` exists so that this is a *statement* with a reason attached to
-      // the button, and not an exception list inside `toolbar.test.mjs`. An
-      // exception list in the test would be a second opinion about the taxonomy
-      // kept in the one file whose job is to have no opinions — which is the
-      // exact shape of the problem that put the table under Lists.
-      guest("ציטוט", "❝", "a sefer quotes where it cites; block holds nothing else a writer reaches for here"),
-      b("סימן", "§"),
-      b("סעיף", "א."),
-      b("מראה_מקום", "‡"),
-    ]),
-    tbGroup(t("tools"), [
-      // "Region" until this button got a name that says what it does. It makes
-      // a fold — the text prints in full — and `#אזור` is now a real command
-      // for a fixed area on the page, so the old label named the wrong one of
-      // the two things it could have meant.
-      iconBtn("▤", t("fold"), () => chromeWiring().insertFold()),
-      iconBtn("⋯", t("palette"), () => openPalette()),
-    ]),
-  ]);
+/** Which edge a command aligns to, if it is one of the three. */
+export function alignEdgeOf(he: string | undefined): (typeof ALIGN_ORDER)[number] | undefined {
+  return ALIGN_ORDER.find((edge) => ALIGN_BUTTON[edge].he === he);
 }
 
 /**

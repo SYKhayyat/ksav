@@ -6,11 +6,11 @@
 // a `tablist` with one tab in the tab order, a panel of groups each ending in
 // `⋯` / `⚙`, and every button named in the interface language.
 
-import { check, ok, installChrome } from "./harness.mjs";
+import { check, ok, installChrome, fakeView } from "./harness.mjs";
 import { commands } from "../tools/commands.mjs";
 import { HOME, MAX_FACE, TABS, menuTree, placed, tabOf, tabTree } from "../.tmp-test/placement.mjs";
 import { buildRibbon, faceLabel, menuToggle, stepTab } from "../.tmp-test/shelltabs.mjs";
-import { setRegistries } from "../.tmp-test/runtime.mjs";
+import { setRegistries, setView } from "../.tmp-test/runtime.mjs";
 import { t } from "../.tmp-test/i18n.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -70,6 +70,8 @@ export async function run() {
 
   // ------------------------------------------------ the drawing
   installChrome();
+  // The highlighter asks the document its language, so the editor must be well formed.
+  setView(fakeView("שלום"));
   setRegistries(reg, []);
   const ribbon = buildRibbon();
   const [strip, panel] = ribbon.children;
@@ -114,5 +116,5 @@ export async function run() {
   const header = src("appheader.ts");
   ok("the tabs shell draws the ribbon", header.includes('variant === "tabs" ? [buildRibbon()] : []'));
   ok("and folds the bar only when menubar is auto", header.includes('variant === "tabs" && shell.menubar === "auto"'));
-  ok("only the toolbar shell draws the toolbar", header.includes('variant === "toolbar" ? [buildToolbar()] : []'));
+  ok("only the toolbar shell draws the toolbar", header.includes('variant === "toolbar" ? [buildPinnedTab()] : []'));
 }

@@ -1206,9 +1206,11 @@ async function main() {
   step(3, "a bulleted list");
   current = "bullets";
   await newLine();
-  await act("clicking • in the ribbon", () =>
-    clickVisible("the • button", '.toolbar [data-command="רשימה"]'),
-  );
+  // Lists are not on Home (spec §5), so since #233 the bullet is an Insert row.
+  await act("choosing Insert ▸ bullets", async () => {
+    await clickVisible("the Insert menu", '[data-menu="insert"] > .menu-btn');
+    await clickVisible("the bullets row", '[data-menu="insert"] [data-action="bullets"]');
+  });
   await act("typing in the first bullet", () => type("סעיף אלף"));
 
   // ----------------------------------------------------------- 4. a table row
@@ -1216,9 +1218,11 @@ async function main() {
   step(4, "a table, and then a row in it");
   current = "table";
   await newLine();
-  await act("clicking ▦ in the ribbon", () =>
-    clickVisible("the ▦ button", '.toolbar [data-command="טבלה"]'),
-  );
+  // The table's one home is the Table menu and tab (spec §5).
+  await act("choosing Table ▸ table", async () => {
+    await clickVisible("the Table menu", '[data-menu="table"] > .menu-btn');
+    await clickVisible("the table row", '[data-menu="table"] [data-action="table"]');
+  });
   await act("typing in a cell", () => type("עמודה"));
   // Through the palette, which is where a structural operation lives: it is
   // offered only when the caret is actually inside a table, so finding it here
@@ -1253,9 +1257,11 @@ async function main() {
   step(6, "an endnote");
   current = "endnote";
   await newLine();
-  await act("clicking ⁋ in the ribbon", () =>
-    clickVisible("the ⁋ button", '.toolbar [data-action="endnote"]'),
-  );
+  // On Home the endnote sits behind the notes group's ⋯ (spec §5, `HOME`).
+  await act("choosing ⋯ ▸ endnote in the toolbar", async () => {
+    await clickVisible("the notes group's ⋯", '.toolbar [data-menu="more-homeNotes"] > .menu-btn');
+    await clickVisible("the endnote row", '.toolbar [data-menu="more-homeNotes"] [data-action="endnote"]');
+  });
   await act("typing the endnote", () => type("מקור הדברים"));
 
   // ---------------------------------------------------------- 7. export a PDF

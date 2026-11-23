@@ -1,185 +1,85 @@
-// The ribbon's groups, held to the same taxonomy the menubar is held to.
+// The toolbar is a pinned tab (#233, step 5; `docs/ui-architecture.md` §4, §6).
 //
-// # The finding
+// # What this file used to hold
 //
-// A writer said: *"Table is still under lists. That is not at all accurate."*
-// They were looking at `ribbon.ts`, where the ribbon read
+// The toolbar was laid out by hand in `ribbon.ts`, and a writer found the table
+// button in the group captioned **Lists** — *"Table is still under lists. That is
+// not at all accurate."* This file parsed the hand-written `tbGroup(t("cat.X"),
+// [ … ])` calls and checked each button against the registry's categories,
+// because the ribbon consulted neither of the places that publish the taxonomy.
 //
-//     tbGroup(t("cat.list"), [b("רשימה", "•"), b("ממוספרת", "1."), b("טבלה", "▦")]),
+// # What it holds now
 //
-// — the table button hand-placed inside the group captioned **Lists**.
+// There is no hand-written toolbar left to misfile a button in. The toolbar is
+// the tab renderer pinned to one tab (Home by default, `shell.toolbarTab`
+// otherwise) with the strip hidden, so its groups are `tabTree`'s, and whether
+// an action sits in the right group is a question about placements, which
+// `placement.test.mjs` asks. What is asserted here:
 //
-// The word doing the work in that report is *still*. Tables already had their
-// own menu (`menus.ts`, whose header says so in as many words) and every table
-// command was already categorised `table` in `commands.rs`. Both places that
-// *publish* the taxonomy were right. The one place a writer actually looks was
-// wrong, and had been through the entire menu rewrite, because the ribbon is
-// assembled by hand and consults neither.
-//
-// # Why a test and not just a fix
-//
-// Moving one button costs a line. What that line does not buy is any reason to
-// believe the next hand-placed button lands in the right group — and the last
-// one survived a deliberate rewrite of exactly this taxonomy, in silence. The
-// defect is not the misfiled button; it is that nothing could see it.
-//
-// The check is possible at all because the captions **are** registry category
-// keys: `tbGroup(t("cat.table"), …)` names a category the engine publishes, so
-// membership can be asked of the registry rather than of a second list kept
-// here. A group whose caption is not a `cat.*` key — the paragraph-style
-// dropdown, the tools group — is not making a claim about categories and is
-// skipped rather than guessed at.
-//
-// # On reading `ribbon.ts` as text
-//
-// `chrome.test.mjs`'s header is a long argument against exactly this, and it is
-// right about what it describes: that file identified surfaces by the *names of
-// locals*, over 5,600 lines, and two pure renames blinded it. The shape matched
-// here is not a name that might recur — it is the literal call `tbGroup(t("cat.
-// X"), [ … ])`, which occurs only in the toolbar and only where a group is
-// declared. The mutation that matters is checked below: move a button between
-// groups and this file goes red.
+//   1. `ribbon.ts` lays out no group by hand, and `buildToolbar` is gone;
+//   2. the pinned toolbar draws exactly the pinned tab's groups, in order;
+//   3. `toolbarTab` pins another tab, and a name that is no tab falls back to Home;
+//   4. the table the report was about can still be inserted: it has its own
+//      group on the Table tab (its one home, spec §5), never under Lists.
 
-import { check, ok } from "./harness.mjs";
+import { check, ok, notOk, installChrome, fakeView } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 import { commands } from "../tools/commands.mjs";
+import * as runtime from "../.tmp-test/runtime.mjs";
+import { settings } from "../.tmp-test/settings.mjs";
+import { SHELL_DEFAULTS } from "../.tmp-test/shellsettings.mjs";
+import { placed, tabTree } from "../.tmp-test/placement.mjs";
+import { buildPinnedTab } from "../.tmp-test/shelltabs.mjs";
 
 const RIBBON = readFileSync(path.join(dirOf(import.meta.url), "..", "src", "ribbon.ts"), "utf8");
 
-/**
- * Every `tbGroup(t("…"), [ … ])` in the file, as `{ caption, body }`.
- *
- * Bracket-matched rather than regex-terminated: a group's body contains nested
- * brackets (`b("x", "•")`, object literals) and a lazy `\]` stops at the first
- * of them, which credits a group with three buttons when it has five.
- */
-function groups() {
-  const out = [];
-  const open = /tbGroup\(t\("([^"]+)"\),\s*\[/g;
-  for (let m; (m = open.exec(RIBBON)); ) {
-    let depth = 1;
-    let i = m.index + m[0].length;
-    for (; i < RIBBON.length && depth > 0; i++) {
-      if (RIBBON[i] === "[") depth++;
-      else if (RIBBON[i] === "]") depth--;
-    }
-    out.push({ caption: m[1], body: RIBBON.slice(m.index + m[0].length, i - 1) });
-  }
-  return out;
-}
-
-/** A group's body with its comments removed — a command name quoted in prose is
- *  not a button, and the groups here carry long ones. */
-function code(body) {
-  return body.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
-}
-
-/** The Hebrew command names a group's `b("…", …)` buttons insert. */
-function buttonsIn(body) {
-  // `\bb\(` and not `b\(`, so `guest(…)` is not counted here — a guest is
-  // checked separately, and by a rule that is deliberately different.
-  return [...code(body).matchAll(/(?:^|[^A-Za-z0-9_])b\("([^"]+)"/g)].map((m) => m[1]);
-}
-
-/**
- * A group's declared guests: `guest("command", "glyph", "why")`.
- *
- * The reason is captured because it is the thing being required. A guest whose
- * justification is an empty string is an exception with no argument behind it,
- * which is the state this mechanism exists to make impossible to reach quietly.
- */
-function guestsIn(body) {
-  return [...code(body).matchAll(/\bguest\("([^"]+)",\s*"[^"]*",\s*"([^"]*)"/g)].map((m) => ({
-    command: m[1],
-    why: m[2],
-  }));
-}
-
 export async function run() {
+  // ------------------------------------------------- 1. nothing by hand
+  notOk("ribbon.ts lays out no group by hand", /tbGroup\(/.test(RIBBON));
+  notOk("and the hand-built toolbar is gone", /export function buildToolbar\b/.test(RIBBON));
+
+  // ------------------------------------------------- 2. the pinned tab
+  installChrome();
+  runtime.setView(fakeView("שלום"));
   const reg = commands();
-  const byHe = new Map(reg.map((c) => [c.he, c]));
-  const categories = new Set(reg.map((c) => c.category));
-  const found = groups();
+  runtime.setRegistries(reg, []);
+  const { BUILT_IN } = await import("../.tmp-test/actionsurface.mjs");
+  const tree = tabTree(placed({ builtIns: BUILT_IN.map((a) => a.id), commands: reg, macros: [], styles: [] }));
+  const groupsOf = (tab) => tree.find((n) => n.tab === tab).groups.map((g) => g.group);
 
-  // The parse itself, asserted before anything is concluded from it. A regex
-  // that silently matches nothing turns every check below into a check of an
-  // empty list, which is the cheapest possible green.
-  ok("the toolbar declares groups", found.length >= 5);
-  ok(
-    "the toolbar's groups carry buttons",
-    found.reduce((n, g) => n + buttonsIn(g.body).length, 0) >= 10,
-  );
+  const before = settings.shell;
+  try {
+    settings.shell = { ...SHELL_DEFAULTS };
+    const bar = buildPinnedTab();
+    check("the toolbar is a toolbar", [bar.role, bar.className], ["toolbar", "toolbar ribbon-pinned"]);
+    check("it pins Home by default", bar["data-tab"], "home");
+    check("and draws Home's groups, in order", bar.children.map((g) => g["data-group"]), groupsOf("home"));
+    ok("with no tab strip above them", !bar.children.some((g) => g.role === "tablist"));
 
-  // ------------------------------------------------- 1. captions are real
-  //
-  // A caption of `cat.X` claims the engine publishes a category `X`. A typo
-  // here would put a group under a key that resolves to nothing and files its
-  // buttons under a heading no writer can match to anything else in the product.
-  {
-    const claimed = found.map((g) => g.caption).filter((c) => c.startsWith("cat."));
-    check(
-      "every cat.* group caption names a category the engine publishes",
-      claimed.filter((c) => !categories.has(c.slice(4))),
-      [],
+    // ----------------------------------------------- 3. another tab
+    settings.shell = { ...SHELL_DEFAULTS, toolbarTab: "insert" };
+    const insert = buildPinnedTab();
+    check("toolbarTab pins another tab", insert["data-tab"], "insert");
+    check("and draws that tab's groups", insert.children.map((g) => g["data-group"]), groupsOf("insert"));
+
+    settings.shell = { ...SHELL_DEFAULTS, toolbarTab: "nowhere" };
+    check("a name that is no tab falls back to Home", buildPinnedTab()["data-tab"], "home");
+
+    // ----------------------------------------------- 4. the table
+    settings.shell = { ...SHELL_DEFAULTS, toolbarTab: "table" };
+    const pinned = buildPinnedTab();
+    const where = tree.flatMap((n) =>
+      n.groups.filter((g) => g.face.some((a) => a.command?.he === "טבלה")).map((g) => `${n.tab}/${g.group}`),
     );
-  }
-
-  // ------------------------------------------------- 2. membership matches
-  //
-  // The one that was red. `#טבלה` is categorised `table` and sat under
-  // `cat.list`.
-  {
-    const wrong = [];
-    for (const g of found) {
-      if (!g.caption.startsWith("cat.")) continue;
-      const want = g.caption.slice(4);
-      for (const he of buttonsIn(g.body)) {
-        const cmd = byHe.get(he);
-        if (!cmd) {
-          wrong.push(`${he} (in ${g.caption}) is not a registry command`);
-          continue;
-        }
-        if (cmd.category !== want) wrong.push(`${he} is ${cmd.category}, shown under ${g.caption}`);
-      }
-    }
-    check("every button sits in the group its category names", wrong, []);
-  }
-
-  // ------------------------------------------------- 2b. guests are declared
-  //
-  // The escape hatch, kept narrow. A guest is a button the ribbon puts
-  // somewhere its category does not name *on purpose* — the ribbon groups by
-  // what a writer reaches for, the registry by what a command is — and the only
-  // thing required of one is that it be a real command and carry a stated
-  // reason. The exception lives beside the button in `ribbon.ts`, never in a list
-  // here: a list here would be a second opinion about the taxonomy, kept in the
-  // file whose whole job is to hold no opinion of its own.
-  {
-    const guests = found.flatMap((g) => guestsIn(g.body));
-    check(
-      "every declared guest is a registry command",
-      guests.filter((g) => !byHe.has(g.command)).map((g) => g.command),
-      [],
+    ok("a table can be inserted from a tab's face", where.length > 0);
+    check("never from a Lists group", where.filter((w) => /list/i.test(w)), []);
+    ok(
+      "and a toolbar pinned to Table draws it",
+      JSON.stringify(pinned, (k, v) => (k === "parentNode" || k === "listeners" ? undefined : v)).includes('"data-command":"טבלה"'),
     );
-    check(
-      "every declared guest says why it is a guest",
-      guests.filter((g) => g.why.trim().length < 10).map((g) => g.command),
-      [],
-    );
-  }
-
-  // ------------------------------------------------- 3. tables have a home
-  //
-  // Named explicitly rather than left implicit in (2), because (2) is also
-  // satisfied by deleting the button — and a table nobody can insert from the
-  // ribbon is a worse answer to the report than the misfiling was.
-  {
-    const table = found.find((g) => g.caption === "cat.table");
-    ok("the ribbon has a Tables group", Boolean(table));
-    ok("the Tables group can insert a table", Boolean(table && buttonsIn(table.body).includes("טבלה")));
-    const lists = found.find((g) => g.caption === "cat.list");
-    ok("the Lists group no longer holds the table", Boolean(lists) && !buttonsIn(lists.body).includes("טבלה"));
+  } finally {
+    settings.shell = before;
   }
 }

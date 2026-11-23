@@ -5,6 +5,7 @@ import path from "node:path";
 import { PANELS, hasExit, handleEscape } from "../.tmp-test/panels.mjs";
 import { dispatchRowAction, paletteActionsAt, paletteList } from "../.tmp-test/panelrows.mjs";
 import * as ribbon from "../.tmp-test/ribbon.mjs";
+import * as shelltabs from "../.tmp-test/shelltabs.mjs";
 import * as contextbar from "../.tmp-test/contextbar.mjs";
 import * as girsa from "../.tmp-test/girsa.mjs";
 import * as palette from "../.tmp-test/palette.mjs";
@@ -667,7 +668,7 @@ check(
     // here is the contract between the chrome and the shell: the chrome
     // answers for nothing until boot has registered the wiring, and after
     // registration the shell's answers are the ones that come back.
-    ok("the toolbar and the caret strip are reachable from their own modules", typeof ribbon.buildToolbar === "function" && typeof contextbar.contextBar === "function" && typeof contextbar.updateContextBar === "function");
+    ok("the toolbar and the caret strip are reachable from their own modules", typeof shelltabs.buildPinnedTab === "function" && typeof contextbar.contextBar === "function" && typeof contextbar.updateContextBar === "function");
     let guardHeld = false;
     try {
       ribbon.chromeWiring();

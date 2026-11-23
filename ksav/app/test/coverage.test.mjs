@@ -106,7 +106,6 @@ const MAIN = read("main.ts") + read("actionsurface.ts");
 const STYLES_PANEL = read("stylespanel.ts");
 const DESTINATIONS = read("destinations.ts");
 const REVIEW_PANEL = read("reviewpanel.ts");
-const RIBBON = read("ribbon.ts");
 const CONTEXTBAR = read("contextbar.ts");
 const commands = registry();
 ok("the registry was parsed at all", commands.length > 90);
@@ -200,11 +199,13 @@ for (const name of Object.keys(NOT_OFFERED)) {
 // The four that had no button between them. Each must be reachable from a
 // pointer — the toolbar or the Insert menu — and not only from the modal.
 
-for (const [what, needle] of [
-  ["the footnote", 'noteBtn("footnote"'],
-  ["the endnote", 'noteBtn("endnote"'],
-]) {
-  ok(`${what} has a toolbar button`, RIBBON.includes(needle));
+// Since #233 the toolbar is Home pinned, so "has a toolbar button" is a fact
+// about `HOME`: the footnote on its face, the endnote behind its notes ⋯.
+{
+  const { HOME } = await import("../.tmp-test/placement.mjs");
+  const notesHome = HOME.find((h) => h.group === "homeNotes");
+  ok("the footnote has a toolbar button", notesHome?.face.includes("הערה"));
+  ok("the endnote has a toolbar button", notesHome?.more.includes("הערתסיום"));
 }
 // The tiered note is the deliberate exception, and the assertion is inverted
 // rather than dropped so that putting it back is a decision somebody has to make
@@ -405,7 +406,9 @@ for (const name of ["הערה_על_הערה", "הערה_א"]) {
       ok(`…and says what it does in ${lang}`, !!DICTS[lang][id + "Lede"], id);
     }
   }
-  ok("the toolbar button says fold", RIBBON.includes('iconBtn("▤", t("fold")'));
+  // The toolbar's ▤ went with the hand-built toolbar (#233, spec §5); fold's
+  // door is its Insert row, named fold.
+  check("fold has a door, in Insert", menuOf("fold"), "insert");
   ok("…and not region", !MAIN.includes('t("region")'));
   // Fold *to a depth*, which is what somebody with a 300-page sefer wants and
   // which this editor could not do: `foldAll` takes everything down at once.

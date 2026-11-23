@@ -2,7 +2,7 @@
 //
 // # The finding (#105)
 //
-// `buildToolbar()`'s button builder returned `el("span")` for a command the
+// The old hand-built toolbar's button builder returned `el("span")` for a command the
 // registry did not contain — an element with no glyph, no accessible name and
 // no tooltip. So a registry that resolved **empty** did not fail; it deleted the
 // ribbon. The writer saw a shorter toolbar and nothing anywhere said why, which
@@ -23,7 +23,7 @@
 import { check, notOk, ok } from "./harness.mjs";
 import { fakeView, installChrome } from "./harness.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
-import { buildToolbar } from "../.tmp-test/ribbon.mjs";
+import { buildPinnedTab as buildToolbar } from "../.tmp-test/shelltabs.mjs";
 import { t } from "../.tmp-test/i18n.mjs";
 import { commands } from "../tools/commands.mjs";
 
@@ -109,7 +109,7 @@ export async function run() {
     const missing = all([bar]).filter((n) => n["data-missing"] === without);
 
     check("a missing command keeps its button", missing.length, 1);
-    ok("the button still shows its glyph", words([missing[0]]).includes("B"));
+    ok("the button still shows its name", words([missing[0]]).includes("הדגשה"));
     ok(
       "and it explains itself instead of being silent",
       (missing[0]?.title ?? "").includes(t("registryMissing")),

@@ -11,9 +11,10 @@
 
 import { el } from "./dom";
 import { getLang, t, tf, hasKey, isRtlUi } from "./i18n";
-import { settings } from "./settings";
+import { ALIGN_ORDER, settings } from "./settings";
 import { readShell } from "./shellsettings";
-import { lazyMenu } from "./ribbon";
+import * as runtime from "./runtime";
+import { alignEdgeOf, highlightControl, lazyMenu, missingControl, paragraphStyleControl } from "./ribbon";
 import { actionName } from "./actions";
 import { savedNameMap } from "./macros";
 import { hintFor } from "./keyhint";
@@ -45,15 +46,24 @@ function faceTitle(a: PlacedAction): string {
   return key ? `${what} · ${key}` : what;
 }
 
+/**
+ * One face button. Two faces are more than a button, and they are the two the
+ * hand-built toolbar had earned: the highlighter carries its colour, and an
+ * alignment button says whether the paragraph is already aligned that way —
+ * `refreshAlignState` fills `aria-pressed` from the text the caret is in.
+ */
 function faceButton(a: PlacedAction, glyphs: boolean): HTMLElement {
   const glyph = glyphs && a.place.glyph ? a.place.glyph + " " : "";
+  if (a.command?.he === "סימון") return highlightControl(glyph + faceLabel(a));
+  const edge = alignEdgeOf(a.command?.he);
   return el(
     "button",
     {
-      class: "tb-btn ribbon-btn",
+      class: "tb-btn ribbon-btn" + (edge ? " tb-align-btn" : ""),
       type: "button",
       "data-action": a.id,
       ...(a.command ? { "data-command": a.command.he } : {}),
+      ...(edge ? { "data-align": edge, "aria-pressed": "false" } : {}),
       title: faceTitle(a),
       onClick: () => runPlaced(a),
     },
@@ -61,10 +71,31 @@ function faceButton(a: PlacedAction, glyphs: boolean): HTMLElement {
   );
 }
 
+/** The words a missing face would have had: its short label, else its name. */
+function missingLabel(key: string): string {
+  return hasKey("btn." + key) ? t("btn." + key) : key.replace(/_/g, " ");
+}
+
+/** The alignment faces in screen order (#136); every other face keeps its place after them. */
+function screenOrder(face: readonly PlacedAction[]): PlacedAction[] {
+  const rank = (a: PlacedAction) => {
+    const edge = alignEdgeOf(a.command?.he);
+    return edge ? ALIGN_ORDER.indexOf(edge) : ALIGN_ORDER.length;
+  };
+  return [...face].sort((x, y) => rank(x) - rank(y));
+}
+
 /** One group: caption, face, `⋯`, `⚙`. */
 function groupBox(g: TabGroup, glyphs: boolean): HTMLElement {
   const name = t("grp." + g.group);
-  const controls: HTMLElement[] = g.face.map((a) => faceButton(a, glyphs));
+  const aligns = g.face.some((a) => alignEdgeOf(a.command?.he));
+  const controls: HTMLElement[] = [
+    // The paragraph-style dropdown: what every word processor's Styles group
+    // opens with — body text, the nine levels, this document's styles, and new.
+    ...(g.group === "styles" ? [paragraphStyleControl()] : []),
+    ...(aligns ? screenOrder(g.face) : g.face).map((a) => faceButton(a, glyphs)),
+    ...g.missing.map((k) => missingControl(missingLabel(k), k)),
+  ];
   if (g.more.length) {
     controls.push(
       lazyMenu("more-" + g.group, "⋯", () => {
@@ -81,7 +112,9 @@ function groupBox(g: TabGroup, glyphs: boolean): HTMLElement {
       }, tf("ribbonGear", name)),
     );
   }
-  return el("div", { class: "tb-group ribbon-group", role: "group", "aria-label": name, "data-group": g.group }, [
+  // `tb-align` pins the row left-to-right in `styles.css`; the caption keeps the interface's direction.
+  const cls = "tb-group ribbon-group" + (aligns ? " tb-align" : "");
+  return el("div", { class: cls, role: "group", "aria-label": name, "data-group": g.group }, [
     el("div", { class: "tb-group-row" }, controls),
     el("span", { class: "tb-group-label", "aria-hidden": "true" }, [name]),
   ]);
@@ -155,6 +188,33 @@ export function buildRibbon(): HTMLElement {
     el("div", { class: "ribbon-tabs", role: "tablist", "aria-label": t("ribbonTabs") }, [...buttons.values()]),
     panel,
   ]);
+}
+
+/**
+ * The *toolbar* shell: one tab, pinned, with no strip above it (§6) — Home, unless
+ * `shell.toolbarTab` names another. The same renderer as the tabs, so the
+ * toolbar is the placements too and nothing in it is laid out by hand.
+ *
+ * No commands at all is not a state this product can be in, and drawing a
+ * shorter toolbar would present it as one. It is said in words instead, in the
+ * surface the writer is looking at.
+ */
+export function buildPinnedTab(): HTMLElement {
+  const shell = readShell(settings.shell);
+  const attrs = { class: "toolbar", role: "toolbar", "aria-label": t("toolbar") };
+  if (runtime.commandsReg.length === 0) {
+    return el("div", { ...attrs, class: "toolbar toolbar-empty" }, [
+      el("span", { class: "toolbar-failed", role: "status" }, [t("registriesFailed")]),
+    ]);
+  }
+  const tree = tabTree(currentPlaced());
+  const node = tree.find((n) => n.tab === shell.toolbarTab) ?? tree.find((n) => n.tab === "home");
+  const glyphs = shell.labels === "names+glyphs";
+  return el(
+    "div",
+    { ...attrs, class: "toolbar ribbon-pinned", "data-tab": node?.tab ?? "home" },
+    (node?.groups ?? []).map((g) => groupBox(g, glyphs)),
+  );
 }
 
 /**

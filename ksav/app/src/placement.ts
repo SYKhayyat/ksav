@@ -656,6 +656,11 @@ export interface TabGroup {
   face: PlacedAction[];
   more: PlacedAction[];
   gear: PlacedAction[];
+  /**
+   * Home face keys that resolved to nothing: a command the registry did not
+   * send. Drawn as a control that says so (#105), never dropped in silence.
+   */
+  missing: string[];
 }
 
 export interface TabNode {
@@ -687,7 +692,7 @@ function tabGroups(tab: TabId, list: readonly PlacedAction[]): TabGroup[] {
   for (const a of list) {
     if (tabOf(a.place) !== tab || NOT_ON_A_TAB.has(a.place.group)) continue;
     let g = byGroup.get(a.place.group);
-    if (!g) byGroup.set(a.place.group, (g = { group: a.place.group, face: [], more: [], gear: [] }));
+    if (!g) byGroup.set(a.place.group, (g = { group: a.place.group, face: [], more: [], gear: [], missing: [] }));
     if (a.gear) g.gear.push(a);
     else if (a.place.face && g.face.length < MAX_FACE) g.face.push(a);
     else g.more.push(a);
@@ -705,5 +710,6 @@ function homeGroups(list: readonly PlacedAction[]): TabGroup[] {
       h.group === "styles" ? list.filter((a) => a.kind === "style").slice(0, MAX_FACE) : resolve(h.face),
     more: resolve(h.more),
     gear: [],
-  })).filter((g) => g.face.length || g.more.length);
+    missing: h.face.filter((k) => !resolveKey(k, list)),
+  })).filter((g) => g.face.length || g.more.length || g.missing.length);
 }

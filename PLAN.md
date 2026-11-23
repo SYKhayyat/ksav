@@ -318,10 +318,24 @@ and Windows, for **two weeks** without losing text, and the second UAT pass
   sentences Linux actually produces — `Permission denied (os error 13)` and
   `No such file or directory (os error 2)` — so a Save-As into a renamed folder read
   "failed · details on hover" in English.
-  Still needs the owner's machine: a crash under `taskkill`, the outside-change prompt
-  seen by a person, and **a genuinely full volume — #230, because nothing unprivileged
-  can make `std::fs::write` return ENOSPC on Linux** (EFBIG is a different errno and a
-  different sentence; a tmpfs needs `CAP_SYS_ADMIN`).
+  Still needs the owner's machine: a crash under `taskkill` and the outside-change
+  prompt seen by a person.
+  **The full disk is done** (`5a109ef`, #230 closed). It took a privilege the box did
+  not have: `sudo mount -t tmpfs -o size=512k tmpfs /tmp/ksav-full` (EFBIG via
+  `ulimit -f` is a different errno and a different sentence, so it proves nothing). The
+  test's fourth case now fills that tmpfs and asserts both halves — the operating
+  system's sentence arrives verbatim, and the file that was already there still holds
+  it. It runs where a tmpfs has been mounted and says so loudly, with the command,
+  where it has not.
+  **And the case paid for itself on its first run (#232, `5a109ef`)**: `write_allowed`
+  used `std::fs::write`, which truncates before it writes, so a save that ran out of
+  room left the sefer holding the first few kilobytes of the version that failed to
+  land and nothing of the version that was there. Measured on the full tmpfs, then
+  fixed at the root — every document write now goes beside and is renamed over
+  (`write_beside`), with the target opened for writing first so a read-only file is
+  still refused by the operating system rather than silently replaced by a rename. The
+  other five cases could never have shown it: they all fail *before* the file is
+  truncated.
 - [ ] #14 second human UAT pass by the owner, on the real installed build.
 - [ ] Tag v0.2.x as the "daily driver" release.
 

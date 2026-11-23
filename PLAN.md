@@ -240,7 +240,11 @@ Recommendation: **no.** You can't judge a frontend rewrite (#117, #42) or a
 second typesetting backend (#184) until you have used the current app
 daily for a few weeks. What D0 settles now:
 
-- Freeze large changes to the current UI chrome. M2 fixes only.
+- Freeze large changes to the current UI chrome. M2 fixes only. **One exception, on the
+  owner's call (2026-11-23):** the shell wave (#233, `docs/ui-architecture.md`). It
+  is allowed because its substance is data (one action list, one menu home per action,
+  placements, the writer's ribbon), and spec §12 makes that data the spec for whichever
+  frontend D1 picks.
 - The window model (#138) and the document model (#128) are settled in M2,
   because any future frontend needs the same answers.
 - The real decision is D1, after M2.
@@ -345,11 +349,13 @@ When: after M2's two weeks of daily use, before anyone else is invited.
 Inputs: the M2 usage notes, plus one small spike for each serious option.
 Decide together, because the frontend and backend choices constrain each other:
 
-- Frontend: keep the current CodeMirror/Tauri app, LibreOffice-style UX (#8, #9), Wordcraft egui (#117), all-Rust rewrite (#42).
-  The shell's own option paper — menus as the floor, a tab strip as a switch, three
-  variants of furniture, and what survives whichever frontend wins — is
-  [`docs/ui-architecture.md`](docs/ui-architecture.md). It is a proposal: it ends with
-  six questions for the owner rather than with a decision.
+- Frontend: keep the current CodeMirror/Tauri app, or a native shell around the Typst
+  engine (#42). Wordcraft egui (#117) is **closed as not viable as written**: its UI
+  edits Wordcraft's own document model, so it stays reference material only.
+  The shell itself is decided and being built (#233): its spec is
+  [`docs/ui-architecture.md`](docs/ui-architecture.md) and its decision is
+  `decisions/2026-11-23-the-shell-is-built-from-placements.md`. Whichever frontend wins
+  inherits it.
 - Workflow and views: Leo-style outline workflow (#11), prose-only view (#118).
 - Backend: Typst only, or add LuaLaTeX + reledmac / ConTeXt, and a structured editor (#184).
 

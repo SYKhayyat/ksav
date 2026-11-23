@@ -11,6 +11,7 @@
 // so the migration fences need no DOM and no running app.
 
 import { MAX_FACE, TABS, tabTree, type PlacedAction, type TabGroup, type TabId } from "./placement";
+import { hasKey, t } from "./i18n";
 import { readRibbon, type RibbonGroup, type RibbonLayout, type RibbonTab } from "./shellsettings";
 
 /** One tab as the renderer draws it: a default tab, or a layout's. */
@@ -143,6 +144,16 @@ export function layoutTree(layout: RibbonLayout, list: readonly PlacedAction[]):
 export function shownTabs(saved: RibbonLayout | undefined, list: readonly PlacedAction[]): ShownTab[] {
   if (saved) return layoutTree(migrate(saved, list).layout, list);
   return tabTree(list).map((n) => ({ tab: n.tab, from: [n.tab], hidden: false, groups: n.groups }));
+}
+
+/** A tab's name: the writer's when they gave one, else the built-in one in the current language. */
+export function tabName(n: { tab: string; name?: string }): string {
+  return n.name ?? (hasKey("tab." + n.tab) ? t("tab." + n.tab) : n.tab);
+}
+
+/** A group's name, the same way. */
+export function groupLabel(id: string, name?: string): string {
+  return name ?? (hasKey("grp." + id) ? t("grp." + id) : id);
 }
 
 // ---------------------------------------------------------------- import / export

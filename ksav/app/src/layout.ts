@@ -264,6 +264,12 @@ export function render() {
       panelHead("keys-drawer", "keysTitle", { level: "h3" }),
       el("div", { id: "keys-body" }),
     ]),
+    // The writer's own ribbon (#233, §8): beside the document, so the ribbon
+    // above stays in view while it changes.
+    el("aside", { id: "ribbon-drawer", class: "drawer drawer-styles ribbon-drawer", "aria-label": t("rcTitle"), "data-i18n-label": "rcTitle" }, [
+      panelHead("ribbon-drawer", "rcTitle", { level: "h3" }),
+      el("div", { id: "ribbon-drawer-body" }),
+    ]),
     // a shared form modal (section page setup, formulas)
     overlayPanel("form-modal", "palette-box form-modal-box", [el("div", { id: "form-modal-body" })]),
     buildCommandsDrawer(),

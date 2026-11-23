@@ -333,8 +333,8 @@ The quick path is the same operations from a **right-click on a ribbon button**
 (*rename / hide / customize…*). Every right-click action is also in the dialog, so
 nothing depends on a mouse.
 
-Keyboard: the left tree is a `tree`; Alt+↑/↓ reorders the focused node, `Space`
-toggles ●/○, `Delete` removes, F2 renames. Drag and drop works too, but it is
+Keyboard: the left tree is a `tree`; `Alt+↑/↓` reorders the focused node, `Space`
+toggles ●/○, `Delete` removes, `F2` renames. Drag and drop works too, but it is
 never the only way to do something.
 
 ### The data

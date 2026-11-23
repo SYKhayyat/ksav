@@ -47,6 +47,7 @@ import { openGit } from "./gitui";
 import { openHelp } from "./help";
 import { openHydra } from "./hydra";
 import { openKeys } from "./keysdrawer";
+import { openCustomize } from "./ribboncustomize";
 import { openMinimap, closeMinimap, minimapIsOpen } from "./minimapstrip";
 import { openPalette } from "./palette";
 import { openPanel, isPanelOpen } from "./panels";
@@ -154,6 +155,7 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "commandsDrawer", run: () => (openCommands(), true) },
   { id: "gitPanel", run: () => (openGit(), true) },
   { id: "keysDrawer", run: () => (openKeys(), true) },
+  { id: "ribbonCustomize", run: () => (openCustomize(), true) },
   // Which sefer a search reads is a setting, so which surface opens is too.
   // `source` is the default and is what this has always done — the editor's own
   // find panel over the buffer. The other two open the find drawer, which is

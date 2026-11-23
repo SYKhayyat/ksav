@@ -219,6 +219,36 @@ export const RECIPES = new Map([
     },
   ],
   [
+    "ribbon-menu",
+    {
+      how: HOW.driven,
+      why:
+        "A ribbon button's right-click (#233, §8): move it behind ⋯, remove it, add it " +
+        "to Home, customize. Driven because the gesture is a context menu on a face, and " +
+        "the default shell's pinned toolbar draws faces from the same renderer as the tabs.",
+      drive: async (p) => {
+        await p.rightClick(".ribbon-pinned [data-action]");
+        await p.waitFor(".ribbon-menu", 10_000);
+      },
+    },
+  ],
+  [
+    "ribbon-drawer",
+    {
+      how: HOW.driven,
+      why:
+        "No chip and no key: customizing the ribbon is something done once in a while, " +
+        "not a mode. Its doors are `כלים ▸ התאמת הסרגל…` and the right-click on any face, " +
+        "and the right-click is the one driven — it is the one a writer finds by accident.",
+      drive: async (p) => {
+        await p.rightClick(".ribbon-pinned [data-action]");
+        await p.waitFor(".ribbon-menu", 10_000);
+        await p.click('[data-rc-menu="rcMenuCustomize"]');
+        await p.waitFor("#ribbon-drawer.open", 10_000);
+      },
+    },
+  ],
+  [
     "switcher",
     {
       how: HOW.driven,

@@ -221,6 +221,9 @@ export const PANELS: readonly Panel[] = [
   // where sixty rows of it used to live — below the paper size, the margins and
   // the asset list, in one drawer with two subjects.
   { id: "keys-drawer", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
+  // Customize the ribbon (#233, §8). A drawer and not a modal: every edit
+  // applies live, and the point is to watch the ribbon above change as you go.
+  { id: "ribbon-drawer", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "styles-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   { id: "review-panel", kind: "drawer", presence: "class", escape: true, exits: [{ via: "head" }] },
   // Version control. A drawer and not a modal, for the review panel's reason:
@@ -365,6 +368,16 @@ export const PANELS: readonly Panel[] = [
     escape: true,
     exits: [{ via: "outside" }],
     selector: ".pane-menu",
+  },
+  {
+    // A ribbon button's or a tab header's right-click (#233, §8): the quick path
+    // to what the customize drawer does, anchored at the pointer.
+    id: "ribbon-menu",
+    kind: "popup",
+    presence: "mounted",
+    escape: true,
+    exits: [{ via: "outside" }],
+    selector: ".ribbon-menu",
   },
   {
     // Every citation in the document, as the library has it now — spec.md

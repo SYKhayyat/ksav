@@ -19,8 +19,9 @@ import { actionName } from "./actions";
 import { savedNameMap } from "./macros";
 import { hintFor } from "./keyhint";
 import { btnKey, type PlacedAction, type TabGroup } from "./placement";
-import { shownTabs, type ShownTab } from "./ribbonlayout";
+import { groupLabel, shownTabs, tabName, type ShownTab } from "./ribbonlayout";
 import { currentPlaced, here, row, runPlaced, shellLabel } from "./shellmenu";
+import { buttonMenu, tabMenu } from "./ribboncustomize";
 
 /**
  * The open tab. Session state, not a setting: the strip opens where the writer
@@ -55,15 +56,7 @@ function tabFor(tabs: readonly ShownTab[], id: string): ShownTab | undefined {
   return tabs.find((n) => n.tab === id) ?? tabs.find((n) => (n.from as readonly string[]).includes(id));
 }
 
-/** A tab's name: the writer's when they gave one, else the built-in one in the current language. */
-export function tabName(n: Pick<ShownTab, "tab" | "name">): string {
-  return n.name ?? (hasKey("tab." + n.tab) ? t("tab." + n.tab) : n.tab);
-}
-
-/** A group's name, the same way. */
-function groupName(g: TabGroup): string {
-  return g.name ?? (hasKey("grp." + g.group) ? t("grp." + g.group) : g.group);
-}
+const groupName = (g: TabGroup) => groupLabel(g.group, g.name);
 
 /** Which contextual tab a caret asks for: a table wins over the note around it, being the nearer thing. */
 export function contextOf(structureHere: string | undefined, noteDepth: number): ContextTab | null {
@@ -105,6 +98,7 @@ export function contextRow(): HTMLElement {
     id: "ribbon-contextual",
     role: "toolbar",
     "data-open": "false",
+    onContextmenu: faceMenu(() => (context ? tabFor(shown(), context)?.tab : undefined)),
   });
   fillContextRow(row);
   return row;
@@ -219,6 +213,23 @@ function groupBox(g: TabGroup, glyphs: boolean): HTMLElement {
   ]);
 }
 
+/**
+ * Right-click on a face is the quick path of §8: move it, remove it, or open
+ * the dialog there. One handler on the surface rather than one per button, and
+ * `tab` is asked at the click, because the panel's tab changes under it.
+ */
+function faceMenu(tab: () => string | undefined): (e: MouseEvent) => void {
+  return (e) => {
+    const b = (e.target as HTMLElement).closest?.("[data-action]");
+    const action = b?.getAttribute("data-action");
+    const group = b?.closest?.("[data-group]")?.getAttribute("data-group");
+    const on = tab();
+    if (!action || !group || !on || currentPlaced().find((a) => a.id === action)?.kind === "style") return;
+    e.preventDefault();
+    buttonMenu(on, group, action, e.clientX, e.clientY);
+  };
+}
+
 /** The next tab for an arrow key, along the interface's flow (§9): in Hebrew ← is forward. */
 export function stepTab(tabs: readonly string[], from: string, key: string, rtl: boolean): string | null {
   const i = tabs.indexOf(from);
@@ -244,7 +255,7 @@ export function buildRibbon(): HTMLElement {
   const ids = tree.map((n) => n.tab);
   if (!ids.includes(openTab)) openTab = ids[0] ?? "home";
 
-  const panel = el("div", { class: "ribbon-panel", role: "tabpanel", id: "ribbon-panel" });
+  const panel = el("div", { class: "ribbon-panel", role: "tabpanel", id: "ribbon-panel", onContextmenu: faceMenu(() => openTab) });
   const buttons = new Map<string, HTMLElement>();
 
   const show = (tab: string) => {
@@ -272,6 +283,10 @@ export function buildRibbon(): HTMLElement {
           "data-tab": n.tab,
           "aria-controls": "ribbon-panel",
           onClick: () => show(n.tab),
+          onContextmenu: (e: MouseEvent) => {
+            e.preventDefault();
+            tabMenu(n.tab, e.clientX, e.clientY);
+          },
           onKeydown: (e: KeyboardEvent) => {
             const next = stepTab(ids, openTab, e.key, isRtlUi());
             if (!next) return;
@@ -291,6 +306,8 @@ export function buildRibbon(): HTMLElement {
   return el("div", { class: "ribbon", "data-ribbon": "tabs" }, [
     el("div", { class: "ribbon-tabs", role: "tablist", "aria-label": t("ribbonTabs") }, [...buttons.values()]),
     panel,
+    // A narrow window folds the strip into `☰` rather than scroll it sideways (§8), and says so.
+    el("p", { class: "ribbon-narrow", role: "note" }, [t("rcNarrow")]),
   ]);
 }
 
@@ -316,7 +333,7 @@ export function buildPinnedTab(): HTMLElement {
   const glyphs = shell.labels === "names+glyphs";
   return el(
     "div",
-    { ...attrs, class: "toolbar ribbon-pinned", "data-tab": node?.tab ?? "home" },
+    { ...attrs, class: "toolbar ribbon-pinned", "data-tab": node?.tab ?? "home", onContextmenu: faceMenu(() => node?.tab) },
     (node?.groups ?? []).map((g) => groupBox(g, glyphs)),
   );
 }

@@ -374,6 +374,7 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   deferSort: { menu: "tools", group: "defer" },
   compileNow: { menu: "tools", group: "compile" },
   settingsDrawer: { menu: "tools", group: "settingsGroup", glyph: "⚙" },
+  ribbonCustomize: { menu: "tools", group: "settingsGroup" },
   // Help
   help: { menu: "help", group: "helpGroup", glyph: "?" },
   keysDrawer: { menu: "help", group: "helpGroup", glyph: "⌨" },

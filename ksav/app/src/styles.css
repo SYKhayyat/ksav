@@ -2026,3 +2026,32 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 .ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
 .ribbon-btn { white-space: nowrap; }
 .ribbon-group .menu-list { top: 32px; }
+
+/* Customize the ribbon (#233, §8). Logical properties throughout, so Hebrew mirrors. */
+.ribbon-drawer { width: min(52rem, 100vw); }
+.rc-floor { margin-block: 0 .5rem; }
+.rc-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+.rc-side h4 { margin-block: 0 .4rem; }
+.rc-tree, .rc-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 4px; max-height: 50vh; overflow: auto; }
+.rc-node { padding-block: 1px; cursor: default; }
+.rc-node[aria-level="2"] > .rc-row { padding-inline-start: 1.25rem; }
+.rc-node[aria-level="3"] > .rc-row { padding-inline-start: 2.5rem; }
+.rc-row { display: flex; align-items: center; gap: .3rem; padding-inline: .4rem; }
+.rc-node[aria-selected="true"] > .rc-row { background: var(--accent); color: var(--bg, #fff); }
+.rc-node:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rc-twisty { inline-size: 1em; text-align: center; }
+.rc-name { flex: 1; }
+.rc-note, .rc-where { color: var(--muted, inherit); font-size: .85em; }
+.rc-new { color: var(--accent); font-size: .8em; font-weight: 600; }
+.rc-tool { background: none; border: 0; cursor: pointer; padding: 0 .15rem; }
+.rc-tools, .rc-foot, .rc-find { display: flex; flex-wrap: wrap; gap: .3rem; margin-block: .5rem; }
+.rc-option { display: flex; flex-direction: column; padding: .2rem .4rem; cursor: pointer; }
+.rc-option[aria-selected="true"] { background: var(--accent); color: var(--bg, #fff); }
+.rc-option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rc-search { flex: 1; }
+.ribbon-narrow { display: none; margin: 0; padding: .3rem .5rem; font-size: .85em; color: var(--muted, inherit); }
+@media (max-width: 480px) {
+  .rc-columns { grid-template-columns: 1fr; }
+  .ribbon[data-ribbon="tabs"] .ribbon-tabs, .ribbon[data-ribbon="tabs"] .ribbon-panel { display: none; }
+  .ribbon[data-ribbon="tabs"] .ribbon-narrow { display: block; }
+}

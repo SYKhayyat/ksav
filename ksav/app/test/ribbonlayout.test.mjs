@@ -32,8 +32,9 @@ import {
   layoutTree,
   migrate,
   shownTabs,
+  tabName,
 } from "../.tmp-test/ribbonlayout.mjs";
-import { buildPinnedTab, buildRibbon, menuToggle, setContext, tabName } from "../.tmp-test/shelltabs.mjs";
+import { buildPinnedTab, buildRibbon, menuToggle, setContext } from "../.tmp-test/shelltabs.mjs";
 
 const src = (f) => readFileSync(path.join(dirOf(import.meta.url), "..", "src", f), "utf8");
 const ids = (g) => ({ group: g.group, face: g.face.map((a) => a.id), more: g.more.map((a) => a.id), gear: g.gear.map((a) => a.id) });

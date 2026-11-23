@@ -18,7 +18,8 @@ import { alignEdgeOf, highlightControl, lazyMenu, missingControl, paragraphStyle
 import { actionName } from "./actions";
 import { savedNameMap } from "./macros";
 import { hintFor } from "./keyhint";
-import { btnKey, tabTree, type PlacedAction, type TabGroup, type TabId, type TabNode } from "./placement";
+import { btnKey, type PlacedAction, type TabGroup } from "./placement";
+import { shownTabs, type ShownTab } from "./ribbonlayout";
 import { currentPlaced, here, row, runPlaced, shellLabel } from "./shellmenu";
 
 /**
@@ -26,7 +27,7 @@ import { currentPlaced, here, row, runPlaced, shellLabel } from "./shellmenu";
  * left it across a redraw (a language switch, a theme), and on Home after a
  * reload — which is where a word processor opens.
  */
-let openTab: TabId = "home";
+let openTab = "home";
 
 // ---------------------------------------------------------------- contextual tabs
 //
@@ -39,10 +40,30 @@ export type ContextTab = "table" | "notes";
 
 /** What the caret is in now, and the tab that was open before it got there. */
 let context: ContextTab | null = null;
-let beforeContext: TabId | null = null;
+let beforeContext: string | null = null;
 
 /** The open strip's way to switch tab, while a strip is mounted. */
-let showTab: ((tab: TabId) => void) | null = null;
+let showTab: ((tab: string) => void) | null = null;
+
+/** The tabs drawn now: the writer's ribbon (§8) when there is one, else the default of §5. */
+function shown(): ShownTab[] {
+  return shownTabs(readShell(settings.shell).ribbon, currentPlaced());
+}
+
+/** The tab a contextual answer, or a pinned toolbar, means: the one that is that built-in tab. */
+function tabFor(tabs: readonly ShownTab[], id: string): ShownTab | undefined {
+  return tabs.find((n) => n.tab === id) ?? tabs.find((n) => (n.from as readonly string[]).includes(id));
+}
+
+/** A tab's name: the writer's when they gave one, else the built-in one in the current language. */
+export function tabName(n: Pick<ShownTab, "tab" | "name">): string {
+  return n.name ?? (hasKey("tab." + n.tab) ? t("tab." + n.tab) : n.tab);
+}
+
+/** A group's name, the same way. */
+function groupName(g: TabGroup): string {
+  return g.name ?? (hasKey("grp." + g.group) ? t("grp." + g.group) : g.group);
+}
 
 /** Which contextual tab a caret asks for: a table wins over the note around it, being the nearer thing. */
 export function contextOf(structureHere: string | undefined, noteDepth: number): ContextTab | null {
@@ -69,8 +90,8 @@ export function setContext(next: ContextTab | null): void {
   context = want;
   if (showTab && shell.variant === "tabs") {
     if (want && !was) beforeContext = openTab;
-    if (want) showTab(want);
-    else if (was && openTab === was && beforeContext) showTab(beforeContext);
+    if (want) showTab(tabFor(shown(), want)?.tab ?? want);
+    else if (was && openTab === tabFor(shown(), was)?.tab && beforeContext) showTab(beforeContext);
     else showTab(openTab);
     if (!want) beforeContext = null;
   }
@@ -91,9 +112,9 @@ export function contextRow(): HTMLElement {
 
 function fillContextRow(row = document.getElementById("ribbon-contextual")): void {
   if (!row) return;
-  const node = context ? tabTree(currentPlaced()).find((n) => n.tab === context) : undefined;
+  const node = context ? tabFor(shown(), context) : undefined;
   row.setAttribute("data-open", String(!!node));
-  row.setAttribute("aria-label", node ? t("tab." + node.tab) : t("toolbar"));
+  row.setAttribute("aria-label", node ? tabName(node) : t("toolbar"));
   if (!node) {
     row.replaceChildren();
     return;
@@ -101,7 +122,7 @@ function fillContextRow(row = document.getElementById("ribbon-contextual")): voi
   const glyphs = readShell(settings.shell).labels === "names+glyphs";
   row.setAttribute("data-tab", node.tab);
   row.replaceChildren(
-    el("span", { class: "ribbon-contextual-name" }, [t("tab." + node.tab)]),
+    el("span", { class: "ribbon-contextual-name" }, [tabName(node)]),
     ...node.groups.map((g) => groupBox(g, glyphs)),
   );
 }
@@ -165,7 +186,7 @@ function screenOrder(face: readonly PlacedAction[]): PlacedAction[] {
 
 /** One group: caption, face, `⋯`, `⚙`. */
 function groupBox(g: TabGroup, glyphs: boolean): HTMLElement {
-  const name = t("grp." + g.group);
+  const name = groupName(g);
   const aligns = g.face.some((a) => alignEdgeOf(a.command?.he));
   const controls: HTMLElement[] = [
     // The paragraph-style dropdown: what every word processor's Styles group
@@ -199,7 +220,7 @@ function groupBox(g: TabGroup, glyphs: boolean): HTMLElement {
 }
 
 /** The next tab for an arrow key, along the interface's flow (§9): in Hebrew ← is forward. */
-export function stepTab(tabs: readonly TabId[], from: TabId, key: string, rtl: boolean): TabId | null {
+export function stepTab(tabs: readonly string[], from: string, key: string, rtl: boolean): string | null {
   const i = tabs.indexOf(from);
   const forward = rtl ? "ArrowLeft" : "ArrowRight";
   const back = rtl ? "ArrowRight" : "ArrowLeft";
@@ -219,19 +240,20 @@ export function stepTab(tabs: readonly TabId[], from: TabId, key: string, rtl: b
  */
 export function buildRibbon(): HTMLElement {
   const glyphs = readShell(settings.shell).labels === "names+glyphs";
-  const tree: TabNode[] = tabTree(currentPlaced()).filter((n) => n.groups.length);
+  const tree = shown().filter((n) => !n.hidden && n.groups.length);
   const ids = tree.map((n) => n.tab);
   if (!ids.includes(openTab)) openTab = ids[0] ?? "home";
 
   const panel = el("div", { class: "ribbon-panel", role: "tabpanel", id: "ribbon-panel" });
-  const buttons = new Map<TabId, HTMLElement>();
+  const buttons = new Map<string, HTMLElement>();
 
-  const show = (tab: TabId) => {
+  const show = (tab: string) => {
     openTab = tab;
+    const marked = context ? tabFor(tree, context)?.tab : undefined;
     for (const [id, b] of buttons) {
       b.setAttribute("aria-selected", String(id === tab));
       b.setAttribute("tabindex", id === tab ? "0" : "-1");
-      b.setAttribute("data-contextual", String(id === context));
+      b.setAttribute("data-contextual", String(id === marked));
     }
     panel.setAttribute("aria-labelledby", "ribbon-tab-" + tab);
     panel.replaceChildren(...(tree.find((n) => n.tab === tab)?.groups ?? []).map((g) => groupBox(g, glyphs)));
@@ -258,7 +280,7 @@ export function buildRibbon(): HTMLElement {
             buttons.get(next)?.focus?.();
           },
         },
-        [t("tab." + n.tab)],
+        [tabName(n)],
       ),
     );
   }
@@ -289,8 +311,8 @@ export function buildPinnedTab(): HTMLElement {
       el("span", { class: "toolbar-failed", role: "status" }, [t("registriesFailed")]),
     ]);
   }
-  const tree = tabTree(currentPlaced());
-  const node = tree.find((n) => n.tab === shell.toolbarTab) ?? tree.find((n) => n.tab === "home");
+  const tree = shown();
+  const node = tabFor(tree, shell.toolbarTab) ?? tabFor(tree, "home") ?? tree[0];
   const glyphs = shell.labels === "names+glyphs";
   return el(
     "div",

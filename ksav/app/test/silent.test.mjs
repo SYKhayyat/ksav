@@ -131,7 +131,7 @@ function silentCatches() {
 }
 
 /** How many silent catches the tree has, as a claim rather than a tally. */
-const TOTAL = 48;
+const TOTAL = 49;
 
 export async function run() {
   const silent = silentCatches();

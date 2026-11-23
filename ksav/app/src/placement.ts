@@ -661,6 +661,8 @@ export interface TabGroup {
    * send. Drawn as a control that says so (#105), never dropped in silence.
    */
   missing: string[];
+  /** The writer's name for the group (§8); absent, `grp.<group>` in the current language. */
+  name?: string;
 }
 
 export interface TabNode {

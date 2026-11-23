@@ -46,10 +46,10 @@ export async function run() {
 
   const header = src("appheader.ts");
   ok("the header says which shell it is", header.includes('"data-shell": variant'));
-  ok("the menus shell draws no toolbar row", /variant === "menus" \? \[\] : \[buildToolbar\(\)\]/.test(header));
+  ok("the menus shell draws no toolbar row", header.includes('variant === "toolbar" ? [buildToolbar()] : []'));
 
   // Both doors to the setting: View and the drawer.
   const surface = src("actionsurface.ts");
-  for (const id of ["shellMenus", "shellToolbar"]) ok(`${id} is an action`, surface.includes(`"${id}"`));
+  for (const id of ["shellMenus", "shellToolbar", "shellTabs"]) ok(`${id} is an action`, surface.includes(`"${id}"`));
   ok("the drawer has the variant row", src("settingsdrawer.ts").includes('shellSelectRow("shellVariantLabel", "variant"'));
 }

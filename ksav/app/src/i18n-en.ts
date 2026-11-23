@@ -1251,6 +1251,14 @@ export const EN: Dict = {
   shellVariantLabel: "Interface",
   shellVariantMenus: "Menus only",
   shellVariantToolbar: "Menus and toolbar",
+  shellVariantTabs: "Tabs",
+  shellMenubarLabel: "Menu bar under the tabs",
+  shellMenubarAuto: "Folded into ☰ Menu",
+  shellMenubarAlways: "Always shown",
+  shellMenuButton: "☰ Menu",
+  ribbonTabs: "Ribbon tabs",
+  ribbonMore: "More in {0}",
+  ribbonGear: "Settings for {0}",
   proseStripLabel: "Show the context strip in plain prose too",
   proseStripNote:
     "Off by default. The context strip carries the operations for the list or table the caret is " +
@@ -1637,6 +1645,7 @@ export const EN: Dict = {
   "sc.toggleTheme": "Switch theme",
   "sc.shellMenus": "Menus only",
   "sc.shellToolbar": "Menus and toolbar",
+  "sc.shellTabs": "Tabs",
   "sc.settingsDrawer": "Settings",
   "btn.שער": "Part",
   "btn.תת_שער": "Subpart",

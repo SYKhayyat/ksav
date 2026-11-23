@@ -44,7 +44,7 @@ import { chromeWiring, contentsDepthRow, docTextNow, keyCode, lazyMenu } from ".
 import { menuTree, placed, type MenuExtra, type PlacedAction } from "./placement";
 
 /** Every placed action, read off the running application. */
-function currentPlaced(): PlacedAction[] {
+export function currentPlaced(): PlacedAction[] {
   return placed({
     builtIns: BUILT_IN.map((a) => a.id),
     commands: runtime.commandsReg,
@@ -62,7 +62,7 @@ export interface MenuExtraRenderers {
 }
 
 /** What the caret is standing in, read once per menu open. */
-interface Here {
+export interface Here {
   doc: string;
   pos: number;
   /** The structure the caret is near, for the structural actions' reasons. */
@@ -70,7 +70,7 @@ interface Here {
   kb: Record<string, string>;
 }
 
-function here(): Here {
+export function here(): Here {
   const doc = docTextNow();
   const pos = runtime.view?.state.selection.main.from ?? 0;
   const caret = runtime.view?.state.selection.main.head ?? 0;
@@ -99,13 +99,14 @@ function whyNot(a: PlacedAction, h: Here): string | null {
 }
 
 /** A shell action's label, with the two that read differently by circumstance. */
-function shellLabel(a: PlacedAction): string {
+export function shellLabel(a: PlacedAction): string {
   if (a.id === "saveAs") return saveAsLabel(files.supportsRealFiles());
   if (a.id === "macroRecord" && currentRecording()) return t("macroStop");
   return actionName(a.id, savedNameMap());
 }
 
-function run(a: PlacedAction): void {
+/** Run a placed action, the one way every surface does: a command inserts, a structure action goes through the chrome, anything else is `runAction`. */
+export function runPlaced(a: PlacedAction): void {
   closeMenus();
   if (a.kind === "command") {
     insertSnippet(a.command!.insert);
@@ -119,8 +120,8 @@ function run(a: PlacedAction): void {
   runAction(a.id);
 }
 
-/** One row: a placed action. */
-function row(a: PlacedAction, h: Here): HTMLElement {
+/** One row: a placed action. The tabs' `⋯` and `⚙` lists are these rows too. */
+export function row(a: PlacedAction, h: Here): HTMLElement {
   const why = whyNot(a, h);
   const attrs: Record<string, string | null> = {
     class: "menu-item" + (a.command ? " menu-cmd" : "") + (why ? " disabled" : ""),
@@ -151,7 +152,7 @@ function row(a: PlacedAction, h: Here): HTMLElement {
     }
   }
   if (why) body.push(el("span", { class: "menu-why" }, [t(why)]));
-  const btn = el("button", { ...attrs, onClick: () => run(a) }, body);
+  const btn = el("button", { ...attrs, onClick: () => runPlaced(a) }, body);
   return a.kind === "macro" ? macroRow(a, btn) : btn;
 }
 

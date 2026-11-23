@@ -2000,3 +2000,24 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
  * so it does not leave a gap under itself. */
 .ksav-minimap-host { display: block; width: 90px; }
 .ksav-minimap-host canvas { display: block; }
+
+/* ---- the tabs shell (#233, §6) ----
+   The menu bar folds into `☰` and comes back as a row of its own when opened;
+   the ribbon is the header's last row, full width, so the tab strip and its
+   panel never share a line with the identity or the chips. No horizontal
+   scrolling strip (§7): the tabs wrap. */
+.menubar[data-folded="folded"] { display: none; }
+.menubar[data-folded="open"] { flex-basis: 100%; }
+.ribbon { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; }
+.ribbon-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--line); }
+.ribbon-tab {
+  font-family: var(--hebrew); font-size: 13px; padding: 4px 12px; cursor: pointer;
+  color: var(--muted); background: transparent; border: 1px solid transparent;
+  border-bottom: 0; border-radius: 7px 7px 0 0; margin-bottom: -1px;
+}
+.ribbon-tab:hover { color: var(--accent); }
+.ribbon-tab[aria-selected="true"] { color: var(--ink); background: var(--bg, var(--panel)); border-color: var(--line); }
+.ribbon-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
+.ribbon-btn { white-space: nowrap; }
+.ribbon-group .menu-list { top: 32px; }

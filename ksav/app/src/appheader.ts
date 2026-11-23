@@ -64,6 +64,8 @@ import { toggleSettings } from "./settingsdrawer";
 import { paneTree } from "./panestate";
 import { buildToolbar } from "./ribbon";
 import { buildMenus } from "./shellmenu";
+import { buildRibbon, menuToggle } from "./shelltabs";
+import { readShell } from "./shellsettings";
 import { makeWiring } from "./wiring";
 
 // ------------------------------------------------------------------- wiring
@@ -290,9 +292,17 @@ export function buildHeader(): HTMLElement {
   );
 
   // Which shell (#233, §6–§7). The *menus* variant is the floor and nothing else;
-  // the *toolbar* variant adds its one row. The *tabs* variant draws the toolbar
-  // until its own renderer lands (step 4).
-  const variant = settings.shell?.variant ?? "toolbar";
+  // the *toolbar* variant adds its one row; the *tabs* variant folds the menu bar
+  // into `☰ תפריט` (unless `menubar` is `always`) and draws the tab strip as the
+  // header's last, full-width row.
+  const shell = readShell(settings.shell);
+  const variant = shell.variant;
+  const folded = variant === "tabs" && shell.menubar === "auto";
+  const menubar = el(
+    "nav",
+    { class: "menubar", id: "shell-menubar", "aria-label": t("menubar"), ...(folded ? { "data-folded": "folded" } : {}) },
+    buildMenus({ pages: () => [pagesRow()], templates: templateRows }),
+  );
   return el("header", { role: "banner", "data-shell": variant }, [
     el("div", { class: "brand" }, [
       el("span", { class: "brand-name" }, [t("appName")]),
@@ -314,13 +324,14 @@ export function buildHeader(): HTMLElement {
         el("small", { class: "doc-file", id: "doc-file" }, [name.line]),
       ],
     ),
-    ...(variant === "menus" ? [] : [buildToolbar()]),
+    ...(variant === "toolbar" ? [buildToolbar()] : []),
     // The menu bar and the runtime.view chips are navigation, and saying so is what
     // gives a screen-reader user a way to skip past forty-odd controls to the
     // editor. The page had no landmarks at all.
     // Every menu, from the placements (#233): which menu holds a thing is
     // `placement.ts`'s statement, not the order somebody wrote builders in.
-    el("nav", { class: "menubar", "aria-label": t("menubar") }, buildMenus({ pages: () => [pagesRow()], templates: templateRows })),
+    ...(folded ? [menuToggle(menubar)] : []),
+    menubar,
     el("div", { class: "spacer" }),
     el(
       "div",
@@ -342,5 +353,6 @@ export function buildHeader(): HTMLElement {
         ),
       ),
     ),
+    ...(variant === "tabs" ? [buildRibbon()] : []),
   ]);
 }

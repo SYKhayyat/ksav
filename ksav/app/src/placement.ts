@@ -359,6 +359,7 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   toggleLang: { menu: "view", group: "interface", face: true },
   shellMenus: { menu: "view", group: "interface" },
   shellToolbar: { menu: "view", group: "interface" },
+  shellTabs: { menu: "view", group: "interface" },
   nikud: { menu: "view", group: "interface" },
   // Tools
   macroRecord: { menu: "tools", group: "macros", glyph: "⏺" },
@@ -639,4 +640,70 @@ export function menuTree(list: readonly PlacedAction[]): MenuNode[] {
       }))
       .filter((g) => g.items.length || g.before.length || g.after.length),
   }));
+}
+
+// ---------------------------------------------------------------- the tabs
+
+/**
+ * One group on a tab: its face buttons, what `⋯` opens, what `⚙` opens.
+ *
+ * `menu` is the group's menu home — where a writer who turns the tabs off finds
+ * the same rows — and it is what `⋯` is: the rest of the section, not a second
+ * list of it.
+ */
+export interface TabGroup {
+  group: string;
+  face: PlacedAction[];
+  more: PlacedAction[];
+  gear: PlacedAction[];
+}
+
+export interface TabNode {
+  tab: TabId;
+  groups: TabGroup[];
+}
+
+/** Groups that are a menu's and never a tab's: the conceal-and-fold rows are reached by chord and menu. */
+const NOT_ON_A_TAB: ReadonlySet<string> = new Set(["hidden"]);
+
+/**
+ * The tab strip, as a tree — tab → group → face, `⋯`, `⚙` (§4 "Building").
+ *
+ * Every tab but Home is the placed list grouped by `tabOf`; a group with nothing
+ * on its face and nothing behind `⚙` still draws its `⋯`, so every action a tab
+ * claims is one click away on it. Home is `HOME`, resolved against the list — its
+ * groups are its own (§13) — and its styles group takes the document's first
+ * custom styles as its face.
+ *
+ * Pure, like `menuTree`, and for the same reason: a fence can say what each tab
+ * holds without a DOM.
+ */
+export function tabTree(list: readonly PlacedAction[]): TabNode[] {
+  return TABS.map((tab) => ({ tab, groups: tab === "home" ? homeGroups(list) : tabGroups(tab, list) }));
+}
+
+function tabGroups(tab: TabId, list: readonly PlacedAction[]): TabGroup[] {
+  const byGroup = new Map<string, TabGroup>();
+  for (const a of list) {
+    if (tabOf(a.place) !== tab || NOT_ON_A_TAB.has(a.place.group)) continue;
+    let g = byGroup.get(a.place.group);
+    if (!g) byGroup.set(a.place.group, (g = { group: a.place.group, face: [], more: [], gear: [] }));
+    if (a.gear) g.gear.push(a);
+    else if (a.place.face && g.face.length < MAX_FACE) g.face.push(a);
+    else g.more.push(a);
+  }
+  // `list` is already in menu → group order, so insertion order is the right one.
+  return [...byGroup.values()];
+}
+
+function homeGroups(list: readonly PlacedAction[]): TabGroup[] {
+  const resolve = (keys: readonly string[]) =>
+    keys.map((k) => resolveKey(k, list)).filter((a): a is PlacedAction => !!a);
+  return HOME.map((h) => ({
+    group: h.group,
+    face:
+      h.group === "styles" ? list.filter((a) => a.kind === "style").slice(0, MAX_FACE) : resolve(h.face),
+    more: resolve(h.more),
+    gear: [],
+  })).filter((g) => g.face.length || g.more.length);
 }

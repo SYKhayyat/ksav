@@ -674,13 +674,20 @@ export function buildToolbar(): HTMLElement {
  * selector for a menu item that never clicks the button first finds nothing, and
  * will report it as a missing feature.
  */
-export function lazyMenu(name: string, label: string, build: () => (Node | string)[]): HTMLElement {
-  const list = el("div", { class: "menu-list", role: "menu", "aria-label": label });
+export function lazyMenu(
+  name: string,
+  label: string,
+  build: () => (Node | string)[],
+  // The accessible name, when the label is a glyph (`⋯`, `⚙`) rather than a word.
+  ariaLabel?: string,
+): HTMLElement {
+  const list = el("div", { class: "menu-list", role: "menu", "aria-label": ariaLabel ?? label });
   const btn = el("button", {
     class: "menu-btn",
     type: "button",
     "aria-haspopup": "true",
     "aria-expanded": "false",
+    "aria-label": ariaLabel ?? null,
     onClick: (e: Event) => {
       e.stopPropagation();
       const opened = toggleMenu(list, btn, () => {

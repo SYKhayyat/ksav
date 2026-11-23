@@ -1289,6 +1289,14 @@ export const HE: Dict = {
   shellVariantLabel: "ממשק",
   shellVariantMenus: "תפריטים בלבד",
   shellVariantToolbar: "תפריטים וסרגל כלים",
+  shellVariantTabs: "לשוניות",
+  shellMenubarLabel: "שורת התפריטים בלשוניות",
+  shellMenubarAuto: "מקופלת לתוך ☰ תפריט",
+  shellMenubarAlways: "תמיד מוצגת",
+  shellMenuButton: "☰ תפריט",
+  ribbonTabs: "לשוניות הסרגל",
+  ribbonMore: "עוד ב{0}",
+  ribbonGear: "הגדרות {0}",
   proseStripLabel: "רצועת ההקשר מופיעה גם בטקסט רגיל",
   proseStripNote:
     "כבוי כברירת מחדל. רצועת ההקשר מראה את פעולות הרשימה או הטבלה שהסמן עומד בתוכה; " +
@@ -1697,6 +1705,7 @@ export const HE: Dict = {
   "sc.toggleTheme": "החלפת ערכת צבעים",
   "sc.shellMenus": "תפריטים בלבד",
   "sc.shellToolbar": "תפריטים וסרגל כלים",
+  "sc.shellTabs": "לשוניות",
   "sc.settingsDrawer": "הגדרות",
   "btn.שער": "שער",
   "btn.תת_שער": "תת שער",

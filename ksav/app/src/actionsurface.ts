@@ -416,6 +416,7 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
     [
       ["shellMenus", "menus"],
       ["shellToolbar", "toolbar"],
+      ["shellTabs", "tabs"],
     ] as const
   ).map(([id, variant]) => ({ id, run: () => (setShellVariant(variant), true) })),
 ];

@@ -846,11 +846,16 @@ export function buildSettingsDrawer(): HTMLElement {
       ["whole", t("clickSelectsWhole")],
     ]),
     checkRow("keepMenuPositionLabel", "keepMenuPosition"),
-    // Which shell is drawn — the menus alone, or the menus and the toolbar row.
-    // The tabs shell joins this list in step 4, when there is one to draw.
+    // Which shell is drawn (§7): the menus alone, the menus and one toolbar row,
+    // or the tabs. And under the tabs, whether the menu bar folds into `☰`.
     shellSelectRow("shellVariantLabel", "variant", [
       ["menus", t("shellVariantMenus")],
       ["toolbar", t("shellVariantToolbar")],
+      ["tabs", t("shellVariantTabs")],
+    ]),
+    shellSelectRow("shellMenubarLabel", "menubar", [
+      ["auto", t("shellMenubarAuto")],
+      ["always", t("shellMenubarAlways")],
     ]),
     // Off by default, and the note says what the strip is — because a writer
     // who has never seen it cannot decide about a control they cannot picture,

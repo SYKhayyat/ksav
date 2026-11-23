@@ -18,6 +18,7 @@ Your documents stay on your machine. Ksav has no account, no server, and uploads
 | **fix something that went wrong** | [`docs/troubleshooting.md`](docs/troubleshooting.md) |
 | **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 105 bindings in both languages, generated from the source |
 | **build or change it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/your-first-change.md`](docs/your-first-change.md) |
+| **decide how the shell is shaped** | [`docs/ui-architecture.md`](docs/ui-architecture.md) — menus as the floor, a tab strip as a switch |
 | **understand the architecture** | [`ksav/README.md`](ksav/README.md) |
 | **work on the seam with Girsa** | [`docs/girsa.md`](docs/girsa.md) |
 | **know why something is the way it is** | [`decisions/README.md`](decisions/README.md) |

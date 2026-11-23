@@ -346,6 +346,10 @@ Inputs: the M2 usage notes, plus one small spike for each serious option.
 Decide together, because the frontend and backend choices constrain each other:
 
 - Frontend: keep the current CodeMirror/Tauri app, LibreOffice-style UX (#8, #9), Wordcraft egui (#117), all-Rust rewrite (#42).
+  The shell's own option paper — menus as the floor, a tab strip as a switch, three
+  variants of furniture, and what survives whichever frontend wins — is
+  [`docs/ui-architecture.md`](docs/ui-architecture.md). It is a proposal: it ends with
+  six questions for the owner rather than with a decision.
 - Workflow and views: Leo-style outline workflow (#11), prose-only view (#118).
 - Backend: Typst only, or add LuaLaTeX + reledmac / ConTeXt, and a structured editor (#184).
 

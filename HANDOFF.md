@@ -21,10 +21,10 @@ a whole. The decision is `decisions/2026-11-23-the-shell-is-built-from-placement
   `ribbonedit.ts`): an ARIA tree whose arrows follow the UI direction, live
   writes to `settings.shell`, right-click on a button and a tab header.
 
-Not done, and said so in §13: drag and drop in the tree (keyboard and buttons
-only). `importui.test.mjs` has two failures that predate the wave (*it either
-imports or says why*, *the document survived the refusal*), measured on a
-non-wasm dist; `acceptance.mjs` was not run here.
+Drag and drop in the tree was added after the eight (`ribbonedit.drop`). 
+`importui.test.mjs` has failures that predate the wave (*it either imports or
+says why*, *the document survived the refusal*; three on `main`, measured on a
+non-wasm dist); `acceptance.mjs` was not run here.
 
 **The per-step checks were not the gate.** Steps 1–8 each ran the typechecker,
 the linter and the suite, but not `tools/imports.mjs` or the engine's

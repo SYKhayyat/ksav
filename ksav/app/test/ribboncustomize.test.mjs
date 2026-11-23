@@ -231,6 +231,30 @@ export async function run() {
     check("on that button", s().sel, { tab: other.id, group: og.id, action: og.items[1].action });
     ok("with its tab open", s().expanded.has(other.id));
     ok("on the writer's own ribbon", s().custom && s().layout.tabs[0].hidden === true);
+
+    // ------------------------------------------------- drag and drop
+    openCustomize({ tab: "home" });
+    const items0 = () => find((n) => n.role === "treeitem" && n["aria-level"] === "1");
+    const fire = (node, type, e = {}) => {
+      let stopped = false;
+      const ev = { preventDefault() { this.prevented = true; }, stopPropagation() { stopped = true; }, dataTransfer: { setData() {}, effectAllowed: "", dropEffect: "" }, ...e };
+      for (const fn of node.listeners?.[type] ?? []) fn(ev);
+      return ev;
+    };
+    const dragBefore = items0().map((n) => n["data-node"]);
+    ok("tree items are draggable", items0().every((n) => n.draggable === "true"));
+    fire(items0()[2], "dragstart");
+    check("a drag over another tab says it may drop", fire(items0()[0], "dragover").prevented, true);
+    check("not over itself", fire(items0()[2], "dragover").prevented, undefined);
+    fire(items0()[0], "drop");
+    check("dropping a tab on a tab reorders it", customizeState().layout.tabs.map((x) => x.id).slice(0, 2), [def.tabs[2].id, def.tabs[0].id]);
+    ok("and writes it", ribbon().tabs[0].id === def.tabs[2].id);
+    check("the moved tab is selected", customizeState().sel, { tab: def.tabs[2].id });
+    check("a drop with no drag in flight is nothing", fire(items0()[0], "dragover").prevented, undefined);
+    const after = items0().map((n) => n["data-node"]);
+    fire(items0()[1], "drop");
+    check("and does not edit", items0().map((n) => n["data-node"]), after);
+    ok("the tree had tabs to drag", dragBefore.length > 2);
   } finally {
     setLang(lang);
     settings.shell = shellWas;

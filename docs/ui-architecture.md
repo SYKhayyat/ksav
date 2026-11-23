@@ -436,6 +436,6 @@ editor surface, and customizing the **menus** (deliberately never).
   chosen from `structure`'s list in step 1, by the §5 rules.
 - Short labels where the command name reads badly on a button are written in
   step 1 and reviewed as one table in both languages.
-- **Still open after the build (#233):** drag and drop in the customize tree.
-  The tree is driven by the keyboard and the drawer's buttons; §8's "drag and
-  drop works too" is not built yet.
+- **Built after the eight steps (#233):** drag and drop in the customize tree
+  (`ribbonedit.drop`, wired in `ribboncustomize.ts`). It is never the only way:
+  every drop is also Alt+↑/↓ or a drawer button.

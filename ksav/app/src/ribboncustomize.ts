@@ -46,6 +46,8 @@ interface State {
   /** Commands new since the layout was saved — marked *new* this once. */
   fresh: Set<string>;
   status: string;
+  /** The node being dragged, while a drag is on. */
+  drag: TreeNode | null;
 }
 
 let st: State | null = null;
@@ -109,6 +111,7 @@ export function openCustomize(at?: TreeNode): void {
     pick: null,
     fresh: new Set(m?.added ?? []),
     status: "",
+    drag: null,
   };
   if (!st.sel && st.layout.tabs[0]) st.sel = { tab: st.layout.tabs[0].id };
   render();
@@ -243,6 +246,32 @@ function treeItem(n: TreeNode, level: number, text: (globalThis.Node | string)[]
       "aria-selected": String(selected),
       tabindex: selected ? "0" : "-1",
       "data-node": keyOf(n),
+      draggable: "true",
+      onDragstart: (e: DragEvent) => {
+        e.stopPropagation();
+        s.drag = n;
+        e.dataTransfer?.setData("text/plain", keyOf(n));
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      },
+      onDragover: (e: DragEvent) => {
+        if (!s.drag || same(s.drag, n)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      },
+      onDrop: (e: DragEvent) => {
+        const from = s.drag;
+        s.drag = null;
+        if (!from || same(from, n)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        s.sel = from;
+        refocus = true;
+        edit((l) => E.drop(l, from, n));
+      },
+      onDragend: () => {
+        s.drag = null;
+      },
       ...(expandable ? { "aria-expanded": String(s.expanded.has(openKey(n))) } : {}),
       onClick: (e: Event) => {
         e.stopPropagation();

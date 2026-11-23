@@ -120,6 +120,57 @@ export function move(l: RibbonLayout, n: Node, delta: number): RibbonLayout {
 }
 
 /**
+ * Drag and drop: `from` dropped onto `onto`. What it means depends on the pair,
+ * and anything that has no meaning is left as it was:
+ *
+ * - tab on tab: takes the target's place;
+ * - group on a group of its own tab: takes the target's place; on a group of
+ *   another tab: goes into that tab, before the target; on a tab: goes last in it;
+ * - command on a command of its own group: takes the target's place; on a
+ *   command of another group: goes into that group, before the target; on a
+ *   group: goes last in it (one command, once, per group — a duplicate is refused).
+ *
+ * Moving a command takes it off the group it was dragged from; it stays *known*.
+ */
+export function drop(l: RibbonLayout, from: Node, onto: Node): RibbonLayout {
+  const out = copy(l);
+  const noop = () => copy(l);
+  if ("action" in from) {
+    const src = groupOf(out, from);
+    const item = src?.items.find((i) => i.action === from.action);
+    if (!src || !item || "action" in onto && onto.action === from.action && onto.group === from.group && onto.tab === from.tab) return noop();
+    if (!("group" in onto)) return noop();
+    const dst = groupOf(out, onto);
+    if (!dst) return noop();
+    if (dst !== src && dst.items.some((i) => i.action === from.action)) return noop();
+    src.items = src.items.filter((i) => i !== item);
+    const at = "action" in onto ? dst.items.findIndex((i) => i.action === onto.action) : dst.items.length;
+    dst.items.splice(at < 0 ? dst.items.length : at, 0, item);
+    return out;
+  }
+  if ("group" in from) {
+    const srcTab = tabOf(out, from.tab);
+    const g = srcTab?.groups.find((x) => x.id === from.group);
+    if (!srcTab || !g || "action" in onto) return noop();
+    const dstTab = tabOf(out, onto.tab);
+    if (!dstTab) return noop();
+    if ("group" in onto && onto.tab === from.tab && onto.group === from.group) return noop();
+    if (dstTab !== srcTab && dstTab.groups.some((x) => x.id === g.id)) return noop();
+    srcTab.groups = srcTab.groups.filter((x) => x !== g);
+    const at = "group" in onto ? dstTab.groups.findIndex((x) => x.id === onto.group) : dstTab.groups.length;
+    dstTab.groups.splice(at < 0 ? dstTab.groups.length : at, 0, g);
+    return out;
+  }
+  if ("group" in onto || onto.tab === from.tab) return noop();
+  const i = out.tabs.findIndex((t) => t.id === from.tab);
+  const j = out.tabs.findIndex((t) => t.id === onto.tab);
+  if (i < 0 || j < 0) return noop();
+  const [t] = out.tabs.splice(i, 1);
+  out.tabs.splice(j, 0, t);
+  return out;
+}
+
+/**
  * Merge `second` into `first`: its groups are appended, and the merged tab is
  * both built-in tabs at once — a contextual Table still finds it. The merged tab
  * keeps the first's name until it is renamed. A group id the two share is

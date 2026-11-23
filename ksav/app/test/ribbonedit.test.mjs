@@ -94,6 +94,32 @@ export async function run() {
   const was = g0.items[0].face;
   check("Space flips the face", tab(E.toggleFace(base, { tab: "home", group: g0.id, action: a0 }), "home").groups[0].items[0].face, !was);
 
+  // ------------------------------------------------- drag and drop
+  const gtab = (l, id) => tab(l, id).groups.map((g) => g.id);
+  const tabNode = (t) => ({ tab: t.id });
+  const dTab = E.drop(base, tabNode(base.tabs[2]), tabNode(base.tabs[0]));
+  check("a tab dropped on a tab takes its place", ids(dTab).slice(0, 3), [base.tabs[2].id, base.tabs[0].id, base.tabs[1].id]);
+  check("a tab dropped on a tab behind it takes its place too", ids(E.drop(base, tabNode(base.tabs[0]), tabNode(base.tabs[2]))).indexOf(base.tabs[0].id), 2);
+  check("a tab dropped on itself is unchanged", E.drop(base, tabNode(home), tabNode(home)), base);
+  check("a tab dropped on a group is refused", E.drop(base, tabNode(home), { tab: home.id, group: g0.id }), base);
+  const g1 = home.groups[1];
+  check("a group dropped on a group of its tab takes its place", gtab(E.drop(base, { tab: "home", group: g1.id }, { tab: "home", group: g0.id }), "home").slice(0, 2), [g1.id, g0.id]);
+  const dg = E.drop(base, { tab: "home", group: g0.id }, tabNode(target));
+  check("a group dropped on another tab goes last in it", [gtab(dg, "home").includes(g0.id), gtab(dg, target.id).at(-1)], [false, g0.id]);
+  const dg2 = E.drop(base, { tab: "home", group: g0.id }, { tab: target.id, group: target.groups[0].id });
+  check("on a group of another tab, before it", gtab(dg2, target.id)[0], g0.id);
+  check("a group onto a tab that has its id is refused", E.drop(twin, { tab: "user:a", group: "g" }, { tab: "user:b" }), twin);
+  check("a group dropped on a command is refused", E.drop(base, { tab: "home", group: g0.id }, { tab: "home", group: g0.id, action: a0 }), base);
+  check("a command dropped on a command of its group takes its place", items(E.drop(base, { tab: "home", group: g0.id, action: a1 }, { tab: "home", group: g0.id, action: a0 }), "home", g0.id).slice(0, 2), [a1, a0]);
+  const tg = target.groups[0];
+  const dc = E.drop(base, { tab: "home", group: g0.id, action: a0 }, { tab: target.id, group: tg.id });
+  check("a command dropped on a group goes last in it, off its old group", [items(dc, target.id, tg.id).at(-1), items(dc, "home", g0.id).includes(a0)], [a0, false]);
+  check("and is still known", dc.known, base.known);
+  const dc2 = E.drop(base, { tab: "home", group: g0.id, action: a0 }, { tab: target.id, group: tg.id, action: tg.items[0].action });
+  check("on a command of another group, before it", items(dc2, target.id, tg.id)[0], a0);
+  check("a command already in the target group is refused", E.drop(put, { tab: "home", group: g0.id, action: a0 }, { tab: target.id, group: target.groups[0].id }), put);
+  check("a command dropped on a tab is refused", E.drop(base, { tab: "home", group: g0.id, action: a0 }, tabNode(target)), base);
+
   // ------------------------------------------------- reset
   const messy = E.toggleHidden(E.rename(E.remove(base, { tab: "home", group: g0.id, action: a0 }), { tab: "home" }, "x"), "home");
   check("reset puts a built-in tab back to §5", tab(E.resetTab(messy, "home", list), "home"), home);

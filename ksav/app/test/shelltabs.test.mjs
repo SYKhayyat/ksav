@@ -116,5 +116,5 @@ export async function run() {
   const header = src("appheader.ts");
   ok("the tabs shell draws the ribbon", header.includes('variant === "tabs" ? [buildRibbon()] : []'));
   ok("and folds the bar only when menubar is auto", header.includes('variant === "tabs" && shell.menubar === "auto"'));
-  ok("only the toolbar shell draws the toolbar", header.includes('variant === "toolbar" ? [buildPinnedTab()] : []'));
+  ok("only the toolbar shell draws the toolbar", header.includes('variant === "toolbar" ? [buildPinnedTab(), contextRow()] : []'));
 }

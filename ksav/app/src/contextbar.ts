@@ -20,6 +20,8 @@ import { el } from "./dom";
 import { openPanel, closePanel } from "./panels";
 import { keybindings, hintFor } from "./keyhint";
 import { docTextOf } from "./spans";
+import { noteDepthAt } from "./notes";
+import { contextOf, setContext } from "./shelltabs";
 
 const { chromeWiring } = chrome;
 
@@ -58,7 +60,10 @@ export function updateContextBar() {
   // Clicking into ordinary prose and then typing would otherwise have every
   // letter swallowed by a panel the writer had stopped thinking about — the
   // keyboard equivalent of a drawer with no close button.
-  dismissForeignHydra(structure.structureNear(doc, pos)?.structure ?? null);
+  const around = structure.structureNear(doc, pos)?.structure;
+  dismissForeignHydra(around ?? null);
+  // The contextual tabs (#233, §4): Table in a table, Notes in a note.
+  setContext(contextOf(around, noteDepthAt(doc, pos)));
 
   // The paragraph-style readout follows the caret whether or not the ribbon has
   // anything to show, so it is updated before the early return below.

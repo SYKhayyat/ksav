@@ -28,6 +28,84 @@ import { currentPlaced, here, row, runPlaced, shellLabel } from "./shellmenu";
  */
 let openTab: TabId = "home";
 
+// ---------------------------------------------------------------- contextual tabs
+//
+// Table and Notes are also *contextual* (§4, §5): standing in a table or a note
+// brings its tab forward. `contextbar.ts` knows where the caret is and calls
+// `setContext` on every move; nothing here reads the document.
+
+/** The tabs a caret can ask for. */
+export type ContextTab = "table" | "notes";
+
+/** What the caret is in now, and the tab that was open before it got there. */
+let context: ContextTab | null = null;
+let beforeContext: TabId | null = null;
+
+/** The open strip's way to switch tab, while a strip is mounted. */
+let showTab: ((tab: TabId) => void) | null = null;
+
+/** Which contextual tab a caret asks for: a table wins over the note around it, being the nearer thing. */
+export function contextOf(structureHere: string | undefined, noteDepth: number): ContextTab | null {
+  if (structureHere === "table") return "table";
+  if (noteDepth > 0) return "notes";
+  return null;
+}
+
+/**
+ * The caret moved into, out of, or between contexts.
+ *
+ * Under *tabs* the contextual tab opens, marked, and leaving puts back the tab
+ * the writer had, unless they chose another in the meantime. Under *toolbar*
+ * the tab is a second row, captioned, under the pinned one. Under *menus* there
+ * are no tabs to bring forward, and with `shell.contextual` off nothing moves.
+ * A move that does not change the answer does nothing, so this is cheap on
+ * every arrow key.
+ */
+export function setContext(next: ContextTab | null): void {
+  const shell = readShell(settings.shell);
+  const want = shell.contextual && shell.variant !== "menus" ? next : null;
+  if (want === context) return;
+  const was = context;
+  context = want;
+  if (showTab && shell.variant === "tabs") {
+    if (want && !was) beforeContext = openTab;
+    if (want) showTab(want);
+    else if (was && openTab === was && beforeContext) showTab(beforeContext);
+    else showTab(openTab);
+    if (!want) beforeContext = null;
+  }
+  fillContextRow();
+}
+
+/** The toolbar shell's second row: empty and hidden until the caret is in a table or a note. */
+export function contextRow(): HTMLElement {
+  const row = el("div", {
+    class: "toolbar ribbon-pinned ribbon-contextual",
+    id: "ribbon-contextual",
+    role: "toolbar",
+    "data-open": "false",
+  });
+  fillContextRow(row);
+  return row;
+}
+
+function fillContextRow(row = document.getElementById("ribbon-contextual")): void {
+  if (!row) return;
+  const node = context ? tabTree(currentPlaced()).find((n) => n.tab === context) : undefined;
+  row.setAttribute("data-open", String(!!node));
+  row.setAttribute("aria-label", node ? t("tab." + node.tab) : t("toolbar"));
+  if (!node) {
+    row.replaceChildren();
+    return;
+  }
+  const glyphs = readShell(settings.shell).labels === "names+glyphs";
+  row.setAttribute("data-tab", node.tab);
+  row.replaceChildren(
+    el("span", { class: "ribbon-contextual-name" }, [t("tab." + node.tab)]),
+    ...node.groups.map((g) => groupBox(g, glyphs)),
+  );
+}
+
 /** The words on a face button: the short label where one is written, else the action's own name. */
 export function faceLabel(a: PlacedAction): string {
   const key = btnKey(a);
@@ -153,6 +231,7 @@ export function buildRibbon(): HTMLElement {
     for (const [id, b] of buttons) {
       b.setAttribute("aria-selected", String(id === tab));
       b.setAttribute("tabindex", id === tab ? "0" : "-1");
+      b.setAttribute("data-contextual", String(id === context));
     }
     panel.setAttribute("aria-labelledby", "ribbon-tab-" + tab);
     panel.replaceChildren(...(tree.find((n) => n.tab === tab)?.groups ?? []).map((g) => groupBox(g, glyphs)));
@@ -184,6 +263,9 @@ export function buildRibbon(): HTMLElement {
     );
   }
   show(openTab);
+  showTab = (tab) => {
+    if (buttons.has(tab)) show(tab);
+  };
   return el("div", { class: "ribbon", "data-ribbon": "tabs" }, [
     el("div", { class: "ribbon-tabs", role: "tablist", "aria-label": t("ribbonTabs") }, [...buttons.values()]),
     panel,

@@ -2018,6 +2018,11 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 .ribbon-tab:hover { color: var(--accent); }
 .ribbon-tab[aria-selected="true"] { color: var(--ink); background: var(--bg, var(--panel)); border-color: var(--line); }
 .ribbon-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Contextual tabs (#233, §4): the tab the caret asked for is underlined in the accent. */
+.ribbon-tab[data-contextual="true"] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.ribbon-contextual[data-open="false"] { display: none; }
+.ribbon-contextual { border-top: 1px solid var(--line); }
+.ribbon-contextual-name { align-self: center; padding: 0 8px; font-size: 12px; font-weight: 600; color: var(--accent); }
 .ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
 .ribbon-btn { white-space: nowrap; }
 .ribbon-group .menu-list { top: 32px; }

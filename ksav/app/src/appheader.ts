@@ -63,7 +63,7 @@ import { openHelp } from "./help";
 import { toggleSettings } from "./settingsdrawer";
 import { paneTree } from "./panestate";
 import { buildMenus } from "./shellmenu";
-import { buildPinnedTab, buildRibbon, menuToggle } from "./shelltabs";
+import { buildPinnedTab, buildRibbon, contextRow, menuToggle } from "./shelltabs";
 import { readShell } from "./shellsettings";
 import { makeWiring } from "./wiring";
 
@@ -323,7 +323,7 @@ export function buildHeader(): HTMLElement {
         el("small", { class: "doc-file", id: "doc-file" }, [name.line]),
       ],
     ),
-    ...(variant === "toolbar" ? [buildPinnedTab()] : []),
+    ...(variant === "toolbar" ? [buildPinnedTab(), contextRow()] : []),
     // The menu bar and the runtime.view chips are navigation, and saying so is what
     // gives a screen-reader user a way to skip past forty-odd controls to the
     // editor. The page had no landmarks at all.

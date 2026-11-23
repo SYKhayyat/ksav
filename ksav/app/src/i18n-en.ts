@@ -1255,6 +1255,7 @@ export const EN: Dict = {
   shellMenubarLabel: "Menu bar under the tabs",
   shellMenubarAuto: "Folded into ☰ Menu",
   shellMenubarAlways: "Always shown",
+  shellContextualLabel: "Open the Table or Notes tab when the caret is in one",
   shellMenuButton: "☰ Menu",
   ribbonTabs: "Ribbon tabs",
   ribbonMore: "More in {0}",

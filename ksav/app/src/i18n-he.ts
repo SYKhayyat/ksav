@@ -1293,6 +1293,7 @@ export const HE: Dict = {
   shellMenubarLabel: "שורת התפריטים בלשוניות",
   shellMenubarAuto: "מקופלת לתוך ☰ תפריט",
   shellMenubarAlways: "תמיד מוצגת",
+  shellContextualLabel: "לשונית טבלה או הערות נפתחת כשהסמן בתוכן",
   shellMenuButton: "☰ תפריט",
   ribbonTabs: "לשוניות הסרגל",
   ribbonMore: "עוד ב{0}",

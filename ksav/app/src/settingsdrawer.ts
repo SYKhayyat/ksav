@@ -312,6 +312,23 @@ function shellSelectRow<F extends keyof ShellSettings>(labelKey: string, field: 
   ]);
 }
 
+/** A yes/no field of the `shell` blob, as a checkbox — written back whole, like the selects above. */
+function shellCheckRow(labelKey: string, field: "contextual") {
+  const live = readShell(settingsWiring().live("shell"));
+  return el("label", { class: "set-row" }, [
+    el("span", { "data-i18n": labelKey }, [t(labelKey)]),
+    el("input", {
+      type: "checkbox",
+      "data-setting": "shell." + field,
+      ...(live[field] ? { checked: "checked" } : {}),
+      onChange: (e: Event) => {
+        const v = (e.target as HTMLInputElement).checked;
+        settingsWiring().write("shell", { ...readShell(settingsWiring().live("shell")), [field]: v });
+      },
+    }),
+  ]);
+}
+
 /**
  * Where a note's prose sits in the source — the document-level preference, and
  * one override per destination.
@@ -857,6 +874,8 @@ export function buildSettingsDrawer(): HTMLElement {
       ["auto", t("shellMenubarAuto")],
       ["always", t("shellMenubarAlways")],
     ]),
+    // Table and Notes come forward when the caret is in a table or a note (§4).
+    shellCheckRow("shellContextualLabel", "contextual"),
     // Off by default, and the note says what the strip is — because a writer
     // who has never seen it cannot decide about a control they cannot picture,
     // and the one who turned it off wants to know what they turned off.

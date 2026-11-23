@@ -46,7 +46,7 @@ export async function run() {
 
   const header = src("appheader.ts");
   ok("the header says which shell it is", header.includes('"data-shell": variant'));
-  ok("the menus shell draws no toolbar row", header.includes('variant === "toolbar" ? [buildPinnedTab()] : []'));
+  ok("the menus shell draws no toolbar row", header.includes('variant === "toolbar" ? [buildPinnedTab(), contextRow()] : []'));
 
   // Both doors to the setting: View and the drawer.
   const surface = src("actionsurface.ts");

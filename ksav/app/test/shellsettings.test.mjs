@@ -18,7 +18,7 @@ export async function run() {
   for (const junk of [null, 7, "tabs", [], true]) {
     check(`a stored ${JSON.stringify(junk)} is the defaults`, readShell(junk), { ...SHELL_DEFAULTS });
   }
-  check("the default shell is the toolbar", SHELL_DEFAULTS.variant, "toolbar");
+  check("the default shell is the tabs", SHELL_DEFAULTS.variant, "tabs");
   check("three shells", [...SHELL_VARIANTS], ["menus", "toolbar", "tabs"]);
 
   // Field by field: a blob with one bad field keeps its good ones.
@@ -27,7 +27,7 @@ export async function run() {
     readShell({ variant: "tabs", labels: 7, menubar: "always", contextual: "yes", toolbarTab: "Home!" }),
     { ...SHELL_DEFAULTS, variant: "tabs", menubar: "always" },
   );
-  check("an unknown variant falls back", readShell({ variant: "ribbon" }).variant, "toolbar");
+  check("an unknown variant falls back", readShell({ variant: "ribbon" }).variant, "tabs");
   check(
     "every field survives a round trip",
     readShell({ variant: "menus", menubar: "always", toolbarTab: "insert", labels: "names", contextual: false }),

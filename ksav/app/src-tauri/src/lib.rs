@@ -1702,7 +1702,14 @@ mod tests {
         //    an empty one would pass by writing the file successfully.
         {
             let full = std::path::Path::new("/tmp/ksav-full");
-            if full.is_dir() {
+            // A directory that merely exists is not a mounted tmpfs: a stray
+            // root-owned one made this case fail on "room for the victim"
+            // with nothing to do with the code under test. Only run where it
+            // can be written, which is what mounting one for it means.
+            let probe = full.join(".ksav-probe");
+            let writable = full.is_dir() && std::fs::write(&probe, b"").is_ok();
+            let _ = std::fs::remove_file(&probe);
+            if writable {
                 use std::io::Write;
                 // A file that is already there, written while there is room.
                 // The half of a failed save that matters more than its sentence is

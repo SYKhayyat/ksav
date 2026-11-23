@@ -267,7 +267,7 @@ dialog (§8):
 
 ```ts
 shell: {
-  variant: "menus" | "toolbar" | "tabs";   // default "toolbar"
+  variant: "menus" | "toolbar" | "tabs";   // default "tabs"
   menubar: "auto" | "always";              // tabs variant: "auto" folds into ☰
   toolbarTab: string;                      // which tab the toolbar variant pins (default home)
   labels: "names" | "names+glyphs";        // a button always has its name

@@ -23,8 +23,8 @@
 import { check, notOk, ok } from "./harness.mjs";
 import { fakeView, installChrome } from "./harness.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
-import { buildPinnedTab as buildToolbar } from "../.tmp-test/shelltabs.mjs";
-import { t } from "../.tmp-test/i18n.mjs";
+import { buildPinnedTab } from "../.tmp-test/shelltabs.mjs";
+import { t, getLang } from "../.tmp-test/i18n.mjs";
 import { commands } from "../tools/commands.mjs";
 
 /** Every node in a built tree, depth first. */
@@ -64,7 +64,7 @@ function anonymous(nodes) {
 
 export async function run() {
   installChrome();
-  // A well-formed editor state, because `buildToolbar` asks the document what
+  // A well-formed editor state, because `buildPinnedTab` asks the document what
   // language it is written in. In a filtered run `runtime.view` is undefined and
   // the code takes its no-view branch; in the full suite a previous test may
   // have left a view-shaped object without a selection, which is a failure about
@@ -85,7 +85,7 @@ export async function run() {
 
   {
     runtime.setRegistries([], []);
-    const bar = buildToolbar();
+    const bar = buildPinnedTab();
     const text = words([bar]).join(" ");
 
     ok("an empty registry still draws a toolbar", bar.className.includes("toolbar"));
@@ -105,11 +105,11 @@ export async function run() {
       reg.filter((c) => c.he !== without),
       [],
     );
-    const bar = buildToolbar();
+    const bar = buildPinnedTab();
     const missing = all([bar]).filter((n) => n["data-missing"] === without);
 
     check("a missing command keeps its button", missing.length, 1);
-    ok("the button still shows its name", words([missing[0]]).includes("הדגשה"));
+    ok("the button still shows its name", words([missing[0]]).includes(getLang() === "he" ? "הדגשה" : "Bold"));
     ok(
       "and it explains itself instead of being silent",
       (missing[0]?.title ?? "").includes(t("registryMissing")),
@@ -121,7 +121,7 @@ export async function run() {
 
   {
     runtime.setRegistries(reg, []);
-    const bar = buildToolbar();
+    const bar = buildPinnedTab();
     check("a complete registry has no missing buttons", all([bar]).filter((n) => n["data-missing"]), []);
   }
 }

@@ -227,7 +227,7 @@ export const RECIPES = new Map([
         "to Home, customize. Driven because the gesture is a context menu on a face, and " +
         "the default shell's pinned toolbar draws faces from the same renderer as the tabs.",
       drive: async (p) => {
-        await p.rightClick(".ribbon-pinned [data-action]");
+        await p.rightClick(":is(.ribbon-pinned, .ribbon-panel) [data-action]");
         await p.waitFor(".ribbon-menu", 10_000);
       },
     },
@@ -241,7 +241,7 @@ export const RECIPES = new Map([
         "not a mode. Its doors are `כלים ▸ התאמת הסרגל…` and the right-click on any face, " +
         "and the right-click is the one driven — it is the one a writer finds by accident.",
       drive: async (p) => {
-        await p.rightClick(".ribbon-pinned [data-action]");
+        await p.rightClick(":is(.ribbon-pinned, .ribbon-panel) [data-action]");
         await p.waitFor(".ribbon-menu", 10_000);
         await p.click('[data-rc-menu="rcMenuCustomize"]');
         await p.waitFor("#ribbon-drawer.open", 10_000);
@@ -289,7 +289,10 @@ export const RECIPES = new Map([
         "reason: the ribbon leaves the caret inside the structure it made.",
       drive: async (p) => {
         await p.newLine();
-        await p.click('.toolbar [data-command="רשימה"]');
+        // The list is a face of the Insert tab, not of the pinned Home: a writer
+        // reaches it through the Insert menu, as in any office suite.
+        await p.click('[data-menu="insert"] > .menu-btn');
+        await p.click('[data-menu="insert"] [data-action="bullets"]');
         await p.press("Control+Alt+k");
         await p.waitFor("#hydra.open", 10_000);
       },
@@ -386,7 +389,8 @@ export const RECIPES = new Map([
         "ribbon leaves the caret inside the table it made.",
       drive: async (p) => {
         await p.newLine();
-        await p.click('.toolbar [data-command="טבלה"]');
+        await p.click('[data-menu="table"] > .menu-btn');
+        await p.click('[data-menu="table"] [data-action="table"]');
         await p.waitFor("#context-bar.open", 10_000);
       },
     },
@@ -461,7 +465,7 @@ export const RECIPES = new Map([
 export const CORE = [
   {
     name: "the ribbon",
-    selector: ".toolbar",
+    selector: ":is(.toolbar, .ribbon-panel)",
     why:
       "Step 0 waits for it and steps 3 to 6 click buttons in it. If it is on the " +
       "screen at zero height every one of those clicks is Playwright reaching for " +

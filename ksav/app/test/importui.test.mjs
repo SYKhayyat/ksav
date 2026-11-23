@@ -160,7 +160,7 @@ async function importVia(page, label, arm) {
 }
 
 export async function run() {
-  const app = await openApp();
+  const app = await openApp({ shell: { menubar: "always" } });
   if (app.skip) {
     console.log(`SKIPPED importui: ${app.skip}`);
     return;

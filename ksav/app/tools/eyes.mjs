@@ -30,6 +30,9 @@ const DIST = join(APP, "dist");
 
 /** The Chromium on this machine, if there is one. Nix puts it somewhere unpickable. */
 function findChromium() {
+  // The one the gate and the acceptance run are told to use, when told.
+  const named = (process.env.KSAV_CHROMIUM ?? "").trim();
+  if (named && existsSync(named)) return named;
   // **Playwright's own cache, first.** `playwright-core` does not bundle a browser
   // and `npx playwright install` puts one here, and the layout changed: the binary
   // is `<pkg>/chrome-linux64/chrome`, not `<pkg>/bin/chrome`. The loop below only
@@ -132,7 +135,7 @@ for (const pair of sets) {
   const i = pair.indexOf(":");
   const key = pair.slice(0, i);
   const raw = pair.slice(i + 1);
-  settings[key] = /^-?[0-9.]+$/.test(raw) ? Number(raw) : raw === "true";
+  settings[key] = raw.startsWith("{") ? JSON.parse(raw) : /^-?[0-9.]+$/.test(raw) ? Number(raw) : raw === "true";
 }
 
 if (!existsSync(DIST)) {
@@ -183,7 +186,7 @@ try {
     headless: true,
     args: ["--no-sandbox", "--disable-gpu", "--force-device-scale-factor=2"],
   });
-  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  const page = await browser.newPage({ viewport: { width: Number(process.env.EYES_W ?? 1100), height: 900 } });
 
   // Settings are put in place **before the first navigation**, via an init script,
   // rather than by setting localStorage and reloading. The reload version worked
@@ -220,6 +223,20 @@ try {
   );
   await page.waitForTimeout(500);
 
+  // EYES_WIDE=1: name what is wider than the window, because a page that scrolls
+  // sideways is a screenshot of the wrong half and says nothing about why.
+  if (process.env.EYES_WIDE) {
+    const wide = await page.evaluate(() => {
+      const vw = window.innerWidth;
+      const name = (n) => n.tagName.toLowerCase() + (n.id ? "#" + n.id : "") + "." + [...n.classList].join(".");
+      return [...document.querySelectorAll("body *")]
+        .map((n) => [n, n.getBoundingClientRect()])
+        .filter(([, r]) => r.width > vw + 1)
+        .map(([n, r]) => `${name(n)} ${Math.round(r.width)}px`)
+        .slice(0, 12);
+    });
+    console.log("wider than the window:", wide.join(" | ") || "nothing");
+  }
   const png = await page.screenshot({ fullPage: false });
   writeFileSync(out, png);
   console.log(`wrote ${out}`);

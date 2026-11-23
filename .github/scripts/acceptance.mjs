@@ -519,6 +519,17 @@ async function main() {
   // So this line was the real bug and the minimap recipe was only the thing that
   // had never reached it. `addInitScript` re-runs on every navigation, which is
   // the whole property wanted of a probe that has to survive one.
+  // The tabs shell folds the menu bar into `☰ תפריט` by default; the steps below
+  // use the menus a great deal, so this writer has chosen to keep them showing —
+  // a setting a person has, not a back door. The fold itself is fenced in
+  // `shellsettings.test.mjs` and looked at in `tools/eyes.mjs`.
+  await page.addInitScript(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
+      raw.shell = { menubar: "always", ...(raw.shell ?? {}) };
+      localStorage.setItem("ksav.settings", JSON.stringify(raw));
+    } catch { /* a page with no storage has no setting to keep */ }
+  });
   await page.addInitScript(() => {
     const w = /** @type {any} */ (window);
     w.__ksavStatus = [];
@@ -783,6 +794,13 @@ async function main() {
    * because "it is not visible" is a bug report nobody can act on.
    */
   async function visible(name, selector) {
+    // A long menu scrolls inside its own 70vh box, as in any office suite; a
+    // person reaches a lower item by scrolling the menu to it. Do that, and only
+    // that: scrolling anything else would hide the off-screen bug this is for.
+    await page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (el && el.closest("[data-menu]")) el.scrollIntoView({ block: "nearest" });
+    }, selector).catch(() => {});
     const m = await measure(selector);
     if (!m.found) {
       check(`${name} is in the document`, false, `nothing matches ${selector}`);
@@ -1117,7 +1135,7 @@ async function main() {
 
   step(0, "the application boots");
   current = "boot";
-  await page.waitForSelector("#app .toolbar", { timeout: 30_000 });
+  await page.waitForSelector("#app :is(.toolbar, .ribbon-panel)", { timeout: 30_000 });
   const boot = await settled(0);
   check("the first document compiles", boot.cls !== "err", `${boot.text} — ${boot.diagnostics}`);
   // Waited for, not sampled.
@@ -1241,7 +1259,7 @@ async function main() {
   await newLine();
   await type("ועיין ברש\"י");
   await act("clicking † in the ribbon", () =>
-    clickVisible("the † button", '.toolbar [data-action="footnote"]'),
+    clickVisible("the † button", ':is(.toolbar, .ribbon-panel) [data-action="footnote"]'),
   );
   // A parenthesis and a gershayim in one Hebrew note is the §6 bug exactly: the
   // scanner used to read `(רש"י)` as an open string and mis-colour, mis-fold and
@@ -1259,8 +1277,8 @@ async function main() {
   await newLine();
   // On Home the endnote sits behind the notes group's ⋯ (spec §5, `HOME`).
   await act("choosing ⋯ ▸ endnote in the toolbar", async () => {
-    await clickVisible("the notes group's ⋯", '.toolbar [data-menu="more-homeNotes"] > .menu-btn');
-    await clickVisible("the endnote row", '.toolbar [data-menu="more-homeNotes"] [data-action="endnote"]');
+    await clickVisible("the notes group's ⋯", ':is(.toolbar, .ribbon-panel) [data-menu="more-homeNotes"] > .menu-btn');
+    await clickVisible("the endnote row", ':is(.toolbar, .ribbon-panel) [data-menu="more-homeNotes"] [data-action="endnote"]');
   });
   await act("typing the endnote", () => type("מקור הדברים"));
 

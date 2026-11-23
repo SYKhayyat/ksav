@@ -10,7 +10,8 @@
 // menu bar folds into that button unless `shell.menubar` is `always`.
 
 import { el } from "./dom";
-import { getLang, t, tf, hasKey, isRtlUi } from "./i18n";
+import { DICTS, getLang, t, tf, hasKey, isRtlUi } from "./i18n";
+import { COMMAND_EN } from "./engine.gen";
 import { ALIGN_ORDER, settings } from "./settings";
 import { readShell } from "./shellsettings";
 import * as runtime from "./runtime";
@@ -171,7 +172,16 @@ function faceButton(a: PlacedAction, glyphs: boolean): HTMLElement {
 
 /** The words a missing face would have had: its short label, else its name. */
 function missingLabel(key: string): string {
-  return hasKey("btn." + key) ? t("btn." + key) : key.replace(/_/g, " ");
+  if (hasKey("btn." + key)) return t("btn." + key);
+  const plain = key.replace(/_/g, " ");
+  if (getLang() === "he") return plain;
+  // English UI: the face is struck through because the engine is absent, but it
+  // must not stand there in Hebrew. A short label filed under its English id
+  // (`btn.italic` for נטוי), else the command's English name.
+  const byValue = Object.entries(DICTS.he).find(([k, v]) => k.startsWith("btn.") && v === plain);
+  if (byValue && hasKey(byValue[0])) return t(byValue[0]);
+  const en = COMMAND_EN[key];
+  return en ? en.charAt(0).toUpperCase() + en.slice(1).replace(/_/g, " ") : plain;
 }
 
 /** The alignment faces in screen order (#136); every other face keeps its place after them. */

@@ -4,6 +4,40 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
+## Latest — 2026-11-23, `shell-followups`: the tabs ribbon is the default, and everything was run
+
+**Opus: start here.** Branch `shell-followups`, not merged, not pushed.
+
+- **Default shell is now `"tabs"`** (`shellsettings.ts`, `docs/ui-architecture.md`
+  §7). The menu bar folds into `☰ תפריט` unless `shell.menubar:"always"`. The
+  tab strip is nowrap and scrolls sideways (scrollbar hidden); below 900px the
+  ribbon, chipbar and menubar are each full width so nothing overflows
+  (screenshots at 560/800/1100px reviewed with `tools/eyes.mjs`, `EYES_W`,
+  `EYES_WIDE=1`). Lists and tables live on Insert; Notes' `⋯` is `more-homeNotes`.
+- **Acceptance** measured against baseline: main 956 checks / 0 failures; the
+  branch first had 9 failures (5 off-screen menu items, 2 missing list/table
+  buttons, 2 timeouts in the hydra/context-bar drivers), all fixed by
+  scroll-into-view in `visible()`, Insert/Table menu drivers, and seeding
+  `menubar:"always"`. Final: **996 checks, 0 failures** — run *before* the last
+  label fix below, so re-run `npm run accept` (needs `npm run build`, then
+  `cargo build --release --features embed-ui`, ~12 min).
+- **Suite:** 174 files, 14847 passed, 0 failed (with chromium). tsc, eslint src,
+  `tools/imports.mjs` clean. Full `tools/gate.mjs` and the desktop `shell` gate
+  were not re-run after the final edits.
+- **Real bug fixed:** with no engine, missing ribbon faces were labelled with raw
+  Hebrew command names even in English (`missingLabel`, `shelltabs.ts`). Now
+  resolved through `btn.*` then `COMMAND_EN`. `browserlang` caught it.
+- Test fixes: `visibility` selector in `surfaces.mjs`; `importui` seeds
+  `menubar:"always"` via new `openApp({shell})`; `ribbonmissing` is language-aware.
+- Desktop test (`lib.rs`): ENOSPC test skips when `/tmp/ksav-full` is a
+  root-owned stray (not writable).
+- **Open UI questions for you:** the panel wraps rather than collapsing to `⋯`
+  Office-style; faces are struck through when the engine is absent (intended,
+  #105); more polish at 560–800px.
+- #238: UI work that belongs on the Rust side.
+- Another agent in `/home/shaul/ksav-ci` runs a looping `gate.mjs emacs` that
+  starts `ksav serve 127.0.0.1:7879`. Not mine; leave it.
+
 ## Current handoff — 2026-11-23 (the shell wave, #233, on `shell-placements`)
 
 `docs/ui-architecture.md` §11's eight steps are built, one commit each, on branch **`shell-placements`** — not yet merged; the user reviews it as

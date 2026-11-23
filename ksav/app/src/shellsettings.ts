@@ -135,7 +135,7 @@ export function readRibbon(raw: unknown): RibbonLayout | undefined {
 export const SHELL_VARIANTS: readonly ShellVariant[] = ["menus", "toolbar", "tabs"];
 
 export const SHELL_DEFAULTS: Readonly<ShellSettings> = {
-  variant: "toolbar",
+  variant: "tabs",
   menubar: "auto",
   toolbarTab: "home",
   labels: "names+glyphs",

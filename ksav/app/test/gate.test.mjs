@@ -713,6 +713,18 @@ export async function run() {
     );
     // The page's promise, and the help's answer, in one assertion: the sentence
     // is in a living page, so it is a claim about today and not a quotation.
+    // The README's table of names, swept from the file itself: every group has a
+    // row, and every row is a name the gate answers. It said "Nine checks" and
+    // six rows while the gate had sixteen and the Emacs package was one of the
+    // things it could not run.
+    {
+      const page = readFileSync(path.join(KSAV, "README.md"), "utf8");
+      const table = page.slice(page.indexOf("| name | kind | what it runs |"));
+      const rows = [...table.slice(0, table.indexOf("\n\n")).matchAll(/^\|\s*`([a-z-]+)`/gmu)].map((m) => m[1]);
+      check("the README's table names every group", GROUPS.filter((g) => !rows.includes(g)), []);
+      check("…and only names the gate answers to", rows.filter((n) => !NAMES.includes(n)), []);
+    }
+
     ok(
       "the page that promises the help is telling the truth",
       says(readFileSync(path.join(ROOT, "docs/your-first-change.md"), "utf8"), "`node tools/gate.mjs --help` lists the groups"),

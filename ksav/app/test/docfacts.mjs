@@ -393,6 +393,10 @@ export const CLAIMS = [
   ["docs/shortcuts.md", "offered", (n) => `There are ${n} of them`],
   // The gate's own size, which three pages used to spell three different ways.
   ["CONTRIBUTING.md", "gateChecks", (n) => `${word(n)} checks`],
+  // The same fact on the page a reader meets first, which said nine while the
+  // gate had thirteen and again while it had sixteen: a number in prose beside a
+  // noun this sweep knows, so it belongs in this table rather than in prose.
+  ["ksav/README.md", "gateChecks", (n) => `runs ${word(n)} checks`],
   ["HANDOFF.md", "gateChecks", (n) => `the whole gate, ${word(n)} checks`],
 ];
 

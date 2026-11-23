@@ -66,6 +66,22 @@ answered, in the one job that builds no engine.
       passed`, offline bundle `24 passed`, the pair together `48 passed, 0
       failed`.
 
+### The page the gate is walked in, three names behind the gate
+
+`ksav/README.md` §Test said *nine checks* with a six-row table while the gate had
+thirteen and no `emacs` row, said CI calls the gate "in five jobs" (eight), and
+still listed the Emacs suite among the jobs that are *not* part of the gate after
+#239 put it in. The number was invisible to the documentation sweep because the
+`gateChecks` fact had claims on `CONTRIBUTING.md` and `HANDOFF.md` only.
+
+- [x] **#241** the page says sixteen, carries its `emacs` row, and separates the
+      two jobs that are genuinely outside the gate from the group that is inside
+      it. **Closed**, and fenced twice: the README's table is parsed out of the
+      file and held against `GROUPS` and `NAMES` in both directions — a group
+      without a row is red, a row for a group that is not there is red — and the
+      number in that sentence is a declared claim now, so it moves with
+      `CHECKS.length` instead of with whoever last read the page.
+
 ### A flag that was a promise, and a flag that could be misspelled
 
 `docs/your-first-change.md` told a reader that `node tools/gate.mjs --help` lists

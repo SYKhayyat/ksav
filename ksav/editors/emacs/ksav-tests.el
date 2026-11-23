@@ -1042,3 +1042,103 @@ half is asserted as firmly as the positive one."
                                      (customCommands . "  \n ")))
                    ""))
     (should (equal (funcall silent nil) ""))))
+
+;;;; ------------------------------------------- the wire, asked of every service
+
+;; #234 reached an installed package and nothing here could see it.
+;;
+;; `ksav-commands' and `ksav-templates' read the *envelope* as if it were the
+;; list — `022391f` had moved both services to `{ok, commands: [...]}` and this
+;; package's readers were not moved with them — so `M-x ksav-insert-command'
+;; offered `ok · commands' and nothing raised. The two live tests below caught it
+;; one service at a time, after the fact; what this package never had is the
+;; claim the *client* needs, which is the same claim `app/test/wire.test.mjs`
+;; makes for the desktop application: **every service answers one shape, and this
+;; package may only read names out of it.**
+;;
+;; Derived from the sources rather than listed here: a list of eleven service
+;; names is a list that goes stale the first time somebody adds a twelfth call.
+;; So the sweep reads every `(ksav-call "…")` in the package's own `.el` files.
+
+(defconst ksav-tests--here
+  ;; Read at load time, when `load-file-name' is bound. Asking inside the
+  ;; function below answers nil in `--batch', where there is no buffer visiting
+  ;; the file, and a sweep over no directory reports every claim as vacuous.
+  (file-name-directory (or load-file-name buffer-file-name))
+  "Where this test file was loaded from.")
+
+(defun ksav-tests--services-called-from-source ()
+  "Every service this package calls, read out of its own sources."
+  (let ((dir (or ksav-tests--here default-directory))
+        (names nil))
+    (dolist (file (directory-files dir t "\\.el\\'"))
+      ;; Not this file: its own fixture strings would otherwise count as calls.
+      (unless (string-match-p "ksav-tests\\.el\\'" file)
+        (with-temp-buffer
+          (insert-file-contents file)
+          (goto-char (point-min))
+          (while (re-search-forward "(ksav-call \"\\([a-z-]+\\)\"" nil t)
+            (cl-pushnew (match-string 1) names :test #'equal)))))
+    names))
+
+(ert-deftest ksav-the-sweep-finds-the-calls-there-are ()
+  ;; A sweep that matches nothing is the failure mode this whole file is about;
+  ;; eleven is what the package calls today, and a floor rather than a count so
+  ;; adding a call does not fail the test.
+  (let ((names (ksav-tests--services-called-from-source)))
+    (should (>= (length names) 11))
+    (should (member "commands" names))
+    (should (member "compile" names))
+    (should (member "sefarim" names))))
+
+(ert-deftest ksav-live-every-service-this-package-calls-answers-the-envelope ()
+  "One answer shape, for every service this package talks to.
+
+The body sent here is deliberately `{}` or nothing, so most of these answers are
+*refusals* — which is the point: `#215` made a refusal and a success the same
+shape (`ok` present, and either the payload or an `error`), and a service that
+went back to answering a bare array or a bare number would read here as an answer
+with no `ok` at all. That is exactly what happened to `commands` and `templates`
+in `#234`: nothing raised, because an alist of two conses is a good alist."
+  (ksav-tests--with-engine
+    (let ((names (ksav-tests--services-called-from-source)))
+      (should (>= (length names) 11))
+      (dolist (name names)
+        (let* ((answer (ksav-call name nil))
+               (ok (assoc 'ok answer))
+               (err (alist-get 'error answer)))
+          ;; An object, not a list of rows: `json-parse-string' answers a JSON
+          ;; array as a list of rows and an object as an alist, and the two are
+          ;; told apart by whether the entries are conses.
+          (should (consp answer))
+          ;; An object parses to an alist of conses; a JSON array parses to a
+          ;; list of rows, so this line is the shape claim and not a formality.
+          (should (consp (car answer)))
+          (should ok)
+          ;; `ok' is a **boolean** — `t' or, parsed, `nil' — and never a second
+          ;; payload wearing the same name. A service that answered a string or a
+          ;; list here would be answering a shape this client cannot read.
+          (should (memq (cdr ok) '(t nil)))
+          ;; A refusal says why. `#215`'s whole argument is that a refusal with no
+          ;; sentence is a failure a writer cannot act on.
+          (when (null (cdr ok))
+            (should (stringp err))
+            (should (> (length err) 0))))))))
+
+(ert-deftest ksav-live-the-lists-this-package-reads-travel-under-their-own-names ()
+  "The three registry lists, read by name — `#234`'s defect, kept shut.
+
+Their readers are covered by the live tests for each of them; what is asserted
+here is the *wire*, so that a future service joining the same family is asked the
+same question: which key holds the rows?"
+  (ksav-tests--with-engine
+    (dolist (pair '(("commands" . commands) ("templates" . templates) ("sefarim" . sefarim)))
+      (let* ((name (car pair))
+             (key (cdr pair))
+             (answer (ksav-call name nil))
+             (rows (alist-get key answer)))
+        (should (listp rows))
+        (should (> (length rows) 0))
+        ;; The rows are objects with a name of their own, not strings — the
+        ;; readers all take `alist-get' of `he'/`en'/`canonical'.
+        (should (consp (car rows)))))))

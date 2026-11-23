@@ -66,6 +66,47 @@ answered, in the one job that builds no engine.
       passed`, offline bundle `24 passed`, the pair together `48 passed, 0
       failed`.
 
+### A client with no wire-shape fence, which is how a wire change shipped
+
+The desktop application has had one since #225/#215: `app/test/wire.test.mjs` walks
+the registry and holds every service's answer. The **Emacs client** — a whole
+second front end, eleven services, 66 tests — had none, and that is the shape of
+#234: `/commands` and `/templates` moved to `{ok, commands: […]}` and the package's
+readers kept taking the envelope as the list, so `M-x ksav-insert-command` offered
+`ok · commands` to whoever installed it. Nothing raised, because a two-element
+alist is a good alist.
+
+- [x] **#237** the client had no claim about the *shape* of an answer, only tests
+      for two services, written after the fact. **Closed**: a source sweep reads
+      every `(ksav-call "…")` out of the package's own files — 11 today — and three
+      tests ask it what the client needs: the sweep is not vacuous
+      (`ksav-the-sweep-finds-the-calls-there-are`, ≥ 11 and three names it must
+      find), every service found answers **one object** with a boolean `ok` and a
+      refusal that says why, and the three registry lists travel under their own
+      names with object rows. Mutation-tested: changing `ksav-call`'s
+      `:object-type` to `'hash-table` reddens both live tests. Measured: **66/66**,
+      byte-compile clean.
+
+### A fence that discards the evidence its own author attached
+
+`ok` and `notOk` in `app/test/harness.mjs` took two arguments, and the suite
+called them with a third **842 times across 140 files** — `${rows.length}
+handlers`, the status slot's own words, `JSON.stringify(out)`. `record()` has
+always taken a `detail`; the two helpers never passed one, so every one of those
+observations was computed and thrown away. `check()` printed both sides, which is
+why the defect was invisible: the readable assertion was not the one that failed.
+
+- [x] **#236** what that cost, measured: the red #235 was written for read `FAIL a
+      valid .docx imports / got false, wanted something truthy`, and the call site
+      already held `good.status` — `✗ שגיאת רשת`, the compile's network error. It
+      took a throwaway probe to learn what the fence had in its hand. **Closed**:
+      both helpers take and print the detail, on failure only, so a passing
+      assertion still costs nothing. Fenced by `app/test/harness.test.mjs`, which
+      runs the real harness as a **subprocess** (a deliberately failing assertion
+      inside the suite would move its own tally) and asserts six things including
+      that a pass prints nothing at all. Mutation-tested: dropping the
+      interpolation reddens exactly one named check.
+
 ### A fence asked about a phrase where the question was a pattern
 
 `ac499fc`. The lint check went red on this machine for the first time, and all

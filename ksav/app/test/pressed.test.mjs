@@ -47,7 +47,7 @@ export async function run() {
   check("a size in points", [pointsArg("14pt"), pointsArg("10.5 pt"), pointsArg("1.2em")], [14, 10.5, null]);
 
   // ------------------------------------------------ in the built application
-  const app = await openApp();
+  const app = await openApp({ ribbon: true });
   if (app.skip) {
     console.log(`SKIPPED pressed (browser): ${app.skip}`);
     return;

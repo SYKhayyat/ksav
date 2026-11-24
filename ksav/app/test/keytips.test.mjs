@@ -57,7 +57,7 @@ export async function run() {
   }
 
   // ------------------------------------------------ in the built application
-  const app = await openApp();
+  const app = await openApp({ ribbon: true });
   if (app.skip) {
     console.log(`SKIPPED keytips (browser): ${app.skip}`);
     return;

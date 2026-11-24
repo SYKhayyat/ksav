@@ -391,12 +391,19 @@ jobs:
       # this costs an install already done above and not a browser download.
       #
       # The **filtered** form, spelled the one way the gate's backward sweep
-      # permits it: two files out of a suite the gate runs whole elsewhere. It is
+      # permits it: five files out of a suite the gate runs whole elsewhere. It is
       # not a second copy of a check — the gate still owns `editor suite`, and
       # this is that suite's browser half asked where an engine exists.
+      #
+      # `keytips`, `shrink` and `pressed` are the three whose subject *is* the
+      # ribbon: they ask for faces, groups and tabs, and every one of those comes
+      # out of the engine's registry. In `editor` they now skip out loud (`openApp
+      # ({ ribbon: true })`) instead of spending thirty seconds each waiting for a
+      # tab that build cannot draw (#248); here they run, because here there is an
+      # engine in the bundle.
       - name: Drive the offline bundle in a browser
         working-directory: ./ksav/app
-        run: npm test -- importui browserlang
+        run: npm test -- importui browserlang keytips shrink pressed
 
   # The half of the process that was missing.
   #

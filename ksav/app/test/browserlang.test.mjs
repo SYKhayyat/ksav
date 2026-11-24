@@ -290,18 +290,28 @@ export async function run() {
     // file starts an engine. Asserting the ribbon for both would have made a
     // legitimate build look like #228 — the exact wrong diagnosis #229 is about.
     //
-    // What that costs, stated rather than hidden: **no workflow installs a
-    // browser**, so this file skips in CI, and the CI-side end-to-end fence is
-    // `desktop render scale` (`tools/render-check.mjs`, the `desktop shell` job).
-    // That is where #228 was found, as `ribbonGroups: 0`.
+    // What that costs, stated rather than hidden: with no engine in the bundle
+    // the rest of this half cannot run at all, and that is the line below rather
+    // than a comment. Every assertion left drives a control the registry makes —
+    // the language switch itself is one — so in an engine-less bundle there is
+    // nothing to switch and nothing to read afterwards. It used to carry on and
+    // fail on `getByLabel("שפה")` after thirty seconds, which is five such
+    // timeouts in CI's `editor` job for one fact about that build (see `docs`,
+    // #248). The browser half runs in `browser engine`, where the engine is in
+    // the bundle; and the CI-side end-to-end fence for the ribbon is `desktop
+    // render scale` (`tools/render-check.mjs`), which is where #228 was found as
+    // `ribbonGroups: 0`.
     if (engineInBundle()) {
       ok("the ribbon is built from the engine's registry", chrome0.groups > 0, `${chrome0.groups} groups`);
       check("and it is not the registry-failed notice", chrome0.failed, 0);
     } else {
       console.log(
-        "SKIPPED the ribbon: this dist keeps the engine at the other end of a wire, and no server " +
-          "runs in this test — build with `npm run build:wasm` to assert it (CI asserts it in `desktop render scale`)",
+        "SKIPPED the switch and everything after it: this dist keeps the engine at the other end " +
+          "of a wire, and no server runs in this test, so there is no registry and no control on " +
+          "this window that did not come from one — build with `npm run build:wasm` to drive them " +
+          "(CI drives them in `browser engine`)",
       );
+      return;
     }
     // The switch, pressed the way a writer presses it: the toolbar button whose
     // accessible name is "שפה". Found by its name in the *old* language on

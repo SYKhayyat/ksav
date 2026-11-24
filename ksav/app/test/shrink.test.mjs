@@ -91,13 +91,22 @@ export async function run() {
   setSetting("shell", { ...readShell(settings.shell), collapsed: before });
 
   // ------------------------------------------------ in the built application
-  const app = await openApp();
+  const app = await openApp({ ribbon: true });
   if (app.skip) {
     console.log(`SKIPPED shrink (browser): ${app.skip}`);
     return;
   }
   const { page, close } = app;
   try {
+    // The panel, waited for rather than assumed.
+    //
+    // `openApp` waits a fixed two seconds for the window, and the panel is drawn
+    // when the engine's registry arrives — so under the full suite, where five
+    // browser files share one machine, that moment can be later than the wait.
+    // Measured: `p.children` with no `p` at all, in a run where every other width
+    // of the same file passed. A flake here is a deadline, not a defect in the
+    // ribbon, and the fix is to ask for the thing instead of racing it.
+    await page.waitForSelector('.ribbon[data-ribbon="tabs"] .ribbon-panel', { timeout: 30_000 });
     for (const width of [1366, 1100, 800, 680, 500]) {
       await page.setViewportSize({ width, height: 768 });
       await page.waitForTimeout(300);

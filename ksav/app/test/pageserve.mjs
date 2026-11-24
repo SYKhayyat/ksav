@@ -256,8 +256,27 @@ export async function browser() {
  * overlay is right on a first visit and it covers the chrome, so it is seeded
  * away before the first byte.
  */
-export async function openApp({ wait = 2500 } = {}) {
+export async function openApp({ wait = 2500, ribbon = false } = {}) {
   if (!existsSync(join(DIST, "index.html"))) return { skip: "no dist/ — run `npm run build` first" };
+  // **`ribbon: true`, for the files whose subject is the ribbon.**
+  //
+  // Two builds are legitimate. `npm run build:wasm` puts the engine *in* the
+  // bundle (what a browser-only deployment serves), and `npm run build` keeps it
+  // at the other end of a wire (what `ksav serve` embeds). With no server behind
+  // it — and `pageserve` is a static file server — the second build has no
+  // commands at all: no faces, no groups, no tabs. A file that asks for a tab in
+  // that bundle waits thirty seconds and then names a selector, which is five
+  // timeouts in CI's `editor` job (*ci.yml* had already written down that these
+  // files "say so out loud instead of passing over nothing"; this is that
+  // sentence, said by the thing that knows).
+  if (ribbon && !engineInBundle()) {
+    return {
+      skip:
+        "this bundle keeps the engine at the other end of a wire and nothing is serving it here, " +
+        "so there are no commands and therefore no ribbon — needs `npm run build:wasm` " +
+        "(CI runs this file in the `browser engine` job, where one exists)",
+    };
+  }
   // Before the browser and before anything is measured, spelled the way the
   // fence in `visibility.test.mjs` reads it: a guard that runs after the window
   // has been read has already let the measurement happen.

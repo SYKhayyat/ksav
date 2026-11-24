@@ -4,6 +4,58 @@ The working brief for whoever picks Ksav up next. Read it start to finish before
 touching anything; it is short on purpose and every paragraph is here because
 something went wrong without it.
 
+## Latest — 2026-11-24, `shell-office` steps 9 and 10: the Font group, and the acceptance run
+
+Branch `shell-office` (main is `main`). The plan is `docs/ui-architecture.md` §12,
+steps 1–10; **steps 1–9 are committed**, step 10 — the acceptance run,
+`tools/surfaces.mjs` and screenshots with the real wasm engine — is the one left.
+Rules that held for every step: the full gate green, one commit tagged `(#233)`
+per step, no compatibility shims, and `/home/shaul/ksav-frontends` is another
+sitting's tree.
+
+- **Step 9, the Font group.** The home row of §5: a font box and a size box open
+  it, then the eight icon faces, with the highlighter and the text colour as
+  split buttons. `app/src/ribbon.ts` (`fontBoxes`, `colourControl`, `whyNot`,
+  `refreshAlignState`), `app/src/shelltabs.ts` (`drawGroup`, `faceButton`),
+  `app/src/pressed.ts` (new).
+- **The pressed state does not have a scanner of its own.** `pressed.ts` started
+  as a private bracket walk — the eleventh one, the thing `spans.ts` exists to
+  end — and it was wrong twice over: it walked back to character zero on every
+  caret move, and it called a caret inside `#סימון(צבע: …)` *inside* the
+  highlight. It reads `framesAt` now, so the answer costs a lookup on the scan
+  every other surface already has, a caret counts only inside a body, and a
+  half-typed `#הדגשה[של` is a body already — which is the state a document
+  spends half its life in.
+- **Unavailable faces are greyed, never struck through** (§8), with `whyNot()` in
+  the tooltip and `aria-disabled` on the button: "the engine is still loading" or
+  "the command list loaded without this command".
+- **The boxes show the caret's values**, read from the `#גופן_שונה` /
+  `#גודל_גופן` around it until the engine reports the styles in force (#118); a
+  font the document names and this build does not bundle gets a row of its own
+  rather than being shown as the document's font.
+- **Build and test, exactly.** The browser tests need the wasm build and the
+  system Chrome:
+  ```sh
+  cd ksav/app
+  export KSAV_CHROMIUM=$(readlink -f /etc/profiles/per-user/shaul/bin/google-chrome)
+  npm run build:wasm            # and again after any src/ change, before browser tests
+  npm test -- pressed           # one file by name
+  cd .. && KSAV_CHROMIUM=$KSAV_CHROMIUM node tools/gate.mjs > /tmp/gate.log 2>&1
+  ```
+  Plain `npm run build` is the HTTP-engine bundle: `/commands` 404s and the ribbon
+  draws no tabs. A stale `dist` is refused rather than measured, which the runner
+  reports as a *threw*, not as a failure.
+- **Gate fences that bite.** `ksav/README.md` states the assertion and file counts
+  in two places (15,174 … across 178 files since step 9); `main.ts` must stay at or
+  under 1,500 lines (it is 1,499 — modules wire themselves on import instead); and
+  an `export` only its own file reads fails the module-surface check, so `pressed`
+  exports `wrappersIn`, not a text-taking wrapper the app never calls.
+- **A chestnut worth keeping**: `wrapperCallsAt(doc, pos)` in the first draft of
+  step 9 was a whole-document backward walk per caret move and answered "inside
+  bold" for a caret in an argument list. Two tests in `pressed.test.mjs` pin the
+  corrected behaviour: *in the argument list: not in the body*, and *a half-typed
+  body still counts*.
+
 ## Latest — 2026-11-23, `shell-followups`: the tabs ribbon is the default, and everything was run
 
 **Opus: start here.** Branch `shell-followups`, not merged, not pushed.

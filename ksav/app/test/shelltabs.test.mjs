@@ -107,8 +107,10 @@ export async function run() {
   const bold = panel.children.flatMap(controls).find((b) => b["data-command"] === "הדגשה");
   check("bold is an icon face, named for the reader that cannot see it", [bold?.["data-size"], bold?.["aria-label"]], ["icon", t("btn.bold")]);
   const font = panel.children.find((g) => g["data-group"] === "font");
-  check("Font: one lane of icon faces", lanesOf(font).map((l) => l["data-lane"]), ["icon"]);
-  const fontRow = lanesOf(font)[0].children;
+  check("Font: the boxes, then one lane of icon faces (§5)", lanesOf(font).map((l) => l["data-lane"]), ["small", "icon"]);
+  const boxes = lanesOf(font)[0].children[0];
+  check("…the font and size boxes open it", boxes.children.slice(0, 2).map((c) => c.id), ["font-face-box", "font-size-box"]);
+  const fontRow = lanesOf(font)[1].children;
   check("…eight of them, then ⋯", fontRow.length, 9);
   check("⋯ is the group's last control", fontRow.at(-1)["data-menu"], "more-font");
   ok("⋯ says which group it opens", fontRow.at(-1).children[0]["aria-label"].includes(t("grp.font")));

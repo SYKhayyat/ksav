@@ -15,7 +15,7 @@
 //   - **no commands at all** — the whole registry is missing, so the ribbon
 //     says so in words, in the surface the writer is looking at;
 //   - **one command missing** — the rest of the ribbon is usable, so the button
-//     keeps its place, struck through, with a title that explains it.
+//     keeps its place, greyed (never struck through, §8), with a title saying why.
 //
 // Both are failures of the same fetch. The difference is what a writer can do
 // about it: reload, or use the rest of the ribbon meanwhile.
@@ -26,6 +26,9 @@ import * as runtime from "../.tmp-test/runtime.mjs";
 import { buildRibbon } from "../.tmp-test/shelltabs.mjs";
 import { t, getLang } from "../.tmp-test/i18n.mjs";
 import { commands } from "../tools/commands.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { dirOf } from "../tools/paths.mjs";
 
 /** Every node in a built tree, depth first. */
 function all(nodes) {
@@ -112,9 +115,23 @@ export async function run() {
     ok("the button still shows its name", words([missing[0]]).includes(getLang() === "he" ? "הדגשה" : "Bold"));
     ok(
       "and it explains itself instead of being silent",
-      (missing[0]?.title ?? "").includes(t("registryMissing")),
+      (missing[0]?.title ?? "") === t("whyNot.registry"),
     );
+    check("…and says it cannot be pressed", missing[0]?.["aria-disabled"], "true");
     check("no control is left without a name", anonymous([bar]), []);
+  }
+
+  // ---------------------------------------------- greyed, never struck through
+  //
+  // §8, and it is a claim about the stylesheet rather than about the tree: a
+  // strike-through reads as "the writer turned this off", which is a state the
+  // document does not have, and the button was drawn that way until #233.
+  {
+    const css = readFileSync(path.join(dirOf(import.meta.url), "..", "src", "styles.css"), "utf8");
+    const rule = /\.tb-btn-missing\s*\{([^}]*)\}/u.exec(css)?.[1] ?? "";
+    ok("the missing-face rule is there to read", rule.length > 0);
+    check("a missing face is greyed, not struck through", /text-decoration/u.test(rule), false);
+    ok("…and is dimmed instead", /opacity/u.test(rule));
   }
 
   // ---------------------------------------------- and with everything there

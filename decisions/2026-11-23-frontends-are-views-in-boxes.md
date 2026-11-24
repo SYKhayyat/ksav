@@ -1,4 +1,4 @@
-# Frontends — the plan (draft, 2026-11-23, not yet a decision record)
+# Frontends are views in boxes
 
 Decides every editing surface Ksav has. Written question by question with the
 owner; the answers are recorded as **Q1…Q12** so the reasoning can be traced.
@@ -157,11 +157,16 @@ whose query matches. If no box matches, one opens by the derived-layout rule
 (§3). **Esc**, or the note key again, returns the caret to just after the
 marker in the box it came from.
 
-### Deleting a note (decided by Claude; veto if wrong)
+### Deleting a note (a setting: `noteDelete`)
 
-In the writer, a marker is atomic. The first Backspace/Delete onto it *selects*
-it, showing the note's first words in a hint. The second deletes the marker and
-its body together. Emptying a note's text in its box never deletes the note; an
+In the writer, a marker is atomic. The owner left the behaviour to the writer:
+
+- **`twoStep`** (default): the first Backspace/Delete onto a marker *selects* it,
+  showing the note's first words in a hint. The second deletes the marker and its
+  body together.
+- **`immediate`**: one Backspace/Delete removes the marker and its body.
+
+In both, emptying a note's text in its box never deletes the note; an
 empty note is flagged. Both are undoable as one step.
 
 ### One history
@@ -241,7 +246,7 @@ If none does, the leader chain's root shows it.
 
 ## 5. Order of work
 
-1. This file → a dated decision record (+ index row); rewrite #118 to point at it.
+1. This record (+ index row); #118 points at it.
 2. The registry skeleton: scope, mode, link and layer registration; built-ins
    registered through it from the first commit.
 3. `Leaf.view`/`Leaf.link` in the pane tree; the mode line; open-box picker.

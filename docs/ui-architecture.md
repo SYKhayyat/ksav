@@ -352,13 +352,21 @@ while the panel overflows. A `ResizeObserver` starts it a frame later, and only 
 a new width: refitting inside the observer's callback is a resize loop, which
 Chromium reports as an error.
 
+**`⋯` comes before level 3.** A folded group is its name in words, wider than the
+icons it replaces, so the loop sends what does not fit to `⋯` before it folds a
+single group to its name. A walk that folds first ends at 680px with seven group
+names and **no command button at all** — measured at 648–668px, with six faces at
+700px and twenty-four again at 640 where the simplified row takes over (#246). The
+order is: levels 1–2 for the groups that have something to give up, then `⋯`, and
+only a row that still does not fit after that folds a group.
+
 The **simplified ribbon** starts every group at level 2 and never folds one: a
 folded group is its name in words, wider than its icons. What does not fit goes
 into a `⋯` at the row's end, in the same order.
 
 The ribbon **never wraps** and its height is fixed (92px, or 36px simplified);
-`shrink.test` asserts both in the built application at 1366, 1100, 800, 680 and
-500px.
+`shrink.test` asserts both in the built application at 1366, 1100, 900, 800, 700,
+680, 660 and 500px, and that the row is never left without a command on it.
 
 ## 8 · Behaviour
 

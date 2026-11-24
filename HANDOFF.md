@@ -45,7 +45,7 @@ compatibility shims, and `/home/shaul/ksav-frontends` is another sitting's tree.
   draws no tabs. A stale `dist` is refused rather than measured, which the runner
   reports as a *threw*, not as a failure.
 - **Gate fences that bite.** `ksav/README.md` states the assertion and file counts
-  in two places (15,195 … across 178 files since step 10); `main.ts` must stay at or
+  in two places (15,231 … across 178 files since #246); `main.ts` must stay at or
   under 1,500 lines (it is 1,499 — modules wire themselves on import instead); and
   an `export` only its own file reads fails the module-surface check, so `pressed`
   exports `wrappersIn`, not a text-taking wrapper the app never calls.
@@ -95,13 +95,23 @@ compatibility shims, and `/home/shaul/ksav-frontends` is another sitting's tree.
   measurement at the same widths instead: no horizontal overflow anywhere, seven
   tabs, none of them outside the tab row, File and Quick Access on the title row
   in both languages.
-- **A seam, filed as #246 rather than fixed here**: between about 648 and 668px of
-  ribbon width the strip draws *no command buttons at all* — six faces at 700px,
-  none at 680 and 660, twenty-four again at 640 where the simplified row takes
-  over. Nothing overlaps and nothing scrolls; the shrink walk spends its last
-  level on every group (its name in words) before the `⋯` gets a turn. Issue #243
-  — the red story run on `main` — is closed by this branch: its nine failures were
-  the four causes above.
+- **#246, the band with no buttons, is fixed — and the rule is now stated.**
+  Between about 648 and 668px of ribbon width the strip drew *no command buttons
+  at all*: six faces at 700px, none at 680 and 660, twenty-four again at 640 where
+  the simplified row takes over. Nothing overlapped and nothing scrolled; the
+  shrink walk spent its last level on every group — its name in words — before
+  the `⋯` got a turn, and a word is wider than the icons it replaced, so the walk
+  kept escalating. `fit()` in `shelltabs.ts` now walks levels 1–2, **then** spills
+  into `⋯`, and folds a group only if the row still does not fit; 680px is eleven
+  faces and five groups in `⋯` rather than seven names. §7 says so in words.
+- **The fence that would have caught it** was measuring the wrong thing: it
+  counted `[data-action]` nodes, and a group hidden by `⋯` keeps its buttons in
+  the DOM, so the panel read "24 faces" at the width where the row showed none.
+  `shrink.test.mjs` counts what is *on the screen* now, holds a width table
+  through the band (700, 680, 660), asserts that no group is folded to its name
+  while the ribbon is not simplified, and that everything hidden is listed in `⋯`.
+- Issue #243 — the red story run on `main` — is closed by this branch: its nine
+  failures were the seven causes above.
 
 ## Latest — 2026-11-23, `shell-followups`: the tabs ribbon is the default, and everything was run
 

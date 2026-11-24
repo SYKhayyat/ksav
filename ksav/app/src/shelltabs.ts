@@ -374,22 +374,53 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
     lastWidth = width;
     const over = () => panel.scrollWidth > panel.clientWidth;
     const info = groups.map(shrinkInfo);
-    // The simplified row is icons and stays icons: a folded group is its name
-    // in words, wider than the icons it replaces, so there what does not fit
-    // goes into `⋯` instead — as Word's simplified ribbon does.
-    if (!simple) {
+
+    // One step of `shrinkSteps` at a time, in its order, and never past `upTo`.
+    const walk = (upTo: ShrinkLevel) => {
       for (const [i, level] of shrinkSteps(info)) {
-        if (!over()) break;
+        if (!over()) return;
+        if (level > upTo) break;
         if (levels[i] >= level) continue;
         levels[i] = level;
-        panel.children[i]?.replaceWith(drawGroup(groups[i], level));
+        const node = panel.children[i] as HTMLElement | undefined;
+        if (!node) continue;
+        // A group already sent to `⋯` stays there: it is the narrower answer,
+        // and folding a hidden group only brings it back at its words.
+        const next = drawGroup(groups[i], level);
+        next.hidden = node.hidden;
+        node.replaceWith(next);
       }
-    }
-    const order = spillOrder(info);
-    while (over() && spilled < order.length) {
-      if (!spilled) panel.append(overflow);
-      (panel.children[order[spilled]] as HTMLElement).hidden = true;
-      spilled++;
+    };
+
+    // What does not fit goes into `⋯`, row end first, until the row fits.
+    const spill = () => {
+      const order = spillOrder(info);
+      while (over() && spilled < order.length) {
+        if (!spilled) panel.append(overflow);
+        (panel.children[order[spilled]] as HTMLElement).hidden = true;
+        spilled++;
+      }
+    };
+
+    if (simple) {
+      // The simplified row is icons and stays icons: a folded group is its name
+      // in words, wider than the icons it replaces, so there what does not fit
+      // goes into `⋯` instead — as Word's simplified ribbon does.
+      spill();
+    } else {
+      walk(2);
+      if (over()) {
+        // `⋯` before a row of names (#246). A folded group is its name in words,
+        // wider than the icons it replaced, so a walk that runs to level 3 for
+        // every group before anything spills ends with a strip of seven group
+        // buttons and **no command button at all** — measured between 648 and
+        // 668px of panel, with six faces at 700px and twenty-four again at 640
+        // where the simplified row takes over. Hiding two groups is narrower and
+        // leaves the rest of the row in the writer's hand.
+        spill();
+        walk(3);
+        spill();
+      }
     }
   };
   // **Outside the observer's callback, and only for a new width.** Redrawing

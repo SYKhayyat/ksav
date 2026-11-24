@@ -24,6 +24,7 @@ const MEASURE = () => {
   const p = r.querySelector(".ribbon-panel");
   const shown = [...p.children].filter((g) => !g.hidden);
   const tops = shown.map((g) => g.getBoundingClientRect().top);
+  const onScreen = (n) => n.offsetParent !== null && n.getBoundingClientRect().width > 0;
   return {
     height: Math.round(p.getBoundingClientRect().height),
     fits: p.scrollWidth <= p.clientWidth + 1,
@@ -31,6 +32,13 @@ const MEASURE = () => {
     oneRow: Math.max(...tops) < Math.min(...shown.map((g) => g.getBoundingClientRect().bottom)),
     simplified: r.dataset.simplified === "true",
     levels: [...p.children].filter((g) => g.dataset.level).map((g) => g.dataset.level),
+    // **What a writer can press**, not what the panel contains: a group sent to
+    // `⋯` keeps its buttons in the DOM, so counting nodes says 24 while the row
+    // shows none of them. #246 was exactly that mistake made twice — once by the
+    // walk, once by the measurement that was supposed to catch it.
+    faces: [...p.querySelectorAll("[data-action]")].filter(onScreen).length,
+    spilled: [...p.children].filter((g) => g.hidden).length,
+    overflow: !!p.querySelector(".ribbon-overflow") && onScreen(p.querySelector(".ribbon-overflow")),
     pageWide: document.documentElement.scrollWidth > innerWidth + 1,
   };
 };
@@ -98,7 +106,16 @@ export async function run() {
   }
   const { page, close } = app;
   try {
-    for (const width of [1366, 1100, 800, 680, 500]) {
+    // `openApp` waits a fixed two and a half seconds, which is enough for the
+    // editor and not always for the ribbon: the tabs are drawn when the command
+    // list has arrived, and a ribbon that has not drawn its groups yet has no
+    // `.ribbon-panel` to measure. Asked for by name rather than slept at.
+    await page.waitForSelector('.ribbon[data-ribbon="tabs"] .ribbon-panel', { timeout: 30_000 });
+    // The widths the walk is judged at, and #246's band is in the row: 700, 680
+    // and 660 all sat where the walk spent level 3 on every group — seven names
+    // and no command button — with 24 icons again at 640 where the simplified
+    // row takes over.
+    for (const width of [1366, 1100, 900, 800, 700, 680, 660, 500]) {
       await page.setViewportSize({ width, height: 768 });
       await page.waitForTimeout(300);
       const m = await page.evaluate(MEASURE);
@@ -107,9 +124,35 @@ export async function run() {
       check(`${width}px: its height is fixed`, m.height, width < 640 ? 36 : 92);
       check(`${width}px: simplified below 640`, m.simplified, width < 640);
       ok(`${width}px: the page does not scroll sideways`, !m.pageWide);
-      if (width === 1366) check("1366px: every group full", m.levels.filter((l) => l !== "0"), []);
+      // A row with nothing on it and no `⋯` has no command on it at all. At
+      // 500px the window is narrower than the icons, so a writer gets `⋯` and
+      // the menus and nothing else — which is the honest answer, and still
+      // something to press.
+      ok(`${width}px: the row is not empty`, m.faces > 0 || m.overflow);
+      // #246's band: 700, 680 and 660 drew seven group names and no button.
+      if (width >= 660 && width <= 700) ok(`${width}px: the band has its command buttons`, m.faces > 0);
+      if (!m.simplified) check(`${width}px: no group is folded to its name`, m.levels.filter((l) => l === "3"), []);
+      if (width === 1366) {
+        check("1366px: every group full", m.levels.filter((l) => l !== "0"), []);
+        check("1366px: nothing in ⋯", m.spilled, 0);
+      }
       if (width < 640) check(`${width}px: the simplified row is icons, never a folded group`, m.levels.filter((l) => l !== "2"), []);
     }
+    // What went into `⋯` is still there to press. A row that hides five groups
+    // and an overflow menu that lists two of them is a ribbon that has lost
+    // commands rather than made room for them.
+    await page.setViewportSize({ width: 680, height: 768 });
+    await page.waitForTimeout(300);
+    const at680 = await page.evaluate(MEASURE);
+    ok("680px: some groups are in ⋯", at680.spilled > 0);
+    await page.click(".ribbon-overflow .menu-btn");
+    await page.waitForTimeout(200);
+    const inOverflow = await page.evaluate(
+      () => document.querySelectorAll(".ribbon-overflow [data-action]").length,
+    );
+    ok("680px: ⋯ lists the groups that went into it", inOverflow >= at680.spilled);
+    await page.keyboard.press("Escape");
+
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.click(".cm-content");
     await page.keyboard.press("Control+F1");

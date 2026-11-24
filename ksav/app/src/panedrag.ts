@@ -168,7 +168,9 @@ export function wirePaneDrag(pane: panes.Leaf, head: HTMLElement) {
 function movePaneBeside(id: string, targetId: string, side: panes.Side) {
   const moved = panes.find(panestate.paneTree, id);
   if (!moved || id === targetId) return;
-  const without = panes.closePane(panestate.paneTree, id);
+  // `remove`, not `closePane`: the box is moving, not going, so whatever
+  // follows it keeps following it.
+  const without = panes.remove(panestate.paneTree, id);
   // The only pane there is: nothing to move it beside.
   if (without === panestate.paneTree) return;
   // The target may have been the sibling that took the collapsed split's space,

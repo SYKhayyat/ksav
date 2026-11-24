@@ -2,8 +2,8 @@
 //
 // # What a pane is
 //
-// A **pane** shows one document in one **role** — its source, or its printed
-// preview. Panes form a split tree: every split is a row or a column with two
+// A **pane** — a *box*, in the frontend design — shows one **view**: a scope of
+// a document in a mode (`views.ts`). Panes form a split tree: every split is a row or a column with two
 // children and a fraction saying how the space divides, and every leaf is a
 // pane. That is the whole shape, and it is recursive, so "three previews beside
 // a source" needs no special case.
@@ -17,8 +17,8 @@
 //
 // # What a pane owns, and what it does not
 //
-// Owns: its caret, its scroll, its zoom, its fold state, whether it shows prose
-// or raw, and whether its scroll is tied to a sibling's.
+// Owns: its view (a scope in a mode), its caret, its scroll, its zoom, its fold
+// state, and which box its scroll follows.
 //
 // Does not own: the text. Typing in one pane appears in every pane showing that
 // document, because they are views of one document and not copies of it. The
@@ -40,52 +40,112 @@
 // one. An arrangement is a tree you built or one this file ships, and both are
 // chosen rather than arrived at.
 
-/**
- * What a pane shows.
- *
- * `outline` and `notes` are here because of two margin comments that were the
- * same comment: *"maybe there should be a toggle to have this shift the other
- * panes open, because now it covers source"*, and, of the notes drawer, *"same
- * problem as the other drawers — there should be an option to have it resize the
- * panes (maybe also for all of them an option to float)."*
- *
- * A drawer that covers the source is a drawer you close to read what it is
- * telling you about. Once the window is a tree, "shift the other panes open" is
- * not a mode to add — it is what a pane already is.
- */
-export type Role = "source" | "preview" | "outline" | "notes" | "marks";
+import { registerBuiltins } from "./views-builtin";
+import { linkRefusal, viewRefusal, UNLINKED, type Link, type LinkMode, type Refusal, type View } from "./views";
 
-/** One pane. */
+/**
+ * What draws a view today: one of the five renderers the window has.
+ *
+ * A box holds a **view** — a scope and a mode (`views.ts`) — and not a role.
+ * The renderers are what exists to draw views with, and a view nothing draws
+ * is refused in the picker before it can reach a box (`views.viewRefusal`).
+ * Keeping the renderer a *derived* fact rather than a stored one is the point
+ * of step 3 of `decisions/2026-11-23-frontends-are-views-in-boxes.md`: the
+ * tree says what the writer asked to see, and this answers how it is drawn.
+ *
+ * `outline` and `notes` became boxes because of two margin comments that were
+ * the same comment: *"maybe there should be a toggle to have this shift the
+ * other panes open, because now it covers source"*. A drawer that covers the
+ * source is a drawer you close to read what it is telling you about.
+ */
+export type Renderer = "source" | "preview" | "outline" | "notes" | "marks";
+
+/** The view each renderer draws, as a view — the five boxes the window had. */
+export const VIEW: Readonly<Record<Renderer, View>> = {
+  source: { scope: { part: "file" }, mode: "source" },
+  preview: { scope: { part: "body" }, mode: "preview" },
+  outline: { scope: { part: "body" }, mode: "outline" },
+  notes: { scope: { part: "notes" }, mode: "outline" },
+  marks: { scope: { part: "body" }, mode: "marks" },
+};
+
+/**
+ * The renderer that draws a view, or null when none does yet.
+ *
+ * By scope part and mode, ignoring the document: which sefer a box shows does
+ * not change how it is drawn.
+ */
+export function rendererOf(view: View): Renderer | null {
+  // What the registry refuses nothing draws, whatever its part and mode: a
+  // notes list narrowed to one level is an outline over notes and still not
+  // a view the notes list can show yet.
+  if (viewRefusal(view)) return null;
+  const { part } = view.scope;
+  if (view.mode === "source") return part === "file" ? "source" : null;
+  if (view.mode === "preview") return part === "body" ? "preview" : null;
+  if (view.mode === "marks") return part === "body" ? "marks" : null;
+  if (view.mode === "outline") return part === "body" ? "outline" : part === "notes" ? "notes" : null;
+  return null;
+}
+
+/**
+ * How this box is drawn.
+ *
+ * Never null for a box in a tree: `leaf` refuses a view nothing draws, and
+ * `validTree` refuses a stored one, so the only way to hold an undrawable box
+ * is to build the object by hand.
+ */
+export function drawn(l: Leaf): Renderer {
+  return rendererOf(l.view)!;
+}
+
+/**
+ * The document a box shows, or null for *whichever is focused*.
+ *
+ * Null is the ordinary case and not a placeholder: a writer who splits the
+ * window wants both halves to follow them when they switch document. A box
+ * pinned to a document — for reading one sefer while typing another — is the
+ * deliberate exception. It lives in the scope (`Scope.doc`) because *which
+ * document* is part of what a view is a view of.
+ */
+export function docOf(l: Leaf): string | null {
+  return l.view.scope.doc ?? null;
+}
+
+/** The same box showing another document (null: whichever is focused). */
+export function withDoc(l: Leaf, doc: string | null): Leaf {
+  const scope = { ...l.view.scope };
+  if (doc === null) delete scope.doc;
+  else scope.doc = doc;
+  return { ...l, view: { ...l.view, scope } };
+}
+
+/** One box: a view, and how it follows another box. */
 export interface Leaf {
   kind: "leaf";
   id: string;
-  role: Role;
+  /** What the box shows: a scope, in a mode. */
+  view: View;
   /**
-   * The document this pane shows, or null for *whichever is focused*.
-   *
-   * Null is the ordinary case and not a placeholder: a writer who splits the
-   * window wants both halves to follow them when they switch document. A pane
-   * pinned to a document — for reading one sefer while typing another — is the
-   * deliberate exception, and being able to say which is why this is nullable
-   * rather than always resolved.
-   */
-  docId: string | null;
-  /** Where this pane is scrolled to. Per pane; that is most of the point. */
-  scrollTop: number;
-  /**
-   * Whether this pane's scroll follows the pane it was split from.
+   * Which box this one follows, and how.
    *
    * Asked for by name — *"we also should make that you can optionally unlink
-   * the scrolling"* — and per pane rather than per application, because the
+   * the scrolling"* — and per box rather than per application, because the
    * answer differs between "a second view to look somewhere else" and "a
-   * preview of what I am typing".
+   * preview of what I am typing". The leader is explicit: a box follows the
+   * box it was opened from, not whatever happens to share its split, so
+   * swapping or moving a box never quietly re-pairs it.
    */
-  linked: boolean;
-  /** Source panes: prose or raw. Undefined means *follow the document's*. */
-  prose?: boolean;
-  /** Both roles: 1 is unscaled. */
+  link: Link;
+  /** Where this box is scrolled to. Per box; that is most of the point. */
+  scrollTop: number;
+  /** 1 is unscaled. */
   zoom?: number;
 }
+
+// The link refusals read the registry, and a tree is a thing tests build
+// before anything else has booted.
+registerBuiltins();
 
 /** A row or a column, with two children. */
 export interface Split {
@@ -111,8 +171,17 @@ export function _resetIds(): void {
   nextId = 0;
 }
 
-export function leaf(role: Role, docId: string | null = null, extra: Partial<Leaf> = {}): Leaf {
-  return { kind: "leaf", id: paneId(), role, docId, scrollTop: 0, linked: true, ...extra };
+/**
+ * A new box. `what` is a view, or a renderer's name for the view it draws.
+ *
+ * Unlinked unless told otherwise: a link names a leader, and only the caller
+ * knows which box that is (`split` with `follow`, `openBeside`).
+ */
+export function leaf(what: View | Renderer, doc: string | null = null, extra: Partial<Leaf> = {}): Leaf {
+  const view = typeof what === "string" ? VIEW[what] : what;
+  if (!rendererOf(view)) throw new Error(`no renderer draws ${JSON.stringify(view)}`);
+  const made: Leaf = { kind: "leaf", id: paneId(), view, link: UNLINKED, scrollTop: 0, ...extra };
+  return doc === null ? made : withDoc(made, doc);
 }
 
 /** Every pane in the tree, left to right and top to bottom. */
@@ -254,14 +323,18 @@ export function split(
 }
 
 /**
- * Close a pane, and collapse the split that held it.
+ * Take a box out of the tree, and collapse the split that held it.
+ *
+ * Structural only: links are left as they were. A move (`moveToEdge`, a drag)
+ * takes a box out to put the same box back, and its followers must still be
+ * following it when it lands. Closing is `closePane`.
  *
  * The sibling takes the whole space, which is the only answer that does not
- * leave a hole. Closing the last pane is refused rather than obeyed: a window
- * with no panes is not a state this application has, and returning the tree
+ * leave a hole. Removing the last box is refused rather than obeyed: a window
+ * with no boxes is not a state this application has, and returning the tree
  * unchanged says so more usefully than an empty screen would.
  */
-export function closePane(tree: PaneNode, id: string): PaneNode {
+export function remove(tree: PaneNode, id: string): PaneNode {
   if (tree.kind === "leaf") return tree; // the last one
   const drop = (n: PaneNode): PaneNode => {
     if (n.kind === "leaf") return n;
@@ -272,6 +345,27 @@ export function closePane(tree: PaneNode, id: string): PaneNode {
     return a === n.a && b === n.b ? n : { ...n, a, b };
   };
   return drop(tree);
+}
+
+/**
+ * Close a box. Whatever followed it now follows what *it* followed.
+ *
+ * A chain — notes on notes following the notes, following the body — keeps
+ * working when its middle closes, because the middle was only ever passing
+ * the body's place along. A box at the head of a chain leaves its followers
+ * unlinked: there is nothing left for them to follow, and picking one of them
+ * to lead would be a guess.
+ */
+export function closePane(tree: PaneNode, id: string): PaneNode {
+  const gone = find(tree, id);
+  const rest = remove(tree, id);
+  if (!gone || rest === tree) return tree;
+  let out = rest;
+  for (const f of followers(rest, id)) {
+    const to = gone.link.leader && gone.link.mode !== "unlinked" ? gone.link : UNLINKED;
+    out = update(out, f.id, { link: to.mode === "unlinked" ? UNLINKED : { leader: to.leader, mode: f.link.mode } });
+  }
+  return out;
 }
 
 /** Change one pane's own state, leaving every other pane identical. */
@@ -353,8 +447,8 @@ export function moveToEdge(tree: PaneNode, id: string, side: Side, layout: Layou
   if (tree.kind === "leaf") return tree;
   const moved = find(tree, id);
   if (!moved) return tree;
-  const rest = closePane(tree, id);
-  // `closePane` refuses to remove the last pane, so an unchanged tree here means
+  const rest = remove(tree, id);
+  // `remove` refuses to remove the last pane, so an unchanged tree here means
   // the caller asked to move the only pane there is.
   if (rest === tree) return tree;
   const vertical = side === "up" || side === "down";
@@ -549,13 +643,127 @@ export function neighbor(
   return best;
 }
 
-/** Which pane a linked pane follows: the one it shares a split with. */
-export function sibling(tree: PaneNode, id: string): Leaf | undefined {
-  for (const s of splits(tree)) {
-    if (s.a.kind === "leaf" && s.a.id === id) return leaves(s.b)[0];
-    if (s.b.kind === "leaf" && s.b.id === id) return leaves(s.a)[0];
-  }
-  return undefined;
+// ---------------------------------------------------------------- links
+//
+// A link is a box's own: `{leader, mode}`. What a box scrolls with is its
+// leader and the boxes following it — not a split sibling, which is what it
+// was while there were only ever two boxes and they were always side by side.
+
+/** The box this one follows, when it follows one that is here. */
+export function leaderOf(tree: PaneNode, id: string): Leaf | undefined {
+  const me = find(tree, id);
+  if (!me || me.link.mode === "unlinked" || !me.link.leader) return undefined;
+  return find(tree, me.link.leader);
+}
+
+/** The boxes following this one. */
+export function followers(tree: PaneNode, id: string): Leaf[] {
+  return leaves(tree).filter((l) => l.id !== id && l.link.mode !== "unlinked" && l.link.leader === id);
+}
+
+/** Everything this box scrolls with: its leader and its followers. */
+export function partners(tree: PaneNode, id: string): Leaf[] {
+  const lead = leaderOf(tree, id);
+  return [...(lead ? [lead] : []), ...followers(tree, id)];
+}
+
+/**
+ * Make a box follow another one, in a link mode — or refuse, saying why.
+ *
+ * The refusal is `views.linkRefusal`'s: a box following itself, a loop, a
+ * link mode that does not fit. Unlinking always succeeds.
+ */
+export function follow(
+  tree: PaneNode,
+  id: string,
+  leader: string | null,
+  mode: LinkMode,
+): { tree: PaneNode; refused: null } | { tree: PaneNode; refused: Refusal } {
+  const me = find(tree, id);
+  if (!me) return { tree, refused: { key: "view.linkNeedsLeader" } };
+  if (mode === "unlinked") return { tree: update(tree, id, { link: UNLINKED }), refused: null };
+  const lead = leader ? find(tree, leader) : undefined;
+  const refused = linkRefusal(me, lead ?? null, mode, (x) => {
+    const l = find(tree, x);
+    return l && l.link.mode !== "unlinked" ? l.link.leader : null;
+  });
+  if (refused) return { tree, refused };
+  return { tree: update(tree, id, { link: { leader, mode } }), refused: null };
+}
+
+// ---------------------------------------------------------------- persisted trees
+
+/**
+ * A stored tree, if it is one this version can draw — or null.
+ *
+ * Trees come back from settings and from the tab strip as whatever was
+ * written, and a stored box whose view no renderer draws would be a box that
+ * renders nothing. Null asks the caller for its default rather than drawing
+ * a broken window; a tree from before boxes held views is such a tree.
+ */
+export function validTree(raw: unknown): PaneNode | null {
+  const ok = (n: unknown): n is PaneNode => {
+    if (!n || typeof n !== "object") return false;
+    const x = n as Record<string, unknown>;
+    if (typeof x.id !== "string") return false;
+    if (x.kind === "split") {
+      return (x.dir === "row" || x.dir === "col") && typeof x.frac === "number" && ok(x.a) && ok(x.b);
+    }
+    if (x.kind !== "leaf") return false;
+    const v = x.view as View | undefined;
+    const l = x.link as Link | undefined;
+    if (!v || typeof v !== "object" || !v.scope || typeof v.mode !== "string") return false;
+    if (!l || typeof l !== "object" || typeof l.mode !== "string") return false;
+    return rendererOf(v) !== null && typeof x.scrollTop === "number";
+  };
+  if (!ok(raw)) return null;
+  // The stored ids are kept — a tab's `focusedPane` names one, and renaming
+  // them would come back from a restart with nothing focused — and claimed, so
+  // the next box made this session cannot be handed one of them.
+  const ids = new Set<string>();
+  const claim = (n: PaneNode) => {
+    ids.add(n.id);
+    const m = /^p(\d+)$/.exec(n.id);
+    if (m) nextId = Math.max(nextId, Number(m[1]));
+    if (n.kind === "split") {
+      claim(n.a);
+      claim(n.b);
+    }
+  };
+  claim(raw);
+  // Two boxes with one id would be one box to everything keyed by id.
+  if (ids.size !== leaves(raw).length + splits(raw).length) return null;
+  // A link to a box that is not in this tree is no link.
+  const relink = (n: PaneNode): PaneNode =>
+    n.kind === "split"
+      ? { ...n, a: relink(n.a), b: relink(n.b) }
+      : n.link.mode !== "unlinked" && !(n.link.leader && ids.has(n.link.leader) && n.link.leader !== n.id)
+        ? { ...n, link: UNLINKED }
+        : n;
+  return relink(raw);
+}
+
+/**
+ * Every id in a tree replaced with a new one, and every link carried along.
+ *
+ * Not tidiness: box ids key `paneplaces` and decide which editors the
+ * renderer may keep, and a saved tree used twice with its stored ids would
+ * give two live boxes one identity. A link names its leader by id, so the
+ * leaders are renamed in the same pass — a stored chain comes back a chain.
+ */
+export function freshIds(tree: PaneNode): PaneNode {
+  const map = new Map<string, string>();
+  const rename = (n: PaneNode): PaneNode => {
+    const id = paneId();
+    map.set(n.id, id);
+    return n.kind === "leaf" ? { ...n, id } : { ...n, id, a: rename(n.a), b: rename(n.b) };
+  };
+  const relink = (n: PaneNode): PaneNode => {
+    if (n.kind === "split") return { ...n, a: relink(n.a), b: relink(n.b) };
+    const to = n.link.leader ? map.get(n.link.leader) : undefined;
+    return { ...n, link: to ? { ...n.link, leader: to } : UNLINKED };
+  };
+  return relink(rename(tree));
 }
 
 // ---------------------------------------------------------------- arrangements
@@ -573,9 +781,21 @@ export interface Arrangement {
   build: () => PaneNode;
 }
 
+/** A box following another one by scroll. */
+function after(l: Leaf, what: Renderer): Leaf {
+  return leaf(what, null, { link: { leader: l.id, mode: "scroll" } });
+}
+
 export const ARRANGEMENTS: Arrangement[] = [
-  // What this application has always opened as, now nameable.
-  { id: "sourceAndPreview", build: () => splitOf("row", leaf("preview"), leaf("source")) },
+  // What this application has always opened as, now nameable: the source
+  // leads, the preview follows it.
+  {
+    id: "sourceAndPreview",
+    build: () => {
+      const s = leaf("source");
+      return splitOf("row", after(s, "preview"), s);
+    },
+  },
   { id: "sourceOnly", build: () => leaf("source") },
   { id: "previewOnly", build: () => leaf("preview") },
   // The one the margins asked for by name: *"multiple previews or sources open
@@ -584,19 +804,26 @@ export const ARRANGEMENTS: Arrangement[] = [
   // is the entire reason to open it.
   {
     id: "twoSources",
-    build: () =>
-      splitOf("row", leaf("preview"), splitOf("col", leaf("source"), leaf("source", null, { linked: false }))),
+    build: () => {
+      const s = leaf("source");
+      return splitOf("row", after(s, "preview"), splitOf("col", s, leaf("source")));
+    },
   },
   {
     id: "twoPreviews",
-    build: () =>
-      splitOf("row", splitOf("col", leaf("preview"), leaf("preview", null, { linked: false })), leaf("source")),
+    build: () => {
+      const s = leaf("source");
+      return splitOf("row", splitOf("col", after(s, "preview"), leaf("preview")), s);
+    },
   },
   // Reading one place while typing in another, stacked rather than side by side
   // — a sefer is a tall page and a wide screen has room for two of them.
   {
     id: "stacked",
-    build: () => splitOf("col", leaf("preview"), leaf("source")),
+    build: () => {
+      const s = leaf("source");
+      return splitOf("col", after(s, "preview"), s);
+    },
   },
 ];
 
@@ -622,8 +849,15 @@ export function arrangementOf(tree: PaneNode): string | null {
   return null;
 }
 
-/** A tree's structure, with the ids and the fractions left out. */
-export function shapeOf(node: PaneNode): string {
-  if (node.kind === "leaf") return node.role[0] + (node.linked ? "" : "!");
-  return `(${node.dir}${shapeOf(node.a)}${shapeOf(node.b)})`;
+/**
+ * A tree's structure, with the ids and the fractions left out.
+ *
+ * A box is its renderer's initial, and `!` when it scrolls with nothing —
+ * neither following a box nor followed by one. Who leads whom is left out,
+ * so a writer who builds the same window by hand from the other end is still
+ * told they are in it.
+ */
+export function shapeOf(node: PaneNode, root: PaneNode = node): string {
+  if (node.kind === "leaf") return (drawn(node) ?? "?")[0] + (partners(root, node.id).length ? "" : "!");
+  return `(${node.dir}${shapeOf(node.a, root)}${shapeOf(node.b, root)})`;
 }

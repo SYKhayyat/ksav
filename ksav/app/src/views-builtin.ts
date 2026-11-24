@@ -13,7 +13,7 @@
 // shows the whole grid and the refusal is lifted where the work lands, in one
 // place, instead of an entry appearing from nowhere.
 
-import { registerLinkMode, registerMode, registerPart, type Refusal, type Scope } from "./views";
+import { modeOf, registerLinkMode, registerMode, registerPart, type Refusal, type Scope } from "./views";
 
 const NOT_YET: Refusal = { key: "view.notYet" };
 
@@ -21,12 +21,13 @@ const NOT_YET: Refusal = { key: "view.notYet" };
 const filtered = (s: Scope) =>
   s.series !== undefined || s.depth !== undefined || (s.under !== undefined && s.under !== "all") || s.within !== undefined;
 
-let done = false;
-
-/** Register the built-ins. Idempotent, so every module that needs them may ask. */
+/**
+ * Register the built-ins. Idempotent, so every module that needs them may ask —
+ * and asked of the registry rather than of a flag here, so a test that resets
+ * the registry gets them back by asking again.
+ */
 export function registerBuiltins(): void {
-  if (done) return;
-  done = true;
+  if (modeOf("source")) return;
 
   registerPart({ id: "body", name: "scope.body", filters: ["within"] });
   registerPart({ id: "notes", name: "scope.notes", filters: ["series", "depth", "under", "within"] });

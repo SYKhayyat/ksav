@@ -14,11 +14,11 @@
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import * as panestate from "./panestate";
-import { PANE_ROLE_NAME } from "./panestate";
 import * as paneview from "./paneview";
 import * as panedrag from "./panedrag";
 import * as panescroll from "./panescroll";
 import * as panemenu from "./panemenu";
+import * as modeline from "./modeline";
 import * as tabstrip from "./tabstrip";
 import * as runtime from "./runtime";
 import * as docs from "./docs";
@@ -91,7 +91,7 @@ export function renderPanes() {
   const wasAt = new Map<string, number>();
   for (const [id, v] of panestate.paneViewEntries()) wasAt.set(id, v.scrollDOM.scrollTop);
   for (const pane of panes.leaves(panestate.paneTree)) {
-    if (pane.role === "source") continue;
+    if (panes.drawn(pane) === "source") continue;
     const host = panestate.paneHostOf(pane.id);
     if (host) wasAt.set(pane.id, host.scrollTop);
   }
@@ -115,7 +115,7 @@ export function renderPanes() {
   // with no content in it yet is clamped to zero. They are done there.
   for (const pane of panes.leaves(panestate.paneTree)) {
     const at = wasAt.get(pane.id);
-    if (at === undefined || pane.role !== "source") continue;
+    if (at === undefined || panes.drawn(pane) !== "source") continue;
     const view = panestate.paneViewOf(pane.id);
     if (view) view.scrollDOM.scrollTop = at;
   }
@@ -126,7 +126,7 @@ export function renderPanes() {
   // because the tree is detached while it is being built and a view with no
   // height on screen has nothing to scroll.
   for (const leaf of panes.leaves(panestate.paneTree)) {
-    if (leaf.role !== "source" || held.has(leaf.id)) continue;
+    if (panes.drawn(leaf) !== "source" || held.has(leaf.id)) continue;
     const born = panestate.paneViewOf(leaf.id);
     if (born) born.dispatch({ effects: EditorView.scrollIntoView(born.state.selection.main.head, { y: "center" }) });
   }
@@ -140,7 +140,7 @@ export function renderPanes() {
   panestate.paneWiring().applyEditingModes();
 
   // The focused pane has to be one that still exists.
-  const live = panes.leaves(panestate.paneTree).filter((l) => l.role === "source");
+  const live = panes.leaves(panestate.paneTree).filter((l) => panes.drawn(l) === "source");
   if (!panestate.focusedPane || !panestate.hasPaneView(panestate.focusedPane)) panestate.setFocusedPane(live[0]?.id ?? null);
   const v = panestate.focusedPane ? panestate.paneViewOf(panestate.focusedPane) : undefined;
   if (v) runtime.setView(v);
@@ -156,7 +156,7 @@ export function renderPanes() {
   // be instead.
   for (const pane of panes.leaves(panestate.paneTree)) {
     const at = wasAt.get(pane.id);
-    if (at === undefined || pane.role === "source") continue;
+    if (at === undefined || panes.drawn(pane) === "source") continue;
     const host = panestate.paneHostOf(pane.id);
     if (!host) continue;
     host.scrollTop = at;
@@ -186,21 +186,21 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
   const section = el(
     "section",
     {
-      class: `pane ${pane.role}-pane`,
+      class: `pane ${panes.drawn(pane)}-pane`,
       "data-pane": pane.id,
       // The same id again under the name the zoom uses, so one walk up the DOM
       // can treat a pane and a split alike — which is the whole point of zooming
       // a *region* rather than a pane.
       "data-node": pane.id,
-      "aria-label": t(pane.role),
+      "aria-label": t(panes.drawn(pane)),
       // The pane's own name, and `PANE_ROLE_NAME` maps a role onto a key for the
       // same reason: both are the *role*'s name, and both were Hebrew after a
-      // switch. `pane.role` is already a key, so nothing has to be derived.
-      "data-i18n-label": pane.role,
+      // switch. `panes.drawn(pane)` is already a key, so nothing has to be derived.
+      "data-i18n-label": panes.drawn(pane),
     },
     [host],
   );
-  if (pane.role === "source") {
+  if (panes.drawn(pane) === "source") {
     // A pane with no held state is a pane that did not exist a moment ago — a
     // split. It opens **where the pane it was split from is looking**, not at
     // the head of the document: you split a 300-page sefer to hold two places
@@ -247,7 +247,7 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
       panestate.setActivePane(pane.id);
       runtime.setView(view);
     });
-  } else if (pane.role === "preview") {
+  } else if (panes.drawn(pane) === "preview") {
     host.classList.add("preview-host");
     // **What makes `manual` safe to offer.** A preview that stopped updating
     // and did not say so is not a setting — it is a way to read an old page and
@@ -285,7 +285,7 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
       notes: "notes-list",
       marks: "marks-list",
     };
-    host.classList.add(LIST_CLASS[pane.role] ?? "notes-list", "panel-pane");
+    host.classList.add(LIST_CLASS[panes.drawn(pane)] ?? "notes-list", "panel-pane");
   }
   // Prepended, not passed in above, and that is the narrowing chip's doing: the
   // strip reports what this pane is narrowed to, which it can only read off the
@@ -334,7 +334,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
     }, [
       String(panestate.paneNumberOf(pane.id)),
     ]),
-    el("span", { class: "pane-name", "data-i18n": PANE_ROLE_NAME[pane.role] }, [t(PANE_ROLE_NAME[pane.role])]),
+    modeline.modeLine(pane, { relinked: refreshPaneHeads }),
   ];
   // Narrowing, and it is **named rather than iconified**. A glyph can say *this
   // pane is restricted*; only the title can say *to what*, and that is the one
@@ -342,7 +342,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // sefer actually has. The control is present with one pane as well as with
   // four: working on one siman without the rest of the sefer under the caret is
   // a reason to narrow that has nothing to do with splitting the window.
-  if (pane.role === "source") {
+  if (panes.drawn(pane) === "source") {
     const span = panestate.paneNarrow(pane.id);
     kids.push(
       glyphBtn(
@@ -368,7 +368,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // written by `preview.ts` after each draw: the siman's name does not change
   // between draws but the number of pages it printed on does, and one writer of
   // one element is the rule this repository keeps having to re-learn.
-  if (pane.role === "preview") {
+  if (panes.drawn(pane) === "preview") {
     kids.push(
       el("span", {
         class: "pane-window",
@@ -382,29 +382,15 @@ function paneHead(pane: panes.Leaf): HTMLElement {
   // whose buttons are pure glyph, so the only other thing that could identify
   // them is the `title`, which is translated — and a fence that reads a Hebrew
   // title is a fence that goes quiet the day the run is driven in English.
-  if (panes.leaves(panestate.paneTree).length > 1) {
-    kids.push(
-      glyphBtn(
-        pane.linked ? "⇅" : "⇵",
-        // The glyph and the name are both a function of `linked`, and so is the
-        // marker — a static one would re-localise the button to the state it was
-        // *not* in when the language changed.
-        pane.linked ? t("scrollLinked") : t("scrollUnlinked"),
-        // **Not `setTree`.** Linking changes one field on one leaf and nothing
-        // about the shape, and `setTree` rebuilds every `EditorView` in the
-        // window — which used to throw a reader on page 40 back to page 1 for
-        // pressing a chip that has nothing to do with where they are.
-        () => {
-          panestate.setPaneTree(panes.update(panestate.paneTree, pane.id, { linked: !pane.linked }));
-          panestate.rememberPanes();
-          refreshPaneHeads();
-          panestate.applyPreviewWindows();
-        },
-        "pane-btn",
-        { "data-i18n-both": pane.linked ? "scrollLinked" : "scrollUnlinked", "data-pane-act": "link" },
-      ),
-    );
-  }
+  // Open a box beside this one: the window's `switch-to-buffer`. The link that
+  // used to sit here is the mode line's third part now, where it names *which*
+  // box this one follows rather than only whether it follows one.
+  kids.push(
+    glyphBtn("⊞", t("ml.openTitle"), (e) => modeline.openBoxPicker(pane, e.currentTarget as HTMLElement), "pane-btn", {
+      "data-i18n-both": "ml.openTitle",
+      "data-pane-act": "open-box",
+    }),
+  );
   // **Both splits, always.**
   //
   // There used to be one button, it was only offered once the window already had
@@ -501,7 +487,7 @@ function paneHead(pane: panes.Leaf): HTMLElement {
  * one answer to what a split *is* and only the axis differs.
  */
 function splitHere(pane: panes.Leaf, dir: "row" | "col") {
-  panestate.setTree(panes.split(panestate.paneTree, pane.id, dir, panes.leaf(pane.role, pane.docId, { linked: false })));
+  panestate.setTree(panes.split(panestate.paneTree, pane.id, dir, panes.leaf(pane.view)));
 }
 /**
  * Show one region of the window and hide the rest, with classes only.

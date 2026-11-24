@@ -46,7 +46,7 @@ export async function run() {
     check("and an even share", two.frac, 0.5);
 
     const before = panes.split(one, one.id, "row", panes.leaf("preview"), true);
-    check("…or the new one first, when asked", before.a.role, "preview");
+    check("…or the new one first, when asked", panes.drawn(before.a), "preview");
     check("with the original second", before.b.id, one.id);
   }
 
@@ -56,12 +56,12 @@ export async function run() {
     let t = panes.leaf("source");
     const src = t.id;
     t = panes.split(t, src, "row", panes.leaf("preview"));
-    const p1 = panes.leaves(t).find((l) => l.role === "preview");
+    const p1 = panes.leaves(t).find((l) => panes.drawn(l) === "preview");
     t = panes.split(t, p1.id, "col", panes.leaf("preview"));
-    const p2 = panes.leaves(t).filter((l) => l.role === "preview")[1];
+    const p2 = panes.leaves(t).filter((l) => panes.drawn(l) === "preview")[1];
     t = panes.split(t, p2.id, "col", panes.leaf("preview"));
     check("three previews and a source", panes.leaves(t).length, 4);
-    check("…of which three are previews", panes.leaves(t).filter((l) => l.role === "preview").length, 3);
+    check("…of which three are previews", panes.leaves(t).filter((l) => panes.drawn(l) === "preview").length, 3);
   }
 
   // ------------------------------------------------------- structural sharing
@@ -129,31 +129,90 @@ export async function run() {
   // ---------------------------------------------------------- what a pane owns
 
   {
-    // Scroll, mode and the scroll link are per pane. That is the difference
-    // between "a second view" and "the same view twice".
+    // Scroll, view and the link are per box. That is the difference between
+    // "a second view" and "the same view twice".
     const a = panes.leaf("source");
-    const tree = panes.split(a, a.id, "col", panes.leaf("source", null, { linked: false }));
+    const tree = panes.split(a, a.id, "col", panes.leaf("source"));
     const [first, second] = panes.leaves(tree);
-    check("one pane follows its sibling", first.linked, true);
-    check("…and the other does not", second.linked, false);
+    check("a new box follows nothing until it is told to", first.link, { leader: null, mode: "unlinked" });
+    check("…and neither does the other", second.link.mode, "unlinked");
 
     const scrolled = panes.update(tree, first.id, { scrollTop: 120 });
     check("scroll is remembered per pane", panes.find(scrolled, first.id).scrollTop, 120);
     check("…and the sibling is where it was", panes.find(scrolled, second.id).scrollTop, 0);
 
-    const raw = panes.update(scrolled, first.id, { prose: false });
-    check("so is prose or raw", panes.find(raw, first.id).prose, false);
-    check("…without touching the other", panes.find(raw, second.id).prose, undefined);
+    const notes = panes.update(scrolled, first.id, { view: panes.VIEW.notes });
+    check("so is what it shows", panes.drawn(panes.find(notes, first.id)), "notes");
+    check("…without touching the other", panes.drawn(panes.find(notes, second.id)), "source");
   }
 
   {
-    // Which pane a linked pane follows: the one it shares a split with.
-    const a = panes.leaf("source");
-    const tree = panes.split(a, a.id, "row", panes.leaf("preview"));
-    const b = panes.leaves(tree)[1];
-    check("a pane's partner is across its own split", panes.sibling(tree, a.id).id, b.id);
-    check("…and it is symmetric", panes.sibling(tree, b.id).id, a.id);
-    check("a lone pane has no partner", panes.sibling(panes.leaf("source"), "nope"), undefined);
+    // Which box a box follows is its own `link.leader` — not the one it
+    // happens to share a split with, which stops meaning anything at three.
+    panes._resetIds();
+    const src = panes.leaf("source");
+    let t = panes.split(src, src.id, "row", panes.leaf("preview"));
+    const prev = panes.leaves(t)[1];
+    t = panes.split(t, prev.id, "col", panes.leaf("notes"));
+    const notes = panes.leaves(t)[2];
+    const f1 = panes.follow(t, prev.id, src.id, "scroll");
+    check("a preview follows the source", f1.refused, null);
+    t = f1.tree;
+    const f2 = panes.follow(t, notes.id, prev.id, "scroll");
+    check("…and a chain is allowed", f2.refused, null);
+    t = f2.tree;
+    check("its leader is the box it names", panes.leaderOf(t, notes.id).id, prev.id);
+    check("a leader knows its followers", panes.followers(t, src.id).map((l) => l.id), [prev.id]);
+    check("partners are the leader and the followers", panes.partners(t, prev.id).map((l) => l.id), [src.id, notes.id]);
+    check("a lone box has none", panes.partners(panes.leaf("source"), "nope"), []);
+
+    const loop = panes.follow(t, src.id, notes.id, "scroll");
+    check("closing the chain into a loop is refused, with the reason", loop.refused?.key, "view.linkCycle");
+    ok("…and the tree is untouched", loop.tree === t);
+    check("a box cannot follow itself", panes.follow(t, src.id, src.id, "scroll").refused?.key, "view.linkSelf");
+    check("unlinking always works", panes.find(panes.follow(t, notes.id, null, "unlinked").tree, notes.id).link.mode, "unlinked");
+
+    // Closing a box in the middle of a chain hands its followers its leader —
+    // and keeps their link mode: they still scroll, with the box behind it.
+    const closed = panes.closePane(t, prev.id);
+    check("closing the middle relinks the follower to its leader", panes.find(closed, notes.id).link, { leader: src.id, mode: "scroll" });
+    const head = panes.closePane(t, src.id);
+    check("closing the head leaves its follower unlinked", panes.find(head, prev.id).link.mode, "unlinked");
+    check("…and the rest of the chain as it was", panes.find(head, notes.id).link.leader, prev.id);
+    // A move is not a close: what follows the moved box still follows it.
+    const moved = panes.remove(t, prev.id);
+    check("removing for a move relinks nobody", panes.find(moved, notes.id).link.leader, prev.id);
+  }
+
+  {
+    // Stored trees: kept when they are this version's, refused when they are not.
+    panes._resetIds();
+    const src = panes.leaf("source");
+    let t = panes.split(src, src.id, "row", panes.leaf("preview"));
+    const prev = panes.leaves(t)[1];
+    t = panes.follow(t, prev.id, src.id, "scroll").tree;
+    const stored = JSON.parse(JSON.stringify(t));
+    panes._resetIds();
+    const back = panes.validTree(stored);
+    check("a stored tree comes back with its ids, so focus survives a restart", panes.leaves(back).map((l) => l.id), panes.leaves(t).map((l) => l.id));
+    notOk("…and the next new box cannot take one of them", panes.leaves(back).some((l) => l.id === panes.leaf("source").id));
+    check("a link survives the round trip", panes.find(back, prev.id).link, { leader: src.id, mode: "scroll" });
+
+    const old = { kind: "split", id: "p1", dir: "row", frac: 0.5,
+      a: { kind: "leaf", id: "p2", role: "source", docId: null, scrollTop: 0, linked: true },
+      b: { kind: "leaf", id: "p3", role: "preview", docId: null, scrollTop: 0, linked: true } };
+    check("a tree from before boxes held views is refused", panes.validTree(old), null);
+    check("so is a box no renderer draws", panes.validTree({ kind: "leaf", id: "p1", view: { scope: { part: "notes", depth: 2 }, mode: "outline" }, link: { leader: null, mode: "unlinked" }, scrollTop: 0 }), null);
+    check("so is anything else", panes.validTree("nope"), null);
+    const twice = { ...stored, b: { ...stored.b, id: stored.a.id } };
+    check("…and a tree with one id twice", panes.validTree(twice), null);
+    const dangling = { ...stored, b: { ...stored.b, link: { leader: "p999", mode: "scroll" } } };
+    check("a link to a box not in the tree comes back unlinked", panes.validTree(dangling).b.link.mode, "unlinked");
+
+    const fresh = panes.freshIds(t);
+    notOk("fresh ids are fresh", panes.leaves(fresh).some((l) => panes.find(t, l.id)));
+    const [fs, fp] = panes.leaves(fresh);
+    check("…and the link is carried to the new names", fp.link.leader, fs.id);
   }
 
   // ------------------------------------------------------------ arrangements
@@ -179,14 +238,14 @@ export async function run() {
     // The one the margins asked for by name. The second source is unlinked,
     // because looking somewhere else is the entire reason to open it.
     const t = panes.ARRANGEMENTS.find((a) => a.id === "twoSources").build();
-    const sources = panes.leaves(t).filter((l) => l.role === "source");
+    const sources = panes.leaves(t).filter((l) => panes.drawn(l) === "source");
     check("two source panes", sources.length, 2);
-    check("…and the second scrolls on its own", sources[1].linked, false);
+    check("…and the second scrolls on its own", sources[1].link.mode, "unlinked");
   }
 
   {
     const t = panes.ARRANGEMENTS.find((a) => a.id === "twoPreviews").build();
-    check("two previews of one document", panes.leaves(t).filter((l) => l.role === "preview").length, 2);
+    check("two previews of one document", panes.leaves(t).filter((l) => panes.drawn(l) === "preview").length, 2);
   }
 
   {
@@ -195,7 +254,7 @@ export async function run() {
     // claims they are in something they are not.
     const t = panes.defaultTree();
     check("a shipped arrangement is named", panes.arrangementOf(t), "sourceAndPreview");
-    const altered = panes.split(t, panes.leaves(t)[0].id, "col", panes.leaf("preview"));
+    const altered = panes.split(t, panes.leaves(t)[1].id, "col", panes.leaf("preview"));
     check("…and an altered one is not", panes.arrangementOf(altered), null);
   }
 
@@ -211,7 +270,7 @@ export async function run() {
     const t = panes.defaultTree();
     const [prev, src] = panes.leaves(t);
     const swapped = panes.swap(t, prev.id, src.id);
-    check("swapping two panes trades their places", panes.leaves(swapped).map((l) => l.role), [
+    check("swapping two panes trades their places", panes.leaves(swapped).map((l) => panes.drawn(l)), [
       "source",
       "preview",
     ]);
@@ -253,7 +312,7 @@ export async function run() {
     let t = panes.leaf("source");
     const src = t.id;
     t = panes.split(t, src, "row", panes.leaf("preview")); // source | preview
-    const prev = panes.leaves(t).find((l) => l.role === "preview").id;
+    const prev = panes.leaves(t).find((l) => panes.drawn(l) === "preview").id;
     t = panes.split(t, prev, "col", panes.leaf("preview")); // …the preview stacked
     const lower = panes.leaves(t)[2].id;
 
@@ -303,8 +362,9 @@ export async function run() {
     const t1 = panes.split(a, a.id, "row", panes.leaf("preview"));
     const t2 = panes.resize(t1, t1.id, 0.8);
     check("moving a divider does not change the shape", panes.shapeOf(t2), panes.shapeOf(t1));
-    const unlinked = panes.update(t1, a.id, { linked: false });
-    notOk("unlinking does", panes.shapeOf(unlinked) === panes.shapeOf(t1));
+    const b = panes.leaves(t1)[1];
+    const linked = panes.follow(t1, b.id, a.id, "scroll").tree;
+    notOk("linking does", panes.shapeOf(linked) === panes.shapeOf(t1));
   }
 
   // ------------------------------------------------------- zooming a region

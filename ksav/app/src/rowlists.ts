@@ -96,9 +96,9 @@ export function toggleOutline() {
  * outline. It is the one pane whose position is decided rather than chosen.
  */
 function togglePanelPane(role: "outline" | "notes" | "marks", on: boolean) {
-  const existing = panes.leaves(paneTree).find((l) => l.role === role);
+  const existing = panes.leaves(paneTree).find((l) => panes.drawn(l) === role);
   if (on && !existing) {
-    setTree(panes.split(paneTree, paneTree.id, "row", panes.leaf(role, null, { linked: false }), true));
+    setTree(panes.split(paneTree, paneTree.id, "row", panes.leaf(role), true));
   } else if (!on && existing) {
     setTree(panes.closePane(paneTree, existing.id));
   }

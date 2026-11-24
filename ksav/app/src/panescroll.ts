@@ -93,20 +93,26 @@ let scrollFloor: { pane: string; until: number } | null = null;
  */
 const scrollWritten = new Map<string, number>();
 
-/** The follow booked for the next frame, if one is booked. */
-let scrollBooked: {
+/**
+ * The follows booked for the next frame, one per box that is following.
+ *
+ * Keyed by the follower, because a box can be followed by several — a body
+ * with its preview and its notes both linked to it — and one booking would
+ * move whichever was booked last and leave the others where they were.
+ */
+const scrollBooked = new Map<string, {
   from: panes.Leaf;
   to: panes.Leaf;
   top: number;
   /** Which way the pane that is leading moved: `+1` down, `-1` up. */
   dir: -1 | 0 | 1;
-} | null = null;
+}>();
 
 let scrollFrame = 0;
 
 export function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
   const scroller = () =>
-    pane.role === "source" ? (panestate.paneViewOf(pane.id)?.scrollDOM ?? host) : host;
+    panes.drawn(pane) === "source" ? (panestate.paneViewOf(pane.id)?.scrollDOM ?? host) : host;
   host.addEventListener(
     "scroll",
     () => {
@@ -152,10 +158,9 @@ export function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
       // "synced scrolling" was the one checkbox in the application that could
       // not turn synced scrolling off.
       if (settings.syncScroll === false) return;
-      if (!pane.linked) return;
-      const other = panes.sibling(panestate.paneTree, pane.id);
-      if (!other || !other.linked) return;
-      bookLinkedScroll(pane, other, top, dir);
+      // The boxes this one scrolls with: what it follows and what follows
+      // it (`panes.partners`). A box that is neither scrolls alone.
+      for (const other of panes.partners(panestate.paneTree, pane.id)) bookLinkedScroll(pane, other, top, dir);
     },
     true,
   );
@@ -169,29 +174,33 @@ export function wirePaneScroll(pane: panes.Leaf, host: HTMLElement) {
  * to be immediately undone.
  */
 export function bookLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, dir: -1 | 0 | 1 = 0) {
-  scrollBooked = { from, to, top, dir };
+  scrollBooked.set(to.id, { from, to, top, dir });
   if (scrollFrame) return;
   scrollFrame = requestAnimationFrame(() => {
     scrollFrame = 0;
-    const job = scrollBooked;
-    scrollBooked = null;
-    if (!job) return;
+    const jobs = [...scrollBooked.values()];
+    scrollBooked.clear();
+    if (!jobs.length) return;
     // A booked follow is the newer position, so a glide still arriving from the
     // last settle is no longer the truth about this pane.
     cancelGlide();
-    // Re-read the panes: an arrangement can change between the event and the
-    // frame, and writing into a pane that has been closed is a null dereference
-    // in the middle of a scroll.
-    const live = panes.find(panestate.paneTree, job.to.id);
-    if (!live || !live.linked || !panes.find(panestate.paneTree, job.from.id)) return;
-    const target = live.role === "source" ? panestate.paneViewOf(live.id)?.scrollDOM : panestate.paneHostOf(live.id);
-    if (!target) return;
-    syncLinkedScroll(job.from, live, job.top, target, job.dir ?? 0);
-    // Estimate now, exact when the hand stops. See `settleExactly`.
-    settleExactly(job.from, live, job.dir ?? 0);
-    // What we wrote, as the browser actually clamped it, so the echo is
-    // recognised. See `scrollWritten`.
-    scrollWritten.set(live.id, target.scrollTop);
+    for (const job of jobs) {
+      // Re-read the panes: an arrangement can change between the event and the
+      // frame, and writing into a pane that has been closed is a null
+      // dereference in the middle of a scroll. Re-read the link too — a box
+      // unlinked since the event was booked is not following any more.
+      const live = panes.find(panestate.paneTree, job.to.id);
+      if (!live || !panes.find(panestate.paneTree, job.from.id)) continue;
+      if (!panes.partners(panestate.paneTree, job.from.id).some((p) => p.id === live.id)) continue;
+      const target = panes.drawn(live) === "source" ? panestate.paneViewOf(live.id)?.scrollDOM : panestate.paneHostOf(live.id);
+      if (!target) continue;
+      syncLinkedScroll(job.from, live, job.top, target, job.dir ?? 0);
+      // Estimate now, exact when the hand stops. See `settleExactly`.
+      settleExactly(job.from, live, job.dir ?? 0);
+      // What we wrote, as the browser actually clamped it, so the echo is
+      // recognised. See `scrollWritten`.
+      scrollWritten.set(live.id, target.scrollTop);
+    }
   });
 }
 
@@ -215,16 +224,22 @@ export function bookLinkedScroll(from: panes.Leaf, to: panes.Leaf, top: number, 
  * has started scrolling something else is dropped rather than yanking the pane
  * out from under them.
  */
-let settleTimer = 0;
+/** One timer per follower, for the same reason the bookings are per follower. */
+const settleTimers = new Map<string, number>();
 
 function settleExactly(from: panes.Leaf, to: panes.Leaf, dir: -1 | 0 | 1) {
-  clearTimeout(settleTimer);
+  clearTimeout(settleTimers.get(to.id));
+  settleTimers.delete(to.id);
   if (settings.syncExact === false) return;
-  if (from.role !== "source" || to.role !== "preview") return;
+  if (panes.drawn(from) !== "source" || panes.drawn(to) !== "preview") return;
   const delay = Math.max(0, settings.syncSettleMs ?? 150);
-  settleTimer = window.setTimeout(() => {
-    void settleNow(from, to, dir);
-  }, delay);
+  settleTimers.set(
+    to.id,
+    window.setTimeout(() => {
+      settleTimers.delete(to.id);
+      void settleNow(from, to, dir);
+    }, delay),
+  );
 }
 
 async function settleNow(from: panes.Leaf, to: panes.Leaf, dir: -1 | 0 | 1) {
@@ -364,8 +379,8 @@ export function syncLinkedScroll(
   target: HTMLElement,
   dir: -1 | 0 | 1 = 0,
 ) {
-  if (from.role === to.role) {
-    const src = from.role === "source" ? panestate.paneViewOf(from.id)!.scrollDOM : panestate.paneHostOf(from.id)!;
+  if (panes.drawn(from) === panes.drawn(to)) {
+    const src = panes.drawn(from) === "source" ? panestate.paneViewOf(from.id)!.scrollDOM : panestate.paneHostOf(from.id)!;
     target.scrollTop = (top / Math.max(1, src.scrollHeight)) * target.scrollHeight;
     return;
   }
@@ -374,7 +389,7 @@ export function syncLinkedScroll(
   // so a writer who sets it to the middle watches the line they are on stay put
   // in both panes rather than at the very top edge.
   const mp = matchFraction(dir);
-  if (from.role === "source") {
+  if (panes.drawn(from) === "source") {
     const view = panestate.paneViewOf(from.id)!;
     // The two ends, where a proportion is not an answer at all: the last
     // screenful of a source is lines and the last screenful of a preview is lines
@@ -462,7 +477,7 @@ let caretFollowTimer = 0;
  * `panehost.ts` writes when it renders the leaf (`pane-host-${pane.id}`).
  */
 export function followedPreview(tree: panes.PaneNode): panes.Leaf | null {
-  const linked = panes.leaves(tree).filter((l) => l.role === "preview" && l.linked);
+  const linked = panes.leaves(tree).filter((l) => panes.drawn(l) === "preview" && panes.partners(tree, l.id).length > 0);
   return linked.length === 1 ? linked[0] : null;
 }
 

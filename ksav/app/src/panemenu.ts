@@ -69,7 +69,7 @@ export function openPaneMenu(pane: panes.Leaf, at: HTMLElement) {
           },
         }, [
           el("b", {}, [tf("swapWithPane", String(panestate.paneNumberOf(other.id)))]),
-          el("span", { class: "menu-desc" }, [t(PANE_ROLE_NAME[other.role])]),
+          el("span", { class: "menu-desc" }, [t(PANE_ROLE_NAME[panes.drawn(other)])]),
         ]),
       );
     }

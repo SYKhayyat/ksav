@@ -43,22 +43,8 @@ function savedArrangements(): SavedArrangement[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(
     (a): a is SavedArrangement =>
-      !!a && typeof a === "object" && typeof (a as SavedArrangement).name === "string" && !!(a as SavedArrangement).tree?.kind,
+      !!a && typeof a === "object" && typeof (a as SavedArrangement).name === "string" && panes.validTree((a as SavedArrangement).tree) !== null,
   );
-}
-
-/**
- * Every pane id in a tree replaced with a new one.
- *
- * Not an optimisation and not tidiness: pane ids key `paneplaces`, the table of
- * where each pane was standing in each document, and the renderer decides which
- * editors it may leave alone by comparing leaves. A saved tree used twice with
- * its stored ids would give two live panes one identity, and they would fight
- * over one remembered place.
- */
-function withFreshIds(node: panes.PaneNode): panes.PaneNode {
-  if (node.kind === "leaf") return { ...node, id: panes.paneId() };
-  return { ...node, id: panes.paneId(), a: withFreshIds(node.a), b: withFreshIds(node.b) };
 }
 
 /** Keep the window as it stands now, under a name. */
@@ -68,7 +54,7 @@ export async function saveArrangementHere() {
   const list = savedArrangements();
   // A name used twice replaces, rather than making two rows a writer cannot
   // tell apart. Saving over one is what somebody typing the same name means.
-  const kept: SavedArrangement = { id: `sa${Date.now().toString(36)}`, name, tree: withFreshIds(panestate.paneTree) };
+  const kept: SavedArrangement = { id: `sa${Date.now().toString(36)}`, name, tree: panes.freshIds(panestate.paneTree) };
   const at = list.findIndex((a) => a.name === name);
   if (at >= 0) list[at] = { ...kept, id: list[at].id };
   else list.push(kept);
@@ -92,7 +78,7 @@ function savedArrangementRows(): Node[] {
             closePanel("arrangement");
             settings.pageView = false;
             applyPageView();
-            panestate.setTree(withFreshIds(a.tree));
+            panestate.setTree(panes.freshIds(a.tree));
             rerenderChrome();
           },
         }, [el("b", {}, [a.name])]),

@@ -163,7 +163,7 @@ export async function run() {
     check("and ☰ still opens the menus", bar["data-folded"], "open");
     // ☰ rides at the end of the tab row, and a row with no tabs still has an end.
     const withMenu = buildRibbon([toggle]);
-    check("☰ is still drawn with no tab to draw beside it", withMenu.children[0].children.at(-1), toggle);
+    check("☰ is still drawn with no tab to draw beside it, before ⌃", withMenu.children[0].children.at(-2), toggle);
 
     // ----------------------------------------------- 7. the renderer
     const mine = structuredClone(def);

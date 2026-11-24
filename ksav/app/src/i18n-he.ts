@@ -1734,6 +1734,7 @@ export const HE: Dict = {
   "btn.palette": "פקודות",
   "btn.macroRecord": "הקלט מאקרו",
   "btn.ribbonCustomize": "התאמה אישית",
+  "btn.ribbonCollapse": "כיווץ",
   "btn.table.splitCell": "פיצול",
   "pasteDenied": "הדפדפן לא התיר לקרוא את הלוח. הדבק בקיצור Ctrl+V.",
   "sc.stylesPanel": "לוח הסגנונות",
@@ -1832,6 +1833,9 @@ export const HE: Dict = {
   "btn.h2": "כותרת 2",
   "btn.h3": "כותרת 3",
   "sc.ribbonCustomize": "התאמת הסרגל…",
+  "sc.ribbonCollapse": "כיווץ הסרגל",
+  "ribbonOverflow": "עוד פקודות",
+  "ribbonExpand": "הצגת הסרגל",
   "rcTitle": "התאמת הסרגל",
   "rcMine": "הסרגל שלי",
   "rcAll": "כל הפקודות",
@@ -1874,5 +1878,4 @@ export const HE: Dict = {
   "rcMenuRemove": "הסרה מהלשונית",
   "rcMenuAddHome": "הוספה לבית",
   "rcMenuCustomize": "התאמת הסרגל…",
-  "rcNarrow": "החלון צר — הלשוניות בתפריט ☰.",
 };

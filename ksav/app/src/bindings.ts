@@ -278,6 +278,8 @@ export const DEFAULT_KEYS: Record<string, string> = {
   // Record and replay. Emacs puts these on F3/F4 and so does everybody who has
   // ever used them; the muscle memory is worth more than the mnemonic.
   help: "F1",
+  // Word's: the ribbon folds to its tab row and back (§4).
+  ribbonCollapse: "Mod-F1",
   macroRecord: "F3",
   macroPlay: "F4",
   hydra: "Mod-Alt-k",

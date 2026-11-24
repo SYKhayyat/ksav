@@ -186,6 +186,25 @@ export const RECIPES = new Map([
     },
   ],
   ["nikud-bar", { how: HOW.chip, chip: "nikud" }],
+  [
+    "ribbon-panel",
+    {
+      how: HOW.driven,
+      why:
+        "The ribbon's groups are always on the screen; they are a surface of their " +
+        "own only while the ribbon is collapsed (§4), when pressing a tab drops them " +
+        "over the document. So the recipe collapses it with ⌃ first.",
+      drive: async (p) => {
+        await p.click(".ribbon-collapse");
+        await p.click('.ribbon-tab[data-tab="insert"]');
+        await p.waitFor("#ribbon-panel.open", 10_000);
+      },
+      undrive: async (p) => {
+        await p.press("Escape");
+        await p.click(".ribbon-collapse");
+      },
+    },
+  ],
 
   // ---- opened by a keystroke or a menu ----
   [

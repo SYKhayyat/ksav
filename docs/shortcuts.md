@@ -89,6 +89,7 @@ rather than leaving two actions on one key.
 | `Alt+Shift+ArrowUp` | Move the section up | העברת המדור למעלה |
 | `Alt+Shift+ArrowDown` | Move the section down | העברת המדור למטה |
 | `F1` | Help | עזרה |
+| `Ctrl+F1` | Collapse the ribbon | כיווץ הסרגל |
 | `F3` | Record a macro | הקלטת מאקרו |
 | `F4` | Play the last macro | הרצת המאקרו האחרון |
 | `Ctrl+Alt+K` | Context keys (hydra) | מקשי הקשר (הידרה) |

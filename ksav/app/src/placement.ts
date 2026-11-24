@@ -365,6 +365,7 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   revealCursor: { menu: "view", group: "zoom" },
   revealPlaces: { menu: "view", group: "zoom" },
   ribbonCustomize: { menu: "view", group: "ribbon" },
+  ribbonCollapse: { menu: "view", group: "ribbon" },
   prose: { menu: "view", group: "interface" },
   toggleTheme: { menu: "view", group: "interface" },
   toggleLang: { menu: "view", group: "interface" },
@@ -451,7 +452,7 @@ export const FACE: Readonly<Record<string, readonly string[]>> = {
   folding: ["foldAll", "unfoldAll"],
   zoom: ["zoomIn", "zoomOut"],
   commandsGroup: ["palette", "macroRecord"],
-  ribbon: ["ribbonCustomize"],
+  ribbon: ["ribbonCustomize", "ribbonCollapse"],
   // Table (contextual)
   rowscols: ["table.rowAbove", "table.rowBelow", "table.colBefore", "table.colAfter", "table.rowDelete", "table.colDelete"],
   cells: ["מיזוג", "table.splitCell", "כותרת_תא"],

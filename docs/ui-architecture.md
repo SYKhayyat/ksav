@@ -141,7 +141,10 @@ same as Word, on a 1366×768 screen.
 
 **Collapsed** (Ctrl+F1, double-click a tab, or `⌃`): only the tab row shows; a click
 on a tab drops that tab's ribbon over the document until the next click outside or
-Esc. Stored in `shell.collapsed`.
+Esc, or until a command on it runs; pressing the same tab again takes it back. The
+dropped ribbon is a `PANELS` popup (`ribbon-panel`), so outside-click and Esc are
+the ones every popup has. `⌃` sits at the end of the tab row. Stored in
+`shell.collapsed`.
 
 ### Status bar
 
@@ -335,16 +338,27 @@ The target is **1366×768**, and ksav must look right in **half of that screen**
 | 640–1100px | groups shrink one step at a time, in priority order, until the row fits |
 | < 640px | **simplified ribbon**: one 36px row of icon buttons for the open tab, then `⋯` for the rest |
 
-**Shrinking** is planned by a pure function, `shrinkPlan(groups, step)`. Each group
-has four levels: **0** full · **1** every large face becomes small · **2** every
-face becomes icon-only · **3** the whole group is one dropdown button with its icon
-and name. Groups shrink in reverse priority, the least-used first; within a tab the
-last group in the row goes first. **B/I/U, footnote, siman and seif shrink last.**
-The DOM loop applies steps while the panel overflows, measured with a
-`ResizeObserver`; it never measures inside a step.
+The widths are the ribbon panel's, not the window's: half a screen with the
+panes beside it is what the ribbon actually has.
 
-The ribbon **never wraps** and its height is fixed; a fence asserts both at 1366,
-1100, 800, 680 and 500px.
+**Shrinking** is planned by pure functions in `shrink.ts` (`shrinkSteps`,
+`shrinkPlan`). Each group has four levels: **0** full · **1** every large face
+becomes small · **2** every face with an icon is the icon alone · **3** the whole
+group is one dropdown button with its icon and name. The groups that hold **B/I/U,
+the footnote, siman and seif shrink last**; the rest go the row's end first, every
+one through level 1 before any reaches level 2, and a level that would change
+nothing in a group is not a step for it. The DOM loop applies one step at a time
+while the panel overflows. A `ResizeObserver` starts it a frame later, and only for
+a new width: refitting inside the observer's callback is a resize loop, which
+Chromium reports as an error.
+
+The **simplified ribbon** starts every group at level 2 and never folds one: a
+folded group is its name in words, wider than its icons. What does not fit goes
+into a `⋯` at the row's end, in the same order.
+
+The ribbon **never wraps** and its height is fixed (92px, or 36px simplified);
+`shrink.test` asserts both in the built application at 1366, 1100, 800, 680 and
+500px.
 
 ## 8 · Behaviour
 

@@ -1674,6 +1674,7 @@ export const EN: Dict = {
   "btn.palette": "Commands",
   "btn.macroRecord": "Record macro",
   "btn.ribbonCustomize": "Customize",
+  "btn.ribbonCollapse": "Collapse",
   "btn.table.splitCell": "Split",
   "pasteDenied": "The browser would not let the page read the clipboard. Paste with Ctrl+V.",
   "sc.stylesPanel": "Styles panel",
@@ -1772,6 +1773,9 @@ export const EN: Dict = {
   "btn.h2": "Heading 2",
   "btn.h3": "Heading 3",
   "sc.ribbonCustomize": "Customize the ribbon…",
+  "sc.ribbonCollapse": "Collapse the ribbon",
+  "ribbonOverflow": "More commands",
+  "ribbonExpand": "Show the ribbon",
   "rcTitle": "Customize the ribbon",
   "rcMine": "My ribbon",
   "rcAll": "All commands",
@@ -1814,5 +1818,4 @@ export const EN: Dict = {
   "rcMenuRemove": "Remove from tab",
   "rcMenuAddHome": "Add to Home",
   "rcMenuCustomize": "Customize the ribbon…",
-  "rcNarrow": "The window is narrow — the tabs are in the ☰ menu.",
 };

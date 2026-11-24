@@ -60,6 +60,7 @@ import { selectTab, closeTab, newTab, newDocTab } from "./tabstrip";
 import * as runtime from "./runtime";
 import { setStatus } from "./runtime";
 import { settings, saveSettings, docConfig, setSetting } from "./settings";
+import { readShell } from "./shellsettings";
 import { swapPaneToward } from "./panedrag";
 import { t, tf } from "./i18n";
 import { takeSnapshot } from "./snapshots";
@@ -152,6 +153,16 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   { id: "gitPanel", run: () => (openGit(), true) },
   { id: "keysDrawer", run: () => (openKeys(), true) },
   { id: "ribbonCustomize", run: () => (runtime.openCustomize(), true) },
+  // Word's Ctrl+F1: the ribbon folds to its tab row, or comes back (§4). A
+  // setting, so the shell redraws from it and the next launch opens the same way.
+  {
+    id: "ribbonCollapse",
+    run: () => {
+      const shell = readShell(settings.shell);
+      setSetting("shell", { ...shell, collapsed: !shell.collapsed });
+      return true;
+    },
+  },
   // Which sefer a search reads is a setting, so which surface opens is too.
   // `source` is the default and is what this has always done — the editor's own
   // find panel over the buffer. The other two open the find drawer, which is

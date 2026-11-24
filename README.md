@@ -16,7 +16,7 @@ Your documents stay on your machine. Ksav has no account, no server, and uploads
 | **use it** | [`docs/start-here.md`](docs/start-here.md) |
 | **switch from Word** | [`docs/from-word.md`](docs/from-word.md) |
 | **fix something that went wrong** | [`docs/troubleshooting.md`](docs/troubleshooting.md) |
-| **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 105 bindings in both languages, generated from the source |
+| **learn the keyboard** | [`docs/shortcuts.md`](docs/shortcuts.md) — all 106 bindings in both languages, generated from the source |
 | **build or change it** | [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/your-first-change.md`](docs/your-first-change.md) |
 | **decide how the shell is shaped** | [`docs/ui-architecture.md`](docs/ui-architecture.md) — menus as the floor, a tab strip as a switch |
 | **understand the architecture** | [`ksav/README.md`](ksav/README.md) |

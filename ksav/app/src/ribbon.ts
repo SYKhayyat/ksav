@@ -487,12 +487,14 @@ export function alignEdgeOf(he: string | undefined): (typeof ALIGN_ORDER)[number
  */
 export function lazyMenu(
   name: string,
-  label: string,
+  // Words, or a drawing with words (a folded ribbon group's icon and name).
+  label: string | readonly (Node | string)[],
   build: () => (Node | string)[],
-  // The accessible name, when the label is a glyph (`⋯`, `⚙`) rather than a word.
+  // The accessible name, when the label is a glyph (`⋯`, `⚙`) or a drawing rather than a word.
   ariaLabel?: string,
 ): HTMLElement {
-  const list = el("div", { class: "menu-list", role: "menu", "aria-label": ariaLabel ?? label });
+  const words = typeof label === "string" ? label : undefined;
+  const list = el("div", { class: "menu-list", role: "menu", "aria-label": ariaLabel ?? words ?? null });
   const btn = el("button", {
     class: "menu-btn",
     type: "button",
@@ -518,7 +520,7 @@ export function lazyMenu(
       // nothing at all. Found by driving it.
       if (opened && !settings.keepMenuPosition) list.scrollTop = 0;
     },
-  }, [label]);
+  }, typeof label === "string" ? [label] : [...label]);
   return el("div", { class: "menu", "data-menu": name }, [btn, list]);
 }
 

@@ -317,6 +317,22 @@ export const PANELS: readonly Panel[] = [
     exits: [{ via: "caret" }, { via: "toggle", selector: ".context-bar" }],
   },
 
+  // ---- the collapsed ribbon's dropped tab ----
+  //
+  // With the ribbon collapsed to its tab row (§4), a tab pressed drops its
+  // groups over the document. It is the ribbon's own panel wearing `open`, so
+  // it is always in the document; Escape takes it away, and so does a click
+  // anywhere that is not in it — the selector is what tells the sweep where
+  // "in it" is. A command run from it closes it too (`shelltabs.ts`).
+  {
+    id: "ribbon-panel",
+    kind: "popup",
+    presence: "class",
+    escape: true,
+    exits: [{ via: "outside" }],
+    selector: ".ribbon-panel",
+  },
+
   // ---- pointer-anchored menus ----
   //
   // No id of their own, and the spell menu can be one of several. They are here

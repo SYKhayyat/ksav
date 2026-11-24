@@ -147,7 +147,8 @@ export async function run() {
 
   const tail = { tagName: "BUTTON", children: [] };
   const withEnd = buildRibbon([tail]);
-  check("what the header hands it ends the tab row", withEnd.children[0].children.at(-1), tail);
+  check("what the header hands it ends the tab row, before ⌃", withEnd.children[0].children.at(-2), tail);
+  ok("⌃ is the row's last control", withEnd.children[0].children.at(-1).className.includes("ribbon-collapse"));
   const lead = { tagName: "BUTTON", children: [] };
   const withStart = buildRibbon([tail], [lead]);
   check("and what it hands first starts it", withStart.children[0].children[0], lead);

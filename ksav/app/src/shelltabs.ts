@@ -9,7 +9,7 @@
 // row exists, so `☰` is the floor: the menu bar lives folded inside it.
 
 import { el } from "./dom";
-import { icon } from "./icons";
+import { icon, UI_ICONS } from "./icons";
 import { DICTS, getLang, t, tf, hasKey, isRtlUi } from "./i18n";
 import { COMMAND_EN } from "./engine.gen";
 import { ALIGN_ORDER, settings } from "./settings";
@@ -22,7 +22,10 @@ import { hintFor } from "./keyhint";
 import { CONTEXTUAL, btnKey, type FaceSize, type PlacedAction, type TabGroup, type TabId } from "./placement";
 import { groupLabel, shownTabs, tabName, type ShownTab } from "./ribbonlayout";
 import { currentPlaced, here, row, runPlaced, shellLabel } from "./shellmenu";
+import { runAction } from "./actionsurface";
+import { closePanel, isPanelOpen, openPanel } from "./panels";
 import { buttonMenu, tabMenu } from "./ribboncustomize";
+import { shrinkInfo, shrinkSteps, spillOrder, type ShrinkLevel } from "./shrink";
 
 /**
  * The open tab. Session state, not a setting: the strip opens where the writer
@@ -110,8 +113,7 @@ function faceTitle(a: PlacedAction): string {
  * alignment button says whether the paragraph is already aligned that way —
  * `refreshAlignState` fills `aria-pressed` from the text the caret is in.
  */
-function faceButton(a: PlacedAction): HTMLElement {
-  const size = a.place.size ?? "small";
+function faceButton(a: PlacedAction, size: FaceSize): HTMLElement {
   const label = faceLabel(a);
   // A large face draws its icon at 32px over its words; a small one at 16px
   // beside them; an icon face keeps its words only for the reader that cannot
@@ -177,15 +179,28 @@ function lanes(items: readonly (readonly [HTMLElement, FaceSize])[]): HTMLElemen
   );
 }
 
-/** One group: its lanes and `⋯`, then the caption with `⚙` in its corner. */
-function groupBox(g: TabGroup): HTMLElement {
+/** The size a face is drawn at when its group has shrunk to `level` (`shrink.ts`). */
+function sizeAt(a: PlacedAction, level: ShrinkLevel): FaceSize {
+  const size = a.place.size ?? "small";
+  if (level >= 2 && a.place.icon && a.kind !== "style") return "icon";
+  if (level >= 1 && size === "large") return "small";
+  return size;
+}
+
+/**
+ * One group at a shrink level (§7): its lanes and `⋯`, then the caption with
+ * `⚙` in its corner — or, at level 3, one button with the group's icon and
+ * name that opens everything the group holds as menu rows.
+ */
+export function drawGroup(g: TabGroup, level: ShrinkLevel = 0): HTMLElement {
+  if (level === 3) return foldedGroup(g);
   const name = groupName(g);
   const aligns = g.face.some((a) => alignEdgeOf(a.command?.he));
   const items: (readonly [HTMLElement, FaceSize])[] = [
     // The paragraph-style dropdown: what every word processor's Styles group
     // opens with — body text, the nine levels, this document's styles, and new.
     ...(g.group === "styles" ? [[paragraphStyleControl(), "small"] as const] : []),
-    ...(aligns ? screenOrder(g.face) : g.face).map((a) => [faceButton(a), a.place.size ?? "small"] as const),
+    ...(aligns ? screenOrder(g.face) : g.face).map((a) => [faceButton(a, sizeAt(a, level)), sizeAt(a, level)] as const),
     ...g.missing.map((k) => [missingControl(missingLabel(k), k), "small"] as const),
   ];
   if (g.more.length) {
@@ -208,10 +223,30 @@ function groupBox(g: TabGroup): HTMLElement {
     : [];
   // `tb-align` pins the row left-to-right in `styles.css`; the caption keeps the interface's direction.
   const cls = "tb-group ribbon-group" + (aligns ? " tb-align" : "");
-  return el("div", { class: cls, role: "group", "aria-label": name, "data-group": g.group }, [
+  return el("div", { class: cls, role: "group", "aria-label": name, "data-group": g.group, "data-level": String(level) }, [
     el("div", { class: "tb-group-row" }, lanes(items)),
     el("div", { class: "tb-group-foot" }, [el("span", { class: "tb-group-label", "aria-hidden": "true" }, [name]), ...gear]),
   ]);
+}
+
+/**
+ * A group folded to one button (level 3), as Word folds a group the window has
+ * no room for: the group's icon over its name, and a press opens every row the
+ * group holds — its face, its `⋯` and its `⚙` — as the menu draws them.
+ */
+function foldedGroup(g: TabGroup): HTMLElement {
+  const name = groupName(g);
+  const lead = g.face.find((a) => a.place.size === "large" && a.place.icon) ?? g.face.find((a) => a.place.icon);
+  const menu = lazyMenu(
+    "fold-" + g.group,
+    [...(lead?.place.icon ? [icon(lead.place.icon, 16)] : []), el("span", { class: "ribbon-lbl" }, [name]), icon(UI_ICONS.dropdown, 12)],
+    () => {
+      const h = here();
+      return [...g.face, ...g.more, ...g.gear].map((a) => row(a, h));
+    },
+    name,
+  );
+  return el("div", { class: "tb-group ribbon-group ribbon-folded", role: "group", "aria-label": name, "data-group": g.group, "data-level": "3" }, [menu]);
 }
 
 /**
@@ -265,8 +300,21 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
   const ids = tree.map((n) => n.tab);
   if (!ids.includes(openTab)) openTab = ids[0] ?? "home";
 
-  const panel = el("div", { class: "ribbon-panel", role: "tabpanel", id: "ribbon-panel", onContextmenu: faceMenu(() => openTab) });
+  const collapsed = readShell(settings.shell).collapsed;
+  const panel = el("div", {
+    class: "ribbon-panel",
+    role: "tabpanel",
+    id: "ribbon-panel",
+    onContextmenu: faceMenu(() => openTab),
+    // A collapsed ribbon's dropped tab goes once a command has run from it (§4).
+    onClick: (e: MouseEvent) => {
+      if (collapsed && (e.target as HTMLElement).closest?.("[data-action]")) closePanel("ribbon-panel");
+    },
+  });
   const buttons = new Map<string, HTMLElement>();
+  /** The open tab's groups, and the level each is drawn at (§7). */
+  let groups: TabGroup[] = [];
+  let levels: ShrinkLevel[] = [];
 
   // The tab the caret's context marks, and whether a tab is on the strip now:
   // a contextual tab (Table) is there only while the caret is in its context.
@@ -285,8 +333,78 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
       b.hidden = !onStrip(id);
     }
     panel.setAttribute("aria-labelledby", "ribbon-tab-" + tab);
-    panel.replaceChildren(...(tree.find((n) => n.tab === tab)?.groups ?? []).map((g) => groupBox(g)));
+    groups = tree.find((n) => n.tab === tab)?.groups ?? [];
+    redraw(simplified ? 2 : 0);
+    fit();
   };
+  /** How many groups at the row's end have gone into `⋯` (§7, the simplified ribbon). */
+  let spilled = 0;
+  const overflow = el("div", { class: "tb-group ribbon-group ribbon-overflow" }, [lazyMenu("ribbon-overflow", "⋯", () => {
+    const h = here();
+    const gone = new Set(spillOrder(groups.map(shrinkInfo)).slice(0, spilled));
+    return groups.filter((_, i) => gone.has(i)).flatMap((g) => [...g.face, ...g.more, ...g.gear].map((a) => row(a, h)));
+  }, t("ribbonOverflow"))]);
+  const redraw = (from: ShrinkLevel) => {
+    levels = groups.map(() => from);
+    spilled = 0;
+    // `⋯` joins the row only once something has gone into it.
+    panel.replaceChildren(...groups.map((g) => drawGroup(g, from)));
+  };
+
+  // ---- the fit (§7). The row never wraps: while it is wider than the window,
+  // the next step of `shrinkSteps` is applied to one group and the row is
+  // measured again. Below `SIMPLIFIED_BELOW` the ribbon is one row of icons and
+  // every group starts at level 2. Growing starts the walk again from the top.
+  let simplified = false;
+  let lastWidth = 0;
+  const ribbon = el("div", { class: "ribbon", "data-ribbon": "tabs", "data-collapsed": String(collapsed) });
+  const fit = () => {
+    const width = panel.clientWidth;
+    if (!width) return; // not laid out: a test's DOM, or a collapsed ribbon with nothing dropped
+    const simple = width < SIMPLIFIED_BELOW;
+    if (simple !== simplified || width > lastWidth) {
+      simplified = simple;
+      ribbon.setAttribute("data-simplified", String(simple));
+      redraw(simple ? 2 : 0);
+    }
+    lastWidth = width;
+    const over = () => panel.scrollWidth > panel.clientWidth;
+    const info = groups.map(shrinkInfo);
+    // The simplified row is icons and stays icons: a folded group is its name
+    // in words, wider than the icons it replaces, so there what does not fit
+    // goes into `⋯` instead — as Word's simplified ribbon does.
+    if (!simple) {
+      for (const [i, level] of shrinkSteps(info)) {
+        if (!over()) break;
+        if (levels[i] >= level) continue;
+        levels[i] = level;
+        panel.children[i]?.replaceWith(drawGroup(groups[i], level));
+      }
+    }
+    const order = spillOrder(info);
+    while (over() && spilled < order.length) {
+      if (!spilled) panel.append(overflow);
+      (panel.children[order[spilled]] as HTMLElement).hidden = true;
+      spilled++;
+    }
+  };
+  // **Outside the observer's callback, and only for a new width.** Redrawing
+  // the row inside it changes the panel's size again, and Chromium reports
+  // that as "ResizeObserver loop completed with undelivered notifications" —
+  // which the crash panel catches as the application failing. A frame later,
+  // and never for a height change (the simplified row is shorter), it is a
+  // layout like any other.
+  let seen = 0;
+  fitObserver?.disconnect();
+  fitObserver =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          if (panel.clientWidth === seen) return;
+          seen = panel.clientWidth;
+          requestAnimationFrame(fit);
+        });
+  fitObserver?.observe(panel);
   /** The open tab, or — when it is a contextual tab whose context is gone — the one before it. */
   const settle = (): string => {
     if (onStrip(openTab)) return openTab;
@@ -306,7 +424,19 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
           id: "ribbon-tab-" + n.tab,
           "data-tab": n.tab,
           "aria-controls": "ribbon-panel",
-          onClick: () => show(n.tab),
+          onClick: (e: MouseEvent) => {
+            if (!collapsed) return show(n.tab);
+            // Collapsed: a tab drops its ribbon over the document; the open one
+            // pressed again takes it away. Not further, or the window's
+            // outside-click sweep would close what this just opened.
+            e.stopPropagation();
+            const again = n.tab === openTab && isPanelOpen("ribbon-panel");
+            show(n.tab);
+            if (again) closePanel("ribbon-panel");
+            else openPanel("ribbon-panel");
+          },
+          // Word's gesture: a double-click on a tab collapses the ribbon or brings it back.
+          onDblclick: () => runAction("ribbonCollapse"),
           onContextmenu: (e: MouseEvent) => {
             e.preventDefault();
             tabMenu(n.tab, e.clientX, e.clientY);
@@ -325,18 +455,42 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
   }
   show(settle());
   refreshStrip = () => show(settle());
-  return el("div", { class: "ribbon", "data-ribbon": "tabs" }, [
-    // The tab row: File at the start, the tabs, then at the far end `☰`. A
-    // `tablist` may hold only tabs, so what is not one sits beside it, not in it.
+  ribbon.append(
+    // The tab row: File at the start, the tabs, then at the far end `☰` and `⌃`.
+    // A `tablist` may hold only tabs, so what is not one sits beside it, not in it.
     el("div", { class: "ribbon-head" }, [
       ...start,
       el("div", { class: "ribbon-tabs", role: "tablist", "aria-label": t("ribbonTabs") }, [...buttons.values()]),
       ...end,
+      collapseButton(collapsed),
     ]),
     panel,
-    // A narrow window folds the strip into `☰` rather than scroll it sideways (§8), and says so.
-    el("p", { class: "ribbon-narrow", role: "note" }, [t("rcNarrow")]),
-  ]);
+  );
+  return ribbon;
+}
+
+/** Below this width the ribbon is the simplified one: one row of icons (§7). */
+const SIMPLIFIED_BELOW = 640;
+
+/** The mounted ribbon's fit, so a redraw does not leave the old one measuring. */
+let fitObserver: ResizeObserver | null = null;
+
+/** `⌃`: collapse the ribbon to its tab row, or bring it back (§4). */
+function collapseButton(collapsed: boolean): HTMLElement {
+  const what = t(collapsed ? "ribbonExpand" : "sc.ribbonCollapse");
+  const key = hintFor("ribbonCollapse");
+  return el(
+    "button",
+    {
+      class: "menu-btn ribbon-collapse",
+      type: "button",
+      "aria-expanded": String(!collapsed),
+      "aria-label": what,
+      title: key ? `${what} · ${key}` : what,
+      onClick: () => runAction("ribbonCollapse"),
+    },
+    [icon(collapsed ? UI_ICONS.expand : UI_ICONS.collapse, 16)],
+  );
 }
 
 /**

@@ -2000,7 +2000,7 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
    scrolling strip (§7): the tabs wrap. */
 .menubar[data-folded="folded"] { display: none; }
 .menubar[data-folded="open"] { flex-basis: 100%; }
-.ribbon { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; }
+.ribbon { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; position: relative; }
 /* One row that scrolls, as Office and LibreOffice draw it: tabs that wrap push the
    whole ribbon down by a row each time one is added (a contextual tab does). The
    tab strip holds no dropdowns, so it can scroll; the panel below it cannot — its
@@ -2008,6 +2008,7 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 /* The tab row: the tabs, then `☰` at its far end. */
 .ribbon-head { display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); min-width: 0; }
 .ribbon-head > .shell-menu-btn { flex: none; margin-inline-start: auto; height: 26px; align-self: center; }
+.ribbon-head > .ribbon-collapse { flex: none; height: 26px; min-width: 26px; padding: 0 4px; align-self: center; }
 .ribbon-tabs {
   display: flex; flex-wrap: nowrap; gap: 2px; min-width: 0;
   overflow-x: auto; scrollbar-width: none;
@@ -2029,7 +2030,34 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
   box-shadow: inset 0 -2px 0 var(--contextual);
 }
 .ribbon-tab[data-contextual="true"][aria-selected="true"] { color: var(--contextual); }
-.ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
+/* One row at one height, never wrapped (§7): the fit in `shelltabs.ts` shrinks
+   groups until it is narrower than the window, and `clip` keeps a row the window
+   is still too narrow for from widening the page while it does. Clipped on the
+   inline axis only, so the groups' dropdowns still fall below it. */
+.ribbon-panel {
+  display: flex; flex-wrap: nowrap; align-items: stretch; gap: 2px;
+  height: 92px; box-sizing: border-box; overflow-x: clip; min-width: 0;
+}
+.ribbon-panel > * { flex: none; }
+/* The simplified ribbon (< 640px, §7): one 36px row of icons, no captions. */
+.ribbon[data-simplified="true"] .ribbon-panel { height: 36px; align-items: center; }
+.ribbon[data-simplified="true"] .ribbon-group { flex-direction: row; }
+.ribbon[data-simplified="true"] .tb-group-label { display: none; }
+.ribbon[data-simplified="true"] .ribbon-group .tb-group-row { min-height: 0; }
+.ribbon[data-simplified="true"] .rb-lane { flex-direction: row; }
+.ribbon[data-simplified="true"] .rb-lane[data-lane="icon"] { grid-auto-flow: column; grid-template-columns: none; grid-template-rows: 26px; }
+.ribbon[data-simplified="true"] .tb-group-foot .menu-btn { position: static; }
+/* A group folded to one button (level 3): its icon over its name, like a large face. */
+.ribbon-folded { justify-content: center; }
+.ribbon-folded > .menu > .menu-btn { flex-direction: column; height: auto; min-height: 70px; gap: 3px; padding: 4px 6px; }
+.ribbon[data-simplified="true"] .ribbon-folded > .menu > .menu-btn { flex-direction: row; min-height: 0; height: 26px; }
+/* Collapsed (§4): the tab row alone; a pressed tab drops its groups over the document. */
+.ribbon[data-collapsed="true"] .ribbon-panel:not(.open) { display: none; }
+.ribbon[data-collapsed="true"] .ribbon-panel.open {
+  position: absolute; inset-inline: 0; top: 100%; z-index: 40;
+  background: var(--bg, var(--panel)); border-bottom: 1px solid var(--line);
+  box-shadow: 0 6px 16px rgb(0 0 0 / .18);
+}
 /* File (#233, §6): a button at the tab row's start in the accent, as Word's is —
    it is not a tab, and the colour says so before it is pressed. */
 .ribbon-head > .ribbon-file {
@@ -2154,10 +2182,10 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 .rc-option[aria-selected="true"] { background: var(--accent); color: var(--bg, #fff); }
 .rc-option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rc-search { flex: 1; }
-.ribbon-narrow { display: none; margin: 0; padding: .3rem .5rem; font-size: .85em; color: var(--muted, inherit); }
 @media (max-width: 480px) {
   .rc-columns { grid-template-columns: 1fr; }
-  .ribbon[data-ribbon="tabs"] .ribbon-tabs, .ribbon[data-ribbon="tabs"] .ribbon-panel { display: none; }
-  .ribbon[data-ribbon="tabs"] .ribbon-narrow { display: block; }
 }
 
+/* What the simplified ribbon had no room for (§7): `⋯` at the row's end. */
+.ribbon-overflow { justify-content: center; }
+.ribbon-panel > [hidden] { display: none; }

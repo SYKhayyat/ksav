@@ -114,7 +114,6 @@ export async function run() {
 
   // ------------------------------------------------ the header
   const header = src("appheader.ts");
-  ok("the tabs shell draws the ribbon", header.includes('variant === "tabs" ? [buildRibbon()] : []'));
-  ok("and folds the bar only when menubar is auto", header.includes('variant === "tabs" && shell.menubar === "auto"'));
-  ok("only the toolbar shell draws the toolbar", header.includes('variant === "toolbar" ? [buildPinnedTab(), contextRow()] : []'));
+  ok("the header draws the ribbon", /^\s*buildRibbon\(\),$/m.test(header));
+  ok("and the menu bar folded behind ☰", header.includes('"data-folded": "folded"') && /^\s*menuToggle\(menubar\),$/m.test(header));
 }

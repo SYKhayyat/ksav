@@ -256,7 +256,7 @@ export async function browser() {
  * overlay is right on a first visit and it covers the chrome, so it is seeded
  * away before the first byte.
  */
-export async function openApp({ wait = 2500, shell = null } = {}) {
+export async function openApp({ wait = 2500 } = {}) {
   if (!existsSync(join(DIST, "index.html"))) return { skip: "no dist/ — run `npm run build` first" };
   // Before the browser and before anything is measured, spelled the way the
   // fence in `visibility.test.mjs` reads it: a guard that runs after the window
@@ -268,15 +268,6 @@ export async function openApp({ wait = 2500, shell = null } = {}) {
   const { server, origin } = await serve(base);
   const page = await b.newPage();
   await page.addInitScript(() => localStorage.setItem("ksav.onboarded", "1"));
-  // `shell`: a test that drives the File menu asks for the menu bar to stay out
-  // (the tabs shell folds it into ☰ by default), without choosing a variant.
-  if (shell) {
-    await page.addInitScript((sh) => {
-      const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
-      raw.shell = { ...sh, ...(raw.shell ?? {}) };
-      localStorage.setItem("ksav.settings", JSON.stringify(raw));
-    }, shell);
-  }
   await page.goto(origin, { waitUntil: "networkidle" });
   await page.waitForTimeout(wait);
   const close = async () => {

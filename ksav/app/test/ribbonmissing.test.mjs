@@ -12,7 +12,7 @@
 //
 // Two states are asserted here, and they are different answers:
 //
-//   - **no commands at all** — the whole registry is missing, so the toolbar
+//   - **no commands at all** — the whole registry is missing, so the ribbon
 //     says so in words, in the surface the writer is looking at;
 //   - **one command missing** — the rest of the ribbon is usable, so the button
 //     keeps its place, struck through, with a title that explains it.
@@ -23,7 +23,7 @@
 import { check, notOk, ok } from "./harness.mjs";
 import { fakeView, installChrome } from "./harness.mjs";
 import * as runtime from "../.tmp-test/runtime.mjs";
-import { buildPinnedTab } from "../.tmp-test/shelltabs.mjs";
+import { buildRibbon } from "../.tmp-test/shelltabs.mjs";
 import { t, getLang } from "../.tmp-test/i18n.mjs";
 import { commands } from "../tools/commands.mjs";
 
@@ -64,7 +64,7 @@ function anonymous(nodes) {
 
 export async function run() {
   installChrome();
-  // A well-formed editor state, because `buildPinnedTab` asks the document what
+  // A well-formed editor state, because `buildRibbon` asks the document what
   // language it is written in. In a filtered run `runtime.view` is undefined and
   // the code takes its no-view branch; in the full suite a previous test may
   // have left a view-shaped object without a selection, which is a failure about
@@ -85,10 +85,10 @@ export async function run() {
 
   {
     runtime.setRegistries([], []);
-    const bar = buildPinnedTab();
+    const bar = buildRibbon();
     const text = words([bar]).join(" ");
 
-    ok("an empty registry still draws a toolbar", bar.className.includes("toolbar"));
+    ok("an empty registry still draws a ribbon", bar.className.includes("ribbon"));
     check("and it says, in words, that the command list did not load", text, t("registriesFailed"));
     check("it contains no anonymous control to click", anonymous([bar]), []);
 
@@ -105,7 +105,7 @@ export async function run() {
       reg.filter((c) => c.he !== without),
       [],
     );
-    const bar = buildPinnedTab();
+    const bar = buildRibbon();
     const missing = all([bar]).filter((n) => n["data-missing"] === without);
 
     check("a missing command keeps its button", missing.length, 1);
@@ -121,7 +121,7 @@ export async function run() {
 
   {
     runtime.setRegistries(reg, []);
-    const bar = buildPinnedTab();
+    const bar = buildRibbon();
     check("a complete registry has no missing buttons", all([bar]).filter((n) => n["data-missing"]), []);
   }
 }

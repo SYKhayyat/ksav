@@ -152,6 +152,8 @@ async function settle(page, ms = 8000) {
 async function importVia(page, label, arm) {
   await page.evaluate(DISARM);
   if (arm) await page.evaluate(ARM, arm);
+  // The menu bar lives folded behind ☰; open it unless it is open already.
+  if (await page.locator('#shell-menubar[data-folded="folded"]').count()) await page.click(".shell-menu-btn");
   await page.click('.menu[data-menu="file"] .menu-btn');
   await page.locator(".menu-item", { hasText: label }).first().click();
   const seen = await settle(page);
@@ -160,7 +162,7 @@ async function importVia(page, label, arm) {
 }
 
 export async function run() {
-  const app = await openApp({ shell: { menubar: "always" } });
+  const app = await openApp();
   if (app.skip) {
     console.log(`SKIPPED importui: ${app.skip}`);
     return;

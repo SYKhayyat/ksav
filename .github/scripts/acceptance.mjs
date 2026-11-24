@@ -519,17 +519,6 @@ async function main() {
   // So this line was the real bug and the minimap recipe was only the thing that
   // had never reached it. `addInitScript` re-runs on every navigation, which is
   // the whole property wanted of a probe that has to survive one.
-  // The tabs shell folds the menu bar into `☰ תפריט` by default; the steps below
-  // use the menus a great deal, so this writer has chosen to keep them showing —
-  // a setting a person has, not a back door. The fold itself is fenced in
-  // `shellsettings.test.mjs` and looked at in `tools/eyes.mjs`.
-  await page.addInitScript(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem("ksav.settings") ?? "{}");
-      raw.shell = { menubar: "always", ...(raw.shell ?? {}) };
-      localStorage.setItem("ksav.settings", JSON.stringify(raw));
-    } catch { /* a page with no storage has no setting to keep */ }
-  });
   await page.addInitScript(() => {
     const w = /** @type {any} */ (window);
     w.__ksavStatus = [];
@@ -869,12 +858,28 @@ async function main() {
    * fails on a bare `page.click` reappearing here.
    */
   async function clickVisible(name, selector) {
+    await unfold(selector);
     await visible(name, selector);
     // Shorter than the 30-second default on purpose: by the time this is
     // reached the element has already been measured and found to be on the
     // screen, so a click that cannot land is something covering it, and waiting
     // half a minute to say so only makes the run slower at being right.
     await page.click(selector, { timeout: 15_000 });
+  }
+
+  /**
+   * The menu bar lives folded behind ☰ (#233): a menu is reached the way a
+   * writer reaches it, by opening ☰ first — measured, like every other click.
+   */
+  async function unfold(selector) {
+    const folded = await page.evaluate((sel) => {
+      const bar = document.getElementById("shell-menubar");
+      const el = document.querySelector(sel);
+      return !!bar && !!el && bar.contains(el) && bar.getAttribute("data-folded") === "folded";
+    }, selector);
+    if (!folded) return;
+    await visible("☰", ".shell-menu-btn");
+    await page.click(".shell-menu-btn", { timeout: 15_000 });
   }
 
   /**
@@ -1135,7 +1140,7 @@ async function main() {
 
   step(0, "the application boots");
   current = "boot";
-  await page.waitForSelector("#app :is(.toolbar, .ribbon-panel)", { timeout: 30_000 });
+  await page.waitForSelector("#app .ribbon-panel", { timeout: 30_000 });
   const boot = await settled(0);
   check("the first document compiles", boot.cls !== "err", `${boot.text} — ${boot.diagnostics}`);
   // Waited for, not sampled.
@@ -1259,7 +1264,7 @@ async function main() {
   await newLine();
   await type("ועיין ברש\"י");
   await act("clicking † in the ribbon", () =>
-    clickVisible("the † button", ':is(.toolbar, .ribbon-panel) [data-action="footnote"]'),
+    clickVisible("the † button", '.ribbon-panel [data-action="footnote"]'),
   );
   // A parenthesis and a gershayim in one Hebrew note is the §6 bug exactly: the
   // scanner used to read `(רש"י)` as an open string and mis-colour, mis-fold and
@@ -1277,8 +1282,8 @@ async function main() {
   await newLine();
   // On Home the endnote sits behind the notes group's ⋯ (spec §5, `HOME`).
   await act("choosing ⋯ ▸ endnote in the toolbar", async () => {
-    await clickVisible("the notes group's ⋯", ':is(.toolbar, .ribbon-panel) [data-menu="more-homeNotes"] > .menu-btn');
-    await clickVisible("the endnote row", ':is(.toolbar, .ribbon-panel) [data-menu="more-homeNotes"] [data-action="endnote"]');
+    await clickVisible("the notes group's ⋯", '.ribbon-panel [data-menu="more-homeNotes"] > .menu-btn');
+    await clickVisible("the endnote row", '.ribbon-panel [data-menu="more-homeNotes"] [data-action="endnote"]');
   });
   await act("typing the endnote", () => type("מקור הדברים"));
 

@@ -664,11 +664,11 @@ check(
   {
     // Wave 3 of the main.ts split moved the toolbar and the caret strip into
     // `ribbon.ts` and `contextbar.ts`. The surfaces themselves are checked
-    // where they are bound (toolbar.test over the ribbon) — what must hold
+    // where they are bound (shelltabs.test over the ribbon) — what must hold
     // here is the contract between the chrome and the shell: the chrome
     // answers for nothing until boot has registered the wiring, and after
     // registration the shell's answers are the ones that come back.
-    ok("the toolbar and the caret strip are reachable from their own modules", typeof shelltabs.buildPinnedTab === "function" && typeof contextbar.contextBar === "function" && typeof contextbar.updateContextBar === "function");
+    ok("the ribbon and the caret strip are reachable from their own modules", typeof shelltabs.buildRibbon === "function" && typeof contextbar.contextBar === "function" && typeof contextbar.updateContextBar === "function");
     let guardHeld = false;
     try {
       ribbon.chromeWiring();

@@ -19,7 +19,6 @@ import { t, tf } from "./i18n";
 import { whoHolds } from "./bindings";
 import { keybindings } from "./keyhint";
 import { settings, saveSettings, docConfig, type Field, type PageSetup } from "./settings";
-import { readShell, type ShellSettings } from "./shellsettings";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP } from "./scrollpolicy";
 import type { Settings } from "./settings";
 import { hasKey } from "./i18n";
@@ -283,49 +282,6 @@ function selectRow(labelKey: string, key: Field, options: [string, string][]) {
   return el("label", { class: "set-row" }, [
     el("span", { "data-i18n": labelKey }, [t(labelKey)]),
     sel,
-  ]);
-}
-
-/**
- * One field of the nested `shell` setting (#233, §7). `selectRow` writes a
- * top-level key, and `shell` is one object, so this writes the whole object with
- * the one field changed — the rest rides along as stored. `data-setting` names
- * the field with its path, `shell.variant`, so the row is findable the same way.
- */
-function shellSelectRow<F extends keyof ShellSettings>(labelKey: string, field: F, options: [ShellSettings[F], string][]) {
-  const live = readShell(settingsWiring().live("shell"));
-  return el("label", { class: "set-row" }, [
-    el("span", { "data-i18n": labelKey }, [t(labelKey)]),
-    el(
-      "select",
-      {
-        "data-setting": "shell." + field,
-        onChange: (e: Event) => {
-          const v = (e.target as HTMLSelectElement).value as ShellSettings[F];
-          settingsWiring().write("shell", { ...readShell(settingsWiring().live("shell")), [field]: v });
-        },
-      },
-      options.map(([value, label]) =>
-        el("option", { value: String(value), ...(live[field] === value ? { selected: "selected" } : {}) }, [label]),
-      ),
-    ),
-  ]);
-}
-
-/** A yes/no field of the `shell` blob, as a checkbox — written back whole, like the selects above. */
-function shellCheckRow(labelKey: string, field: "contextual") {
-  const live = readShell(settingsWiring().live("shell"));
-  return el("label", { class: "set-row" }, [
-    el("span", { "data-i18n": labelKey }, [t(labelKey)]),
-    el("input", {
-      type: "checkbox",
-      "data-setting": "shell." + field,
-      ...(live[field] ? { checked: "checked" } : {}),
-      onChange: (e: Event) => {
-        const v = (e.target as HTMLInputElement).checked;
-        settingsWiring().write("shell", { ...readShell(settingsWiring().live("shell")), [field]: v });
-      },
-    }),
   ]);
 }
 
@@ -863,19 +819,6 @@ export function buildSettingsDrawer(): HTMLElement {
       ["whole", t("clickSelectsWhole")],
     ]),
     checkRow("keepMenuPositionLabel", "keepMenuPosition"),
-    // Which shell is drawn (§7): the menus alone, the menus and one toolbar row,
-    // or the tabs. And under the tabs, whether the menu bar folds into `☰`.
-    shellSelectRow("shellVariantLabel", "variant", [
-      ["menus", t("shellVariantMenus")],
-      ["toolbar", t("shellVariantToolbar")],
-      ["tabs", t("shellVariantTabs")],
-    ]),
-    shellSelectRow("shellMenubarLabel", "menubar", [
-      ["auto", t("shellMenubarAuto")],
-      ["always", t("shellMenubarAlways")],
-    ]),
-    // Table and Notes come forward when the caret is in a table or a note (§4).
-    shellCheckRow("shellContextualLabel", "contextual"),
     // Off by default, and the note says what the strip is — because a writer
     // who has never seen it cannot decide about a control they cannot picture,
     // and the one who turned it off wants to know what they turned off.

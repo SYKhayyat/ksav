@@ -227,7 +227,7 @@ export const RECIPES = new Map([
         "to Home, customize. Driven because the gesture is a context menu on a face, and " +
         "the default shell's pinned toolbar draws faces from the same renderer as the tabs.",
       drive: async (p) => {
-        await p.rightClick(":is(.ribbon-pinned, .ribbon-panel) [data-action]");
+        await p.rightClick(".ribbon-panel [data-action]");
         await p.waitFor(".ribbon-menu", 10_000);
       },
     },
@@ -241,7 +241,7 @@ export const RECIPES = new Map([
         "not a mode. Its doors are `כלים ▸ התאמת הסרגל…` and the right-click on any face, " +
         "and the right-click is the one driven — it is the one a writer finds by accident.",
       drive: async (p) => {
-        await p.rightClick(":is(.ribbon-pinned, .ribbon-panel) [data-action]");
+        await p.rightClick(".ribbon-panel [data-action]");
         await p.waitFor(".ribbon-menu", 10_000);
         await p.click('[data-rc-menu="rcMenuCustomize"]');
         await p.waitFor("#ribbon-drawer.open", 10_000);
@@ -465,7 +465,7 @@ export const RECIPES = new Map([
 export const CORE = [
   {
     name: "the ribbon",
-    selector: ":is(.toolbar, .ribbon-panel)",
+    selector: ".ribbon-panel",
     why:
       "Step 0 waits for it and steps 3 to 6 click buttons in it. If it is on the " +
       "screen at zero height every one of those clicks is Playwright reaching for " +

@@ -1,16 +1,18 @@
-// The `shell` settings (#233, step 3; `docs/ui-architecture.md` §7).
+// The `shell` settings (#233; `docs/ui-architecture.md` §7).
 //
-// What is held here: the stored blob is read field by field (one bad field
-// costs that field, not the others); `shellsettings.ts` imports nothing, because
-// `settings.ts` calls it while it is itself still being evaluated; and a change
-// to the setting redraws the header, which omits the toolbar row under `menus`.
+// What is held here: there is one shell, so the setting holds only what the
+// writer changes about it — collapsed, Quick Access, their ribbon; the stored
+// blob is read field by field (one bad field costs that field, not the others);
+// `shellsettings.ts` imports nothing, because `settings.ts` calls it while it is
+// itself still being evaluated; and a change to the setting redraws the header.
 
-import { check, ok } from "./harness.mjs";
-import { readShell, SHELL_DEFAULTS, SHELL_VARIANTS } from "../.tmp-test/shellsettings.mjs";
+import { check, ok, notOk } from "./harness.mjs";
+import * as S from "../.tmp-test/shellsettings.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { dirOf } from "../tools/paths.mjs";
 
+const { readShell, SHELL_DEFAULTS } = S;
 const src = (f) => readFileSync(path.join(dirOf(import.meta.url), "..", "src", f), "utf8");
 
 export async function run() {
@@ -18,21 +20,18 @@ export async function run() {
   for (const junk of [null, 7, "tabs", [], true]) {
     check(`a stored ${JSON.stringify(junk)} is the defaults`, readShell(junk), { ...SHELL_DEFAULTS });
   }
-  check("the default shell is the tabs", SHELL_DEFAULTS.variant, "tabs");
-  check("three shells", [...SHELL_VARIANTS], ["menus", "toolbar", "tabs"]);
+  check("the ribbon opens expanded, with nothing added to Quick Access", SHELL_DEFAULTS, { collapsed: false, quick: [] });
+  notOk("there is no choice of shell", "SHELL_VARIANTS" in S);
 
   // Field by field: a blob with one bad field keeps its good ones.
   check(
     "a bad field costs only that field",
-    readShell({ variant: "tabs", labels: 7, menubar: "always", contextual: "yes", toolbarTab: "Home!" }),
-    { ...SHELL_DEFAULTS, variant: "tabs", menubar: "always" },
+    readShell({ collapsed: "yes", quick: ["bold", 7, "", "bold", "x".repeat(201), "nikud"] }),
+    { collapsed: false, quick: ["bold", "nikud"] },
   );
-  check("an unknown variant falls back", readShell({ variant: "ribbon" }).variant, "tabs");
-  check(
-    "every field survives a round trip",
-    readShell({ variant: "menus", menubar: "always", toolbarTab: "insert", labels: "names", contextual: false }),
-    { variant: "menus", menubar: "always", toolbarTab: "insert", labels: "names", contextual: false },
-  );
+  check("a stored shell from before is just the defaults", readShell({ variant: "menus", menubar: "always", labels: "names" }), { ...SHELL_DEFAULTS });
+  check("every field survives a round trip", readShell({ collapsed: true, quick: ["print"] }), { collapsed: true, quick: ["print"] });
+  check("Quick Access is a row, not a ribbon", readShell({ quick: Array.from({ length: 40 }, (_, i) => "a" + i) }).quick.length, 16);
 
   // The boot fence: `settings.ts` runs this inside its module-scope read.
   ok("shellsettings.ts imports nothing", !/^\s*import\b/m.test(src("shellsettings.ts")));
@@ -44,12 +43,10 @@ export async function run() {
   ok("applySettingChange has a shell branch", main.includes('key === "shell"'));
   ok("and it rebuilds the chrome", branch.slice(0, 800).includes("rerenderChrome()"));
 
+  // One shell: no variant is read, and the ribbon is always drawn.
   const header = src("appheader.ts");
-  ok("the header says which shell it is", header.includes('"data-shell": variant'));
-  ok("the menus shell draws no toolbar row", header.includes('variant === "toolbar" ? [buildPinnedTab(), contextRow()] : []'));
-
-  // Both doors to the setting: View and the drawer.
-  const surface = src("actionsurface.ts");
-  for (const id of ["shellMenus", "shellToolbar", "shellTabs"]) ok(`${id} is an action`, surface.includes(`"${id}"`));
-  ok("the drawer has the variant row", src("settingsdrawer.ts").includes('shellSelectRow("shellVariantLabel", "variant"'));
+  notOk("the header names no shell", /data-shell|variant/.test(header));
+  ok("the header always draws the ribbon", /\bbuildRibbon\(\)/.test(header));
+  notOk("no action picks a shell", /shellMenus|shellToolbar|shellTabs/.test(src("actionsurface.ts") + src("placement.ts")));
+  notOk("nor a drawer row", /shellSelectRow|shellVariant|shellMenubar|shellContextual/.test(src("settingsdrawer.ts")));
 }

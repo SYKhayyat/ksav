@@ -357,9 +357,6 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   revealPlaces: { menu: "view", group: "display" },
   toggleTheme: { menu: "view", group: "interface", face: true, glyph: "◐" },
   toggleLang: { menu: "view", group: "interface", face: true },
-  shellMenus: { menu: "view", group: "interface" },
-  shellToolbar: { menu: "view", group: "interface" },
-  shellTabs: { menu: "view", group: "interface" },
   nikud: { menu: "view", group: "interface" },
   // Tools
   macroRecord: { menu: "tools", group: "macros", glyph: "⏺" },

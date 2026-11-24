@@ -1,13 +1,12 @@
 // The tab strip, drawn from the placements (#233, step 4; `docs/ui-architecture.md` §4–§6).
 //
-// The *tabs* shell: `☰ תפריט`, then a `tablist` of the §5 tabs, then the open
+// The shell: `☰ תפריט`, then a `tablist` of the §5 tabs, then the open
 // tab's groups — each its face buttons, then `⋯` (the rest of the group, as the
 // same rows the menu draws), then `⚙` (its `הגדרות_…` commands) when it has any.
 // `tabTree` says what each tab holds; this file only draws it.
 //
 // A tab is a view, never a home (§3): every button here is an action whose menu
-// row exists, so `☰` is the floor and turning the tabs off loses nothing. The
-// menu bar folds into that button unless `shell.menubar` is `always`.
+// row exists, so `☰` is the floor: the menu bar lives folded inside it.
 
 import { el } from "./dom";
 import { DICTS, getLang, t, tf, hasKey, isRtlUi } from "./i18n";
@@ -53,10 +52,10 @@ function shown(): ShownTab[] {
   return shownTabs(readShell(settings.shell).ribbon, currentPlaced());
 }
 
-/** The tab a contextual answer, or a pinned toolbar, means: the one that is that built-in tab. */
+/** The tab a contextual answer means: the one that is that built-in tab. */
 function tabFor(tabs: readonly ShownTab[], id: string): ShownTab | undefined {
-  // A tab the writer hid is not brought forward by anything — not the toolbar's
-  // pin, not the caret entering a table (§8: hide is hide).
+  // A tab the writer hid is not brought forward by anything, not even the caret
+  // entering a table (§8: hide is hide).
   const live = tabs.filter((n) => !n.hidden);
   return live.find((n) => n.tab === id) ?? live.find((n) => (n.from as readonly string[]).includes(id));
 }
@@ -73,59 +72,23 @@ export function contextOf(structureHere: string | undefined, noteDepth: number):
 /**
  * The caret moved into, out of, or between contexts.
  *
- * Under *tabs* the contextual tab opens, marked, and leaving puts back the tab
- * the writer had, unless they chose another in the meantime. Under *toolbar*
- * the tab is a second row, captioned, under the pinned one. Under *menus* there
- * are no tabs to bring forward, and with `shell.contextual` off nothing moves.
- * A move that does not change the answer does nothing, so this is cheap on
- * every arrow key.
+ * The contextual tab opens, marked, and leaving puts back the tab the writer
+ * had, unless they chose another in the meantime. A move that does not change
+ * the answer does nothing, so this is cheap on every arrow key.
  */
-export function setContext(next: ContextTab | null): void {
-  const shell = readShell(settings.shell);
-  const want = shell.contextual && shell.variant !== "menus" ? next : null;
+export function setContext(want: ContextTab | null): void {
   if (want === context) return;
   const was = context;
   context = want;
-  if (showTab && shell.variant === "tabs") {
+  if (showTab) {
     if (want && !was) beforeContext = openTab;
     if (want) showTab(tabFor(shown(), want)?.tab ?? want);
     else if (was && openTab === tabFor(shown(), was)?.tab && beforeContext) showTab(beforeContext);
     else showTab(openTab);
     if (!want) beforeContext = null;
   }
-  fillContextRow();
 }
 runtime.onCaretContext((structureHere, noteDepth) => setContext(contextOf(structureHere, noteDepth)));
-
-/** The toolbar shell's second row: empty and hidden until the caret is in a table or a note. */
-export function contextRow(): HTMLElement {
-  const row = el("div", {
-    class: "toolbar ribbon-pinned ribbon-contextual",
-    id: "ribbon-contextual",
-    role: "toolbar",
-    "data-open": "false",
-    onContextmenu: faceMenu(() => (context ? tabFor(shown(), context)?.tab : undefined)),
-  });
-  fillContextRow(row);
-  return row;
-}
-
-function fillContextRow(row = document.getElementById("ribbon-contextual")): void {
-  if (!row) return;
-  const node = context ? tabFor(shown(), context) : undefined;
-  row.setAttribute("data-open", String(!!node));
-  row.setAttribute("aria-label", node ? tabName(node) : t("toolbar"));
-  if (!node) {
-    row.replaceChildren();
-    return;
-  }
-  const glyphs = readShell(settings.shell).labels === "names+glyphs";
-  row.setAttribute("data-tab", node.tab);
-  row.replaceChildren(
-    el("span", { class: "ribbon-contextual-name" }, [tabName(node)]),
-    ...node.groups.map((g) => groupBox(g, glyphs)),
-  );
-}
 
 /** The words on a face button: the short label where one is written, else the action's own name. */
 export function faceLabel(a: PlacedAction): string {
@@ -151,8 +114,8 @@ function faceTitle(a: PlacedAction): string {
  * alignment button says whether the paragraph is already aligned that way —
  * `refreshAlignState` fills `aria-pressed` from the text the caret is in.
  */
-function faceButton(a: PlacedAction, glyphs: boolean): HTMLElement {
-  const glyph = glyphs && a.place.glyph ? a.place.glyph + " " : "";
+function faceButton(a: PlacedAction): HTMLElement {
+  const glyph = a.place.glyph ? a.place.glyph + " " : "";
   if (a.command?.he === "סימון") return highlightControl(glyph + faceLabel(a));
   const edge = alignEdgeOf(a.command?.he);
   return el(
@@ -194,14 +157,14 @@ function screenOrder(face: readonly PlacedAction[]): PlacedAction[] {
 }
 
 /** One group: caption, face, `⋯`, `⚙`. */
-function groupBox(g: TabGroup, glyphs: boolean): HTMLElement {
+function groupBox(g: TabGroup): HTMLElement {
   const name = groupName(g);
   const aligns = g.face.some((a) => alignEdgeOf(a.command?.he));
   const controls: HTMLElement[] = [
     // The paragraph-style dropdown: what every word processor's Styles group
     // opens with — body text, the nine levels, this document's styles, and new.
     ...(g.group === "styles" ? [paragraphStyleControl()] : []),
-    ...(aligns ? screenOrder(g.face) : g.face).map((a) => faceButton(a, glyphs)),
+    ...(aligns ? screenOrder(g.face) : g.face).map((a) => faceButton(a)),
     ...g.missing.map((k) => missingControl(missingLabel(k), k)),
   ];
   if (g.more.length) {
@@ -263,9 +226,17 @@ export function stepTab(tabs: readonly string[], from: string, key: string, rtl:
  * A `tablist` with roving focus: one tab is in the tab order, the arrows move
  * along the flow and open as they go, which is the ARIA pattern a screen-reader
  * user already knows. Choosing a tab redraws only the panel.
+ *
+ * No commands at all is not a state this product can be in, and drawing a
+ * shorter ribbon would present it as one. It is said in words instead, in the
+ * surface the writer is looking at.
  */
 export function buildRibbon(): HTMLElement {
-  const glyphs = readShell(settings.shell).labels === "names+glyphs";
+  if (runtime.commandsReg.length === 0) {
+    return el("div", { class: "ribbon ribbon-empty", "data-ribbon": "tabs" }, [
+      el("span", { class: "ribbon-failed", role: "status" }, [t("registriesFailed")]),
+    ]);
+  }
   const tree = shown().filter((n) => !n.hidden && n.groups.length);
   const ids = tree.map((n) => n.tab);
   if (!ids.includes(openTab)) openTab = ids[0] ?? "home";
@@ -282,7 +253,7 @@ export function buildRibbon(): HTMLElement {
       b.setAttribute("data-contextual", String(id === marked));
     }
     panel.setAttribute("aria-labelledby", "ribbon-tab-" + tab);
-    panel.replaceChildren(...(tree.find((n) => n.tab === tab)?.groups ?? []).map((g) => groupBox(g, glyphs)));
+    panel.replaceChildren(...(tree.find((n) => n.tab === tab)?.groups ?? []).map((g) => groupBox(g)));
   };
 
   for (const n of tree) {
@@ -327,35 +298,8 @@ export function buildRibbon(): HTMLElement {
 }
 
 /**
- * The *toolbar* shell: one tab, pinned, with no strip above it (§6) — Home, unless
- * `shell.toolbarTab` names another. The same renderer as the tabs, so the
- * toolbar is the placements too and nothing in it is laid out by hand.
- *
- * No commands at all is not a state this product can be in, and drawing a
- * shorter toolbar would present it as one. It is said in words instead, in the
- * surface the writer is looking at.
- */
-export function buildPinnedTab(): HTMLElement {
-  const shell = readShell(settings.shell);
-  const attrs = { class: "toolbar", role: "toolbar", "aria-label": t("toolbar") };
-  if (runtime.commandsReg.length === 0) {
-    return el("div", { ...attrs, class: "toolbar toolbar-empty" }, [
-      el("span", { class: "toolbar-failed", role: "status" }, [t("registriesFailed")]),
-    ]);
-  }
-  const tree = shown();
-  const node = tabFor(tree, shell.toolbarTab) ?? tabFor(tree, "home") ?? tree.find((n) => !n.hidden) ?? tree[0];
-  const glyphs = shell.labels === "names+glyphs";
-  return el(
-    "div",
-    { ...attrs, class: "toolbar ribbon-pinned", "data-tab": node?.tab ?? "home", onContextmenu: faceMenu(() => node?.tab) },
-    (node?.groups ?? []).map((g) => groupBox(g, glyphs)),
-  );
-}
-
-/**
  * `☰ תפריט`: the menu bar, folded (§6). It always has its name, and it opens the
- * same menus the bar holds — so the floor is one press away under every ribbon.
+ * same menus the bar holds — so the floor is one press away whatever the ribbon shows.
  */
 export function menuToggle(menubar: HTMLElement): HTMLElement {
   let open = false;

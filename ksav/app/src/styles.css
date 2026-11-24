@@ -180,7 +180,6 @@ header {
    makes it learnable, and it is what the product this replaces has had since
    2007. The label is aria-hidden because the group already carries the same
    text as its accessible name — otherwise a reader announces it twice. */
-.toolbar { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
 .tb-group {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
   padding: 0 5px; border-inline-end: 1px solid var(--line);
@@ -195,8 +194,8 @@ header {
   text-decoration: line-through; opacity: .55; cursor: help;
   border-style: dashed; border-color: var(--line);
 }
-.toolbar-empty { padding: 8px 12px; }
-.toolbar-failed { color: var(--danger); font-size: 13px; }
+.ribbon-empty { padding: 8px 12px; }
+.ribbon-failed { color: var(--danger); font-size: 13px; }
 .tb-group-row { display: flex; align-items: center; gap: 3px; }
 /* The alignment group reads left → centre → right in every direction (#136).
    Its glyphs name edges of the page — `⇤` left, `≡` centre, `⇥` right — and a
@@ -1081,13 +1080,6 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
 @media (max-width: 720px) {
   .doc-title-btn { max-width: 40vw; }
 
-  /* One horizontally scrolling strip instead of a wrapping thicket of buttons.
-     Scrollable beats hidden: every command stays reachable by thumb. */
-  .toolbar {
-    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
-    -webkit-overflow-scrolling: touch; max-width: 100%;
-  }
-  .toolbar::-webkit-scrollbar { display: none; }
   .tb-btn, .chip, .menu-btn, .tb-group { flex: none; }
   /* The captions are the first thing to go on a phone: at this width they cost
      a whole row and the horizontal strip already forces one-at-a-time reading.
@@ -2029,9 +2021,6 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 .ribbon-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Contextual tabs (#233, §4): the tab the caret asked for is underlined in the accent. */
 .ribbon-tab[data-contextual="true"] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
-.ribbon-contextual[data-open="false"] { display: none; }
-.ribbon-contextual { border-top: 1px solid var(--line); }
-.ribbon-contextual-name { align-self: center; padding: 0 8px; font-size: 12px; font-weight: 600; color: var(--accent); }
 .ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
 .ribbon-btn { white-space: nowrap; }
 .ribbon-group .menu-list { top: 32px; }

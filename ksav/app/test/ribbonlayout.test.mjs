@@ -34,7 +34,7 @@ import {
   shownTabs,
   tabName,
 } from "../.tmp-test/ribbonlayout.mjs";
-import { buildPinnedTab, buildRibbon, menuToggle, setContext } from "../.tmp-test/shelltabs.mjs";
+import { buildRibbon, menuToggle, setContext } from "../.tmp-test/shelltabs.mjs";
 
 const src = (f) => readFileSync(path.join(dirOf(import.meta.url), "..", "src", f), "utf8");
 const ids = (g) => ({ group: g.group, face: g.face.map((a) => a.id), more: g.more.map((a) => a.id), gear: g.gear.map((a) => a.id) });
@@ -86,7 +86,6 @@ export async function run() {
   check("readShell keeps a ribbon", readShell({ ribbon: def }).ribbon, def);
   check("and a JSON round trip keeps it", readShell(JSON.parse(JSON.stringify({ ribbon: def }))).ribbon, def);
   ok("a junk ribbon is no ribbon, not an error", !("ribbon" in readShell({ ribbon: { version: 9 } })));
-  check("toolbarTab may pin a user tab", readShell({ toolbarTab: "user:k1" }).toolbarTab, "user:k1");
 
   // ------------------------------------------------- 3. the default
   check("the default layout draws §5", shape(layoutTree(def, list)), shape(tabTree(list).filter((n) => n.groups.length)));
@@ -155,7 +154,7 @@ export async function run() {
   check("an empty ribbon draws no tabs", shownTabs(empty, list), []);
   const shellBefore = settings.shell;
   try {
-    settings.shell = { ...SHELL_DEFAULTS, variant: "tabs", ribbon: empty };
+    settings.shell = { ...SHELL_DEFAULTS, ribbon: empty };
     const r = buildRibbon();
     check("the strip is empty but drawn", r.children[0].children.length, 0);
     const bar = { setAttribute(k, v) { this[k] = v; } };
@@ -163,9 +162,7 @@ export async function run() {
     toggle.click();
     check("and ☰ still opens the menus", bar["data-folded"], "open");
     const header = src("appheader.ts");
-    ok("☰ does not depend on the ribbon", /const folded = variant === "tabs" && shell\.menubar === "auto";/.test(header));
-    settings.shell = { ...SHELL_DEFAULTS, variant: "toolbar", ribbon: empty };
-    check("a pinned toolbar on an empty ribbon draws nothing, without throwing", buildPinnedTab().children.length, 0);
+    ok("☰ does not depend on the ribbon", /^\s*menuToggle\(menubar\),$/m.test(header));
 
     // ----------------------------------------------- 7. the renderer
     const mine = structuredClone(def);
@@ -179,7 +176,7 @@ export async function run() {
       groups: [{ id: "user:g1", name: "סימנים", items: [{ action: "footnote", face: true }, { action: "bold", face: false }] }, ...tableT.groups],
     });
     mine.tabs = mine.tabs.filter((t) => t !== tableT);
-    settings.shell = { ...SHELL_DEFAULTS, variant: "tabs", ribbon: mine };
+    settings.shell = { ...SHELL_DEFAULTS, ribbon: mine };
     setContext(null);
     const rib = buildRibbon();
     const strip = rib.children[0];
@@ -195,12 +192,6 @@ export async function run() {
     ok("and its ⋯", dom(g1).includes('"data-menu":"more-user:g1"'));
     check("a built-in tab not renamed follows lang", tabName({ tab: "home" }), tabName(shownTabs(undefined, list)[0]));
 
-    // A hidden tab is hidden everywhere: the pin and the caret do not bring it back.
-    const hid = structuredClone(mine);
-    hid.tabs.find((t) => t.id === "home").hidden = true;
-    settings.shell = { ...SHELL_DEFAULTS, variant: "toolbar", toolbarTab: "home", ribbon: hid };
-    notOk("a pinned toolbar does not draw a hidden tab", buildPinnedTab()["data-tab"] === "home");
-    settings.shell = { ...SHELL_DEFAULTS, variant: "tabs", ribbon: mine };
 
     strip.children.find((b) => b["data-tab"] === "home").click();
     setContext("table");
@@ -208,13 +199,9 @@ export async function run() {
     setContext(null);
     check("and gives Home back", strip.children.find((b) => b["aria-selected"] === "true")["data-tab"], "home");
 
-    settings.shell = { ...SHELL_DEFAULTS, variant: "toolbar", toolbarTab: "user:k1", ribbon: mine };
-    check("the toolbar can pin a user tab", buildPinnedTab()["data-tab"], "user:k1");
-    settings.shell = { ...SHELL_DEFAULTS, variant: "toolbar", toolbarTab: "table", ribbon: mine };
-    check("and pinning Table finds where Table went", buildPinnedTab()["data-tab"], "user:k1");
 
     // ----------------------------------------------- 2. persists, same DOM
-    settings.shell = { ...SHELL_DEFAULTS, variant: "tabs", ribbon: mine };
+    settings.shell = { ...SHELL_DEFAULTS, ribbon: mine };
     const drawn = dom(buildRibbon());
     settings.shell = readShell(JSON.parse(JSON.stringify(settings.shell)));
     check("a stored ribbon restores the same DOM", dom(buildRibbon()), drawn);
@@ -223,7 +210,7 @@ export async function run() {
     settings.shell = shellBefore;
     setContext(null);
     // The open tab is module state: hand Home back to the files that follow.
-    settings.shell = { ...SHELL_DEFAULTS, variant: "tabs" };
+    settings.shell = { ...SHELL_DEFAULTS };
     buildRibbon().children[0].children.find((b) => b["data-tab"] === "home").click();
     settings.shell = shellBefore;
   }

@@ -28,7 +28,7 @@ import { focusCompartment, focusExtension } from "./focus";
 import { keybindings } from "./keyhint";
 import { aliasesInForce } from "./bindings";
 import { scheduleCompile } from "./compile";
-import { t, getLang } from "./i18n";
+import { t, tf, getLang } from "./i18n";
 import * as whitespace from "./whitespace";
 import * as opendocs from "./opendocs";
 import { nikudKeymap } from "./nikud";
@@ -38,6 +38,7 @@ import * as sefarim from "./sefarim";
 import { insertionAt } from "./mode";
 import { docLang } from "./insert";
 import { docTextOf } from "./spans";
+import { noteDeleteKeys } from "./notedelete";
 import * as commands from "./commands";
 import * as structure from "./structure";
 import { BIDI_MARKS, visibleBidiMarks } from "./bidi";
@@ -298,11 +299,16 @@ export function autoExtension() {
  * whole decoration set and the editor goes blank. Putting them in one slot makes
  * that impossible instead of forbidden.
  */
+/** Backspace/Delete onto a note's marker, by the `noteDelete` setting (§2). */
+const writerKeys = Prec.high(
+  keymap.of(noteDeleteKeys(() => settings.noteDelete ?? "twoStep", (words) => runtime.setStatus(tf("noteDelete.again", words)))),
+);
+
 export function proseOrRaw(prose: boolean | "writer" = proseHere()) {
   // The writer is the prose drawing with nothing revealed and the scaffolding
   // atomic: the same slot, for the same reason — it, too, must never meet the
   // bidi-mark chips.
-  if (prose === "writer") return [writerFacet.of(true), proseMode, proseReveal, writerAtomic];
+  if (prose === "writer") return [writerFacet.of(true), proseMode, proseReveal, writerAtomic, writerKeys];
   // The field and the plugin that drives its deferred reveal go in together:
   // `proseReveal` is the only thing that draws what a cursor move owes, so a
   // prose view installed without it would hide a command under the caret and

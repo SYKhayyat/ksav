@@ -937,6 +937,10 @@ export function buildSettingsDrawer(): HTMLElement {
       ["semantic", t("sourceMotions.semantic")],
     ]),
     el("div", { class: "set-note" }, [t("sourceMotionsNote")]),
+    selectRow("noteDeleteLabel", "noteDelete", [
+      ["twoStep", t("noteDelete.twoStep")],
+      ["immediate", t("noteDelete.immediate")],
+    ]),
     // One section for all of it, which the report asks for by name. The four
     // rows are one question — *how does the other pane follow this one* — and
     // they were spread between a checkbox here and two constants in the source.

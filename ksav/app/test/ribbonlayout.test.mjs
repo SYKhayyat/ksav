@@ -196,9 +196,10 @@ export async function run() {
 
     strip.children.find((b) => b["data-tab"] === "home").click();
     setContext("table");
-    check("Table merged into a user tab: the caret still finds it", strip.children.find((b) => b["aria-selected"] === "true")["data-tab"], "user:k1");
+    check("Table merged into a user tab: the caret still finds it, to mark", strip.children.filter((b) => b["data-contextual"] === "true").map((b) => b["data-tab"]), ["user:k1"]);
+    check("and does not open it", strip.children.find((b) => b["aria-selected"] === "true")["data-tab"], "home");
     setContext(null);
-    check("and gives Home back", strip.children.find((b) => b["aria-selected"] === "true")["data-tab"], "home");
+    check("leaving unmarks it", strip.children.filter((b) => b["data-contextual"] === "true").length, 0);
 
 
     // ----------------------------------------------- 2. persists, same DOM

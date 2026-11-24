@@ -9,7 +9,7 @@
 import { check, ok, installChrome, fakeView } from "./harness.mjs";
 import { commands } from "../tools/commands.mjs";
 import { HOME, MAX_FACE, MAX_ICON_FACE, MAX_LARGE, TABS, menuTree, placed, tabOf, tabTree } from "../.tmp-test/placement.mjs";
-import { buildRibbon, faceLabel, menuToggle, stepTab } from "../.tmp-test/shelltabs.mjs";
+import { buildRibbon, faceLabel, menuToggle, stepTab, setContext } from "../.tmp-test/shelltabs.mjs";
 import { setRegistries, setView } from "../.tmp-test/runtime.mjs";
 import { t } from "../.tmp-test/i18n.mjs";
 import { readFileSync } from "node:fs";
@@ -113,6 +113,9 @@ export async function run() {
   check("⋯ is the group's last control", fontRow.at(-1)["data-menu"], "more-font");
   ok("⋯ says which group it opens", fontRow.at(-1).children[0]["aria-label"].includes(t("grp.font")));
 
+  // Table is on the strip only while the caret is in a table (§8).
+  const tabBefore = strip.children.find((b) => b["aria-selected"] === "true")["data-tab"];
+  setContext("table");
   strip.children.find((b) => b["data-tab"] === "table").click();
   check("choosing a tab selects it", strip.children.map((b) => b["aria-selected"]), TABS.map((x) => String(x === "table")));
   ok("and draws its groups", panel.children.some((g) => g["data-group"] === "rowscols"));
@@ -123,6 +126,8 @@ export async function run() {
   const gear = panel.children.flatMap((g) => g.children[1].children).filter((c) => String(c["data-menu"]).startsWith("gear-"));
   ok("the Table tab draws a ⚙", gear.length > 0);
   check("the open tab survives a redraw", buildRibbon().children[0].children[0].children.find((b) => b["aria-selected"] === "true")["data-tab"], "table");
+  setContext(null);
+  check("out of the table, a redraw is back on the tab before it", buildRibbon().children[0].children[0].children.find((b) => b["aria-selected"] === "true")["data-tab"], tabBefore);
 
   check("a command face reads its short label", faceLabel(list.find((a) => a.command?.he === "שער")), t("btn.שער"));
 

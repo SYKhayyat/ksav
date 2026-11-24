@@ -349,10 +349,12 @@ The ribbon **never wraps** and its height is fixed; a fence asserts both at 1366
 ## 8 · Behaviour
 
 - **Contextual tabs appear and never switch.** When the caret enters a table, the
-  `טבלה` tab appears at the end of the tab row in the contextual colour; when it
-  leaves, the tab goes, and if it was open the ribbon returns to the tab before it.
-  The Notes tab takes the contextual colour while the caret is in a note. Nothing
-  changes the open tab except the writer.
+  `טבלה` tab appears at the end of the tab row in the contextual colour
+  (`--contextual`, not the accent, which is hover and focus); when it leaves, the
+  tab goes, and if the writer had opened it the ribbon returns to the tab that was
+  open before it. The Notes tab takes the contextual colour while the caret is in
+  a note, and stays open if opened. Nothing changes the open tab except the writer;
+  ←/→ and Home/End walk only the tabs on the row.
 - **Key tips.** Alt pressed and released alone, or F10, shows a letter on every tab;
   a letter opens that tab and shows letters on its buttons; Esc steps back. Letters
   are in the interface language and are **generated** from the placement data

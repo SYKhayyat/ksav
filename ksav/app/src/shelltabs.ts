@@ -33,20 +33,24 @@ let openTab = "home";
 
 // ---------------------------------------------------------------- contextual tabs
 //
-// Table and Notes are also *contextual* (§4, §5): standing in a table or a note
-// brings its tab forward. `contextbar.ts` knows where the caret is and calls
-// `runtime.caretContext` on every move, which lands in `setContext` below;
-// nothing here reads the document.
+// Table appears while the caret is in a table, and Notes takes the contextual
+// colour while it is in a note (§8). Neither is *opened*: nothing changes the
+// open tab except the writer, so the ribbon never jumps under them. The one
+// exception is forced — a Table tab the writer opened goes when the caret
+// leaves the table, and the ribbon returns to the tab that was open before it.
+// `contextbar.ts` knows where the caret is and calls `runtime.caretContext` on
+// every move, which lands in `setContext` below; nothing here reads the document.
 
 /** The tabs a caret can ask for. */
 export type ContextTab = "table" | "notes";
 
-/** What the caret is in now, and the tab that was open before it got there. */
+/** What the caret is in now. */
 let context: ContextTab | null = null;
-let beforeContext: string | null = null;
+/** The tab that was open when the writer opened a contextual one: where leaving the context returns. */
+let beforeContextual: string | null = null;
 
-/** The open strip's way to switch tab, while a strip is mounted. */
-let showTab: ((tab: string) => void) | null = null;
+/** The mounted strip's redraw of its marks, while a strip is mounted. */
+let refreshStrip: (() => void) | null = null;
 
 /** The tabs drawn now: the writer's ribbon (§8) when there is one, else the default of §5. */
 function shown(): ShownTab[] {
@@ -71,23 +75,14 @@ export function contextOf(structureHere: string | undefined, noteDepth: number):
 }
 
 /**
- * The caret moved into, out of, or between contexts.
- *
- * The contextual tab opens, marked, and leaving puts back the tab the writer
- * had, unless they chose another in the meantime. A move that does not change
- * the answer does nothing, so this is cheap on every arrow key.
+ * The caret moved into, out of, or between contexts: the marks follow, the open
+ * tab does not. A move that does not change the answer does nothing, so this
+ * is cheap on every arrow key.
  */
 export function setContext(want: ContextTab | null): void {
   if (want === context) return;
-  const was = context;
   context = want;
-  if (showTab) {
-    if (want && !was) beforeContext = openTab;
-    if (want) showTab(tabFor(shown(), want)?.tab ?? want);
-    else if (was && openTab === tabFor(shown(), was)?.tab && beforeContext) showTab(beforeContext);
-    else showTab(openTab);
-    if (!want) beforeContext = null;
-  }
+  refreshStrip?.();
 }
 runtime.onCaretContext((structureHere, noteDepth) => setContext(contextOf(structureHere, noteDepth)));
 
@@ -273,18 +268,30 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
   const panel = el("div", { class: "ribbon-panel", role: "tabpanel", id: "ribbon-panel", onContextmenu: faceMenu(() => openTab) });
   const buttons = new Map<string, HTMLElement>();
 
+  // The tab the caret's context marks, and whether a tab is on the strip now:
+  // a contextual tab (Table) is there only while the caret is in its context.
+  const marked = () => (context ? tabFor(tree, context)?.tab : undefined);
+  const onStrip = (id: string) => !CONTEXTUAL.has(id as TabId) || id === marked();
+
   const show = (tab: string) => {
+    // Opening a contextual tab remembers where the writer was, for when it goes.
+    if (tab !== openTab && CONTEXTUAL.has(tab as TabId) && !CONTEXTUAL.has(openTab as TabId)) beforeContextual = openTab;
     openTab = tab;
-    const marked = context ? tabFor(tree, context)?.tab : undefined;
+    const m = marked();
     for (const [id, b] of buttons) {
       b.setAttribute("aria-selected", String(id === tab));
       b.setAttribute("tabindex", id === tab ? "0" : "-1");
-      b.setAttribute("data-contextual", String(id === marked));
-      // A contextual tab (Table) is on the strip only while the caret is in its context.
-      b.hidden = CONTEXTUAL.has(id as TabId) && id !== marked;
+      b.setAttribute("data-contextual", String(id === m));
+      b.hidden = !onStrip(id);
     }
     panel.setAttribute("aria-labelledby", "ribbon-tab-" + tab);
     panel.replaceChildren(...(tree.find((n) => n.tab === tab)?.groups ?? []).map((g) => groupBox(g)));
+  };
+  /** The open tab, or — when it is a contextual tab whose context is gone — the one before it. */
+  const settle = (): string => {
+    if (onStrip(openTab)) return openTab;
+    const back = beforeContextual && ids.includes(beforeContextual) && onStrip(beforeContextual) ? beforeContextual : undefined;
+    return back ?? ids.find(onStrip) ?? "home";
   };
 
   for (const n of tree) {
@@ -305,7 +312,7 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
             tabMenu(n.tab, e.clientX, e.clientY);
           },
           onKeydown: (e: KeyboardEvent) => {
-            const next = stepTab(ids, openTab, e.key, isRtlUi());
+            const next = stepTab(ids.filter(onStrip), openTab, e.key, isRtlUi());
             if (!next) return;
             e.preventDefault();
             show(next);
@@ -316,10 +323,8 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
       ),
     );
   }
-  show(openTab);
-  showTab = (tab) => {
-    if (buttons.has(tab)) show(tab);
-  };
+  show(settle());
+  refreshStrip = () => show(settle());
   return el("div", { class: "ribbon", "data-ribbon": "tabs" }, [
     // The tab row: File at the start, the tabs, then at the far end `☰`. A
     // `tablist` may hold only tabs, so what is not one sits beside it, not in it.

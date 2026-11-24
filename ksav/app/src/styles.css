@@ -62,6 +62,7 @@
   --muted: #6b7280;
   --line: #e5e7eb;
   --accent: #2563eb;
+  --contextual: #0f766e; /* the contextual tabs (§8): not the accent, which is hover and focus */
   --accent-soft: #eff6ff;
   --danger: #b91c1c;
   --ok: #15803d;
@@ -137,6 +138,7 @@
   --muted: #94a3b8;
   --line: #334155;
   --accent: #60a5fa;
+  --contextual: #2dd4bf;
   --accent-soft: #1e293b;
   --editor-bg: #0b1220;
 
@@ -2021,7 +2023,12 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 .ribbon-tab[aria-selected="true"] { color: var(--ink); background: var(--bg, var(--panel)); border-color: var(--line); }
 .ribbon-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Contextual tabs (#233, §4): the tab the caret asked for is underlined in the accent. */
-.ribbon-tab[data-contextual="true"] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.ribbon-tab[data-contextual="true"] {
+  color: var(--contextual);
+  background: color-mix(in srgb, var(--contextual) 10%, transparent);
+  box-shadow: inset 0 -2px 0 var(--contextual);
+}
+.ribbon-tab[data-contextual="true"][aria-selected="true"] { color: var(--contextual); }
 .ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
 /* File (#233, §6): a button at the tab row's start in the accent, as Word's is —
    it is not a tab, and the colour says so before it is pressed. */

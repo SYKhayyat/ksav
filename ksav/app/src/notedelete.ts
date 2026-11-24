@@ -14,7 +14,7 @@
 
 import type { EditorView, KeyBinding } from "@codemirror/view";
 import { deleteNote, notesIn, type NoteSpan } from "./notes";
-import { docTextOf, plainText } from "./spans";
+import { docTextOf, plainText, scan } from "./spans";
 
 type NoteDelete = "twoStep" | "immediate";
 
@@ -49,7 +49,7 @@ export function deleteIntoNote(view: EditorView, forward: boolean, mode: NoteDel
   const sel = view.state.selection.main;
   const doc = docTextOf(view.state.doc);
   const note = noteAt(doc, sel.from, sel.to, forward);
-  if (!note) return false;
+  if (!note) return sel.empty ? unwrapAt(view, doc, sel.head, forward) : false;
   if (mode === "twoStep" && sel.empty) {
     view.dispatch({ selection: { anchor: note.from, head: note.to }, scrollIntoView: true });
     hint(firstWords(note));
@@ -57,6 +57,46 @@ export function deleteIntoNote(view: EditorView, forward: boolean, mode: NoteDel
   }
   const { text, caret } = deleteNote(doc, note);
   view.dispatch({ changes: changeBetween(doc, text), selection: { anchor: caret }, userEvent: "delete.note" });
+  return true;
+}
+
+/**
+ * The edge of a formatting command, as one key in the writer meets it.
+ *
+ * The writer hides `#הדגשה[` and `]` and keeps the words between them as
+ * text, so the next character a Backspace after `]` would take is markup the
+ * writer cannot see. Taking that one character leaves `#הדגשה[חשוב סוף…`, a
+ * command that now swallows the rest of the paragraph. So a key on an edge
+ * takes off *both* edges and keeps the words: the formatting is unwrapped,
+ * which is what Backspace over the end of bold text means in a word processor.
+ * A note's edge is never unwrapped, because its body is a different flow. The
+ * key is held there and does nothing.
+ */
+export function unwrapRange(doc: string, pos: number, forward: boolean): { text: string; caret: number } | "hold" | null {
+  let best: { from: number; to: number; body: { from: number; to: number } } | null = null;
+  for (const n of scan(doc).nodes) {
+    if (!n.hash || n.bodies?.length !== 1) continue;
+    const b = n.bodies[0];
+    const onHead = forward ? n.from <= pos && pos < b.from : n.from < pos && pos <= b.from;
+    const onTail = forward ? b.to <= pos && pos < n.to : b.to < pos && pos <= n.to;
+    if ((onHead || onTail) && (!best || n.from >= best.from)) best = { from: n.from, to: n.to, body: b };
+  }
+  if (!best) return null;
+  if (notesIn(doc).some((n) => n.from === best.from)) return "hold";
+  const { from, to, body } = best;
+  const head = body.from - from;
+  const atTail = forward ? body.to <= pos : body.to < pos;
+  return {
+    text: doc.slice(0, from) + doc.slice(body.from, body.to) + doc.slice(to),
+    caret: atTail ? body.to - head : from,
+  };
+}
+
+function unwrapAt(view: EditorView, doc: string, pos: number, forward: boolean): boolean {
+  const r = unwrapRange(doc, pos, forward);
+  if (r === null) return false;
+  if (r === "hold") return true;
+  view.dispatch({ changes: changeBetween(doc, r.text), selection: { anchor: r.caret }, userEvent: "delete.unwrap" });
   return true;
 }
 

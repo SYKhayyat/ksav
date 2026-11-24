@@ -71,4 +71,19 @@ export async function run() {
   }
   notOk("away from a marker the key is the ordinary one", notedelete.deleteIntoNote(fake(1), false, "twoStep", () => {}));
   check("changeBetween is the one edit", notedelete.changeBetween("abcXYdef", "abcdef"), { from: 3, to: 5, insert: "" });
+
+  // A formatting edge, met by one key, is unwrapped — never broken. Found by
+  // running CodeMirror's own Backspace after `]`: it took the `]` alone and the
+  // bold ran on to the end of the paragraph.
+  {
+    const d = "פתיחה #הדגשה[חשוב] סוף.\n";
+    const plain = "פתיחה חשוב סוף.\n";
+    const at = (pos, fwd) => notedelete.unwrapRange(d, pos, fwd);
+    check("Backspace after ] unwraps, caret after the words", at(d.indexOf("]") + 1, false), { text: plain, caret: plain.indexOf(" סוף") });
+    check("Backspace after [ unwraps, caret before them", at(d.indexOf("[") + 1, false), { text: plain, caret: plain.indexOf("חשוב") });
+    check("Delete before # unwraps", at(d.indexOf("#"), true)?.text, plain);
+    check("Delete before ] unwraps", at(d.indexOf("]"), true)?.text, plain);
+    check("inside the words the key is the ordinary one", at(d.indexOf("שוב"), false), null);
+    check("a note's edge is held, not unwrapped", notedelete.unwrapRange("א #הערה[ב] ג", "א #הערה[ב] ג".indexOf("]") + 1, false), "hold");
+  }
 }

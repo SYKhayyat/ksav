@@ -30,8 +30,8 @@ export async function run() {
     const tree = panes.defaultTree();
     const pane = followedPreview(tree);
     ok("the default tree has a follow target", !!pane);
-    check("…which is the preview", pane?.role, "preview");
-    check("…and it is linked", pane?.linked, true);
+    check("…which is the preview", pane && panes.drawn(pane), "preview");
+    check("…and it is linked", pane && panes.partners(tree, pane.id).length > 0, true);
   }
 
   // ------------------------------------------------- 2. the shipped twoPreviews
@@ -44,12 +44,13 @@ export async function run() {
   {
     const two = panes.ARRANGEMENTS.find((a) => a.id === "twoPreviews");
     ok("the twoPreviews arrangement ships", !!two);
-    const pane = followedPreview(two.build());
+    const tree = two.build();
+    const pane = followedPreview(tree);
     ok("twoPreviews still has exactly one follow target", !!pane, String(pane?.id));
-    check("…and it is the linked preview, not the unlinked one", pane?.linked, true);
+    check("…and it is the linked preview, not the unlinked one", pane && panes.leaderOf(tree, pane.id) !== undefined, true);
     // The reverse: the unlinked preview is the second one in the column, and a
     // follow that ever picked it would be the same bug wearing the other hat.
-    const unlinked = panes.leaves(two.build()).filter((l) => !l.linked);
+    const unlinked = panes.leaves(tree).filter((l) => panes.drawn(l) === "preview" && panes.partners(tree, l.id).length === 0);
     check("…while the other preview stays unlinked", unlinked.length, 1);
   }
 
@@ -65,7 +66,9 @@ export async function run() {
     // Written as the tree's own literal shape: `splitOf` is private to
     // `panes.ts` and the point of this case is the *data*, not the builder.
     const box = (dir, a, b) => ({ kind: "split", id: `s-${dir}-${a.id ?? "x"}`, dir, frac: 0.5, a, b });
-    const row = box("row", box("col", panes.leaf("preview"), panes.leaf("preview")), panes.leaf("source"));
+    const src = panes.leaf("source");
+    const following = () => panes.leaf("preview", null, { link: { leader: src.id, mode: "scroll" } });
+    const row = box("row", box("col", following(), following()), src);
     check("two linked previews are left to #163, not guessed", followedPreview(row), null);
   }
 

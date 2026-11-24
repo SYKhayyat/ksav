@@ -141,7 +141,7 @@ export async function run() {
       ok(`${name} exists`, !!body);
       if (!body) continue;
       ok(`${name} walks the pane tree`, body.includes("panes.leaves(paneTree)"));
-      ok(`${name} asks each pane what role it is`, body.includes('l.role'));
+      ok(`${name} asks each pane what it draws`, body.includes('panes.drawn(l)'));
     }
 
     // The printed page is the same complaint one pane over — a preview pane's

@@ -1891,6 +1891,17 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
    it is about, which is what the margins asked for twice. */
 .panel-pane { padding: 6px 4px; background: var(--panel); }
 .pane-name { flex: 1; }
+/* The mode line: scope · mode · link, each part a quiet button that opens the
+   menu changing it. Quiet because it is read far more than it is clicked. */
+.mode-line { display: flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.ml-part { background: none; border: 0; padding: 1px 4px; border-radius: 4px; color: inherit; font: inherit; cursor: pointer; }
+.ml-part:hover { background: var(--hover, rgba(0,0,0,.06)); }
+.ml-scope .ml-piece + .ml-piece::before { content: " · "; }
+.ml-sep { color: var(--muted); }
+.ml-link { color: var(--muted); }
+.ml-link.ml-linked { color: inherit; }
+.pane-menu .pal-item[disabled] { opacity: .55; cursor: default; }
+.pane-menu .pal-item.is-current b { font-weight: 700; }
 .pane-head { display: flex; align-items: center; gap: 2px; }
 /* What a narrowed preview is holding: the siman, and how many pages it printed
    on. Empty for a preview showing the whole document, which is why it collapses

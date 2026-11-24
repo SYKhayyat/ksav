@@ -157,4 +157,15 @@ export async function run() {
     );
     check("a body scope is named by its part", views.scopeLabel({ part: "body" }), [{ key: "scope.body" }]);
   }
+
+  // ------------------------------------------------------------ the scope alone, and the order of layers
+
+  {
+    check("a scope is asked about before any mode: a filter its part has not got", views.scopeRefusal({ part: "file", depth: 1 }), { key: "view.filterNotFor", args: ["depth", "file"] });
+    check("…a depth that is no depth", views.scopeRefusal({ part: "notes", depth: [3, 1] })?.key, "view.badDepth");
+    check("…a well-formed scope has no complaint", views.scopeRefusal({ part: "notes", depth: [1, 2] }), null);
+    check("a part is found by its id, the way a contribution would find one", views.partOf("notes")?.filters, ["series", "depth", "under", "within"]);
+    check("…and an unknown one is not", views.partOf("nope"), undefined);
+    check("the layers resolve narrowest last, so the box has the last word", [...views.LEVELS], ["global", "mode", "scope", "box"]);
+  }
 }

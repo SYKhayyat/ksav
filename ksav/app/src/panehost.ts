@@ -237,7 +237,7 @@ function renderLeaf(pane: panes.Leaf, held: Map<string, EditorState>): HTMLEleme
       held.get(pane.id) ??
       panestate.paneWiring().makePaneState(
         seed ? docTextOf(seed.doc) : (liveTextAtRender ?? runtime.currentDoc.body),
-        panestate.paneWiring().proseHere(),
+        pane.view.mode === "writer" ? "writer" : panestate.paneWiring().proseHere(),
         seed?.selection.main.head,
       );
     const view = paneview.makePaneView(host, state);

@@ -82,6 +82,9 @@ export function rendererOf(view: View): Renderer | null {
   if (viewRefusal(view)) return null;
   const { part } = view.scope;
   if (view.mode === "source") return part === "file" ? "source" : null;
+  // The writer is a source editor drawn as prose: the same box, the same one
+  // history, a different drawing (`compartments.proseOrRaw("writer")`).
+  if (view.mode === "writer") return part === "body" ? "source" : null;
   if (view.mode === "preview") return part === "body" ? "preview" : null;
   if (view.mode === "marks") return part === "body" ? "marks" : null;
   if (view.mode === "outline") return part === "body" ? "outline" : part === "notes" ? "notes" : null;

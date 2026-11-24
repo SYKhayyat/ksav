@@ -34,6 +34,14 @@ export function registerBuiltins(): void {
   registerPart({ id: "file", name: "scope.file", filters: [] });
 
   registerMode({
+    id: "writer",
+    name: "viewMode.writer",
+    edits: true,
+    // Pageless rich prose over the body. A note's own writer is the
+    // single-range note box (step 5).
+    refuses: (s) => (s.part === "body" && !s.within ? null : s.part === "file" ? { key: "view.writerIsTheBodys" } : NOT_YET),
+  });
+  registerMode({
     id: "source",
     name: "viewMode.source",
     edits: true,

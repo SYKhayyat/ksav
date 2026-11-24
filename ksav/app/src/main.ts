@@ -113,7 +113,7 @@ import { resetHydra, wireHydra } from "./hydra";
 import { revealCursor, renderPlaces } from "./reveal";
 import { docLang, wireInsert } from "./insert";
 import { renderPaletteList, wirePalette } from "./palette";
-import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, motionCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
+import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, motionCompartment, editorTheme, reprose, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
 import { focusCompartment, focusExtension } from "./focus";
 import { wireCompartments } from "./compartments";
 // The source's movement keys (#126) are read at keypress time, so the shell
@@ -295,7 +295,7 @@ function structureKeymap() {
  * opening a document rather than opening a second window onto one somebody is
  * already reading. A split is the case that needs it: see `renderLeaf`.
  */
-function makeState(body: string, prose: boolean, at?: number): EditorState {
+function makeState(body: string, prose: boolean | "writer", at?: number): EditorState {
   return EditorState.create({
     doc: body,
     ...(at === undefined ? {} : { selection: { anchor: Math.max(0, Math.min(at, body.length)) } }),
@@ -812,7 +812,7 @@ function applySettingChange(key: import("./settings").Field, value: unknown): vo
     // shortcut rebinding is written to, applied to the arrows.
     toEveryPane(motionCompartment.reconfigure(P.motionExtension()));
   } else if (key === "prose") {
-    toEveryPane(proseCompartment.reconfigure(proseOrRaw()));
+    reprose();
     rerenderChrome();
   } else if (key === "dir") {
     toEveryPane(dirCompartment.reconfigure(EditorView.contentAttributes.of({ dir: docConfig().dir })));

@@ -52,7 +52,7 @@ export interface PaneWiring {
   /** Rebuild every pane's head strip: panehost.refreshPaneHeads. */
   refreshHeads(): void;
   /** The state factory: main.ts's `makeState`. */
-  makePaneState(body: string, prose: boolean, at?: number): EditorState;
+  makePaneState(body: string, prose: boolean | "writer", at?: number): EditorState;
   /** Whether the caret is in prose or raw markup: main.ts's `proseHere`. */
   proseHere(): boolean;
   /** Re-apply the editing mode to every pane, through the save action. */

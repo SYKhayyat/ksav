@@ -265,7 +265,7 @@ export const RECIPES = new Map([
         "to Home, customize. Driven because the gesture is a context menu on a face, and " +
         "the default shell's pinned toolbar draws faces from the same renderer as the tabs.",
       drive: async (p) => {
-        await p.rightClick(".ribbon-panel [data-action]");
+        await p.rightClick(".ribbon-panel [data-action]:visible");
         await p.waitFor(".ribbon-menu", 10_000);
       },
     },
@@ -279,7 +279,7 @@ export const RECIPES = new Map([
         "not a mode. Its doors are `כלים ▸ התאמת הסרגל…` and the right-click on any face, " +
         "and the right-click is the one driven — it is the one a writer finds by accident.",
       drive: async (p) => {
-        await p.rightClick(".ribbon-panel [data-action]");
+        await p.rightClick(".ribbon-panel [data-action]:visible");
         await p.waitFor(".ribbon-menu", 10_000);
         await p.click('[data-rc-menu="rcMenuCustomize"]');
         await p.waitFor("#ribbon-drawer.open", 10_000);
@@ -427,8 +427,12 @@ export const RECIPES = new Map([
         "ribbon leaves the caret inside the table it made.",
       drive: async (p) => {
         await p.newLine();
-        await p.click('[data-menu="table"] > .menu-btn');
-        await p.click('[data-menu="table"] [data-action="table"]');
+        // The table's home is the Insert tab (#233, §5), and the Table *menu* is
+        // the contextual one: it is in the document at every moment and empty
+        // until the caret is already inside a table, so a recipe that drives it
+        // reports the bar missing when what is missing is the table.
+        await p.click('.ribbon-tab[data-tab="insert"]');
+        await p.click('.ribbon-panel [data-action="table"]');
         await p.waitFor("#context-bar.open", 10_000);
       },
     },
@@ -540,6 +544,37 @@ export const CORE = [
       "It is how a reader knows whether they are on the server engine or the " +
       "in-browser one, and step 0 asserts its text. Text nobody can see is not an " +
       "answer to that question.",
+  },
+  // The three that the shell rebuild (#233, step 10) put on the screen and that
+  // no sweep had ever looked at. They are here rather than in `RECIPES` because
+  // they are not panels: nothing opens them, they are on the window from boot.
+  //
+  // Each of them fails the same way — present in the DOM, correct in source, and
+  // measured at nothing — which is the state `test/shelltabs.test.mjs` cannot
+  // see, because it builds the row against a stub DOM with no stylesheet.
+  {
+    name: "the tab row",
+    selector: ".ribbon-tabs",
+    why:
+      "Every tool in the product is behind a tab on this row. The panel below it " +
+      "has been measured since the first sweep; the row that reaches it never was, " +
+      "and a row folded to nothing is a ribbon with one tab's worth of tools.",
+  },
+  {
+    name: "the font box",
+    selector: '[data-group="font"] #font-face-box',
+    why:
+      "Word's Font group opens with a font and a size, and a box at zero height is " +
+      "the one thing a writer cannot type their way around: the faces beside it stay " +
+      "on the screen and the group simply has no way to say what the text is set in.",
+  },
+  {
+    name: "the size box",
+    selector: '[data-group="font"] #font-size-box',
+    why:
+      "The second half of the same control, and the one with the smaller box: a " +
+      "number input styled to the width of its datalist arrow is a control that is " +
+      "there and unreadable, which no assertion about its value would catch.",
   },
 ];
 

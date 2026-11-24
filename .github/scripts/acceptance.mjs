@@ -886,9 +886,20 @@ async function main() {
     }
     for (const tab of tabs) {
       await page.click(`.ribbon [role="tab"][data-tab="${tab}"]`, { timeout: 15_000 });
-      const mores = await page.$$eval('.ribbon-panel .menu[data-menu^="more-"]', (ms) => ms.map((m) => m.getAttribute("data-menu")));
+      // `⋯` and `⚙` both open a menu of rows: the first holds what did not fit,
+      // the second the group's launchers (`LAUNCHER` in `placement.ts`) — which
+      // is where a surface like the notes chooser lives, and a pass over `⋯`
+      // alone reported it as a missing button.
+      const mores = await page.$$eval(
+        '.ribbon-panel .menu[data-menu^="more-"], .ribbon-panel .menu[data-menu^="gear-"]',
+        (ms) => ms.map((m) => m.getAttribute("data-menu")),
+      );
       for (const m of mores) {
         const menu = `.ribbon-panel .menu[data-menu="${m}"]`;
+        // A tab's panel is redrawn, but the other tabs' menus stay in the
+        // document behind it. Opening one of those is a click on something a
+        // person cannot see, and it waits out the timeout saying so.
+        if ((await page.locator(`${menu} > .menu-btn:visible`).count()) === 0) continue;
         await page.click(`${menu} > .menu-btn`, { timeout: 15_000 });
         const row = `${menu} [data-action="${id}"]`;
         if (await shown(row)) return clickVisible(name, row);
@@ -909,11 +920,18 @@ async function main() {
    * writer reaches it, by opening ☰ first — measured, like every other click.
    */
   async function unfold(selector) {
-    const folded = await page.evaluate((sel) => {
-      const bar = document.getElementById("shell-menubar");
-      const el = document.querySelector(sel);
-      return !!bar && !!el && bar.contains(el) && bar.getAttribute("data-folded") === "folded";
-    }, selector);
+    const folded = await page
+      .evaluate((sel) => {
+        const bar = document.getElementById("shell-menubar");
+        const el = document.querySelector(sel);
+        return !!bar && !!el && bar.contains(el) && bar.getAttribute("data-folded") === "folded";
+      }, selector)
+      // A Playwright selector — `:has-text(…)`, `>> nth=0` — is not CSS, and
+      // `document.querySelector` throws on it rather than answering. That is not
+      // a fault in the caller: the whole point of the locator language is the
+      // selectors CSS cannot express. So a selector this cannot parse is one
+      // that is not in the menu bar, which is the same answer as `false`.
+      .catch(() => false);
     if (!folded) return;
     await visible("☰", ".shell-menu-btn");
     await page.click(".shell-menu-btn", { timeout: 15_000 });
@@ -1181,7 +1199,27 @@ async function main() {
 
   step(0, "the application boots");
   current = "boot";
+  // **The window, stated.** Everything below measures a layout, and a layout is a
+  // function of the width: the ribbon folds its groups into `⋯` and then into one
+  // row of icons, and the panes re-arrange. Left to the browser's own default, the
+  // same script measures a different layout on every machine it runs on — and it
+  // did: `marksPane` was on the screen locally and a 0×0 hidden node on CI's
+  // 1280×720 runner, three failures from a window nobody chose.
+  //
+  // 1366×768 is the width the plan's screenshots are taken at, so a red run here
+  // is a claim about the same window as the pictures.
+  await page.setViewportSize({ width: 1366, height: 768 });
   await page.waitForSelector("#app .ribbon-panel", { timeout: 30_000 });
+  // **And the fonts, before anything is measured.**
+  //
+  // The ribbon decides what fits by measuring its own buttons, so a sweep that
+  // starts before the bundled faces are loaded measures a different row than the
+  // writer will see: on CI's runner the View tab spilled `marksPane` into `⋯`
+  // (0×0, hidden) while the same commit at the same width has it on the screen
+  // here. Two causes were candidates and the window was the first — pinned above,
+  // and it changed nothing. This is the second one, and it is the general form of
+  // the mistake: a measurement taken while the document is still arriving.
+  await page.evaluate(() => document.fonts?.ready);
   const boot = await settled(0);
   check("the first document compiles", boot.cls !== "err", `${boot.text} — ${boot.diagnostics}`);
   // Waited for, not sampled.
@@ -1282,11 +1320,12 @@ async function main() {
   step(4, "a table, and then a row in it");
   current = "table";
   await newLine();
-  // The table's one home is the Table menu and tab (spec §5).
-  await act("choosing Table ▸ table", async () => {
-    await clickVisible("the Table menu", '[data-menu="table"] > .menu-btn');
-    await clickVisible("the table row", '[data-menu="table"] [data-action="table"]');
-  });
+  // The table's one home is the Insert tab (#233, §5). It used to be a Table
+  // *menu*, and that is still in the DOM — as the contextual menu, which is
+  // empty until the caret is already inside a table. Reaching for it is how a
+  // writer gets a table they cannot make, and the run read its emptiness as a
+  // missing row rather than as the move.
+  await act("choosing Insert ▸ table", () => clickAction("the table button", "table"));
   await act("typing in a cell", () => type("עמודה"));
   // Through the palette, which is where a structural operation lives: it is
   // offered only when the caret is actually inside a table, so finding it here
@@ -1304,9 +1343,10 @@ async function main() {
   current = "footnote";
   await newLine();
   await type("ועיין ברש\"י");
-  await act("clicking † in the ribbon", () =>
-    clickVisible("the † button", '.ribbon-panel [data-action="footnote"]'),
-  );
+  // † is on the Home tab's Notes group, and the run is standing on another tab
+  // by now: `clickAction` opens the tab that holds the face (#233, §4) rather
+  // than reading the open panel and finding nothing.
+  await act("clicking † in the ribbon", () => clickAction("the † button", "footnote"));
   // A parenthesis and a gershayim in one Hebrew note is the §6 bug exactly: the
   // scanner used to read `(רש"י)` as an open string and mis-colour, mis-fold and
   // mis-complete everything after it. It is fixed and fenced offline; this is
@@ -1629,6 +1669,11 @@ async function main() {
           .evaluate(() => document.getElementById("status")?.textContent ?? "")
           .catch(() => "");
         const left = await recover().catch(() => []);
+        // `KSAV_ACCEPT_DEBUG=1` prints the whole trace under the one-line verdict.
+        // A timeout reduced to its first line has cost hours across this file —
+        // Playwright says *what* it was waiting for on the lines below it.
+        if (process.env.KSAV_ACCEPT_DEBUG) console.error(String(err.stack ?? err));
+        if (e.undrive) await e.undrive(driver).catch(() => {});
         check(
           `${p.id} can be opened`,
           false,
@@ -1681,6 +1726,18 @@ async function main() {
     } else {
       await putAway(p.id, e, root, mounted);
     }
+
+    // A recipe that changes something the writer *keeps* — a persisted setting,
+    // the ribbon's collapsed state — says how to put it back, and this is the
+    // only thing that ever does.
+    //
+    // It was declared in `surfaces.mjs` and never called, and that was not a
+    // tidy-up: the ribbon-panel recipe collapses the ribbon (§4) and leaves it
+    // collapsed, which is a setting, so from that surface on the panel is a
+    // popover and every face in it is off the screen. The two right-click
+    // recipes after it then timed out on a selector that was correct, and the
+    // minimap recipe left its setting on for the rest of the run.
+    if (e.undrive) await e.undrive(driver);
   }
 
   // The floor.
@@ -3175,8 +3232,22 @@ async function main() {
       `${first?.scroll}px`,
     );
     // And the drawer goes away, so nothing after this block starts underneath it.
-    await press("Escape");
-    await page.waitForTimeout(250);
+    //
+    // Through its own way out, because Escape is not one: `panels.ts` declares
+    // `outline-drawer` with `escape: false` and `persisted: true` — it holds a
+    // layout choice and a keystroke beside the document must not discard it. The
+    // Escape that used to stand here was a dismissal of nothing. Measured on a
+    // red run: the drawer stayed, `top: 0; height: 100vh` over the start of the
+    // ribbon, and the next step's first click on a tab was intercepted by it
+    // until the click timed out.
+    await clickVisible("the outline drawer's ×", "#outline-drawer .styles-close");
+    // Read here rather than through the `showing` helper: this block has a local
+    // `showing` of its own (the pages in the pane), and the two ran into each
+    // other as `showing is not a function` at the first check that asked.
+    const drawerOpen = await page.evaluate(() =>
+      (document.querySelector("#outline-drawer")?.classList.contains("open") ?? false),
+    );
+    check("…and the outline drawer is put away", drawerOpen === false, String(drawerOpen));
   }
 
   // ------------------------------------------- UAT 5: the keycap, not the letter
@@ -3344,10 +3415,17 @@ async function main() {
   // agreeing with each other and not with the third.
   {
     const prose = '[data-chip="prose"]';
+    // Three statements about one fact: the pressed state, the class, and what the
+    // button *says* — which for an icon button is the name rather than a glyph in
+    // the text. It is read off `aria-label` (what a screen reader announces) and
+    // the icon's `data-icon` (what a sighted reader sees), because a check that
+    // read `textContent` here measured two empty strings against two empty
+    // strings and would have passed a button that says nothing at all.
     const read = async () => ({
       pressed: await page.getAttribute(prose, "aria-pressed"),
       cls: (await page.getAttribute(prose, "class")) ?? "",
-      glyph: ((await page.textContent(prose)) ?? "").trim(),
+      icon: (await page.getAttribute(`${prose} svg`, "data-icon")) ?? "",
+      name: (await page.getAttribute(prose, "aria-label")) ?? "",
       title: (await page.getAttribute(prose, "title")) ?? "",
     });
     const before = await read();
@@ -3361,7 +3439,12 @@ async function main() {
       before.cls.split(/\s+/).includes("active") === (before.pressed === "true"),
       `${before.cls} says ${before.pressed}`,
     );
-    const look = [before.glyph, before.title];
+    check(
+      "…and it is neither nameless nor wordless",
+      before.name.length > 0 && before.icon.length > 0,
+      `aria-label=${JSON.stringify(before.name)} icon=${JSON.stringify(before.icon)}`,
+    );
+    const look = [before.icon, before.name];
     await clickVisible("the prose chip", prose);
     const after = await read();
     check(
@@ -3375,9 +3458,9 @@ async function main() {
       after.cls,
     );
     check(
-      "…and the glyph and tooltip name the mode it switches to",
-      after.glyph !== look[0] && after.title !== look[1],
-      `${look.join(" / ")} → ${after.glyph} / ${after.title}`,
+      "…and the icon, the name and the tooltip all name the mode it switches to",
+      after.icon !== look[0] && after.name !== look[1] && after.title === after.name,
+      `${look.join(" / ")} → ${after.icon} / ${after.name} / ${after.title}`,
     );
     // Back to where it was, asserted rather than assumed.
     await clickVisible("the prose chip again", prose);
@@ -3387,6 +3470,216 @@ async function main() {
       again.pressed === before.pressed,
       `${before.pressed} → ${again.pressed}`,
     );
+  }
+
+  // ------------------------------------------------- 21. the shell (#233)
+  //
+  // The shell was rebuilt from `placement.ts` in nine steps, each committed with
+  // the unit tests that went with it — and no run ever opened the result in a
+  // browser and asked whether any of it was on the screen. That is the gap this
+  // file exists for and the one it was in: `test/shelltabs.test.mjs` builds the
+  // tab row against a stub DOM, where every box has width and nothing has a
+  // stylesheet.
+  //
+  // It goes last because it changes the window's size and nothing after it does.
+  {
+    step(21, "the shell: the tab row, the backstage, the contextual tab, the fold and the tips");
+    current = "shell";
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.waitForTimeout(400);
+
+    // --- the tab row: one row, every tab on it, all of them named
+    //
+    // §7 says the row never wraps and scrolls sideways instead. Two rows would
+    // still "have a box", so the claim is that every tab starts at the same top.
+    //
+    // The tabs that are on the strip, not every tab button: a contextual tab
+    // (Table) is built once and then `hidden` until the caret is in its context,
+    // so counting it here measured a box of 0×0 at the top of the document and
+    // called a correct row two rows.
+    const row = await page.evaluate(() => {
+      const strip = document.querySelector(".ribbon-tabs");
+      const all = [...(strip?.querySelectorAll(".ribbon-tab") ?? [])];
+      const tabs = all.filter((t) => !t.hidden);
+      return {
+        named: (strip?.getAttribute("aria-label") ?? "").length > 0,
+        offstage: all.filter((t) => t.hidden).map((t) => t.getAttribute("data-tab")),
+        ids: tabs.map((t) => t.getAttribute("data-tab")),
+        tops: tabs.map((t) => Math.round(t.getBoundingClientRect().top)),
+        boxes: tabs.map((t) => {
+          const r = t.getBoundingClientRect();
+          return [Math.round(r.width), Math.round(r.height)];
+        }),
+      };
+    });
+    check("the tab row is on the screen with the tabs of §5 on it", row.ids.length >= 7, JSON.stringify(row.ids));
+    check("…all of them on one row", new Set(row.tops).size === 1, JSON.stringify(row.tops));
+    check("…and every tab has a box", row.boxes.every(([w, h]) => w > 0 && h > 0), JSON.stringify(row.boxes));
+    check("…and the row itself has a name", row.named);
+    check(
+      "…and the contextual tab waits off the row until the caret is in its context",
+      row.offstage.length === 0 || row.offstage.every((id) => id === "table" || id === "notes"),
+      JSON.stringify(row.offstage),
+    );
+    await visible("the tab row", ".ribbon-tabs");
+    await visible("File", ".ribbon-file");
+    await visible("the collapse button", ".ribbon-collapse");
+
+    // --- the Font group's two boxes (§5, §9 of the shell): on the screen and
+    // named, because a control that announces nothing is a control a screen
+    // reader cannot use and a sighted reader has to guess at.
+    await clickVisible("the Home tab", '.ribbon-tab[data-tab="home"]');
+    await visible("the font box", '[data-group="font"] #font-face-box');
+    await visible("the size box", '[data-group="font"] #font-size-box');
+    const unnamedBoxes = await nameless('[data-group="font"]');
+    check("the Font group has no control that announces nothing", unnamedBoxes.length === 0, unnamedBoxes.join(" "));
+
+    // --- the backstage (§9): File opens something that takes the window, not a
+    // corner of it, and Escape gives the document back.
+    await clickVisible("the File tab", ".ribbon-file");
+    await page.waitForSelector("#backstage", { timeout: 10_000 });
+    const stage = await page.evaluate(() => {
+      const r = document.querySelector("#backstage").getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height), vw: window.innerWidth, vh: window.innerHeight };
+    });
+    check(
+      "the backstage takes the whole window rather than a corner of it",
+      stage.w >= stage.vw - 2 && stage.h >= stage.vh / 2,
+      JSON.stringify(stage),
+    );
+    await visible("the backstage's own tabs", ".backstage-tabs .backstage-tab");
+    await press("Escape");
+    // Waited for rather than read once 400ms later. The backstage is a mounted
+    // panel — `mountPanel` appends it and its way out removes it — so a single
+    // sample at a fixed delay measures one frame of a document that is being
+    // taken apart, and on a long sefer that frame is not the last one.
+    const leftStage = await page
+      .waitForFunction(() => !document.querySelector("#backstage"), { timeout: 5_000 })
+      .then(() => true, () => false);
+    const stillThere = await page.evaluate(() => ({
+      cls: document.querySelector("#backstage")?.className ?? null,
+      active: document.activeElement?.className ?? "",
+    }));
+    check("Escape leaves the backstage", leftStage, JSON.stringify(stillThere));
+    check(
+      "…and the document has the keyboard back",
+      await page.evaluate(() => !!document.activeElement?.closest(".cm-content, .cm-editor")),
+      await page.evaluate(() => document.activeElement?.className ?? ""),
+    );
+
+    // --- the contextual tab (§8): a table puts טבלה on the row, and it does
+    // not steal the tab the writer has open. Leaving the table takes it away.
+    await clickVisible("the Insert tab", '.ribbon-tab[data-tab="insert"]');
+    const tabBeforeTable = await page.evaluate(
+      () => document.querySelector('.ribbon-tab[aria-selected="true"]')?.getAttribute("data-tab"),
+    );
+    await act("inserting a table", () => clickAction("the table button", "table"));
+    await page.waitForTimeout(600);
+    const contextualTab = await page.evaluate(() => {
+      const t = document.querySelector('.ribbon-tab[data-tab="table"]');
+      if (!t) return null;
+      const r = t.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height), selected: t.getAttribute("aria-selected") };
+    });
+    check("a table puts the Table tab on the row", !!contextualTab && contextualTab.w > 0, JSON.stringify(contextualTab));
+    check("…and it does not take the tab the writer has open", contextualTab?.selected === "false", String(contextualTab?.selected));
+    // Out of the table, which takes two gestures and not one.
+    //
+    // The editor is clicked first because `press` goes wherever the focus is and
+    // the last thing clicked in this step was a ribbon button — `Control+Home`
+    // from the tab row moves nothing at all. Then a fresh line *below* the table,
+    // because a whole line of `#טבלה(...)` is a table and every caret in it is
+    // still in the context: measured, `Control+End` on a document whose only line
+    // is the macro leaves the tab exactly where it was, correctly.
+    await clickVisible("the editor", ".cm-content");
+    await press("Control+End");
+    await press("Enter");
+    await type("סוף");
+    await page.waitForTimeout(500);
+    // `hidden`, not gone: `shelltabs.ts` builds every tab once and sets
+    // `b.hidden = !onStrip(id)`, so the button is in the document with no box.
+    // What a writer can see is the claim, and `:visible` is the same test every
+    // other measurement in this file uses.
+    check(
+      "…and leaving the table takes the tab away again",
+      (await page.locator('.ribbon-tab[data-tab="table"]:visible').count()) === 0,
+    );
+    const tabNow = await page.evaluate(
+      () => document.querySelector('.ribbon-tab[aria-selected="true"]')?.getAttribute("data-tab"),
+    );
+    check("…and leaves the writer on the tab they were on", tabNow === tabBeforeTable, `${tabNow} vs ${tabBeforeTable}`);
+
+    // --- the fold (§7): `⌃` leaves the tab row and nothing else.
+    await clickVisible("the collapse button", ".ribbon-collapse");
+    await page.waitForTimeout(400);
+    const folded = await page.evaluate(() => ({
+      flag: document.querySelector(".ribbon")?.getAttribute("data-collapsed"),
+      panelOpen: document.querySelector("#ribbon-panel")?.classList.contains("open") ?? false,
+      tabs: document.querySelectorAll(".ribbon-tabs .ribbon-tab").length,
+    }));
+    check("⌃ folds the ribbon to its tab row", folded.flag === "true", JSON.stringify(folded));
+    check("…and puts the panel away", folded.panelOpen === false, JSON.stringify(folded));
+    check("…and the tabs are still on the row", folded.tabs >= 7, String(folded.tabs));
+    await visible("the folded tab row", ".ribbon-tabs");
+    await clickVisible("the expand button", ".ribbon-collapse");
+    await page.waitForTimeout(400);
+    const unfolded = await page.evaluate(
+      () => document.querySelector(".ribbon")?.getAttribute("data-collapsed"),
+    );
+    check("…and ⌃ brings it back", unfolded === "false", String(unfolded));
+
+    // --- the key tips (§8): Alt alone letters every tab, and Esc drops them.
+    await press("Alt");
+    await page.waitForSelector(".keytips .keytip", { timeout: 10_000 });
+    const tips = await page.evaluate(() =>
+      [...document.querySelectorAll(".keytips .keytip")].map((k) => {
+        const r = k.getBoundingClientRect();
+        return { text: k.textContent ?? "", dim: k.getAttribute("data-dim"), w: Math.round(r.width), h: Math.round(r.height) };
+      }),
+    );
+    check("Alt alone puts a tip on every tab", tips.length >= 7, tips.map((t) => t.text).join(" "));
+    check("…each with a letter and a box of its own", tips.every((t) => t.text.trim().length === 1 && t.w > 0 && t.h > 0), JSON.stringify(tips));
+    check("…and none is dimmed before a letter is typed", tips.every((t) => t.dim === "false"), JSON.stringify(tips.map((t) => t.dim)));
+    await press("Escape");
+    await page.waitForTimeout(300);
+    check("Escape takes the tips away", (await page.locator(".keytips").count()) === 0);
+
+    // --- the narrow ribbon (§7): the groups give way, then the ribbon itself.
+    //
+    // `test/shrink.test.mjs` holds the heights at five widths; what only the
+    // assembled application can say is that nothing sticks out of a real
+    // stylesheet at the widths the screenshots are taken at.
+    //
+    // Two widths, because there are two behaviours and one number would hide the
+    // other: above 640 the full ribbon stays and its groups fold into `⋯`, below
+    // it `SIMPLIFIED_BELOW` swaps in the one row of icons. The first draft of
+    // this check asked for the simplified row at 680 and was simply wrong about
+    // where the application changes — 92px of ribbon, correctly.
+    const narrowAt = async (width) => {
+      await page.setViewportSize({ width, height: 768 });
+      await page.waitForTimeout(700);
+      return page.evaluate(() => {
+        const ribbon = document.querySelector(".ribbon");
+        const panel = document.querySelector("#ribbon-panel");
+        return {
+          simplified: ribbon?.getAttribute("data-simplified"),
+          height: Math.round(panel?.getBoundingClientRect().height ?? 0),
+          overflow: Math.max(0, Math.round((panel?.scrollWidth ?? 0) - (panel?.clientWidth ?? 0))),
+          tabs: [...document.querySelectorAll(".ribbon-tabs .ribbon-tab")].filter((t) => !t.hidden).length,
+        };
+      });
+    };
+    const narrow = await narrowAt(680);
+    check("at 680px the ribbon still has its groups", narrow.simplified === "false", JSON.stringify(narrow));
+    check("…and nothing overflows it sideways", narrow.overflow <= 1, JSON.stringify(narrow));
+    check("…and every tab is still on the row", narrow.tabs >= 7, String(narrow.tabs));
+    const narrowest = await narrowAt(620);
+    check("…and below 640px it is the simplified one", narrowest.simplified === "true", JSON.stringify(narrowest));
+    check("…one row of icons rather than two", narrowest.height > 0 && narrowest.height <= 60, JSON.stringify(narrowest));
+    check("…with nothing overflowing it", narrowest.overflow <= 1, JSON.stringify(narrowest));
+    check("…and the tabs still on the row", narrowest.tabs >= 7, String(narrowest.tabs));
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.waitForTimeout(400);
   }
 
   // ----------------------------------------------------------------- the tally

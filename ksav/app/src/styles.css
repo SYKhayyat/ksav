@@ -166,13 +166,18 @@ body {
 #app { height: 100vh; display: flex; flex-direction: column; }
 
 /* ---- header / toolbar ---- */
+/* The window's frame (#233, §4): the title row over the ribbon. Rows, never a
+   wrapping flow: a control that wraps onto a line of its own moves the document. */
 header {
-  display: flex; align-items: center; gap: 10px; padding: 7px 12px;
-  background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  display: flex; flex-direction: column; gap: 2px; padding: 3px 10px 4px;
+  background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0;
 }
-.brand { display: flex; align-items: baseline; gap: 6px; }
-.brand-name { font-weight: 800; font-size: 19px; }
-.brand small { color: var(--muted); font-size: 11px; }
+/* Brand, Quick Access, the document's name, then ⓘ ⚙ at the far end. */
+.title-row { display: flex; align-items: center; gap: 8px; min-height: 30px; min-width: 0; }
+.brand { font-weight: 800; font-size: 15px; flex: none; }
+.quick-access, .title-tools, .status-tools { display: flex; align-items: center; gap: 1px; flex: none; }
+.title-row .doc-title-btn { flex: 0 1 auto; min-width: 0; max-width: min(420px, 50vw); margin-inline: auto; align-items: center; }
+.title-row .chip, .status-tools .chip { min-width: 26px; height: 26px; padding: 0 5px; font-size: 12px; }
 .spacer { flex: 1; }
 
 /* A labelled ribbon, not a wall of glyphs.
@@ -238,7 +243,7 @@ header {
   background: var(--panel); color: var(--ink); cursor: pointer;
 }
 .heading-select:hover { border-color: var(--accent); color: var(--accent); }
-.menubar, .chipbar { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.menubar { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
 
 /* Keyboard focus must be visible everywhere. A caret is enough inside the
    editor; a chip you have tabbed to and cannot see is a dead end. */
@@ -619,7 +624,8 @@ body.dragging-pane * { cursor: grabbing !important; }
 }
 #status.ok { color: var(--ok); }
 #status.err { color: var(--danger); }
-#status { flex: 1; }
+#status { flex: 0 1 auto; }
+.statusbar .status-tools { margin-inline-start: auto; gap: 2px; }
 
 /* ---- problems (#124) ---- */
 /* A diagnostic is a sentence, and a sentence needs lines. This was one line in
@@ -1050,21 +1056,12 @@ button.mini:hover { background: var(--accent-soft); border-color: var(--accent);
    width — everything stays reachable, it just stops fighting for one line. */
 
 @media (max-width: 900px) {
-  /* One scrolling row for the whole header, rather than four wrapped ones.
-     Wrapping ~30 controls costs ~190px before a single word of the document is
-     visible; scrolling costs one row and hides nothing. */
-  header {
-    gap: 6px; padding: 6px 8px;
-    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  header::-webkit-scrollbar { display: none; }
-  header > * { flex: none; }
-  /* The tagline is the first thing to go — it is decoration. */
-  .brand small { display: none; }
-  /* The spacer pushed everything after it onto a new line; with one scrolling
-     row there is nothing to push. */
-  .spacer { display: none; }
+  /* The frame keeps its rows; the title row gives up the brand first, then the
+     file's path, and the document's name ellipsizes before anything wraps. */
+  header { padding: 2px 6px 3px; }
+  .title-row { gap: 4px; }
+  .title-row .brand { display: none; }
+  .title-row .doc-file { display: none; }
 
   /* The split becomes vertical regardless of the chosen preview side: side by
      side is unreadable once each pane is under ~450px. */
@@ -2005,8 +2002,11 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
    whole ribbon down by a row each time one is added (a contextual tab does). The
    tab strip holds no dropdowns, so it can scroll; the panel below it cannot — its
    menus are absolutely positioned and overflow would clip them — and still wraps. */
+/* The tab row: the tabs, then `☰` at its far end. */
+.ribbon-head { display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); min-width: 0; }
+.ribbon-head > .shell-menu-btn { flex: none; margin-inline-start: auto; height: 26px; align-self: center; }
 .ribbon-tabs {
-  display: flex; flex-wrap: nowrap; gap: 2px; border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: nowrap; gap: 2px; min-width: 0;
   overflow-x: auto; scrollbar-width: none;
 }
 .ribbon-tabs::-webkit-scrollbar { display: none; }
@@ -2086,13 +2086,3 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
   .ribbon[data-ribbon="tabs"] .ribbon-narrow { display: block; }
 }
 
-/* The tabs shell on a narrow window (#233). The rule above turns the whole header
-   into one nowrap scrolling row, which is right for a row of chips and wrong for a
-   ribbon: it landed past the edge, a swipe away, and nobody looks there for it.
-   With a ribbon the header wraps again, the chips take what rows they need, and the
-   ribbon is a row of its own — `min-width: 0` so its tab strip scrolls inside it
-   instead of stretching the page. */
-@media (max-width: 900px) {
-  header:has(> .ribbon[data-ribbon="tabs"]) { flex-wrap: wrap; overflow-x: visible; }
-  header:has(> .ribbon[data-ribbon="tabs"]) > :is(.ribbon, .chipbar, .menubar) { flex: 1 1 100%; min-width: 0; max-width: 100%; }
-}

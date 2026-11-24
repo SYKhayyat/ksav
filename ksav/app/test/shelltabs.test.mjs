@@ -84,7 +84,8 @@ export async function run() {
   setView(fakeView("שלום"));
   setRegistries(reg, []);
   const ribbon = buildRibbon();
-  const [strip, panel] = ribbon.children;
+  const [head, panel] = ribbon.children;
+  const strip = head.children[0];
   check("the strip is a tablist", strip.role, "tablist");
   check("the panel is a tabpanel", panel.role, "tabpanel");
   check("one tab button per tab", strip.children.map((b) => b["data-tab"]), [...TABS]);
@@ -121,7 +122,7 @@ export async function run() {
   }
   const gear = panel.children.flatMap((g) => g.children[1].children).filter((c) => String(c["data-menu"]).startsWith("gear-"));
   ok("the Table tab draws a ⚙", gear.length > 0);
-  check("the open tab survives a redraw", buildRibbon().children[0].children.find((b) => b["aria-selected"] === "true")["data-tab"], "table");
+  check("the open tab survives a redraw", buildRibbon().children[0].children[0].children.find((b) => b["aria-selected"] === "true")["data-tab"], "table");
 
   check("a command face reads its short label", faceLabel(list.find((a) => a.command?.he === "שער")), t("btn.שער"));
 
@@ -136,6 +137,10 @@ export async function run() {
 
   // ------------------------------------------------ the header
   const header = src("appheader.ts");
-  ok("the header draws the ribbon", /^\s*buildRibbon\(\),$/m.test(header));
-  ok("and the menu bar folded behind ☰", header.includes('"data-folded": "folded"') && /^\s*menuToggle\(menubar\),$/m.test(header));
+  ok("the header draws the ribbon, ☰ at the end of its tab row", /^\s*buildRibbon\(\[menuToggle\(menubar\)\]\),$/m.test(header));
+  ok("and the menu bar folded behind ☰", header.includes('"data-folded": "folded"'));
+
+  const tail = { tagName: "BUTTON", children: [] };
+  const withEnd = buildRibbon([tail]);
+  check("what the header hands it ends the tab row", withEnd.children[0].children.at(-1), tail);
 }

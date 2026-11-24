@@ -76,6 +76,11 @@
 export const HOW = {
   /** Click the header chip that opens it. `putAway` uses its declared exits. */
   chip: "chip",
+  /**
+   * Click the ribbon button that opens it, opening the tab that holds it first —
+   * the two clicks a reader makes since the chip row went (#233, §4).
+   */
+  action: "action",
   /** A recipe drives the application until it appears. */
   driven: "driven",
   /**
@@ -103,16 +108,16 @@ const REASON = 20;
  * because the checks after it are not expecting a menu over the document.
  */
 export const RECIPES = new Map([
-  // ---- opened by a chip in the header ----
+  // ---- opened by a chip in the frame, or a button on the ribbon ----
   //
-  // Twelve of the twenty-two, and every one of them is one gesture from a
-  // reader's hand. `acceptance.mjs` clicks the chip, measures what appears, and
-  // clicks it again — which also exercises the toggle, because four of these
+  // Every one of them is one gesture from a reader's hand, or two when the
+  // button's tab is not the open one. `acceptance.mjs` clicks it, measures what
+  // appears, and clicks it again — which also exercises the toggle, because four of these
   // decline Escape on purpose and a chip that only opens is the settings-drawer
   // bug that started `panels.ts`.
   ["settings-drawer", { how: HOW.chip, chip: "settings" }],
-  ["outline-drawer", { how: HOW.chip, chip: "outline" }],
-  ["notes-drawer", { how: HOW.chip, chip: "notesPane" }],
+  ["outline-drawer", { how: HOW.action, action: "outline" }],
+  ["notes-drawer", { how: HOW.action, action: "notesPane" }],
   // #89 — driven, because the minimap is opened by a settings toggle and by a key,
   // not by a chip in the header: there is nowhere in the chrome for a strip that the
   // writer drags around to put in it. `undrive` puts the setting back so the checks
@@ -140,7 +145,7 @@ export const RECIPES = new Map([
         "is no chrome control to click; the harness sets the setting and reloads.",
     },
   ],
-  ["marks-drawer", { how: HOW.chip, chip: "marksPane" }],
+  ["marks-drawer", { how: HOW.action, action: "marksPane" }],
   [
     "find-drawer",
     {
@@ -158,14 +163,14 @@ export const RECIPES = new Map([
         "recipe to write here yet.",
     },
   ],
-  ["commands-drawer", { how: HOW.chip, chip: "commands" }],
+  ["commands-drawer", { how: HOW.action, action: "commandsDrawer" }],
   ["help-panel", { how: HOW.chip, chip: "help" }],
-  ["styles-panel", { how: HOW.chip, chip: "styles" }],
-  ["review-panel", { how: HOW.chip, chip: "review" }],
+  ["styles-panel", { how: HOW.action, action: "stylesPanel" }],
+  ["review-panel", { how: HOW.action, action: "reviewPanel" }],
   ["git-panel", { how: HOW.chip, chip: "git" }],
-  ["notes-chooser", { how: HOW.chip, chip: "notesChooser" }],
-  ["arrangement", { how: HOW.chip, chip: "arrangement" }],
-  ["history-modal", { how: HOW.chip, chip: "history" }],
+  ["notes-chooser", { how: HOW.action, action: "notesChooser" }],
+  ["arrangement", { how: HOW.action, action: "arrangement" }],
+  ["history-modal", { how: HOW.action, action: "history" }],
   ["nikud-bar", { how: HOW.chip, chip: "nikud" }],
 
   // ---- opened by a keystroke or a menu ----
@@ -546,11 +551,15 @@ export function planFor(panels) {
       );
     }
     if (!Object.values(HOW).includes(r.how)) {
-      throw new Error(`surfaces: "${id}" claims how="${r.how}", which is not one of the five`);
+      throw new Error(`surfaces: "${id}" claims how="${r.how}", which is not one of the six`);
     }
     if (r.how === HOW.chip) {
       if (typeof r.chip !== "string" || !r.chip) {
         throw new Error(`surfaces: "${id}" is opened by a chip and does not say which`);
+      }
+    } else if (r.how === HOW.action) {
+      if (typeof r.action !== "string" || !r.action) {
+        throw new Error(`surfaces: "${id}" is opened by a ribbon button and does not say which`);
       }
     } else if (typeof r.why !== "string" || r.why.length < REASON) {
       // A chip needs no prose: the pairing is the whole claim and the run checks
@@ -575,7 +584,7 @@ export function planFor(panels) {
     // none — and until then this throws with its name in it.
     throw new Error(
       `surfaces: "${p.id}" is declared in PANELS and not classified here. Add it to ` +
-        `RECIPES — how: chip with the chip that opens it, how: driven with a drive(), ` +
+        `RECIPES — how: chip with the chip that opens it, how: action with the ribbon button, how: driven with a drive(), ` +
         `how: class with why there is no opener, or how: unreachable with why not at all.`,
     );
   });

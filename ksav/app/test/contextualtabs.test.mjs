@@ -45,7 +45,7 @@ export async function run() {
   try {
     settings.shell = { ...SHELL_DEFAULTS };
     setContext(null);
-    const strip = buildRibbon().children[0];
+    const strip = buildRibbon().children[0].children[0];
     const open = () => strip.children.find((b) => b["aria-selected"] === "true")["data-tab"];
     const marked = () => strip.children.filter((b) => b["data-contextual"] === "true").map((b) => b["data-tab"]);
     strip.children.find((b) => b["data-tab"] === "insert").click();

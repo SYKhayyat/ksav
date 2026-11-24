@@ -99,7 +99,7 @@ import { addFont, removeAsset } from "./assets";
 import { searchPhrases, swapUntouchedStarter, wireStarter, maybeOnboard } from "./starter";
 import { wireTemplates } from "./templates";
 import { boot, scheduleAutoSnapshots, wireBoot } from "./boot";
-import { actions, actionById, runAction, startFind, toggleMinimap, minimapDeps, isRunningAction } from "./actionsurface";
+import { actions, actionById, runAction, toggleMinimap, minimapDeps, isRunningAction } from "./actionsurface";
 import { insertFold, hideBlockHere, hideLineHere, hiddenBreak, makeListHere, addContentsHere, replaceAll, foldToLevel, foldListsToDepth, runStructureAction, entityAct, adoptPageSetupAsDefault } from "./editorcommands";
 import { saveFileAs } from "./fileui";
 import { showChromeNotice, clearChromeNotice } from "./ribbon";
@@ -1224,7 +1224,6 @@ function installHooks() {
   });
   wireHeader({
     setSetting,
-    startFind,
     toggleNikud,
   });
   wireChrome({

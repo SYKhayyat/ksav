@@ -102,7 +102,7 @@ Labels and descriptions are not in the record: `btn.<id>` (short label),
 │                                                                                │
 │                               the editor                                       │
 │                                                                                │
-│ שמור · 1,204 מילים · מנוע wasm         עב  ＃  ⏺  אָ  ☀            status bar │
+│ שמור · 1,204 מילים · מנוע wasm       ⑂  עב  ＃  ⏺  אָ  ☀           status bar │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -119,7 +119,8 @@ Labels and descriptions are not in the record: `btn.<id>` (short label),
 
 `קובץ` (backstage, §6) · `בית` · `הוספה` · `פריסה` · `הערות` · `מקורות` · `סקירה` ·
 `תצוגה` · contextual tabs (§5) · then at the far end **`☰`** (every menu, as a
-cascading dropdown) and **`⌃`** (collapse / pin the ribbon).
+cascading dropdown) and **`⌃`** (collapse / pin the ribbon). The ribbon draws the
+row as `.ribbon-head`: the `tablist`, then what the header hands it for the end.
 
 The tab row is a `tablist` in interface direction; ←/→ follow the flow, Home/End
 jump, and no glyph is mirrored (#136).
@@ -145,7 +146,9 @@ Esc. Stored in `shell.collapsed`.
 ### Status bar
 
 Left: save state, word count, engine badge (as today). Right: **the controls that
-show state**, each a small toggle with a tooltip: interface language (`עב`/`EN`),
+show state**, each small with a tooltip: version control (`⑂` clean, `●` changed,
+`⚠` conflicted, `↑`/`↓` ahead or behind — the glyph is the report, so it is the one
+face here that is not an icon), interface language (`עב`/`EN`),
 code/prose surface (`＃`/`🅐`), recording a macro (`⏺`/`⏹`), nikud (`אָ`), theme
 (`☀`/`🌙`). They keep `data-chip` so the acceptance run finds them.
 
@@ -155,11 +158,12 @@ The 22-icon chip row is gone. Each chip went to the surface its kind belongs on:
 
 | was a chip | now |
 |---|---|
-| undo, redo | Quick Access bar |
+| undo, redo (and save, which was a File-menu row) | Quick Access bar |
 | help, settings | title row ⓘ ⚙ |
 | language, prose, record, nikud, theme | status bar |
 | outline, notes chooser, notes pane, marks pane, arrangement, fold all, unfold all, find, styles, commands | ribbon buttons on View / Home |
-| git, history, review | Review ▸ Versions, and the backstage's Versions section |
+| git | its state glyph in the status bar; the panel also on Review ▸ Versions |
+| history, review | Review ▸ Versions / Comments, and the backstage's Versions section |
 
 ## 5 · What goes where
 

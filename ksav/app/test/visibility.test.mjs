@@ -78,12 +78,20 @@ export async function run() {
     excused.length * 2 < plan.length,
   );
 
+  const { BUILT_IN } = await import("../.tmp-test/actionsurface.mjs");
+  const BUILT_IN_IDS = new Set(BUILT_IN.map((x) => x.id));
   for (const e of plan) {
     // A chip is its own claim: the pairing either opens the panel in the real
     // browser or it does not. Everything else is a departure from the registry's
     // own mechanism and owes a sentence.
     if (e.how === HOW.chip) {
       ok(`${e.panel.id} names the chip that opens it`, typeof e.chip === "string" && !!e.chip);
+      continue;
+    }
+    // A ribbon button is the same claim, and one more is checkable here: the id
+    // is a built-in action, so the button is on some tab for the run to find.
+    if (e.how === HOW.action) {
+      ok(`${e.panel.id} is opened by a built-in action`, BUILT_IN_IDS.has(e.action), e.action);
       continue;
     }
     ok(

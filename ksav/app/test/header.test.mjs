@@ -27,11 +27,7 @@ import { setLang, t } from "../.tmp-test/i18n.mjs";
 const OFF = {
   theme: "light",
   prose: false,
-  arrangement: "sourceAndPreview",
-  outline: false,
   nikud: false,
-  notesPane: false,
-  marksPane: false,
   recording: false,
 };
 
@@ -53,10 +49,13 @@ export async function run() {
     // every one of them is the only way to a whole surface — and that is what
     // the list below claims. The properties every chip must have follow it, and
     // they hold for a twenty-second as much as for these.
+    //
+    // The bar is gone (#233, §4): what stays a chip is the window's frame —
+    // Quick Access, ⓘ ⚙ on the title row, and the status bar's state controls.
+    // Every other door is a ribbon button now, and the placements test owns it.
     const promised = [
-      "undo", "redo", "styles", "find", "outline", "notesChooser", "notesPane",
-      "marksPane", "review", "git", "commands", "language", "foldAll", "unfoldAll",
-      "prose", "arrangement", "theme", "nikud", "history", "record", "help", "settings",
+      "save", "undo", "redo", "help", "settings",
+      "git", "language", "prose", "record", "nikud", "theme",
     ];
     check(
       "every promised chip is in the bar",
@@ -70,6 +69,18 @@ export async function run() {
     );
     const ids = bar.map((c) => c.id);
     check("…and no id twice", ids.filter((id, i) => ids.indexOf(id) !== i), []);
+    check(
+      "Quick Access is save, undo, redo — Word's three",
+      bar.filter((c) => c.place === "quick").map((c) => c.id),
+      ["save", "undo", "redo"],
+    );
+    check("the title row ends in ⓘ ⚙", bar.filter((c) => c.place === "title").map((c) => c.id), ["help", "settings"]);
+    check(
+      "everything else reports a state, so it lives in the status bar",
+      bar.filter((c) => c.place === "status").map((c) => c.id),
+      ["git", "language", "prose", "record", "nikud", "theme"],
+    );
+    check("…and a toggle there says so", bar.filter((c) => c.toggle).map((c) => c.id), ["prose", "record", "nikud"]);
   }
 
   // ------------------------------------------------ a toggle names its own state
@@ -101,9 +112,7 @@ export async function run() {
 
   {
     for (const [key, id] of [
-      ["outline", "outline"],
       ["nikud", "nikud"],
-      ["notesPane", "notesPane"],
       ["prose", "prose"],
       ["recording", "record"],
     ]) {
@@ -137,7 +146,7 @@ export async function run() {
     // meaningless is a control in the wrong place, and the strongest fix for one
     // is not to have it.
     //
-    // So the assertion inverts: **nothing in the chipbar is ever unavailable.**
+    // So the assertion inverts: **nothing in the frame is ever unavailable.**
     // That is a stronger claim than the one it replaces, and it goes red the day
     // somebody adds a chip that only sometimes applies — which is the moment to
     // ask whether it belongs in the bar at all.
@@ -148,13 +157,9 @@ export async function run() {
     );
     check(
       "…in any state",
-      chips({ ...OFF, prose: true, arrangement: null, recording: true }).filter((c) => c.disabled).map((c) => c.id),
+      chips({ ...OFF, prose: true, recording: true }).filter((c) => c.disabled).map((c) => c.id),
       [],
     );
-    // The arrangement chip opens a picker, so it has nothing to report as
-    // "active" — every arrangement is as on as any other. It is the one chip in
-    // the bar that is a door rather than a toggle.
-    check("the arrangement chip is a door, not a toggle", by(OFF, "arrangement").active, undefined);
   }
 
   // --------------------------------------------- every glyph exists to be shown
@@ -174,8 +179,8 @@ export async function run() {
       { ...OFF, prose: true },
       { ...OFF, recording: true },
       { ...OFF, theme: "dark" },
-      { ...OFF, arrangement: null },
-      { ...OFF, outline: true, nikud: true, notesPane: true },
+      { ...OFF, nikud: true },
+      { ...OFF, vcs: { health: "conflicted" } },
     ];
     for (const s of states) {
       const bad = chips(s).filter((c) => !c.glyph || c.glyph === "undefined" || !c.title || c.title.includes("undefined"));

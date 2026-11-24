@@ -376,7 +376,7 @@ check(
 {
   const HEADER = SOURCES.get("header.ts");
   const toggles = [...HEADER.matchAll(/toggle: true/g)].length;
-  check("six chips are toggles and say so", toggles, 6);
+  check("three chips are toggles and say so: prose, record, nikud", toggles, 3);
   const gitChip = HEADER.slice(HEADER.indexOf('id: "git"'));
   ok(
     "…the version-control chip is a warning, not a pressed toggle",
@@ -404,13 +404,13 @@ check(
   const body = state.slice(0, state.indexOf(END) + END.length);
   ok("the header's state is gathered in one place", body.includes("settings."));
   const shown = [...body.matchAll(/settings\.(\w+)/g)].map((m) => m[1]);
-  // Four, not six. The threshold came down because two of the things the header
-  // shows stopped being settings: prose is a property of the open document now,
-  // and the arrangement is read off the pane tree. A header that reported those
-  // from `settings` would be reporting the wrong document's mode the moment a
-  // second one was open, which is the failure this whole fence exists to catch —
-  // so the number falling is the fix working, not the fence weakening.
-  ok("…and it reads several settings", shown.length >= 4, `${shown.length}`);
+  // Two: the theme and nikud. The threshold came down twice, each time because a
+  // thing the header shows stopped being a setting or stopped being shown: prose
+  // is a property of the open document, the arrangement is read off the pane
+  // tree, and the outline and the notes and marks panes are ribbon buttons now,
+  // not chips (#233, §4). The number falling is the frame shrinking, not the
+  // fence weakening.
+  ok("…and it reads the settings it shows", shown.length >= 2, `${shown.length}`);
 
   // Wave 3 of #188 split the dispatcher: the value write is `settings.ts`'s
   // `setSetting`, and the change set it triggers is `main.ts`'s
@@ -427,7 +427,7 @@ check(
   const silent = shown
     .filter((key) => arms.has(key))
     .filter((key) => !/rerenderChrome\(\)/u.test(arms.get(key)));
-  check("a setting the chipbar shows is a setting that rebuilds it", silent, []);
+  check("a setting the header shows is a setting that rebuilds it", silent, []);
 }
 
 // Filtering can retain a former second row while removing the selected first

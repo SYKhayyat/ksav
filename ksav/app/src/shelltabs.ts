@@ -259,10 +259,11 @@ export function stepTab(tabs: readonly string[], from: string, key: string, rtl:
  * shorter ribbon would present it as one. It is said in words instead, in the
  * surface the writer is looking at.
  */
-export function buildRibbon(): HTMLElement {
+export function buildRibbon(end: readonly HTMLElement[] = []): HTMLElement {
   if (runtime.commandsReg.length === 0) {
+    // The menus are still a press away: `☰` is drawn whether or not there is a ribbon.
     return el("div", { class: "ribbon ribbon-empty", "data-ribbon": "tabs" }, [
-      el("span", { class: "ribbon-failed", role: "status" }, [t("registriesFailed")]),
+      el("div", { class: "ribbon-head" }, [el("span", { class: "ribbon-failed", role: "status" }, [t("registriesFailed")]), ...end]),
     ]);
   }
   const tree = shown().filter((n) => !n.hidden && n.groups.length);
@@ -320,7 +321,12 @@ export function buildRibbon(): HTMLElement {
     if (buttons.has(tab)) show(tab);
   };
   return el("div", { class: "ribbon", "data-ribbon": "tabs" }, [
-    el("div", { class: "ribbon-tabs", role: "tablist", "aria-label": t("ribbonTabs") }, [...buttons.values()]),
+    // The tab row: the tabs, then at the far end what is not a tab (`☰`). A
+    // `tablist` may hold only tabs, so the end sits beside it, not in it.
+    el("div", { class: "ribbon-head" }, [
+      el("div", { class: "ribbon-tabs", role: "tablist", "aria-label": t("ribbonTabs") }, [...buttons.values()]),
+      ...end,
+    ]),
     panel,
     // A narrow window folds the strip into `☰` rather than scroll it sideways (§8), and says so.
     el("p", { class: "ribbon-narrow", role: "note" }, [t("rcNarrow")]),

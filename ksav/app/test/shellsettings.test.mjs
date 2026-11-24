@@ -46,7 +46,7 @@ export async function run() {
   // One shell: no variant is read, and the ribbon is always drawn.
   const header = src("appheader.ts");
   notOk("the header names no shell", /data-shell|variant/.test(header));
-  ok("the header always draws the ribbon", /\bbuildRibbon\(\)/.test(header));
+  ok("the header always draws the ribbon", /\bbuildRibbon\(/.test(header));
   notOk("no action picks a shell", /shellMenus|shellToolbar|shellTabs/.test(src("actionsurface.ts") + src("placement.ts")));
   notOk("nor a drawer row", /shellSelectRow|shellVariant|shellMenubar|shellContextual/.test(src("settingsdrawer.ts")));
 }

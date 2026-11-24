@@ -868,6 +868,43 @@ async function main() {
   }
 
   /**
+   * A ribbon button, reached the way a writer reaches it (#233, §4): on the open
+   * tab if it is there, else on the first tab that has it on a face, else in a
+   * group's `⋯`. Every tab and every menu opened on the way is a measured click,
+   * so a button that is on no tab is a timeout naming it, never a skip.
+   */
+  async function clickAction(name, id) {
+    const face = `.ribbon-panel [data-action="${id}"]`;
+    const shown = (sel) => page.locator(`${sel}:visible`).count().then((n) => n > 0);
+    if (await shown(face)) return clickVisible(name, face);
+    const tabs = await page.$$eval('.ribbon [role="tab"][data-tab]', (bs) =>
+      bs.filter((b) => b.offsetParent !== null).map((b) => b.getAttribute("data-tab")),
+    );
+    for (const tab of tabs) {
+      await page.click(`.ribbon [role="tab"][data-tab="${tab}"]`, { timeout: 15_000 });
+      if (await shown(face)) return clickVisible(name, face);
+    }
+    for (const tab of tabs) {
+      await page.click(`.ribbon [role="tab"][data-tab="${tab}"]`, { timeout: 15_000 });
+      const mores = await page.$$eval('.ribbon-panel .menu[data-menu^="more-"]', (ms) => ms.map((m) => m.getAttribute("data-menu")));
+      for (const m of mores) {
+        const menu = `.ribbon-panel .menu[data-menu="${m}"]`;
+        await page.click(`${menu} > .menu-btn`, { timeout: 15_000 });
+        const row = `${menu} [data-action="${id}"]`;
+        if (await shown(row)) return clickVisible(name, row);
+        await page.keyboard.press("Escape");
+      }
+    }
+    throw new Error(`${name}: no ribbon tab or ⋯ holds [data-action="${id}"]`);
+  }
+
+  /** The control a recipe opens its surface with: a chip in the frame, or a ribbon button. */
+  async function openBy(entry) {
+    if (entry.how === HOW.action) return clickAction(`the ${entry.action} button`, entry.action);
+    return clickVisible(`the ${entry.chip} chip`, `[data-chip="${entry.chip}"]`);
+  }
+
+  /**
    * The menu bar lives folded behind ☰ (#233): a menu is reached the way a
    * writer reaches it, by opening ☰ first — measured, like every other click.
    */
@@ -1073,6 +1110,9 @@ async function main() {
     if (entry.how === HOW.chip && (await still())) {
       await tryExit("the chip again", `[data-chip="${entry.chip}"]`, { force: true });
     }
+    if (entry.how === HOW.action && (await still())) {
+      await tryExit("the button again", `.ribbon [data-action="${entry.action}"]:visible`, { force: true });
+    }
 
     // And the assertion, for the surfaces that can actually be dismissed.
     //
@@ -1092,6 +1132,7 @@ async function main() {
     const dismissible =
       p.escape ||
       entry.how === HOW.chip ||
+      entry.how === HOW.action ||
       p.exits.some((x) => x.via === "head" || x.via === "scrim");
     if (dismissible) {
       check(`${name} closes again`, !(await still()), `tried ${tried.join(", ")}; ${root} is still open`);
@@ -1569,8 +1610,8 @@ async function main() {
     // `surfaces.mjs` about the five panels that proved this necessary.
     if (e.how !== HOW.class) {
       try {
-        if (e.how === HOW.chip) {
-          await clickVisible(`the ${e.chip} chip`, `[data-chip="${e.chip}"]`);
+        if (e.how === HOW.chip || e.how === HOW.action) {
+          await openBy(e);
           await page.waitForSelector(mounted ? root : `${root}.open`, { timeout: 10_000 });
         } else {
           await e.drive(driver);
@@ -1692,13 +1733,12 @@ async function main() {
     // The chip comes from the same recipe step 8 opens it with, so there is one
     // statement of how each surface is reached rather than two that must agree.
     const entry = plan.find((e) => e.panel.id === id);
-    if (!entry || entry.how !== HOW.chip) {
-      check(`${id} can be opened for the empty check`, false, `no chip recipe for ${id}`);
+    if (!entry || (entry.how !== HOW.chip && entry.how !== HOW.action)) {
+      check(`${id} can be opened for the empty check`, false, `no chip or button recipe for ${id}`);
       continue;
     }
-    const chip = entry.chip;
     const root = `#${id}`;
-    await clickVisible(`the ${chip} chip`, `[data-chip="${chip}"]`);
+    await openBy(entry);
     try {
       await page.waitForSelector(`${root}.open ${EMPTY_ROW}`, { timeout: 10_000 });
     } catch {
@@ -2285,13 +2325,8 @@ async function main() {
     // passed on a chooser that inserted nothing at all.
     await newLine();
     await type("בחירה");
-    // Through the chip, which is the door a writer uses. It is not in the
-    // command palette — `notesChooser` is a chip id, not an action id, which a
-    // first draft of this step found out by searching the palette for it and
-    // timing out.
-    await act("opening the notes chooser", () =>
-      clickVisible("the notes chip", '[data-chip="notesChooser"]'),
-    );
+    // Through the ribbon, which is the door a writer uses.
+    await act("opening the notes chooser", () => clickAction("the notes chooser", "notesChooser"));
     await page.waitForSelector("#notes-chooser.open", { timeout: 10_000 });
 
     // The one question, whole. The count is asserted rather than "more than
@@ -2780,12 +2815,11 @@ async function main() {
     const shell = await page.evaluate(() => ({
       source: document.querySelectorAll(".source-pane").length,
       preview: document.querySelectorAll(".preview-host").length,
-      chip: !!document.querySelector("[data-chip=arrangement]"),
-      chipbar: !!document.getElementById("chipbar"),
+      button: !!document.querySelector('[data-action="arrangement"]'),
       panes: Array.from(document.querySelectorAll(".pane")).map((p) => p.className).join(","),
     }));
     check("the window holds a source and a preview to measure", shell.source > 0 && shell.preview > 0, `the window here is ${JSON.stringify(shell)}`);
-    await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+    await clickAction("the arrangement picker", "arrangement");
     await clickVisible("the source-and-preview arrangement", "#arrangement-list .pal-item >> nth=0");
     await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
     await page.waitForTimeout(400);
@@ -2812,7 +2846,7 @@ async function main() {
       await press("Escape");
       await page.waitForTimeout(200);
 
-      await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+      await clickAction("the arrangement picker", "arrangement");
       await page.waitForSelector('[data-arrangement="twoPreviews"]', { timeout: 10_000 });
       await clickVisible("the two-previews arrangement", '[data-arrangement="twoPreviews"]');
       await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
@@ -2868,7 +2902,7 @@ async function main() {
       await page.waitForTimeout(800);
 
       // Back to the arrangement the rest of this section measures.
-      await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+      await clickAction("the arrangement picker", "arrangement");
       await clickVisible("the source-and-preview arrangement", '[data-arrangement="sourceAndPreview"]');
       await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
       await page.waitForTimeout(400);
@@ -3027,7 +3061,7 @@ async function main() {
     await page.keyboard.insertText(sefer);
     await press("Control+Home");
     await page.waitForTimeout(400);
-    await clickVisible("the arrangement picker", '[data-chip="arrangement"]');
+    await clickAction("the arrangement picker", "arrangement");
     await clickVisible("the source-and-preview arrangement", "#arrangement-list .pal-item >> nth=0");
     await page.waitForSelector(".preview-host .page", { timeout: 30_000 });
     await page.waitForTimeout(500);
@@ -3056,7 +3090,7 @@ async function main() {
     let outlineOpen = false;
     const goToHeading = async (heading) => {
       if (!outlineOpen) {
-        await clickVisible("the outline chip", '[data-chip="outline"]');
+        await clickAction("the outline button", "outline");
         outlineOpen = true;
         await page.waitForSelector("#outline-list .outline-item", { timeout: 10_000 });
       }

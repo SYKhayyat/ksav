@@ -12,7 +12,7 @@
 # corpus layers already hold are repeated here on purpose — a product word must
 # not depend on a setting somebody else chose.
 #
-# 2704 entries, no bands (nothing here is a corpus frequency).
+# 2705 entries, no bands (nothing here is a corpus frequency).
 אבל
 אבן
 אברהם
@@ -358,6 +358,7 @@
 גיטין
 גיליון
 גירושין
+גישה
 גלובלי
 גלילה
 גלילת

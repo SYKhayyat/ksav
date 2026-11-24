@@ -16,7 +16,7 @@
 // Nothing here needs anything from `main.ts`: every name below is a module
 // export, which is why this move required no wiring seam at all.
 
-import { buildHeader } from "./appheader";
+import { buildHeader, buildStatusTools } from "./appheader";
 import { rootDir } from "./direction";
 import { onAttachRef } from "./sourcenote-lint";
 import { getLang, isRtlUi, t } from "./i18n";
@@ -160,6 +160,10 @@ export function render() {
       el("span", { id: "status", class: "ok" }, [t("ready")]),
       el("span", { id: "wordcount", class: "wordcount" }),
       el("span", { id: "engine-badge", class: "engine-badge", title: "compute engine" }),
+      el("span", { class: "spacer" }),
+      // The controls that show a state — language, surface, recorder, nikud,
+      // theme, version control — where Word keeps its view toggles (#233, §4).
+      buildStatusTools(),
     ]),
     buildSettingsDrawer(),
     el("aside", { id: "outline-drawer", class: "drawer drawer-start", "aria-label": t("outline"), "data-i18n-label": "outline" }, [
@@ -402,6 +406,7 @@ export function rerenderChrome() {
   nameGutterMarks();
   const app = document.getElementById("app")!;
   app.querySelector("header")?.replaceWith(buildHeader());
+  document.getElementById("status-tools")?.replaceWith(buildStatusTools());
   // settings drawer keeps open state
   const drawerOpen = isPanelOpen("settings-drawer");
   document.getElementById("settings-drawer")!.replaceWith(buildSettingsDrawer());

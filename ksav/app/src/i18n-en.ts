@@ -1249,6 +1249,7 @@ export const EN: Dict = {
   keepMenuPositionLabel: "Menus reopen where they were left",
   shellMenuButton: "☰ Menu",
   ribbonTabs: "Ribbon tabs",
+  quickAccess: "Quick Access",
   ribbonMore: "More in {0}",
   ribbonGear: "Settings for {0}",
   proseStripLabel: "Show the context strip in plain prose too",

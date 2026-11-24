@@ -9,8 +9,8 @@
 // times, in a file no test can import.
 //
 // That is the exact shape this repository's bug family takes — a working engine
-// behind a surface that reports on it wrongly — and the chipbar is where it does
-// the most damage, because a chip *is* the report. A toggle showing the sun
+// behind a surface that reports on it wrongly — and the frame's toggles are where
+// it does the most damage, because a toggle *is* the report. A toggle showing the sun
 // while the theme is dark is not a cosmetic fault; it is the interface lying
 // about the setting it exists to display. `previewSideToggle` is the case that
 // proves the family: it passed `"chip disabled"`, the stylesheet greyed it, and
@@ -21,12 +21,13 @@
 //
 // # The split
 //
-// [`chips`] is a pure function of the state the header displays. It returns
-// twenty descriptions: an id, a glyph, a resolved title, and two booleans. The
-// shell maps each to `iconBtn` and wires the click. Same for the three menus,
-// which had their own inline decisions — whether "Save as…" or "Save a copy…",
-// whether the templates menu needs a separator, and the nine export items whose
-// `data-export` keys are what `acceptance.mjs` clicks.
+// [`chips`] is a pure function of the state the frame displays. It returns the
+// controls of the title row and the status bar: an id, where it lives, an
+// icon, a resolved title, and two booleans. The shell maps each to `iconBtn`
+// and wires the click. Same for the menus, which had their own inline
+// decisions — whether "Save as…" or "Save a copy…", whether the templates menu
+// needs a separator, and the export items whose `data-export` keys are what
+// `acceptance.mjs` clicks.
 //
 // Titles are resolved here rather than returned as keys, because half of them
 // are *compositions* — `${t("layout")}: ${t("mode.two")}` — and a composition
@@ -35,32 +36,28 @@
 
 import { t, getLang } from "./i18n";
 import type { Settings } from "./settings";
+import type { IconId } from "./icons";
 
 /**
- * Every chip, by name.
+ * Every verb the header runs, by name.
  *
  * A union and not a `string`, so that the shell's table of what each one *does*
- * is checked against this list by the compiler. The two halves are the decision
- * and the effect, they are deliberately in different files, and a chip described
- * here with nothing to run — or a handler for a chip that no longer exists — is
- * a `tsc` error rather than an `onClick` of `undefined` that throws on the first
- * press and nowhere before it.
+ * (`CHIP_RUN`) is checked against this list by the compiler. Ten of them are
+ * drawn as controls in the window ([`chips`]); the rest are the panels the
+ * ribbon opens by action id, run through the same table because the action
+ * table cannot import the panels without closing a cycle through the shell.
  */
 export type ChipId =
+  | "save"
   | "undo"
   | "redo"
   | "styles"
-  | "find"
   | "outline"
-  | "notesChooser"
   | "notesPane"
   | "marksPane"
   | "review"
   | "git"
-  | "commands"
   | "language"
-  | "foldAll"
-  | "unfoldAll"
   | "prose"
   | "arrangement"
   | "theme"
@@ -70,31 +67,43 @@ export type ChipId =
   | "help"
   | "settings";
 
-/** One control in the chipbar. */
+/**
+ * Where a control lives in the window (`docs/ui-architecture.md` §4).
+ *
+ * - `quick`: the Quick Access bar at the head of the title row.
+ * - `title`: ⓘ and ⚙ at the end of the title row.
+ * - `status`: the status bar's right half, the controls that *show state*.
+ */
+export type ChipPlace = "quick" | "title" | "status";
+
+/** One control in the window's frame: the title row or the status bar. */
 export interface Chip {
   /**
-   * A stable name, across languages and themes.
+   * A stable name, across languages and themes, drawn as `data-chip`.
    *
-   * Every control in this chrome is a glyph with a localised tooltip, so
-   * without this the only way to find one from outside is `title*="…"` — a
-   * selector that works in Hebrew and silently matches nothing in English.
+   * Every control here is an icon with a localised tooltip, so without this
+   * the only way to find one from outside is `title*="…"` — a selector that
+   * works in Hebrew and silently matches nothing in English.
    */
   id: ChipId;
+  place: ChipPlace;
+  /** A Tabler or ksav icon id; when absent the control is its `glyph`. */
+  icon?: IconId;
+  /** The control's text face: what it shows when it has no icon. */
   glyph: string;
   /** The tooltip and the accessible name, resolved in the current language. */
   title: string;
-  /** The setting this chip shows is on. */
+  /** The setting this control shows is on. */
   active?: boolean;
   /**
-   * This chip is a **toggle**, so `active` is its pressed state (UAT 3, #134).
+   * This control is a **toggle**, so `active` is its pressed state (UAT 3, #134).
    *
-   * `active` alone was visible only as `.chip.active` in the stylesheet, which
-   * means the button looked pressed and told a screen reader nothing at all: it
-   * had an `aria-label` and no state. The distinction is not academic — `git`
-   * also uses `active`, to mean "there are conflicts", and announcing that as a
-   * pressed toggle would be a button that claims to be a setting and does not
-   * toggle. So the state is declared where the chip is defined, not inferred
-   * from the word `active`.
+   * `active` alone was visible only in the stylesheet, which means the button
+   * looked pressed and told a screen reader nothing at all. The distinction is
+   * not academic — `git` also uses `active`, to mean "there are conflicts",
+   * and announcing that as a pressed toggle would be a button that claims to be
+   * a setting and does not toggle. So the state is declared where the control
+   * is defined, not inferred from the word `active`.
    */
   toggle?: boolean;
   /** Not available in this state. `iconBtn` turns this into the real attribute. */
@@ -102,22 +111,17 @@ export interface Chip {
 }
 
 /**
- * Everything the header displays.
+ * Everything the frame displays.
  *
- * The fields it needs off `Settings`, plus the two pieces of live state that are
- * not settings. Named rather than taking `Settings` whole so that a test states
- * the world in one line and so that adding a setting cannot silently change what
- * the header shows.
+ * The fields it needs off `Settings`, plus the live state that is not a
+ * setting. Named rather than taking `Settings` whole so that a test states the
+ * world in one line and so that adding a setting cannot silently change what
+ * the frame shows.
  */
 export interface HeaderState {
   theme: Settings["theme"];
   prose: boolean;
-  /** Which shipped arrangement the pane tree is, if it is one of them. */
-  arrangement: string | null;
-  outline: boolean;
   nikud: boolean;
-  notesPane: boolean;
-  marksPane: boolean;
   /** Recording a macro. A mode with no indicator is a mode people leave on. */
   recording: boolean;
   /**
@@ -126,7 +130,7 @@ export interface HeaderState {
    *
    * Optional because "not asked" is a real and common state — the drawer has
    * never been opened, or the document has no file — and it is a different
-   * thing from "clean". A chip that reads clean before anybody has run a
+   * thing from "clean". A control that reads clean before anybody has run a
    * `git status` is the interface lying about the state it exists to display,
    * which is the fault this module was written to make impossible.
    */
@@ -134,7 +138,7 @@ export interface HeaderState {
 }
 
 /**
- * The one word a repository is in, as far as the chipbar is concerned.
+ * The one word a repository is in, as far as the status bar is concerned.
  *
  * Structurally the same union as `git.ts`'s `Health` and deliberately not
  * imported from it: this module is pure and imports `i18n` and `Settings`
@@ -155,9 +159,9 @@ const VCS_GLYPH: Record<VcsHealth, string> = {
   clean: "⑂",
 };
 
-
 /**
- * The chip's tooltip: the drawer's name, and then what it would tell you.
+ * The version-control control's tooltip: the drawer's name, and then what it
+ * would tell you.
  *
  * Composed here rather than returned as a key, for the reason at the top of
  * this file — a composition left to the caller is a decision left in the
@@ -174,88 +178,62 @@ function vcsTitle(vcs: HeaderState["vcs"]): string {
 }
 
 /**
- * The chipbar, in order.
+ * The frame's controls, in the order each place draws them (#233, §4).
  *
- * The order is the one a writer's hand learns, so it is data rather than twenty
- * variables and a list of their names at the bottom of a function — which is
- * what it was, and which is how `previewSideToggle` came to be declared
- * eighteen lines from where it was used.
+ * The 22-icon chip row is gone: a control that *does* a thing to the document
+ * is a ribbon button, and what is left here is what belongs to the window
+ * itself — Quick Access, help and settings, and the status bar's toggles that
+ * report a state. A state the writer cannot see is a mode they leave on, which
+ * is why version control, the recorder and the surface are in the status bar
+ * and not behind a tab.
  */
 export function chips(s: HeaderState): Chip[] {
   const lang = getLang();
   const dark = s.theme !== "light";
   return [
-    { id: "undo", glyph: "↶", title: t("sc.undo") },
-    { id: "redo", glyph: "↷", title: t("sc.redo") },
-    { id: "styles", glyph: "🎨", title: t("stylesTitle") },
-    { id: "find", glyph: "🔍", title: t("find") },
-    { id: "outline", glyph: "☰", title: t("outline"), active: s.outline, toggle: true },
-    { id: "notesChooser", glyph: "✻", title: t("notesChooser") },
-    { id: "notesPane", glyph: "†☰", title: t("sc.notesPane"), active: s.notesPane, toggle: true },
-    // The third list. Its glyph is a mark and a list, the way the notes pane's is
-    // a dagger and a list: the chipbar says which list, not that there is one.
-    { id: "marksPane", glyph: "◆☰", title: t("sc.marksPane"), active: s.marksPane, toggle: true },
-    { id: "review", glyph: "✎", title: t("reviewTitle") },
+    { id: "save", place: "quick", icon: "device-floppy", glyph: "💾", title: t("sc.save") },
+    { id: "undo", place: "quick", icon: "arrow-back-up", glyph: "↶", title: t("sc.undo") },
+    { id: "redo", place: "quick", icon: "arrow-forward-up", glyph: "↷", title: t("sc.redo") },
+    { id: "help", place: "title", icon: "info-circle", glyph: "ⓘ", title: t("help") },
+    { id: "settings", place: "title", icon: "settings", glyph: "⚙", title: t("settings") },
     // Version control. Never disabled, however unavailable it is: each of the
     // three ways it can be unavailable has a different answer for the reader —
     // save the document, use the installed application, install git — and a
-    // greyed chip with no way in delivers none of them. The drawer says which.
+    // greyed control with no way in delivers none of them. The drawer says which.
+    // Its face is the state's glyph, not an icon: `●` and `⚠` are the report.
     {
       id: "git",
+      place: "status",
       glyph: VCS_GLYPH[s.vcs?.health ?? "clean"],
       title: vcsTitle(s.vcs),
       active: s.vcs?.health === "conflicted",
     },
-    // Every command there is, grouped and searchable. The glyph is `#`, which is
-    // the character a writer types to start one — the four surfaces that already
-    // advertised the registry were a menu, a modal, a completion popup and a
-    // help page, and none of them was a door labelled with the thing itself.
-    { id: "commands", glyph: "#", title: t("commandsTitle") },
-    // The glyph is the language you would switch *to*, which is the one thing a
+    // The face is the language you would switch *to*, which is the one thing a
     // reader who cannot read the current one can still act on.
-    { id: "language", glyph: lang === "he" ? "EN" : "עב", title: t("language") },
-    { id: "foldAll", glyph: "⊟", title: t("foldAll") },
-    { id: "unfoldAll", glyph: "⊞", title: t("unfoldAll") },
-    // Prose mode hides the markup. The glyph and the tooltip both name the mode
-    // the button switches *to*, and they have to agree: `🅐` with "prose" would
-    // be a button that says it does the thing it undoes.
+    { id: "language", place: "status", glyph: lang === "he" ? "EN" : "עב", title: t("language") },
+    // Prose mode hides the markup. The icon and the tooltip both name the mode
+    // the button switches *to*, and they have to agree.
     {
       id: "prose",
+      place: "status",
+      icon: s.prose ? "code" : "article",
       glyph: s.prose ? "🅐" : "＃",
       title: s.prose ? t("raw") : t("prose"),
       active: s.prose,
       toggle: true,
     },
-    // **One chip, and it opens a picker.**
-    //
-    // There were two here, and both *cycled*: `layout` through three fixed
-    // arrangements and `previewSide` through four positions. The margin comment
-    // was the same on each — *"I don't like cycles, I like that people can pick
-    // which they want"* — and it is right for a reason worth writing down: a
-    // cycle is a picker with the choices hidden and the wrong ones on the way to
-    // the right one. Seven presses to see four options and get back where you
-    // started is not a control, it is a puzzle.
-    //
-    // Both are gone. The window is a tree of panes, so an arrangement is
-    // something you built or something this application ships, and either way it
-    // is chosen rather than arrived at. Which side the preview sits on stopped
-    // being a setting at all: it is which child of a split it is, and dragging a
-    // splitter or splitting a pane says it directly.
-    { id: "arrangement", glyph: "▥", title: t("arrangement") },
-    // The sun and the moon name the theme you would switch to, like the language
-    // chip. Anything is defensible here as long as it is one rule.
-    { id: "theme", glyph: dark ? "☀" : "🌙", title: t("theme") },
-    { id: "nikud", glyph: "אָ", title: t("nikud"), active: s.nikud, toggle: true },
-    { id: "history", glyph: "🕐", title: t("history") },
     {
       id: "record",
+      place: "status",
+      icon: s.recording ? "player-stop" : "player-record",
       glyph: s.recording ? "⏹" : "⏺",
       title: s.recording ? t("macroStop") : t("macroRecord"),
       active: s.recording,
       toggle: true,
     },
-    { id: "help", glyph: "?", title: t("help") },
-    { id: "settings", glyph: "⚙", title: t("settings") },
+    { id: "nikud", place: "status", icon: "ksav:nikud", glyph: "אָ", title: t("nikud"), active: s.nikud, toggle: true },
+    // The sun and the moon name the theme you would switch to, like the language.
+    { id: "theme", place: "status", icon: dark ? "sun" : "moon", glyph: dark ? "☀" : "🌙", title: t("theme") },
   ];
 }
 

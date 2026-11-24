@@ -1,4 +1,4 @@
-// The header's shell half: the wiring it needs and the chipbar it hangs.
+// The header's shell half: the wiring it needs and the frame's chips it draws.
 //
 // `header.ts` holds what the header *decides* and is tested there. This file is
 // the other half — `buildHeader` draws the DOM — and drawing is not something
@@ -6,7 +6,7 @@
 // picture is judged. What *can* be held here is the seam, which is the part of
 // this module that can be wrong without crashing:
 //
-//   · the three shell verbs arrive through `wireHeader` and nowhere else, so a
+//   · the two shell verbs arrive through `wireHeader` and nowhere else, so a
 //     second copy of `setSetting` here would be a fork of a rule that has one home
 //   · `CHIP_RUN` covers every chip `header.chips` can produce — a chip with no
 //     runner is a button that does nothing, and the type checker cannot see the
@@ -35,7 +35,6 @@ export async function run() {
     setSetting: () => {
       called += 1;
     },
-    startFind: () => true,
     toggleNikud: () => {
       called += 1;
     },
@@ -50,15 +49,15 @@ export async function run() {
   );
   ok("and exports one `wireHeader`", /export function wireHeader\(/u.test(src));
 
-  // The three verbs the header cannot import: each has exactly one home in
+  // The two verbs the header cannot import: each has exactly one home in
   // `main.ts`. If a second definition appears here, the header has started
   // deciding where a setting is written.
-  const localDefs = ["setSetting", "startFind", "toggleNikud"].filter((n) =>
+  const localDefs = ["setSetting", "toggleNikud"].filter((n) =>
     new RegExp(`^function ${n}\\b|^const ${n}\\b`, "mu").test(src),
   );
   check("none of the shell verbs is redefined here", localDefs, []);
 
-  // ---- the chipbar --------------------------------------------------------
+  // ---- the chips -----------------------------------------------------------
   //
   // Every chip the header can describe must have a runner. Read both ends: the
   // ids from `header.ts`'s `ChipId` union, the keys from `CHIP_RUN` here.
@@ -66,7 +65,7 @@ export async function run() {
   // Scoped to `ChipId`'s own declaration. `header.ts` also declares `FileItemId`
   // and `ExportId`, and a sweep over every `| "…"` line read those as chips —
   // `newDoc`, `open`, `save` and the rest — which made the completeness check
-  // fail on ids that have nothing to do with the chipbar.
+  // fail on ids that have nothing to do with the chips.
   const chipUnion = unionSrc.slice(
     unionSrc.indexOf("export type ChipId ="),
     unionSrc.indexOf("/**", unionSrc.indexOf("export type ChipId =")),
@@ -75,7 +74,7 @@ export async function run() {
   // trailing punctuation silently dropped exactly one id — `settings` — which is
   // the chip most likely to be looked for.
   const ids = [...chipUnion.matchAll(/^\s*\| "([A-Za-z][\w]*)"[;]?$/gmu)].map((m) => m[1]);
-  ok("the chip union has ids to check", ids.length >= 15);
+  ok("the chip union has ids to check", ids.length >= 10);
 
   // Sliced from `CHIP_RUN` to its own closing brace. This file also holds
   // `FILE_RUN` and `EXPORT_RUN`, and a slice that ran on past `CHIP_RUN` picked

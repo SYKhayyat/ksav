@@ -1287,6 +1287,7 @@ export const HE: Dict = {
   keepMenuPositionLabel: "תפריטים נפתחים במקום שבו הושארו",
   shellMenuButton: "☰ תפריט",
   ribbonTabs: "לשוניות הסרגל",
+  quickAccess: "גישה מהירה",
   ribbonMore: "עוד ב{0}",
   ribbonGear: "הגדרות {0}",
   proseStripLabel: "רצועת ההקשר מופיעה גם בטקסט רגיל",

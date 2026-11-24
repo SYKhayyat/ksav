@@ -135,8 +135,6 @@ const INVENTORY = {
   "src/boot.ts:takeSnapshot": "returns a promise the snapshot module already handles",
   "src/boot.ts:wiring": "guarded; the command dispatcher's own catch handles it",
   "src/appheader.ts:redo": "returns a promise the editor already handles",
-  "src/appheader.ts:foldAll": "a synchronous fold walk",
-  "src/appheader.ts:unfoldAll": "a synchronous fold walk",
   "src/girsa.ts:runPoll": "a timer tick, not a promise",
   "src/watch.ts:tick": "try/catch/finally with the reason in a comment — the model for this file",
 };

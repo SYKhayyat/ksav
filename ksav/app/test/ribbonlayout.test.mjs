@@ -156,13 +156,14 @@ export async function run() {
   try {
     settings.shell = { ...SHELL_DEFAULTS, ribbon: empty };
     const r = buildRibbon();
-    check("the strip is empty but drawn", r.children[0].children.length, 0);
+    check("the strip is empty but drawn", r.children[0].children[0].children.length, 0);
     const bar = { setAttribute(k, v) { this[k] = v; } };
     const toggle = menuToggle(bar);
     toggle.click();
     check("and ☰ still opens the menus", bar["data-folded"], "open");
-    const header = src("appheader.ts");
-    ok("☰ does not depend on the ribbon", /^\s*menuToggle\(menubar\),$/m.test(header));
+    // ☰ rides at the end of the tab row, and a row with no tabs still has an end.
+    const withMenu = buildRibbon([toggle]);
+    check("☰ is still drawn with no tab to draw beside it", withMenu.children[0].children.at(-1), toggle);
 
     // ----------------------------------------------- 7. the renderer
     const mine = structuredClone(def);
@@ -179,7 +180,7 @@ export async function run() {
     settings.shell = { ...SHELL_DEFAULTS, ribbon: mine };
     setContext(null);
     const rib = buildRibbon();
-    const strip = rib.children[0];
+    const strip = rib.children[0].children[0];
     const names = strip.children.map((b) => b.children[0]);
     ok("a user tab is drawn with its name", names.includes("קונטרס"));
     ok("a renamed tab with the writer's name", names.includes("הכנסה שלי"));
@@ -205,13 +206,13 @@ export async function run() {
     const drawn = dom(buildRibbon());
     settings.shell = readShell(JSON.parse(JSON.stringify(settings.shell)));
     check("a stored ribbon restores the same DOM", dom(buildRibbon()), drawn);
-    buildRibbon().children[0].children.find((b) => b["data-tab"] === "home")?.click();
+    buildRibbon().children[0].children[0].children.find((b) => b["data-tab"] === "home")?.click();
   } finally {
     settings.shell = shellBefore;
     setContext(null);
     // The open tab is module state: hand Home back to the files that follow.
     settings.shell = { ...SHELL_DEFAULTS };
-    buildRibbon().children[0].children.find((b) => b["data-tab"] === "home").click();
+    buildRibbon().children[0].children[0].children.find((b) => b["data-tab"] === "home").click();
     settings.shell = shellBefore;
   }
 

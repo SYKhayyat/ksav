@@ -581,6 +581,30 @@ function headBefore(
   return { name: text.slice(start, end), hash: j >= 0 && text.charCodeAt(j) === 0x23 };
 }
 
+/**
+ * Lex again from a safe newline, and stop as soon as the old lex can take over.
+ *
+ * Why a newline at rest is a seam, rule by rule: a comment, a raw block and a
+ * string are skipped whole, so a newline the loop *visits* is inside none of
+ * them; a `//` comment ends at the newline; a statement ends at it; nothing is
+ * open, so no group spans it; and every look *back* — `headBefore`'s hop over
+ * written groups and its name, the `:` before `//`, the name before a bare call
+ * — stops at a newline, because a newline is neither a name character nor a
+ * closer. So what the lexer produces after such a newline is a function of the
+ * text after it alone, and what it produced before is a function of the text
+ * before it alone.
+ */
+interface Resume {
+  /** The first position to lex: one past a safe newline of the old lex, or 0. */
+  start: number;
+  /** The first position, in the new text, past the edit. */
+  stopFrom: number;
+  /** The old lex's safe newlines, in old positions. */
+  oldSafe: number[];
+  /** New length minus old length. */
+  delta: number;
+}
+
 interface LexOpts {
   /**
    * Pop on any closer, matching or not.
@@ -617,6 +641,7 @@ interface LexOpts {
 function lexCore(
   text: string,
   opts: LexOpts,
+  resume?: Resume,
 ): {
   comments: Comment[];
   raws: Comment[];
@@ -634,6 +659,15 @@ function lexCore(
    * `delimsOf` can rebuild the whole list the moment somebody asks. See #182.
    */
   closers: number[];
+  /**
+   * Every newline after which nothing is open — no group, no statement — in
+   * ascending order. Nothing the lexer reads crosses one (see `Resume`), so
+   * these are where an edited document can be lexed again from, and where the
+   * old lex can be taken up again after the edit.
+   */
+  safe: number[];
+  /** With `resume`: the safe newline the pass stopped at, or −1 if it ran to the end. */
+  stoppedAt: number;
   needsRecovery: boolean;
 } {
   LEX_PASSES++;
@@ -660,10 +694,17 @@ function lexCore(
   // `Scan`, consumers ask it `.get`/`.has`, and a typed array is *slower* there
   // — measured at 2.7 ms to rebuild a 2.5 MB one from the map's 15,390 entries
   // against 1.1 ms for the 30,000 lookups the assembly then makes.
-  const openOf = new Int32Array(text.length + 1);
+  // A resumed pass starts at `base` and never looks back past it, so its table
+  // is sized from there and indexed relative to it.
+  const base = resume ? resume.start : 0;
+  const openOf = new Int32Array(text.length + 1 - base);
   const heads: Head[] = [];
   const frames: Frame[] = [];
   const closers: number[] = [];
+  const safe: number[] = [];
+  let stoppedAt = -1;
+  // Where the old lex's safe points are read from while looking for one to stop at.
+  let oldAt = 0;
   const stack: { pos: number; code: number; ctx: Ctx; frame: Frame; structural: boolean }[] = [];
   let ctx: Ctx = "content";
   let needsRecovery = false;
@@ -683,7 +724,7 @@ function lexCore(
   let codeLine: { depth: number; restore: Ctx; frame: Frame } | null = null;
 
   const n = text.length;
-  for (let i = 0; i < n; i++) {
+  for (let i = base; i < n; i++) {
     const c = text.charCodeAt(i);
 
     if (c === 0x0a /* \n */) {
@@ -691,6 +732,20 @@ function lexCore(
         ctx = codeLine.restore;
         codeLine.frame.close = i;
         codeLine = null;
+      }
+      if (stack.length === 0 && codeLine === null) {
+        safe.push(i);
+        // Past the edit, at a newline the old lex was also at rest on: from
+        // here on the old lex *is* this one, moved by the edit's length.
+        if (resume && i >= resume.stopFrom) {
+          const was = i - resume.delta;
+          const old = resume.oldSafe;
+          while (oldAt < old.length && old[oldAt] < was) oldAt++;
+          if (old[oldAt] === was) {
+            stoppedAt = i;
+            break;
+          }
+        }
       }
       continue;
     }
@@ -787,7 +842,7 @@ function lexCore(
 
     // ---- delimiters ----
     if (c === 0x5b /* [ */ || c === 0x28 /* ( */ || c === 0x7b /* { */) {
-      const head = headBefore(text, i, openOf, 0);
+      const head = headBefore(text, i, openOf, base);
       // `[` is always content. `(` and `{` open code when the `#` is there, or
       // when we are already in code and they are an array, a block or a nested
       // argument list. **A bare `(` in markup is a character** — see the
@@ -814,7 +869,7 @@ function lexCore(
       closers.push(i * 2 + (structural ? 1 : 0));
       if (top && top.code === want) {
         closes.set(top.pos, i);
-        openOf[i] = top.pos + 1;
+        openOf[i - base] = top.pos + 1;
         top.frame.close = i;
         if (want === 0x5b) contentGroups.push({ from: top.pos + 1, to: i });
         stack.pop();
@@ -907,7 +962,7 @@ function lexCore(
   // `frames` is already in document order: a frame is pushed at its opener, and
   // openers arrive left to right. Nested frames therefore run outermost-first,
   // which is the order `framesAt` hands back.
-  return { comments, raws, strings, contentGroups, closes, heads, frames, closers, needsRecovery };
+  return { comments, raws, strings, contentGroups, closes, heads, frames, closers, safe, stoppedAt, needsRecovery };
 }
 
 type Lex = ReturnType<typeof lexCore>;
@@ -921,7 +976,10 @@ function lexical(text: string): (typeof LEX_CACHE)[number] {
     LEX_CACHE.push(hit);
     return hit;
   }
-  const entry = { text, strict: lexCore(text, { recover: false }) };
+  return remember({ text, strict: lexCore(text, { recover: false }) });
+}
+
+function remember(entry: (typeof LEX_CACHE)[number]): (typeof LEX_CACHE)[number] {
   LEX_CACHE.push(entry);
   if (LEX_CACHE.length > CACHE_SIZE) LEX_CACHE.shift();
   return entry;
@@ -1399,7 +1457,7 @@ export function scan(text: string): Scan {
     }
   }
   SCAN_MISSES++;
-  const fresh = scanUncached(text);
+  const fresh = rescan(text) ?? scanUncached(text);
   CACHE.push(fresh);
   if (CACHE.length > CACHE_SIZE) CACHE.shift();
   return fresh;
@@ -1535,6 +1593,85 @@ export function clearScanCache(): void {
   resetScanInstrumentation();
 }
 
+/** One call, from its head and the delimiters that close. */
+function buildNode(text: string, h: Head, closes: Map<number, number>, preparedArgs?: ArgFacts): Node {
+  const name = text.slice(h.nameFrom, h.nameTo);
+  let at = skipSpaceTab(text, h.nameTo);
+  let args: Group | null = null;
+  if (text[at] === "(") {
+    const close = closes.get(at);
+    // An argument list that never closes leaves the call head-only rather than
+    // swallowing the document — the same choice every matcher here made, kept.
+    if (close != null) {
+      args = { from: at + 1, to: close };
+      at = skipSpaceTab(text, close + 1);
+    }
+  }
+  const bodies: Group[] = [];
+  while (text[at] === "[") {
+    const close = closes.get(at);
+    if (close == null) break;
+    bodies.push({ from: at + 1, to: close });
+    at = skipSpaceTab(text, close + 1);
+  }
+  const to =
+    bodies.length > 0
+      ? bodies[bodies.length - 1].to + 1
+      : args != null
+        ? args.to + 1
+        : h.nameTo;
+
+  const node: Node = {
+    from: h.from,
+    to,
+    name,
+    hash: h.hash,
+    lang: langOf(name),
+    nameFrom: h.nameFrom,
+    nameTo: h.nameTo,
+    args,
+    bodies,
+    ctx: h.ctx,
+    depth: 0,
+    parent: null,
+    children: [],
+    role: "other",
+  };
+  classify(text, node, closes, preparedArgs);
+  return node;
+}
+
+/**
+ * Containment, from the flat list. `heads` is already in document order, so a
+ * stack of still-open ancestors is enough and no sorting is needed.
+ */
+function contain(nodes: Node[], roots: Node[]): void {
+  const open: Node[] = [];
+  for (const node of nodes) {
+    while (open.length && open[open.length - 1].to <= node.from) open.pop();
+    const parent = open[open.length - 1] ?? null;
+    node.parent = parent;
+    node.depth = parent ? parent.depth + 1 : 0;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+    open.push(node);
+  }
+}
+
+/**
+ * A table's cells and its non-cell arguments, once per scan. This needs the
+ * containment tree, so it cannot happen in `classify`.
+ */
+function tableParts(text: string, nodes: Node[], preparedArgs?: ArgFacts): void {
+  for (const node of nodes) {
+    if (node.role !== "table" || !node.args) continue;
+    node.cells = node.children.filter((c) => c.role === "cell");
+    node.options = (preparedArgs ? splitArgsFromFacts(text, node.args.from, node.args.to, preparedArgs) : splitArgs(text, node.args.from, node.args.to))
+      .map((g) => text.slice(g.from, g.to).trim())
+      .filter((a) => !CELL_ARG.test(a) && !COLS_ARG_HEAD.test(a));
+  }
+}
+
 function assembleScan(
   text: string,
   lex: AssemblyLex,
@@ -1548,76 +1685,14 @@ function assembleScan(
   const preparedArgs = suppliedFacts ? argumentFacts(lex, text.length) : undefined;
 
   for (const h of heads) {
-    const name = text.slice(h.nameFrom, h.nameTo);
-    let at = skipSpaceTab(text, h.nameTo);
-    let args: Group | null = null;
-    if (text[at] === "(") {
-      const close = closes.get(at);
-      // An argument list that never closes leaves the call head-only rather than
-      // swallowing the document — the same choice every matcher here made, kept.
-      if (close != null) {
-        args = { from: at + 1, to: close };
-        at = skipSpaceTab(text, close + 1);
-      }
-    }
-    const bodies: Group[] = [];
-    while (text[at] === "[") {
-      const close = closes.get(at);
-      if (close == null) break;
-      bodies.push({ from: at + 1, to: close });
-      at = skipSpaceTab(text, close + 1);
-    }
-    const to =
-      bodies.length > 0
-        ? bodies[bodies.length - 1].to + 1
-        : args != null
-          ? args.to + 1
-          : h.nameTo;
-
-    const node: Node = {
-      from: h.from,
-      to,
-      name,
-      hash: h.hash,
-      lang: langOf(name),
-      nameFrom: h.nameFrom,
-      nameTo: h.nameTo,
-      args,
-      bodies,
-      ctx: h.ctx,
-      depth: 0,
-      parent: null,
-      children: [],
-      role: "other",
-    };
-    classify(text, node, closes, preparedArgs);
+    const node = buildNode(text, h, closes, preparedArgs);
     nodes.push(node);
     byStart.set(node.from, node);
   }
 
-  // Containment, from the flat list. `heads` is already in document order, so a
-  // stack of still-open ancestors is enough and no sorting is needed.
   const roots: Node[] = [];
-  const open: Node[] = [];
-  for (const node of nodes) {
-    while (open.length && open[open.length - 1].to <= node.from) open.pop();
-    const parent = open[open.length - 1] ?? null;
-    node.parent = parent;
-    node.depth = parent ? parent.depth + 1 : 0;
-    if (parent) parent.children.push(node);
-    else roots.push(node);
-    open.push(node);
-  }
-
-  // A table's cells and its non-cell arguments, once per scan. This needs the
-  // containment tree, so it cannot happen in `classify`.
-  for (const node of nodes) {
-    if (node.role !== "table" || !node.args) continue;
-    node.cells = node.children.filter((c) => c.role === "cell");
-    node.options = (preparedArgs ? splitArgsFromFacts(text, node.args.from, node.args.to, preparedArgs) : splitArgs(text, node.args.from, node.args.to))
-      .map((g) => text.slice(g.from, g.to).trim())
-      .filter((a) => !CELL_ARG.test(a) && !COLS_ARG_HEAD.test(a));
-  }
+  contain(nodes, roots);
+  tableParts(text, nodes, preparedArgs);
 
   const scan: Scan = {
     nodes, roots, comments, recoveryComments,
@@ -1646,7 +1721,11 @@ function scanUncached(text: string): Scan {
   // as written, while `delims`/`comments` come from the recovery pass because
   // they are what the bracket lint reads. `scan-oracle.json` pins that split.
   const entry = lexical(text);
-  if (!entry.strict.needsRecovery) return assembleScan(text, entry.strict, entry.strict.comments);
+  if (!entry.strict.needsRecovery) {
+    const fresh = assembleScan(text, entry.strict, entry.strict.comments);
+    LEX_OF.set(fresh, entry.strict);
+    return fresh;
+  }
   const recovery = recoveryLex(entry, text);
   // Nodes from the strict pass, delimiters from the recovery one: a node tree
   // describes the document as written, while the delimiter list is what the
@@ -1654,9 +1733,232 @@ function scanUncached(text: string): Scan {
   return assembleScan(text, { ...entry.strict, closers: recovery.closers }, recovery.comments);
 }
 
+/**
+ * The scan of `text` from nothing, reading and writing no cache — the oracle
+ * the incremental path is held to, and nothing else's to call.
+ */
+export function scanFromScratch(text: string): Scan {
+  const strict = lexCore(text, { recover: false });
+  if (!strict.needsRecovery) return assembleScan(text, strict, strict.comments);
+  const recovery = lexCore(text, { recover: true });
+  return assembleScan(text, { ...strict, closers: recovery.closers }, recovery.comments);
+}
+
 /** The recovery-mode lex of `text`, lexed at most once per cache entry. */
 function recoveryLex(entry: { recovery?: Lex }, text: string): Lex {
   return entry.recovery ?? (entry.recovery = lexCore(text, { recover: true }));
+}
+
+// ---------------------------------------------------------------- an edit
+//
+// #238. A keystroke changes a few characters and the scan above re-lexed and
+// re-assembled all of them: 23 ms at 634 KB, on the editor's own keystroke path
+// (`ksav-lang.ts` decorates from `scan(text)` synchronously). Most of a
+// document is the same document it was a keystroke ago, and `Resume` says why
+// the lex of it is too: nothing crosses a newline at rest. So a miss whose
+// text is the most recent scan's text with one region changed lexes from the
+// last such newline before the change to the first one after it that the old
+// lex also rested on, and takes the rest from the old scan — the prefix as the
+// very same objects, the tail moved by the change's length.
+//
+// The answer is exactly the answer `scanUncached` gives, and that is the whole
+// of the contract: `scanincremental.test.mjs` edits documents at random and
+// compares every field. Anything this cannot splice — a document the strict
+// lex calls unbalanced, which takes the recovery pass — goes the long way.
+
+/** The strict lex each scan was assembled from, for the next edit to resume. */
+const LEX_OF = new WeakMap<Scan, Lex>();
+
+/**
+ * Below this a whole scan is cheaper than finding the edit. Measured at the
+ * crossover: a 16 KB document scans in well under a millisecond.
+ */
+const INCREMENTAL_FROM = 16_384;
+
+/** The first index whose key is at least `at`, in a list sorted by key. */
+function lowerBound<T>(items: readonly T[], at: number, key: (t: T) => number): number {
+  let lo = 0;
+  let hi = items.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (key(items[mid]) < at) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+const ident = (n: number) => n;
+
+/** Old items keyed below `head`, then the window's, then old items keyed from `tail` on, moved. */
+function splice<T>(old: readonly T[], mid: readonly T[], key: (t: T) => number, head: number, tail: number, move: ((t: T) => T) | null): T[] {
+  const out = old.slice(0, lowerBound(old, head, key));
+  for (const x of mid) out.push(x);
+  for (let i = tail === Infinity ? old.length : lowerBound(old, tail, key); i < old.length; i++) {
+    out.push(move ? move(old[i]) : old[i]);
+  }
+  return out;
+}
+
+function spliceLex(old: Lex, win: Lex, head: number, tail: number, delta: number): Lex {
+  const moved = delta !== 0;
+  const range = <T extends Group>(g: T): T => ({ ...g, from: g.from + delta, to: g.to + delta });
+  const ranges = <T extends Group>(a: T[], w: T[]) => splice(a, w, (g) => g.from, head, tail, moved ? range : null);
+  // In closing order, as the lexer wrote it: the prefix's groups all closed
+  // before the window's opened, and the tail's all after the window's closed.
+  const closes = new Map<number, number>();
+  for (const [o, c] of old.closes) {
+    if (o >= head) break;
+    closes.set(o, c);
+  }
+  for (const [o, c] of win.closes) closes.set(o, c);
+  if (tail !== Infinity) for (const [o, c] of old.closes) if (o >= tail) closes.set(o + delta, c + delta);
+  return {
+    comments: ranges(old.comments, win.comments),
+    raws: ranges(old.raws, win.raws),
+    strings: ranges(old.strings, win.strings),
+    contentGroups: ranges(old.contentGroups, win.contentGroups),
+    closes,
+    heads: splice(old.heads, win.heads, (h) => h.from, head, tail, moved
+      ? (h) => ({ ...h, from: h.from + delta, nameFrom: h.nameFrom + delta, nameTo: h.nameTo + delta })
+      : null),
+    frames: splice(old.frames, win.frames, (f) => f.open, head, tail, moved
+      ? (f) => ({ ...f, open: f.open + delta, close: f.close + delta })
+      : null),
+    closers: splice(old.closers, win.closers, (x) => x >> 1, head, tail, moved ? (x) => x + 2 * delta : null),
+    safe: splice(old.safe, win.safe, ident, head, tail, moved ? (x) => x + delta : null),
+    stoppedAt: -1,
+    needsRecovery: false,
+  };
+}
+
+/**
+ * `byStart`, built when first read: most keystrokes never look a node up by
+ * its start, and a map of every node is a third of what a rescan would cost.
+ */
+function demandByStart(scan: Scan): void {
+  Object.defineProperty(scan, "byStart", {
+    configurable: true,
+    enumerable: true,
+    get(this: Scan) {
+      const built = new Map<number, Node>();
+      for (const n of this.nodes) built.set(n.from, n);
+      Object.defineProperty(this, "byStart", { configurable: true, enumerable: true, writable: true, value: built });
+      return built;
+    },
+  });
+}
+
+/** A tail node, moved. Its tree is rebuilt by `contain`; `options` are text and do not move. */
+function moveNode(o: Node, delta: number): Node {
+  const g = (r: Group): Group => ({ from: r.from + delta, to: r.to + delta });
+  const bodies = o.bodies.map(g);
+  const n: Node = {
+    from: o.from + delta,
+    to: o.to + delta,
+    name: o.name,
+    hash: o.hash,
+    lang: o.lang,
+    nameFrom: o.nameFrom + delta,
+    nameTo: o.nameTo + delta,
+    args: o.args && g(o.args),
+    bodies,
+    ctx: o.ctx,
+    depth: 0,
+    parent: null,
+    children: [],
+    role: o.role,
+  };
+  // In the order `classify` and `tableParts` write them, so a moved node has the
+  // shape a fresh one has.
+  if (o.level !== undefined) n.level = o.level;
+  if (o.levelFixed !== undefined) n.levelFixed = o.levelFixed;
+  if (o.titleGroups !== undefined) n.titleGroups = o.titleGroups === o.bodies ? bodies : o.titleGroups.map(g);
+  if (o.listKind !== undefined) n.listKind = o.listKind;
+  if (o.cols !== undefined) n.cols = o.cols;
+  if (o.widths !== undefined) n.widths = o.widths;
+  if (o.colsArg !== undefined) n.colsArg = g(o.colsArg);
+  if (o.cells !== undefined) n.cells = [];
+  if (o.options !== undefined) n.options = o.options;
+  if (o.header !== undefined) n.header = o.header;
+  if (o.span !== undefined) n.span = o.span;
+  return n;
+}
+
+/**
+ * The scan of `text`, from the most recent scan and a lex of only the part of
+ * the document the edit could have changed — or null, to scan it whole.
+ */
+function rescan(text: string): Scan | null {
+  if (text.length < INCREMENTAL_FROM) return null;
+  const was = CACHE[CACHE.length - 1];
+  const lex = was && LEX_OF.get(was);
+  if (!lex) return null;
+  const old = was.text;
+
+  // The edit: what is left between the longest common prefix and suffix.
+  const room = Math.min(old.length, text.length);
+  const delta = text.length - old.length;
+  let p = 0;
+  while (p < room && old.charCodeAt(p) === text.charCodeAt(p)) p++;
+  // The suffix by native comparison of ever longer tails first: a keystroke
+  // near the top would otherwise walk the whole rest of the document in a
+  // `charCodeAt` loop, which is most of what a keystroke cost.
+  let q = 0;
+  for (let m = 16; ; m *= 2) {
+    const a = p + m;
+    const b = a + delta;
+    if (a >= old.length || b >= text.length) break;
+    if (b >= p && old.slice(a) === text.slice(b)) {
+      q = old.length - a;
+      break;
+    }
+  }
+  while (q < room - p && old.charCodeAt(old.length - 1 - q) === text.charCodeAt(text.length - 1 - q)) q++;
+
+  // From the last newline at rest before the edit; the newline itself is the
+  // old lex's and stays in the prefix.
+  const k = lowerBound(lex.safe, p, ident) - 1;
+  const s = k >= 0 ? lex.safe[k] : -1;
+  const win = lexCore(text, { recover: false }, { start: s + 1, stopFrom: text.length - q, oldSafe: lex.safe, delta });
+  if (win.needsRecovery) return null;
+  const head = s + 1;
+  const tail = win.stoppedAt < 0 ? Infinity : win.stoppedAt - delta + 1;
+  const strict = spliceLex(lex, win, head, tail, delta);
+  remember({ text, strict });
+
+  // Nodes: none crosses a newline at rest — a call's groups are closed and
+  // only spaces and tabs sit between them — so the three runs are three
+  // forests, and a tree rebuilt over each is the tree over all of them.
+  const nodes = was.nodes.slice(0, lowerBound(was.nodes, head, (n) => n.from));
+  const roots = was.roots.slice(0, lowerBound(was.roots, head, (n) => n.from));
+  const mid = win.heads.map((h) => buildNode(text, h, strict.closes));
+  contain(mid, roots);
+  tableParts(text, mid);
+  for (const n of mid) nodes.push(n);
+  if (tail !== Infinity) {
+    const from = lowerBound(was.nodes, tail, (n) => n.from);
+    if (delta === 0) {
+      for (let i = from; i < was.nodes.length; i++) nodes.push(was.nodes[i]);
+      for (let i = lowerBound(was.roots, tail, (n) => n.from); i < was.roots.length; i++) roots.push(was.roots[i]);
+    } else {
+      const moved: Node[] = [];
+      for (let i = from; i < was.nodes.length; i++) moved.push(moveNode(was.nodes[i], delta));
+      contain(moved, roots);
+      for (const n of moved) {
+        if (n.cells) n.cells = n.children.filter((c) => c.role === "cell");
+        nodes.push(n);
+      }
+    }
+  }
+  const fresh: Scan = {
+    nodes, roots, comments: strict.comments, recoveryComments: strict.comments, delims: [],
+    raws: strict.raws, strings: strict.strings, contentGroups: strict.contentGroups,
+    byStart: new Map(), closes: strict.closes, frames: strict.frames, text,
+  };
+  demandByStart(fresh);
+  demandDelims(fresh, strict, text);
+  LEX_OF.set(fresh, strict);
+  return fresh;
 }
 
 // ------------------------------------------------------------------- context

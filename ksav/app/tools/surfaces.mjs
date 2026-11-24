@@ -168,7 +168,23 @@ export const RECIPES = new Map([
   ["styles-panel", { how: HOW.action, action: "stylesPanel" }],
   ["review-panel", { how: HOW.action, action: "reviewPanel" }],
   ["git-panel", { how: HOW.chip, chip: "git" }],
-  ["notes-chooser", { how: HOW.action, action: "notesChooser" }],
+  [
+    "notes-chooser",
+    {
+      how: HOW.driven,
+      why:
+        "Not a face (#233, §5): the chooser is a launcher, so it lives in the ⚙ at the " +
+        "notes group's corner and as a row in the Notes menu. The ⚙ is the one driven — " +
+        "the same door as the menu row with one press fewer, and it is the only thing in " +
+        "this run that presses a group's launcher.",
+      drive: async (p) => {
+        await p.click('.ribbon [role="tab"][data-tab="notes"]');
+        await p.click('.ribbon-panel [data-menu="gear-notes"] > .menu-btn');
+        await p.click('.ribbon-panel [data-menu="gear-notes"] [data-action="notesChooser"]');
+        await p.waitFor("#notes-chooser.open", 10_000);
+      },
+    },
+  ],
   ["arrangement", { how: HOW.action, action: "arrangement" }],
   ["history-modal", { how: HOW.action, action: "history" }],
   [
@@ -427,8 +443,12 @@ export const RECIPES = new Map([
         "ribbon leaves the caret inside the table it made.",
       drive: async (p) => {
         await p.newLine();
-        await p.click('[data-menu="table"] > .menu-btn');
-        await p.click('[data-menu="table"] [data-action="table"]');
+        // *Insert table* is on the Insert tab and not in the Table menu (spec §5):
+        // the Table menu holds the operations on a table, and it is not even on the
+        // strip until the caret is in one. This drive used the menu row until #233's
+        // taxonomy moved it, and the sweep found the row gone.
+        await p.click('.ribbon [role="tab"][data-tab="insert"]');
+        await p.click('.ribbon-panel [data-action="table"]');
         await p.waitFor("#context-bar.open", 10_000);
       },
     },
@@ -540,6 +560,55 @@ export const CORE = [
       "It is how a reader knows whether they are on the server engine or the " +
       "in-browser one, and step 0 asserts its text. Text nobody can see is not an " +
       "answer to that question.",
+  },
+  // ---- the shell (#233, step 10) ----
+  //
+  // Four things the window gained and every step below now depends on. Each is
+  // here because *this run clicks through it*: the tabs are the only way to a
+  // command, File is the only door to the backstage, Quick Access holds the three
+  // verbs pressed most often, and the Font group's two boxes are the only
+  // controls on the ribbon that are not buttons. A row at zero height would leave
+  // every one of those clicks landing on something a person cannot see, which is
+  // the failure this whole list exists to refuse.
+  {
+    name: "the tab row",
+    selector: ".ribbon-tabs",
+    why:
+      "Since #233 a tab is the only way to any command: `clickAction` opens tabs to " +
+      "reach buttons, so a tab row at zero width makes most of this run unreachable — " +
+      "and Playwright's actionability check would not say so.",
+  },
+  {
+    name: "File",
+    selector: ".ribbon-head .ribbon-file",
+    why:
+      "File is not a tab (spec §6): it is a button at the start of the tab row, and " +
+      "it is the only door to the backstage, which is where save, export and the " +
+      "document library live. Step 7 exports a PDF through it.",
+  },
+  {
+    name: "Quick Access",
+    selector: ".title-row .quick-access",
+    why:
+      "Save, undo and redo left the old chip row for this bar (spec §4), and the " +
+      "title row is what a reader looks at without choosing a tab. A bar with no box " +
+      "is undo and redo gone with nothing saying where they went.",
+  },
+  {
+    name: "the font box",
+    selector: "#ribbon-panel #font-face-box",
+    why:
+      "The Font group opens with the font and size boxes (spec §5), and they are the " +
+      "ribbon's only `<select>`: the key-tip layer takes `select` elements as targets " +
+      "precisely because of them. A select at zero size is a control a writer can " +
+      "neither read nor reach.",
+  },
+  {
+    name: "the size box",
+    selector: "#ribbon-panel #font-size-box",
+    why:
+      "Its twin, and named separately because one box on the screen and the other " +
+      "missing is exactly the half-drawn group a single probe would report as fine.",
   },
 ];
 

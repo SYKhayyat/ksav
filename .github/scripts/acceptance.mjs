@@ -869,9 +869,15 @@ async function main() {
 
   /**
    * A ribbon button, reached the way a writer reaches it (#233, §4): on the open
-   * tab if it is there, else on the first tab that has it on a face, else in a
-   * group's `⋯`. Every tab and every menu opened on the way is a measured click,
-   * so a button that is on no tab is a timeout naming it, never a skip.
+   * tab if it is there, else on the first tab that has it on a face, else behind a
+   * group's `⋯` or its `⚙`. Every tab and every menu opened on the way is a
+   * measured click, so a button that is on no tab is a timeout naming it, never a
+   * skip.
+   *
+   * The `⚙` was added in step 10, when the notes chooser stopped being a face and
+   * became a launcher (§5): it is a row under a group's corner control, which is
+   * the same door as `⋯` with one press more and no distinction this search cares
+   * about.
    */
   async function clickAction(name, id) {
     const face = `.ribbon-panel [data-action="${id}"]`;
@@ -886,7 +892,7 @@ async function main() {
     }
     for (const tab of tabs) {
       await page.click(`.ribbon [role="tab"][data-tab="${tab}"]`, { timeout: 15_000 });
-      const mores = await page.$$eval('.ribbon-panel .menu[data-menu^="more-"]', (ms) => ms.map((m) => m.getAttribute("data-menu")));
+      const mores = await page.$$eval('.ribbon-panel .menu[data-menu^="more-"], .ribbon-panel .menu[data-menu^="gear-"]', (ms) => ms.map((m) => m.getAttribute("data-menu")));
       for (const m of mores) {
         const menu = `.ribbon-panel .menu[data-menu="${m}"]`;
         await page.click(`${menu} > .menu-btn`, { timeout: 15_000 });
@@ -895,7 +901,7 @@ async function main() {
         await page.keyboard.press("Escape");
       }
     }
-    throw new Error(`${name}: no ribbon tab or ⋯ holds [data-action="${id}"]`);
+    throw new Error(`${name}: no ribbon tab, ⋯ or ⚙ holds [data-action="${id}"]`);
   }
 
   /** The control a recipe opens its surface with: a chip in the frame, or a ribbon button. */
@@ -909,11 +915,21 @@ async function main() {
    * writer reaches it, by opening ☰ first — measured, like every other click.
    */
   async function unfold(selector) {
-    const folded = await page.evaluate((sel) => {
-      const bar = document.getElementById("shell-menubar");
-      const el = document.querySelector(sel);
-      return !!bar && !!el && bar.contains(el) && bar.getAttribute("data-folded") === "folded";
-    }, selector);
+    // A selector Playwright understands and the DOM does not — `:has-text` — is
+    // asked about here too, because every click in this file comes through this
+    // function first. `document.querySelector` throws on it, and the throw used to
+    // end the run rather than answer the question: a text selector names a line in
+    // the editor, which is never inside the folded menu bar, so the answer is
+    // "not folded" and the click goes ahead. Caught by this run at `page.evaluate:
+    // SyntaxError` — a crash in a best-effort helper, ten steps from the thing it
+    // was checking.
+    const folded = await page
+      .evaluate((sel) => {
+        const bar = document.getElementById("shell-menubar");
+        const el = document.querySelector(sel);
+        return !!bar && !!el && bar.contains(el) && bar.getAttribute("data-folded") === "folded";
+      }, selector)
+      .catch(() => false);
     if (!folded) return;
     await visible("☰", ".shell-menu-btn");
     await page.click(".shell-menu-btn", { timeout: 15_000 });
@@ -1282,11 +1298,12 @@ async function main() {
   step(4, "a table, and then a row in it");
   current = "table";
   await newLine();
-  // The table's one home is the Table menu and tab (spec §5).
-  await act("choosing Table ▸ table", async () => {
-    await clickVisible("the Table menu", '[data-menu="table"] > .menu-btn');
-    await clickVisible("the table row", '[data-menu="table"] [data-action="table"]');
-  });
+  // *Insert table* lives on Insert (spec §5): the Table menu and the Table tab
+  // hold the operations on a table, and the tab is not even on the strip until
+  // the caret is in one. This step drove it from `[data-menu="table"]` until
+  // #233's taxonomy moved it, and the selector went on naming a row that was no
+  // longer there — found by this run, which is what step 10 is for.
+  await act("choosing Insert ▸ table", () => clickAction("the table button", "table"));
   await act("typing in a cell", () => type("עמודה"));
   // Through the palette, which is where a structural operation lives: it is
   // offered only when the caret is actually inside a table, so finding it here
@@ -1304,9 +1321,7 @@ async function main() {
   current = "footnote";
   await newLine();
   await type("ועיין ברש\"י");
-  await act("clicking † in the ribbon", () =>
-    clickVisible("the † button", '.ribbon-panel [data-action="footnote"]'),
-  );
+  await act("clicking † in the ribbon", () => clickAction("the † button", "footnote"));
   // A parenthesis and a gershayim in one Hebrew note is the §6 bug exactly: the
   // scanner used to read `(רש"י)` as an open string and mis-colour, mis-fold and
   // mis-complete everything after it. It is fixed and fenced offline; this is
@@ -1321,8 +1336,12 @@ async function main() {
   step(6, "an endnote");
   current = "endnote";
   await newLine();
-  // On Home the endnote sits behind the notes group's ⋯ (spec §5, `HOME`).
+  // On Home the endnote sits behind the notes group's ⋯ (spec §5, `HOME`). The
+  // tab is opened first because the step before it left another one open: since
+  // #233 the ribbon draws one tab's groups, so "in the ribbon" is no longer a
+  // place a selector can name on its own.
   await act("choosing ⋯ ▸ endnote in the toolbar", async () => {
+    await clickVisible("the Home tab", '.ribbon [role="tab"][data-tab="home"]');
     await clickVisible("the notes group's ⋯", '.ribbon-panel [data-menu="more-homeNotes"] > .menu-btn');
     await clickVisible("the endnote row", '.ribbon-panel [data-menu="more-homeNotes"] [data-action="endnote"]');
   });
@@ -1629,6 +1648,10 @@ async function main() {
           .evaluate(() => document.getElementById("status")?.textContent ?? "")
           .catch(() => "");
         const left = await recover().catch(() => []);
+        // And the application put back the way the recipe found it, because a
+        // drive that failed halfway has usually changed something already. Its own
+        // failure is not reported: the drive's is.
+        if (e.undrive) await e.undrive(driver).catch(() => {});
         check(
           `${p.id} can be opened`,
           false,
@@ -1681,6 +1704,15 @@ async function main() {
     } else {
       await putAway(p.id, e, root, mounted);
     }
+
+    // `undrive`, which `surfaces.mjs` has documented and declared since the
+    // minimap needed it, and which nothing ever called: a recipe that turns
+    // something on to reach a surface then left it on. The ribbon's own recipe is
+    // the one that made this visible — it collapses the ribbon, and the surface
+    // after it is a right-click on a face that is no longer on the screen. Two
+    // recipes carried the obligation and no runner read it, which is a contract
+    // that was only ever a comment.
+    if (e.undrive) await e.undrive(driver);
   }
 
   // The floor.
@@ -3347,7 +3379,7 @@ async function main() {
     const read = async () => ({
       pressed: await page.getAttribute(prose, "aria-pressed"),
       cls: (await page.getAttribute(prose, "class")) ?? "",
-      glyph: ((await page.textContent(prose)) ?? "").trim(),
+      glyph: ((await page.innerHTML(prose)) ?? "").trim(),
       title: (await page.getAttribute(prose, "title")) ?? "",
     });
     const before = await read();
@@ -3387,6 +3419,174 @@ async function main() {
       again.pressed === before.pressed,
       `${before.pressed} → ${again.pressed}`,
     );
+  }
+
+  // ------------------------------------------------ 21. the shell (§4, §7, §8)
+  //
+  // #233 step 10. Five features landed after most of this file was written, and
+  // every one of them is a fact about a live browser rather than about a tree:
+  // a tab row that is now the only way to a command, letters drawn on Alt, a
+  // ribbon that folds away, a conditional tab that comes and goes with the
+  // caret, and a Font group whose boxes and pressed states read the caret. The
+  // unit suite holds each of them against a fake DOM. None had been measured
+  // against the real stylesheet, where "in the tree" and "on the screen" are
+  // two different claims — which is the whole finding this file was written for.
+  {
+    step(21, "the shell says what it is doing: tabs, key tips, folding, the Font group");
+
+    // The ribbon, not the document, is what this step is about, so nothing may be
+    // over it. Step 20 opens the outline to click its rows and nothing shut it
+    // again: a `drawer-start` drawer is `top: 0; height: 100vh` on the start side,
+    // which is where the tab row is, and the first press here landed on it. Two
+    // steps in one run had no relationship until a third was added between them.
+    if ((await page.locator("#outline-drawer.open").count()) > 0) {
+      await clickVisible("the outline's ×", "#outline-drawer .styles-close");
+      await page.waitForTimeout(300);
+    }
+    check(
+      "nothing is over the ribbon at the start of this step",
+      (await page.locator("#outline-drawer.open").count()) === 0,
+      "the outline drawer is still up",
+    );
+
+    // ---- the tab row, File and Quick Access, measured rather than counted
+    const shell = await page.evaluate(() => {
+      const box = (n) => {
+        if (!n) return null;
+        const r = n.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      };
+      return {
+        strip: box(document.querySelector(".ribbon-tabs")),
+        file: box(document.querySelector(".ribbon-head .ribbon-file")),
+        quick: box(document.querySelector(".title-row .quick-access")),
+        tabs: [...document.querySelectorAll('.ribbon-tabs [role="tab"]')].map((b) => ({
+          tab: b.getAttribute("data-tab"),
+          selected: b.getAttribute("aria-selected") === "true",
+          contextual: b.getAttribute("data-contextual") === "true",
+          shown: b.hidden !== true && b.getBoundingClientRect().width > 0,
+        })),
+      };
+    });
+    check("the tab row is a box on the screen", (shell.strip?.w ?? 0) > 0 && (shell.strip?.h ?? 0) > 0, JSON.stringify(shell.strip));
+    check("File sits before the tabs, as its own door", (shell.file?.w ?? 0) > 0 && (shell.file?.h ?? 0) > 0, JSON.stringify(shell.file));
+    check("Quick Access is on the title row", (shell.quick?.w ?? 0) > 0 && (shell.quick?.h ?? 0) > 0, JSON.stringify(shell.quick));
+    check(
+      "the tabs on the row are the §5 tabs, and Table is not one of them here",
+      shell.tabs.filter((t) => t.shown).map((t) => t.tab).join(",") === "home,insert,layout,notes,sources,review,view",
+      JSON.stringify(shell.tabs),
+    );
+    check("exactly one tab is chosen", shell.tabs.filter((t) => t.selected).length === 1, JSON.stringify(shell.tabs.filter((t) => t.selected)));
+
+    // ---- the key tips (§8): Alt pressed and released alone, and F10
+    //
+    // Drawn on a layer over the row, so this counts tips with a box rather than
+    // nodes: a layer full of zero-sized spans is exactly the failure the offline
+    // test cannot see.
+    const tips = () =>
+      page.evaluate(
+        () => [...document.querySelectorAll(".keytips .keytip")].filter((s) => s.getBoundingClientRect().width > 0).length,
+      );
+    await clickVisible("the editor", ".cm-content");
+    check("no letters show until somebody asks", (await tips()) === 0, `${await tips()} showing`);
+    await page.keyboard.down("Alt");
+    await page.keyboard.up("Alt");
+    await page.waitForTimeout(200);
+    const onAlt = await tips();
+    check("Alt pressed and released alone letters the row", onAlt >= 6, `${onAlt} tips`);
+    await press("Escape");
+    await page.waitForTimeout(200);
+    check("Escape puts them away", (await tips()) === 0, `${await tips()} still showing`);
+    await press("F10");
+    await page.waitForTimeout(200);
+    check("F10 does the same", (await tips()) >= 6, `${await tips()} tips`);
+    await press("F10");
+    await page.waitForTimeout(200);
+    check("…and again takes them away", (await tips()) === 0, `${await tips()} still showing`);
+
+    // ---- ⌃ folds the ribbon and brings it back (§4, §7)
+    const panelBox = () =>
+      page.evaluate(() => {
+        const p = document.getElementById("ribbon-panel");
+        const r = p.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      });
+    const expandedAt = await page.getAttribute(".ribbon-collapse", "aria-expanded");
+    check("the ribbon says it is expanded", expandedAt === "true", String(expandedAt));
+    const full = await panelBox();
+    check("its groups have a height to lose", full.h > 20, JSON.stringify(full));
+    await clickVisible("⌃", ".ribbon-collapse");
+    await page.waitForTimeout(300);
+    const foldedAt = await page.getAttribute(".ribbon-collapse", "aria-expanded");
+    check("⌃ says the ribbon is folded", foldedAt === "false", String(foldedAt));
+    const folded = await panelBox();
+    check("…and the groups leave the page rather than shrinking", folded.h < full.h, `${full.h}px → ${folded.h}px`);
+    await clickVisible("⌃ again", ".ribbon-collapse");
+    await page.waitForTimeout(300);
+    const backAt = await page.getAttribute(".ribbon-collapse", "aria-expanded");
+    check("pressing it again brings them back", backAt === "true" && (await panelBox()).h >= full.h - 2, `${backAt} at ${(await panelBox()).h}px`);
+
+    // ---- the Font group (§5 step 9): the boxes follow the caret, and so does B
+    //
+    // Typed rather than assembled: `#הדגשה[אבג` leaves the caret inside the body
+    // whether or not the editor auto-closes brackets, and one `]` after it leaves
+    // the caret outside — so both halves of each pair are reached by typing, with
+    // no assumption about where CodeMirror puts a closer.
+    await clickVisible("Home", '.ribbon [role="tab"][data-tab="home"]');
+    await page.waitForSelector("#ribbon-panel #font-face-box", { timeout: 10_000 });
+    await newLine();
+    await type("#הדגשה[אבג");
+    await page.waitForTimeout(200);
+    const bold = '.ribbon-panel .tb-toggle-btn[data-command="הדגשה"]';
+    const pressedNow = () => page.getAttribute(bold, "aria-pressed");
+    check("B is pressed while the caret is inside a bold body", (await pressedNow()) === "true", String(await pressedNow()));
+    await type("]");
+    await page.waitForTimeout(200);
+    check("…and is not once the body closes behind it", (await pressedNow()) === "false", String(await pressedNow()));
+
+    await newLine();
+    await type("#גודל_גופן(20pt)[אבג");
+    await page.waitForTimeout(200);
+    const sizeShown = await page.inputValue("#ribbon-panel #font-size-box");
+    check("the size box shows the caret's own size", sizeShown === "20", sizeShown);
+    await type("]");
+    await page.waitForTimeout(200);
+    check("…and nothing once the caret is outside it", (await page.inputValue("#ribbon-panel #font-size-box")) === "", await page.inputValue("#ribbon-panel #font-size-box"));
+
+    await newLine();
+    await type('#גופן_שונה("David Libre")[אבג');
+    await page.waitForTimeout(200);
+    const fontShown = await page.inputValue("#ribbon-panel #font-face-box");
+    check("the font box names the font the caret is set in", fontShown === "David Libre", fontShown);
+    await type("]");
+    await page.waitForTimeout(200);
+    check("…and goes back to the document's own when it leaves", (await page.inputValue("#ribbon-panel #font-face-box")) === "", await page.inputValue("#ribbon-panel #font-face-box"));
+
+    // ---- the contextual tab (§8): it appears, and it goes
+    await newLine();
+    await clickAction("the table button", "table");
+    await type("תא");
+    await page.waitForTimeout(400);
+    const readTableTab = () =>
+      page.evaluate(() => {
+        const b = document.querySelector('.ribbon-tabs [role="tab"][data-tab="table"]');
+        if (!b) return null;
+        return {
+          hidden: b.hidden === true,
+          w: Math.round(b.getBoundingClientRect().width),
+          contextual: b.getAttribute("data-contextual"),
+        };
+      });
+    const inTable = await readTableTab();
+    check("the Table tab appears while the caret is in a table", !!inTable && !inTable.hidden && inTable.w > 0, JSON.stringify(inTable));
+    check("…in the contextual colour, not the accent", inTable?.contextual === "true", JSON.stringify(inTable));
+    // Out of the table altogether, which `newLine` is not: an Enter inside a
+    // `#טבלה` body starts a new **row**, so the caret stayed in the table and the
+    // tab stayed with it. The document's first line is prose.
+    await press("Control+Home");
+    await page.waitForTimeout(400);
+    const outOfTable = await readTableTab();
+    check("…and goes again when the caret leaves", !!outOfTable && outOfTable.hidden === true, JSON.stringify(outOfTable));
   }
 
   // ----------------------------------------------------------------- the tally

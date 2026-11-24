@@ -7,11 +7,10 @@ something went wrong without it.
 ## Latest — 2026-11-24, `shell-office` steps 9 and 10: the Font group, and the acceptance run
 
 Branch `shell-office` (main is `main`). The plan is `docs/ui-architecture.md` §12,
-steps 1–10; **steps 1–9 are committed**, step 10 — the acceptance run,
-`tools/surfaces.mjs` and screenshots with the real wasm engine — is the one left.
-Rules that held for every step: the full gate green, one commit tagged `(#233)`
-per step, no compatibility shims, and `/home/shaul/ksav-frontends` is another
-sitting's tree.
+steps 1–10; **all ten are committed**, and step 10 — the acceptance run,
+`tools/surfaces.mjs` and the screenshots — is the last of them. Rules that held
+for every step: the full gate green, one commit tagged `(#233)` per step, no
+compatibility shims, and `/home/shaul/ksav-frontends` is another sitting's tree.
 
 - **Step 9, the Font group.** The home row of §5: a font box and a size box open
   it, then the eight icon faces, with the highlighter and the text colour as
@@ -46,7 +45,7 @@ sitting's tree.
   draws no tabs. A stale `dist` is refused rather than measured, which the runner
   reports as a *threw*, not as a failure.
 - **Gate fences that bite.** `ksav/README.md` states the assertion and file counts
-  in two places (15,174 … across 178 files since step 9); `main.ts` must stay at or
+  in two places (15,195 … across 178 files since step 10); `main.ts` must stay at or
   under 1,500 lines (it is 1,499 — modules wire themselves on import instead); and
   an `export` only its own file reads fails the module-surface check, so `pressed`
   exports `wrappersIn`, not a text-taking wrapper the app never calls.
@@ -55,6 +54,54 @@ sitting's tree.
   bold" for a caret in an argument list. Two tests in `pressed.test.mjs` pin the
   corrected behaviour: *in the argument list: not in the body*, and *a half-typed
   body still counts*.
+
+- **Step 10, the acceptance run is green: 1,153 checks, 0 failures**, in the
+  assembled application with the real engine. `KSAV_CHROMIUM` set, and:
+  ```sh
+  npm run build                              # the HTTP-engine bundle the server embeds
+  cd ../engine && cargo build --release --features embed-ui     # ~10 min
+  cd .. && node .github/scripts/acceptance.mjs --port 7893       # 7877 was taken
+  ```
+  It refuses a `dist` newer than the server binary and a server that is not there,
+  which is why the release build comes after the bundle. The port matters this
+  time: another sitting's `ksav serve` already held 7877 and the run failed with
+  `cannot bind` before its first check.
+- **Seven faults, and every one of them was in the run rather than the shell.**
+  A run that had not been made since the taxonomy moved: `Insert ▸ table` is a
+  face of the Insert tab and not a row of the Table menu (§5), so two drivers
+  naming `[data-menu="table"] [data-action="table"]` timed out; the notes chooser
+  is a **launcher** — the `⚙` in the notes group's corner — and not a face, so
+  `clickAction` learned to look in `gear-` menus beside `more-` ones; the prose
+  chip's glyph is an icon now, so the check that its glyph *names the other mode*
+  has to read `innerHTML`; step 6 pressed the Home `⋯` while another tab was open,
+  which the one-tab ribbon cannot honour; a `:has-text` selector crashed `unfold`,
+  whose `page.evaluate` cannot parse a Playwright selector and now answers "not
+  folded" instead of ending the run; step 20 leaves the outline drawer up and a
+  `drawer-start` drawer covers the tab row, so step 21 shuts it first; and an
+  Enter inside a `#טבלה` body starts a **row**, so "the caret left the table" was
+  `Control+Home` and not `newLine`.
+- **`undrive` was a comment.** `tools/surfaces.mjs` has declared `undrive` since
+  the minimap needed it — "`drive` has to leave the surface on the screen;
+  `undrive` puts the application back" — and **nothing ever called it**. The
+  ribbon's recipe collapses the ribbon to reach its drop-down, and the surface
+  after it is a right-click on a face that is no longer there. The sweep calls it
+  now, on the way out and after a drive that failed, which is what a contract with
+  no caller is worth.
+- **The shell is measured at the two widths the plan names.** `tools/eyes.mjs`
+  gained `--size=WxH` and a repeatable `--click=<selector>` (the backstage and the
+  Table tab only exist after a press), and the four screenshots — 1366×768 and
+  680×768, Hebrew and English — were taken to `/tmp/eyes/`. **They were not looked
+  at** (no vision in this sitting, by policy), so what backs them is a DOM
+  measurement at the same widths instead: no horizontal overflow anywhere, seven
+  tabs, none of them outside the tab row, File and Quick Access on the title row
+  in both languages.
+- **A seam, filed as #246 rather than fixed here**: between about 648 and 668px of
+  ribbon width the strip draws *no command buttons at all* — six faces at 700px,
+  none at 680 and 660, twenty-four again at 640 where the simplified row takes
+  over. Nothing overlaps and nothing scrolls; the shrink walk spends its last
+  level on every group (its name in words) before the `⋯` gets a turn. Issue #243
+  — the red story run on `main` — is closed by this branch: its nine failures were
+  the four causes above.
 
 ## Latest — 2026-11-23, `shell-followups`: the tabs ribbon is the default, and everything was run
 

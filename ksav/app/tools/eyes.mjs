@@ -129,6 +129,31 @@ const caret = caretArg === undefined ? 0.5 : Number(caretArg);
  */
 const docArg = (args.find((a) => a.startsWith("--doc=")) ?? "").slice("--doc=".length);
 const doc = docArg ? readFileSync(docArg, "utf8") : DOC;
+/**
+ * `--size=WxH` — the window to photograph.
+ *
+ * `EYES_W` could only ever name a width, and the heights that matter are a
+ * claim of their own: 1366×768 and 680×768 are the two the plan asks for (§12
+ * step 10), and the second one is the width at which the ribbon is supposed to
+ * be the simplified one. A tool that cannot say 768 cannot take the picture the
+ * step is about.
+ */
+const sizeArg = (args.find((a) => a.startsWith("--size=")) ?? "").split("=")[1] ?? "";
+const sized = /^(\d+)x(\d+)$/u.exec(sizeArg);
+const viewport = {
+  width: sized ? Number(sized[1]) : Number(process.env.EYES_W ?? 1100),
+  height: sized ? Number(sized[2]) : Number(process.env.EYES_H ?? 900),
+};
+/**
+ * `--click=<selector>` — a gesture to make before the shutter.
+ *
+ * Repeatable, and added for the same reason as `--doc` and `--caret`: half of
+ * what this window does only exists after something is pressed. The backstage
+ * is a page over the document and the Table tab appears only under the caret, so
+ * a tool that can only photograph the state the application boots into cannot
+ * take a picture of either.
+ */
+const clicks = args.filter((a) => a.startsWith("--click=")).map((a) => a.slice("--click=".length));
 
 const settings = { ...(toggle ? { [toggle]: true } : {}) };
 for (const pair of sets) {
@@ -193,7 +218,7 @@ try {
     headless: true,
     args: ["--no-sandbox", "--disable-gpu", "--force-device-scale-factor=2"],
   });
-  const page = await browser.newPage({ viewport: { width: Number(process.env.EYES_W ?? 1100), height: 900 } });
+  const page = await browser.newPage({ viewport });
 
   // Settings are put in place **before the first navigation**, via an init script,
   // rather than by setting localStorage and reloading. The reload version worked
@@ -229,6 +254,13 @@ try {
     { doc, caret },
   );
   await page.waitForTimeout(500);
+
+  // The gestures, in the order they were asked for, each waited out: a
+  // screenshot taken between a press and what it drew is a picture of neither.
+  for (const sel of clicks) {
+    await page.click(sel, { timeout: 15_000 });
+    await page.waitForTimeout(400);
+  }
 
   // EYES_WIDE=1: name what is wider than the window, because a page that scrolls
   // sideways is a screenshot of the wrong half and says nothing about why.

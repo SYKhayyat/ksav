@@ -160,6 +160,10 @@ export const HE: Dict = {
   // dropdown offers — body text, the heading levels, and the writer's own
   // styles — and not for one of the three.
   styleGroup: "סגנונות",
+  textColour: "צבע הטקסט",
+  fontFace: "גופן",
+  fontDefault: "גופן המסמך",
+  fontSizeBox: "גודל גופן (נקודות)",
   highlightColour: "צבע ההדגשה",
   "bodyText": "טקסט רגיל",
   "format": "עיצוב",
@@ -1175,6 +1179,8 @@ export const HE: Dict = {
   networkError: "שגיאת רשת",
   noErrors: "אין שגיאות",
   registriesFailed: "רשימת הפקודות לא נטענה — הסרגל והתפריטים ריקים; מנסה שוב…",
+  "whyNot.loading": "המנוע עדיין נטען — הכפתור יפעל ברגע שיסיים.",
+  "whyNot.registry": "רשימת הפקודות נטענה בלי הפקודה הזאת — לחצו כדי לנסות שוב.",
   registryMissing: "הפקודה אינה זמינה — רשימת הפקודות עדיין לא נטענה.",
   registriesGaveUp: "רשימת הפקודות לא נטענה — הסרגל והתפריטים יישארו ריקים. רעננו את הדף.",
   // palette

@@ -15,7 +15,7 @@ import { COMMAND_EN } from "./engine.gen";
 import { ALIGN_ORDER, settings } from "./settings";
 import { readShell } from "./shellsettings";
 import * as runtime from "./runtime";
-import { alignEdgeOf, highlightControl, lazyMenu, missingControl, paragraphStyleControl } from "./ribbon";
+import { TOGGLES, alignEdgeOf, colourControl, fontBoxes, isColoured, lazyMenu, missingControl, paragraphStyleControl } from "./ribbon";
 import { actionName } from "./actions";
 import { savedNameMap } from "./macros";
 import { hintFor } from "./keyhint";
@@ -119,17 +119,19 @@ function faceButton(a: PlacedAction, size: FaceSize): HTMLElement {
   // beside them; an icon face keeps its words only for the reader that cannot
   // see the drawing, so the button still has a name and the tests a text.
   const lead = a.place.icon ? [icon(a.place.icon, size === "large" ? 32 : 16)] : [];
-  if (a.command?.he === "סימון") return highlightControl(label, lead, size);
+  if (isColoured(a.command?.he)) return colourControl(a.command!.he, label, lead, size);
   const edge = alignEdgeOf(a.command?.he);
+  const toggle = !!a.command && TOGGLES.has(a.command.he);
   return el(
     "button",
     {
-      class: "tb-btn ribbon-btn" + (edge ? " tb-align-btn" : ""),
+      class: "tb-btn ribbon-btn" + (edge ? " tb-align-btn" : "") + (toggle ? " tb-toggle-btn" : ""),
       type: "button",
       "data-action": a.id,
       "data-size": size,
       ...(a.command ? { "data-command": a.command.he } : {}),
-      ...(edge ? { "data-align": edge, "aria-pressed": "false" } : {}),
+      ...(edge || toggle ? { "aria-pressed": "false" } : {}),
+      ...(edge ? { "data-align": edge } : {}),
       ...(size === "icon" && lead.length ? { "aria-label": label } : {}),
       title: faceTitle(a),
       onClick: () => runPlaced(a),
@@ -200,6 +202,8 @@ export function drawGroup(g: TabGroup, level: ShrinkLevel = 0): HTMLElement {
     // The paragraph-style dropdown: what every word processor's Styles group
     // opens with — body text, the nine levels, this document's styles, and new.
     ...(g.group === "styles" ? [[paragraphStyleControl(), "small"] as const] : []),
+    // The font and size boxes open the Font group, as they open Word's.
+    ...(g.group === "font" ? [[fontBoxes(), "small"] as const] : []),
     ...(aligns ? screenOrder(g.face) : g.face).map((a) => [faceButton(a, sizeAt(a, level)), sizeAt(a, level)] as const),
     ...g.missing.map((k) => [missingControl(missingLabel(k), k), "small"] as const),
   ];

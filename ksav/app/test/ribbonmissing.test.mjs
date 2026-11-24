@@ -15,7 +15,7 @@
 //   - **no commands at all** — the whole registry is missing, so the ribbon
 //     says so in words, in the surface the writer is looking at;
 //   - **one command missing** — the rest of the ribbon is usable, so the button
-//     keeps its place, struck through, with a title that explains it.
+//     keeps its place, greyed (never struck through, §8), with a title saying why.
 //
 // Both are failures of the same fetch. The difference is what a writer can do
 // about it: reload, or use the rest of the ribbon meanwhile.
@@ -112,8 +112,9 @@ export async function run() {
     ok("the button still shows its name", words([missing[0]]).includes(getLang() === "he" ? "הדגשה" : "Bold"));
     ok(
       "and it explains itself instead of being silent",
-      (missing[0]?.title ?? "").includes(t("registryMissing")),
+      (missing[0]?.title ?? "") === t("whyNot.registry"),
     );
+    check("…and says it cannot be pressed", missing[0]?.["aria-disabled"], "true");
     check("no control is left without a name", anonymous([bar]), []);
   }
 

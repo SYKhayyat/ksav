@@ -14,8 +14,10 @@ import * as runtime from "./runtime";
 import * as structure from "./structure";
 import * as heads from "./headings";
 import * as styles from "./styles";
-import { ALIGN_ORDER, settings } from "./settings";
+import { ALIGN_ORDER, BUNDLED_FONTS, settings } from "./settings";
 import { edgeAt } from "./alignment";
+import { type Wrapper, pointsArg, quotedArg, wrappersIn } from "./pressed";
+import { scanDoc } from "./spans";
 import { getLang, t, tf, hasKey } from "./i18n";
 import { el, iconBtn, noticeHost } from "./dom";
 import { closeMenus, toggleMenu } from "./panels";
@@ -282,16 +284,43 @@ export function paragraphStyleAt(doc: string, pos: number): string {
  */
 export function refreshAlignState(): void {
   if (typeof document === "undefined" || !document.querySelectorAll) return;
-  const buttons = document.querySelectorAll(".tb-align-btn[data-align]");
-  if (!buttons.length) return;
   const v = runtime.view;
-  const edge = v ? edgeAt(docTextOf(v.state.doc), v.state.selection.main.head) : null;
-  for (const btn of buttons) {
-    const on = btn.getAttribute("data-align") === edge;
-    if ((btn.getAttribute("aria-pressed") === "true") !== on) {
-      btn.setAttribute("aria-pressed", String(on));
-    }
+  const buttons = document.querySelectorAll(".tb-align-btn[data-align]");
+  if (buttons.length) {
+    const edge = v ? edgeAt(docTextOf(v.state.doc), v.state.selection.main.head) : null;
+    for (const btn of buttons) setPressed(btn, btn.getAttribute("data-align") === edge);
   }
+  // The toggles (#233, §8): B/I/U and the rest are pressed when the caret is
+  // inside their body — read from the markup until the engine says (#118).
+  const calls = v ? wrappersIn(scanDoc(v.state.doc), v.state.selection.main.head) : [];
+  refreshFontBoxes(calls);
+  const toggles = document.querySelectorAll(".tb-toggle-btn[data-command]");
+  if (!toggles.length) return;
+  const inside = new Set<string>();
+  for (const { name } of calls) {
+    // The document may spell a command in the other language, and the registry
+    // may not have arrived yet; either way `data-command` is the Hebrew name.
+    if (TOGGLES.has(name)) inside.add(name);
+    const c = runtime.commandsReg.find((r) => r.he === name || r.en === name);
+    if (c) inside.add(c.he);
+  }
+  for (const btn of toggles) setPressed(btn, inside.has(btn.getAttribute("data-command") ?? ""));
+}
+
+function setPressed(btn: Element, on: boolean): void {
+  if ((btn.getAttribute("aria-pressed") === "true") !== on) btn.setAttribute("aria-pressed", String(on));
+}
+
+/** The commands whose face is a toggle: a wrapper the caret is either in or not. */
+export const TOGGLES: ReadonlySet<string> = new Set(["הדגשה", "נטוי", "קו_תחתון", "קו_חוצה", "סימון", "עילי", "תחתי", "רברבתי", "כתב_רשי", "קוד"]);
+
+/**
+ * Why a face cannot be pressed (§8): said in its tooltip, never by striking it
+ * through. With no registry at all the engine is still loading; a registry that
+ * came without this command did not load it.
+ */
+function whyNot(): string {
+  return t(runtime.commandsReg.length ? "whyNot.registry" : "whyNot.loading");
 }
 
 function applyParagraphStyle(value: string) {
@@ -350,15 +379,8 @@ function editParagraphStyle(value: string) {
   chromeWiring().openStylesFor(level);
 }
 
-/**
- * The colour the highlighter is about to use.
- *
- * Session state and not a setting: it is the *last colour picked*, which is what
- * every word processor's highlighter remembers and what nobody wants to find in
- * a settings drawer. It starts on Typst's own default so the button, the palette
- * and `#סימון[…]` typed by hand all put the same thing on the page.
- */
-let highlightColour = styles.DEFAULT_HIGHLIGHT;
+/** The last colour picked, per colour button: what a highlighter remembers, and session state rather than a setting. */
+const lastColour = new Map<string, string>();
 
 /**
  * A control whose command did not arrive, drawn as a control that says so.
@@ -379,10 +401,10 @@ let highlightColour = styles.DEFAULT_HIGHLIGHT;
 export function missingControl(glyph: string, command: string): HTMLElement {
   return iconBtn(
     glyph,
-    t("registryMissing"),
+    whyNot(),
     () => showChromeNotice("registriesFailed"),
     "tb-btn tb-btn-missing",
-    { "data-missing": command },
+    { "data-missing": command, "aria-disabled": "true" },
   );
 }
 
@@ -397,44 +419,37 @@ export function missingControl(glyph: string, command: string): HTMLElement {
  * the argument takes any colour and a fixed palette would be the product being
  * narrower than the document format again.
  */
-export function highlightControl(label: string, lead: Node[] = [], size = "small"): HTMLElement {
-  const writing = docLang();
-  const cmd = runtime.commandsReg.find((c) => c.he === "סימון");
-  if (!cmd) return missingControl(label, "סימון");
-  const name = writing === "he" ? cmd.he : cmd.en;
+export function colourControl(command: string, label: string, lead: Node[] = [], size = "small"): HTMLElement {
+  const spec = COLOURED[command];
+  const cmd = runtime.commandsReg.find((c) => c.he === command);
+  if (!cmd || !spec) return missingControl(label, command);
+  const name = docLang() === "he" ? cmd.he : cmd.en;
   const desc = getLang() === "he" ? cmd.desc_he : cmd.desc_en;
   const swatch = el("input", {
     type: "color",
     class: "tb-swatch",
-    value: highlightColour,
-    title: t("highlightColour"),
-    "aria-label": t("highlightColour"),
+    value: lastColour.get(command) ?? spec.initial,
+    title: t(spec.swatchKey),
+    "aria-label": t(spec.swatchKey),
   });
+  // Written in Hebrew and translated by `insert.plan`, like every other
+  // snippet: an English document gets `#mark(color: …)` / `#color(…)`.
   const apply = () => {
-    highlightColour = swatch.value;
-    // The default colour is written as the bare command, so the common case
-    // leaves the source exactly as it was before there was a swatch — and a
-    // document-wide restyle of highlights stays possible for the writer who
-    // never asked for a particular one.
-    // Written in Hebrew and translated by `insert.plan`, like every other
-    // snippet: an English document gets `#mark(color: …)`.
-    insertSnippet(
-      highlightColour.toLowerCase() === styles.DEFAULT_HIGHLIGHT
-        ? "#סימון[|]"
-        : `#סימון(צבע: rgb(${typstString(highlightColour)}))[|]`,
-    );
+    lastColour.set(command, swatch.value);
+    insertSnippet(spec.snippet(swatch.value));
   };
-  // Picking a colour highlights with it. A swatch that only *records* a choice
+  // Picking a colour applies it. A swatch that only *records* a choice
   // would make every use two gestures, and the second one invisible.
   swatch.addEventListener("change", apply);
   return el("span", { class: "tb-split" }, [
     el(
       "button",
       {
-        class: "tb-btn ribbon-btn",
+        class: "tb-btn ribbon-btn" + (spec.pressed ? " tb-toggle-btn" : ""),
         type: "button",
         title: `${desc} · #${name}`,
         "data-command": cmd.he,
+        ...(spec.pressed ? { "aria-pressed": "false" } : {}),
         "data-size": size,
         ...(size === "icon" && lead.length ? { "aria-label": label } : {}),
         onClick: apply,
@@ -443,6 +458,106 @@ export function highlightControl(label: string, lead: Node[] = [], size = "small
     ),
     swatch,
   ]);
+}
+
+/**
+ * The split colour buttons of the Font group (§5 row "font"): the pen and the
+ * letter, each with the colour it will use beside it.
+ *
+ * The highlighter's default colour is written as the bare command, so the
+ * common case leaves the source exactly as it was before there was a swatch —
+ * and a document-wide restyle of highlights stays possible for the writer who
+ * never asked for a particular one. Text colour has no bare form: `#צבע` takes
+ * its colour as its one positional argument.
+ */
+const COLOURED: Record<string, { initial: string; swatchKey: string; pressed: boolean; snippet: (c: string) => string }> = {
+  סימון: {
+    initial: styles.DEFAULT_HIGHLIGHT,
+    swatchKey: "highlightColour",
+    // Word's highlighter is a toggle and its font colour is not: the pen reads
+    // as *on* where the caret is highlighted, the letter never does.
+    pressed: true,
+    snippet: (c) => (c.toLowerCase() === styles.DEFAULT_HIGHLIGHT ? "#סימון[|]" : `#סימון(צבע: rgb(${typstString(c)}))[|]`),
+  },
+  צבע: {
+    initial: "#b91c1c",
+    swatchKey: "textColour",
+    pressed: false,
+    snippet: (c) => `#צבע(rgb(${typstString(c)}))[|]`,
+  },
+};
+
+/** Whether a face is one of the split colour buttons. */
+export function isColoured(command: string | undefined): boolean {
+  return !!command && command in COLOURED;
+}
+
+/**
+ * The font and size boxes of the Font group (§5, §8): they show the caret's
+ * values — read from the `#גופן_שונה("…")` / `#גודל_גופן(…pt)` the caret is
+ * inside, until the engine reports the styles in force (#118) — and a choice
+ * wraps the selection in the command that sets it. Blank means *the document's
+ * own*, which is also what a fresh paragraph shows.
+ */
+export function fontBoxes(): HTMLElement {
+  const font = el("select", {
+    id: "font-face-box",
+    class: "font-box",
+    title: t("fontFace"),
+    "aria-label": t("fontFace"),
+  });
+  font.append(el("option", { value: "" }, [t("fontDefault")]));
+  for (const f of BUNDLED_FONTS) font.append(el("option", { value: f }, [f]));
+  font.addEventListener("change", () => {
+    if (font.value) insertSnippet(`#גופן_שונה(${typstString(font.value)})[|]`);
+    runtime.view?.focus();
+  });
+  const size = el("input", {
+    id: "font-size-box",
+    class: "size-box",
+    type: "number",
+    min: 1,
+    max: 400,
+    step: 0.5,
+    list: "font-sizes",
+    title: t("fontSizeBox"),
+    "aria-label": t("fontSizeBox"),
+  });
+  const sizes = el("datalist", { id: "font-sizes" }, [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72].map((n) => el("option", { value: String(n) })));
+  size.addEventListener("change", () => {
+    const n = Number(size.value);
+    if (Number.isFinite(n) && n > 0) insertSnippet(`#גודל_גופן(${n}pt)[|]`);
+    runtime.view?.focus();
+  });
+  return el("span", { class: "font-boxes" }, [font, size, sizes]);
+}
+
+/** The font and size boxes follow the caret, as the alignment buttons do. */
+function refreshFontBoxes(calls: readonly Wrapper[]): void {
+  const font = document.querySelector<HTMLSelectElement>("#font-face-box");
+  const size = document.querySelector<HTMLInputElement>("#font-size-box");
+  if (!font && !size) return;
+  const named = (he: string) => {
+    const c = runtime.commandsReg.find((r) => r.he === he);
+    return calls.find((w) => w.name === he || w.name === c?.en);
+  };
+  if (font && document.activeElement !== font) {
+    const f = named("גופן_שונה");
+    const v = f ? quotedArg(f.args) ?? "" : "";
+    // A font the document names but this build does not bundle is still what the
+    // caret is set in, so the box gains one row for it rather than showing the
+    // document's own font and lying about the caret.
+    font.querySelector('option[data-unlisted="true"]')?.remove();
+    if (v && ![...font.options].some((o) => o.value === v)) {
+      font.insertBefore(el("option", { value: v, "data-unlisted": "true" }, [v]), font.options[1] ?? null);
+    }
+    font.value = v;
+  }
+  if (size && document.activeElement !== size) {
+    const z = named("גודל_גופן");
+    const n = z ? pointsArg(z.args) : null;
+    size.value = n === null ? "" : String(n);
+  }
 }
 
 /**

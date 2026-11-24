@@ -107,9 +107,17 @@ export async function run() {
   const bold = panel.children.flatMap(controls).find((b) => b["data-command"] === "הדגשה");
   check("bold is an icon face, named for the reader that cannot see it", [bold?.["data-size"], bold?.["aria-label"]], ["icon", t("btn.bold")]);
   const font = panel.children.find((g) => g["data-group"] === "font");
-  check("Font: one lane of icon faces", lanesOf(font).map((l) => l["data-lane"]), ["icon"]);
-  const fontRow = lanesOf(font)[0].children;
-  check("…eight of them, then ⋯", fontRow.length, 9);
+  // The boxes open the group, as Word's do (§5): a lane of their own, before the
+  // faces, because they are not faces — a `<select>` and a number are not a
+  // command to press.
+  check("Font: the boxes, then one lane of icon faces", lanesOf(font).map((l) => l["data-lane"]), ["small", "icon"]);
+  check("…the font and size boxes open it", lanesOf(font)[0].children.flatMap((c) => c.children.map((n) => n.id)), [
+    "font-face-box",
+    "font-size-box",
+    "font-sizes",
+  ]);
+  const fontRow = lanesOf(font)[1].children;
+  check("…eight faces of them, then ⋯", fontRow.length, 9);
   check("⋯ is the group's last control", fontRow.at(-1)["data-menu"], "more-font");
   ok("⋯ says which group it opens", fontRow.at(-1).children[0]["aria-label"].includes(t("grp.font")));
 

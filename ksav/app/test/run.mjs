@@ -76,6 +76,9 @@ const GENERATORS = [
   // files and elisp that downloads them, agreeing by construction rather than
   // by somebody noticing a 404.
   ["release assets", "emit-release-assets.mjs"],
+  // The Tabler icons the shell draws, copied out of the package so the bundle
+  // carries 120 drawings rather than an icon font (`docs/ui-architecture.md` §10).
+  ["tabler icons", "icons.mjs"],
 ];
 
 /**

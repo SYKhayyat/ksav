@@ -273,6 +273,8 @@ export function installChrome(extra = {}) {
     //
     // `click()` fires them, so a test presses a control the way a writer does
     // rather than reaching for the handler it happens to know is there.
+    // An icon is an `<svg>` (`icons.ts`); the stub draws it as any other node.
+    createElementNS: (_ns, tag) => globalThis.document.createElement(tag),
     createElement: (tag) => ({
       tagName: String(tag).toUpperCase(),
       className: "",

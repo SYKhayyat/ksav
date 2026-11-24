@@ -135,7 +135,14 @@ for (const pair of sets) {
   const i = pair.indexOf(":");
   const key = pair.slice(0, i);
   const raw = pair.slice(i + 1);
-  settings[key] = raw.startsWith("{") ? JSON.parse(raw) : /^-?[0-9.]+$/.test(raw) ? Number(raw) : raw === "true";
+  // JSON for objects, numbers and booleans; anything else is the string itself
+  // (`--set lang=en` is "en", not `false`).
+  settings[key] =
+    raw.startsWith("{") || raw.startsWith("[") ? JSON.parse(raw)
+    : /^-?[0-9.]+$/.test(raw) ? Number(raw)
+    : raw === "true" ? true
+    : raw === "false" ? false
+    : raw;
 }
 
 if (!existsSync(DIST)) {

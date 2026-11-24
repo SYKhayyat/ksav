@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@tabler/icons": "^3.52.0",
     "@tauri-apps/cli": "^2.11.4",
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.1",

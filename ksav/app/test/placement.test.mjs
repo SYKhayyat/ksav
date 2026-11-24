@@ -12,15 +12,19 @@ import {
   ACTION_PLACE,
   FACE,
   GROUPS,
-  GROUP_TAB,
+  CONTEXTUAL,
   HOME,
   HOME_GROUPS,
+  LAUNCHER,
   MAX_FACE,
+  MAX_ICON_FACE,
+  MAX_LARGE,
   MENUS,
   PLACE_OF_CATEGORY,
   PLACE_OVERRIDE,
+  SIZE,
   TABS,
-  TAB_OF_MENU,
+  TAB_GROUPS,
   btnKey,
   isConfig,
   menuOfGroup,
@@ -28,8 +32,10 @@ import {
   resolveKey,
   shellPlace,
   tabOf,
+  tabTree,
 } from "../.tmp-test/placement.mjs";
 import { DICTS } from "../.tmp-test/i18n.mjs";
+import { ICON_OF } from "../.tmp-test/icons.mjs";
 
 export async function run() {
   const { BUILT_IN } = await import("../.tmp-test/actionsurface.mjs");
@@ -114,12 +120,15 @@ export async function run() {
         .map((p) => p.group),
       [],
     );
-    check("every GROUP_TAB group exists", Object.keys(GROUP_TAB).filter((g) => !menuOfGroup(g)), []);
     check(
-      "every tab a menu or group points to is a tab",
-      [...Object.values(TAB_OF_MENU), ...Object.values(GROUP_TAB)].filter((t) => !TABS.includes(t)),
+      "every TAB_GROUPS key is a tab",
+      Object.keys(TAB_GROUPS).filter((t) => !TABS.includes(t) || t === "home"),
       [],
     );
+    const onTabs = Object.values(TAB_GROUPS).flat();
+    check("every group a tab draws exists", onTabs.filter((g) => !menuOfGroup(g)), []);
+    check("no group is drawn on two tabs", onTabs.length, new Set(onTabs).size);
+    check("every contextual tab is a tab", [...CONTEXTUAL].filter((t) => !TABS.includes(t)), []);
     check("every family id resolves", shellPlace("foldLevel3")?.group, "folding");
   }
 
@@ -144,16 +153,44 @@ export async function run() {
   }
 
   // ------------------------------------------------ 6. no wall of buttons
+  //
+  // Rule 2, counted by size: a group leads with at most two large faces, draws
+  // at most six labelled ones, and the icon-only rows (Font, Paragraph) at most
+  // ten. Counted on what `tabTree` draws, which is what the writer sees.
   {
-    const counts = {};
-    for (const a of list)
-      if (a.place.face && a.kind !== "style") counts[a.place.group] = (counts[a.place.group] ?? 0) + 1;
+    const over = [];
+    for (const tab of tabTree(list))
+      for (const g of tab.groups) {
+        const n = (size) => g.face.filter((a) => a.kind !== "style" && (a.place.size ?? "small") === size).length;
+        if (n("large") > MAX_LARGE) over.push(`${tab.tab}/${g.group}: ${n("large")} large`);
+        if (n("large") + n("small") > MAX_FACE) over.push(`${tab.tab}/${g.group}: ${n("large") + n("small")} labelled`);
+        if (n("icon") > MAX_ICON_FACE) over.push(`${tab.tab}/${g.group}: ${n("icon")} icons`);
+      }
+    check("no group draws more faces than its size caps", over, []);
     check(
-      `no group draws more than ${MAX_FACE} face buttons`,
-      Object.entries(counts).filter(([, n]) => n > MAX_FACE),
+      "no Home group lists more faces than it may draw",
+      HOME.filter((h) => h.face.length > MAX_FACE + MAX_ICON_FACE).map((h) => h.group),
       [],
     );
-    check("no Home group draws more than the cap", HOME.filter((h) => h.face.length > MAX_FACE).map((h) => h.group), []);
+  }
+
+  // ------------------------------------------------ 6b. sizes and icons
+  {
+    const sizeKeys = Object.keys(SIZE).filter((k) => !resolveKey(k, list));
+    check("every SIZE key resolves", sizeKeys, []);
+    // A large face is mostly picture and an icon face is only picture: neither
+    // may stand there without one.
+    check(
+      "every large or icon face has an icon",
+      list.filter((a) => a.place.size && a.place.size !== "small" && !a.place.icon).map((a) => a.id),
+      [],
+    );
+    check(
+      "every icon a face carries is ICON_OF's",
+      list.filter((a) => a.place.icon && ICON_OF[a.id] !== a.place.icon && ICON_OF[a.command?.he] !== a.place.icon).map((a) => a.id),
+      [],
+    );
+    check("every launcher is an action behind ⚙", [...LAUNCHER].filter((id) => !byId.get(id)?.gear), []);
   }
 
   // ------------------------------------------------ 7. every name in both languages
@@ -190,6 +227,9 @@ export async function run() {
     check("a format/page action is drawn on Layout", tabOf({ menu: "format", group: "page" }), "layout");
     check("a format/font action has no tab of its own", tabOf({ menu: "format", group: "font" }), undefined);
     check("a notes action is drawn on Notes", tabOf({ menu: "notes", group: "notes" }), "notes");
+    check("Tools' commands are drawn on View", tabOf({ menu: "tools", group: "commandsGroup" }), "view");
+    check("the status-bar toggles are on no tab", tabOf({ menu: "view", group: "interface" }), undefined);
+    check("the strip runs in Word's order", TABS, ["home", "insert", "layout", "notes", "sources", "review", "view", "table"]);
     const order = list.map((a) => MENUS.indexOf(a.place.menu));
     ok("placed() returns menu order", order.every((x, i) => i === 0 || order[i - 1] <= x));
     check("bold is placed under its key's id", byId.get("bold")?.command?.he, "הדגשה");

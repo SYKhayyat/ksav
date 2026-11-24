@@ -30,6 +30,7 @@ import * as pagerange from "./pagerange";
 import { EXPORTS, saveAsLabel } from "./header";
 import { getLang, t, hasKey } from "./i18n";
 import { el, glyphBtn } from "./dom";
+import { icon } from "./icons";
 import { closeMenus } from "./panels";
 import { keybindings, hintFor } from "./keyhint";
 import { actionName } from "./actions";
@@ -132,7 +133,6 @@ export function row(a: PlacedAction, h: Here): HTMLElement {
   // The export rows keep the attribute the acceptance run has always clicked.
   if ((EXPORTS as readonly string[]).includes(a.id)) attrs["data-export"] = a.id;
   const gear = a.gear ? "⚙ " : "";
-  const glyph = a.place.glyph ? a.place.glyph + " " : "";
   let body: (Node | string)[];
   if (a.kind === "command") {
     const c = a.command!;
@@ -143,7 +143,7 @@ export function row(a: PlacedAction, h: Here): HTMLElement {
       el("code", {}, ["#" + (docLang() === "he" ? c.he : c.en)]),
     ];
   } else {
-    body = [el("b", {}, [gear + glyph + shellLabel(a)]), keyCode(a.id, h.kb, "menu-key")];
+    body = [...(a.place.icon ? [icon(a.place.icon, 16)] : []), el("b", {}, [gear + shellLabel(a)]), keyCode(a.id, h.kb, "menu-key")];
     if (a.kind === "macro") {
       const m = savedMacros().find((x) => macros.actionIdOf(x) === a.id);
       if (m) body.push(el("span", { class: "menu-desc" }, [macros.describe(m, (id) => actionName(id, savedNameMap()))]));

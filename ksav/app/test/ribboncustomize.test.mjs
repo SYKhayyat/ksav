@@ -211,14 +211,16 @@ export async function run() {
     check("a ⋯ button has no Move to ⋯", keys(buttonMenu(home.id, g0.id, onFace.action, 0, 0))[0], "rcMenuRemove");
 
     const other = def.tabs[1];
-    const og = other.groups[0];
+    // A group with two buttons: the second is the one Customize… is asked about.
+    const og = other.groups.find((g) => g.items.length > 1);
+    const ogNow = () => ribbon().tabs[1].groups.find((g) => g.id === og.id);
     const om = buttonMenu(other.id, og.id, og.items[0].action, 0, 0);
     ok("off Home, Add to Home is offered", keys(om).includes("rcMenuAddHome"));
     walk(om, (n) => n["data-rc-menu"] === "rcMenuAddHome")[0].click();
     ok("and puts it on Home", ribbon().tabs[0].groups.at(-1).items.some((i) => i.action === og.items[0].action));
-    ok("while it stays where it was", ribbon().tabs[1].groups[0].items.some((i) => i.action === og.items[0].action));
+    ok("while it stays where it was", ogNow().items.some((i) => i.action === og.items[0].action));
     walk(buttonMenu(other.id, og.id, og.items[0].action, 0, 0), (n) => n["data-rc-menu"] === "rcMenuRemove")[0].click();
-    notOk("Remove takes it off that tab", ribbon().tabs[1].groups[0].items.some((i) => i.action === og.items[0].action));
+    notOk("Remove takes it off that tab", ogNow().items.some((i) => i.action === og.items[0].action));
 
     const tm = tabMenu(home.id, 0, 0);
     check("a tab's menu", keys(tm), ["rcRename", "rcHide", "rcMenuCustomize"]);

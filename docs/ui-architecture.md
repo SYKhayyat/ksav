@@ -50,7 +50,7 @@ export type FaceSize = "large" | "small" | "icon";
 export interface Place {
   menu: MenuId;      // required — the floor
   group: string;     // section in the menu, group on the tab (i18n key grp.<group>)
-  tab?: TabId;       // defaults to TAB_OF_MENU[menu]
+  tab?: TabId;       // defaults to the tab whose TAB_GROUPS row lists the group
   face?: boolean;    // drawn on the ribbon; otherwise behind the group's ⋯
   home?: boolean;    // also drawn on Home
   order?: number;
@@ -64,9 +64,17 @@ export interface Place {
 - **A `*_config` command (`הגדרות_…`) is never a face.** It goes in its group's
   dialog launcher, the small `⚙` corner button in the group's label row, which is
   where Word puts *paragraph settings…*.
+- **A launcher is behind `⚙` too.** `LAUNCHER` names the shell actions that open
+  a group's dialog (*page setup…*, the Notes chooser); in the menu they keep
+  their place rather than sinking with the settings rows.
 - **A deprecated command has no place.** It stays in the palette for old documents.
 - **A face's icon comes from `ICON_OF`** (keyed by action id) when the row does not
   set one, so the registry never has to know about icons.
+
+Which groups a tab draws, and in what order, is `TAB_GROUPS`: one row per tab
+but Home, the §5 tables below. A group no row lists — File's, Edit's, the conceal
+rows, the interface toggles that live in the status bar — is a menu's and no
+tab's. Home is `HOME`, which borrows faces from other groups.
 
 Labels and descriptions are not in the record: `btn.<id>` (short label),
 `sc.<id>` / the registry pair (long label), `<id>Lede` (description).
@@ -172,9 +180,9 @@ says: *מראי מקומות*, *מפתחות*, *דיבור המתחיל*, never 
 | **טבלה** | Table | the table and its operations |
 | **הערות** | Notes | notes, note systems, numbering, references |
 | **מקורות** | Sources | sefer structure, מראי מקומות, Girsa, מפתחות |
-| **סקירה** | Review | spelling, editor's comments, insert/delete marks, compare, history |
+| **סקירה** | Review | spelling, editor's comments, insert/delete marks, versions, history, git |
 | **תצוגה** | View | panes, zoom, folding, theme, language, ribbon |
-| **כלים** | Tools | macros, keyboard, commands, customize the ribbon, settings |
+| **כלים** | Tools | macros, keyboard, commands, settings |
 | **עזרה** | Help | help, keys, about |
 
 **Tabs:** קובץ · בית · הוספה · פריסה · הערות · מקורות · סקירה · תצוגה, and **טבלה**
@@ -188,12 +196,17 @@ only as a contextual tab. *Insert table* lives on Insert.
 
 | group | faces | ⋯ |
 |---|---|---|
-| עריכה | הדבקה L · גזירה S · העתקה S · חיפוש S | החלפה |
+| לוח | הדבקה L · גזירה S · העתקה S | |
 | גופן | font box · size box · A⁺ I · A⁻ I · הדגשה I · נטוי I · קו תחתון I · קו חוצה I · סימון I (split) · צבע I (split) | עילי, תחתי, רברבתי, כתב רש"י, רקע, מרווח אותיות, קוד |
 | פסקה | ימין I · מרכז I · שמאל I · מימין לשמאל I · משמאל לימין I | |
 | סגנונות | style box · סגנונות S | |
 | מבנה | כותרת 1 S · כותרת 2 S · כותרת 3 S · סימן L · סעיף S | אות, דיבור המתחיל, שער, תת שער |
 | הערות | הערה L · הערה ב S | הערתסיום |
+| חיפוש | חיפוש S · החלפה S | |
+
+A group draws in lanes, as Word's do: each L is a column of its own, S faces
+stack three to a column, I faces sit in two rows; ⋯ joins the last lane, and ⚙
+sits in the caption's corner.
 
 **הוספה · Insert**
 
@@ -242,7 +255,7 @@ only as a contextual tab. *Insert table* lives on Insert.
 | הגהה | בדיקת איות L | |
 | הערות עורך | הערת עורך L · חלון סקירה S | |
 | מעקב | סמן הוספה S · סמן מחיקה S | |
-| גרסאות | השוואה S · היסטוריה S · גרסאות (git) S | |
+| גרסאות | שמור גרסה S · היסטוריה S · גיט S | |
 
 **תצוגה · View**
 
@@ -263,9 +276,12 @@ only as a contextual tab. *Insert table* lives on Insert.
 
 ### The rules behind the defaults
 
-1. A category's default tab is `TAB_OF_MENU[menu]`; `PLACE_OVERRIDE` is short.
-2. A face is the **noun form** of its group. At most **two large** faces and **six
-   faces** per group; variants go behind ⋯.
+1. A category's place is its menu group; the tab is whichever `TAB_GROUPS` row
+   lists that group. `PLACE_OVERRIDE` is short.
+2. A face is the **noun form** of its group. At most **two large** faces, **six
+   labelled** (large or small) faces and **ten icon** faces per group; variants go
+   behind ⋯. Comparing two versions is not a face: it is done inside the history
+   and git panels, where the two versions are chosen.
 3. `הגדרות_…` → the group's ⚙. Deprecated → not placed.
 4. Home holds **per-minute** verbs only.
 5. A large face has an icon; a face with no icon is never `icon` size.

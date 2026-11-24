@@ -9,6 +9,7 @@
 // row exists, so `☰` is the floor: the menu bar lives folded inside it.
 
 import { el } from "./dom";
+import { icon } from "./icons";
 import { DICTS, getLang, t, tf, hasKey, isRtlUi } from "./i18n";
 import { COMMAND_EN } from "./engine.gen";
 import { ALIGN_ORDER, settings } from "./settings";
@@ -18,7 +19,7 @@ import { alignEdgeOf, highlightControl, lazyMenu, missingControl, paragraphStyle
 import { actionName } from "./actions";
 import { savedNameMap } from "./macros";
 import { hintFor } from "./keyhint";
-import { btnKey, type PlacedAction, type TabGroup } from "./placement";
+import { CONTEXTUAL, btnKey, type FaceSize, type PlacedAction, type TabGroup, type TabId } from "./placement";
 import { groupLabel, shownTabs, tabName, type ShownTab } from "./ribbonlayout";
 import { currentPlaced, here, row, runPlaced, shellLabel } from "./shellmenu";
 import { buttonMenu, tabMenu } from "./ribboncustomize";
@@ -115,8 +116,13 @@ function faceTitle(a: PlacedAction): string {
  * `refreshAlignState` fills `aria-pressed` from the text the caret is in.
  */
 function faceButton(a: PlacedAction): HTMLElement {
-  const glyph = a.place.glyph ? a.place.glyph + " " : "";
-  if (a.command?.he === "סימון") return highlightControl(glyph + faceLabel(a));
+  const size = a.place.size ?? "small";
+  const label = faceLabel(a);
+  // A large face draws its icon at 32px over its words; a small one at 16px
+  // beside them; an icon face keeps its words only for the reader that cannot
+  // see the drawing, so the button still has a name and the tests a text.
+  const lead = a.place.icon ? [icon(a.place.icon, size === "large" ? 32 : 16)] : [];
+  if (a.command?.he === "סימון") return highlightControl(label, lead, size);
   const edge = alignEdgeOf(a.command?.he);
   return el(
     "button",
@@ -124,12 +130,14 @@ function faceButton(a: PlacedAction): HTMLElement {
       class: "tb-btn ribbon-btn" + (edge ? " tb-align-btn" : ""),
       type: "button",
       "data-action": a.id,
+      "data-size": size,
       ...(a.command ? { "data-command": a.command.he } : {}),
       ...(edge ? { "data-align": edge, "aria-pressed": "false" } : {}),
+      ...(size === "icon" && lead.length ? { "aria-label": label } : {}),
       title: faceTitle(a),
       onClick: () => runPlaced(a),
     },
-    [glyph + faceLabel(a)],
+    [...lead, el("span", { class: "ribbon-lbl" }, [label])],
   );
 }
 
@@ -156,38 +164,58 @@ function screenOrder(face: readonly PlacedAction[]): PlacedAction[] {
   return [...face].sort((x, y) => rank(x) - rank(y));
 }
 
-/** One group: caption, face, `⋯`, `⚙`. */
+/**
+ * Word's group body (§6): a large face is a column of its own, small faces stack
+ * three to a column, icon faces flow in two rows. A lane breaks wherever the size
+ * changes, so the order the placements give is the order a reader meets.
+ */
+function lanes(items: readonly (readonly [HTMLElement, FaceSize])[]): HTMLElement[] {
+  const out: [FaceSize, HTMLElement[]][] = [];
+  for (const [node, size] of items) {
+    const last = out.at(-1);
+    if (size !== "large" && last?.[0] === size && (size === "icon" || last[1].length < 3)) last[1].push(node);
+    else out.push([size, [node]]);
+  }
+  // An icon lane fills row by row, like Word's Font group: the grid is told its columns.
+  return out.map(([size, nodes]) =>
+    el("div", { class: "rb-lane", "data-lane": size, ...(size === "icon" ? { style: `--cols:${Math.ceil(nodes.length / 2)}` } : {}) }, nodes),
+  );
+}
+
+/** One group: its lanes and `⋯`, then the caption with `⚙` in its corner. */
 function groupBox(g: TabGroup): HTMLElement {
   const name = groupName(g);
   const aligns = g.face.some((a) => alignEdgeOf(a.command?.he));
-  const controls: HTMLElement[] = [
+  const items: (readonly [HTMLElement, FaceSize])[] = [
     // The paragraph-style dropdown: what every word processor's Styles group
     // opens with — body text, the nine levels, this document's styles, and new.
-    ...(g.group === "styles" ? [paragraphStyleControl()] : []),
-    ...(aligns ? screenOrder(g.face) : g.face).map((a) => faceButton(a)),
-    ...g.missing.map((k) => missingControl(missingLabel(k), k)),
+    ...(g.group === "styles" ? [[paragraphStyleControl(), "small"] as const] : []),
+    ...(aligns ? screenOrder(g.face) : g.face).map((a) => [faceButton(a), a.place.size ?? "small"] as const),
+    ...g.missing.map((k) => [missingControl(missingLabel(k), k), "small"] as const),
   ];
   if (g.more.length) {
-    controls.push(
+    // `⋯` joins the last lane unless that is a large column; then it stands as a small one.
+    const tail = items.at(-1)?.[1];
+    items.push([
       lazyMenu("more-" + g.group, "⋯", () => {
         const h = here();
         return g.more.map((a) => row(a, h));
       }, tf("ribbonMore", name)),
-    );
+      tail === "icon" ? "icon" : "small",
+    ]);
   }
-  if (g.gear.length) {
-    controls.push(
-      lazyMenu("gear-" + g.group, "⚙", () => {
+  // `⚙` is Word's dialog launcher: the small mark in the caption's corner.
+  const gear = g.gear.length
+    ? [lazyMenu("gear-" + g.group, "⚙", () => {
         const h = here();
         return g.gear.map((a) => row(a, h));
-      }, tf("ribbonGear", name)),
-    );
-  }
+      }, tf("ribbonGear", name))]
+    : [];
   // `tb-align` pins the row left-to-right in `styles.css`; the caption keeps the interface's direction.
   const cls = "tb-group ribbon-group" + (aligns ? " tb-align" : "");
   return el("div", { class: cls, role: "group", "aria-label": name, "data-group": g.group }, [
-    el("div", { class: "tb-group-row" }, controls),
-    el("span", { class: "tb-group-label", "aria-hidden": "true" }, [name]),
+    el("div", { class: "tb-group-row" }, lanes(items)),
+    el("div", { class: "tb-group-foot" }, [el("span", { class: "tb-group-label", "aria-hidden": "true" }, [name]), ...gear]),
   ]);
 }
 
@@ -251,6 +279,8 @@ export function buildRibbon(): HTMLElement {
       b.setAttribute("aria-selected", String(id === tab));
       b.setAttribute("tabindex", id === tab ? "0" : "-1");
       b.setAttribute("data-contextual", String(id === marked));
+      // A contextual tab (Table) is on the strip only while the caret is in its context.
+      b.hidden = CONTEXTUAL.has(id as TabId) && id !== marked;
     }
     panel.setAttribute("aria-labelledby", "ribbon-tab-" + tab);
     panel.replaceChildren(...(tree.find((n) => n.tab === tab)?.groups ?? []).map((g) => groupBox(g)));

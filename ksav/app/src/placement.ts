@@ -37,6 +37,7 @@
 import type { CommandDef } from "./api";
 import { ACTION_COMMAND, BREAK_COMMAND } from "./actions";
 import { DEFER_BODY_COMMANDS, DEFER_REF_COMMANDS, DEFER_REGION_COMMANDS } from "./note-commands";
+import { ICON_OF, type IconId } from "./icons";
 
 /** The menu bar, in document direction. §5. */
 export type MenuId =
@@ -48,12 +49,16 @@ export type MenuId =
   | "table"
   | "notes"
   | "sources"
+  | "review"
   | "view"
   | "tools"
   | "help";
 
-/** The tab strip. §5. */
-export type TabId = "home" | "insert" | "layout" | "table" | "notes" | "sources" | "view";
+/** The tab strip. §5. `table` is contextual: drawn only while the caret is in a table. */
+export type TabId = "home" | "insert" | "layout" | "notes" | "sources" | "review" | "view" | "table";
+
+/** How big a face is drawn (§5): `large` is icon over label, `small` icon beside label, `icon` the icon alone. */
+export type FaceSize = "large" | "small" | "icon";
 
 /**
  * Where one action lives.
@@ -66,7 +71,7 @@ export interface Place {
   menu: MenuId;
   /** The section in the menu, and the button group on the tab. `grp.<id>` names it. */
   group: string;
-  /** Defaults to `TAB_OF_MENU[menu]`, or to `GROUP_TAB[group]` when that says so. */
+  /** Defaults to the tab whose `TAB_GROUPS` row lists `group`. */
   tab?: TabId;
   /** Drawn as a named button on its tab; otherwise behind the group's `⋯`. */
   face?: boolean;
@@ -74,8 +79,10 @@ export interface Place {
   home?: boolean;
   /** Within the group. Otherwise registry / declaration order. */
   order?: number;
-  /** An optional mark. On a tab the label is always drawn beside it. */
-  glyph?: string;
+  /** From `icons.ts`. Filled by `placed()` from `ICON_OF`; a face without one is drawn as its label. */
+  icon?: IconId;
+  /** Filled by `placed()` from `SIZE`; absent is `small`. */
+  size?: FaceSize;
 }
 
 /** The menu bar, in order. */
@@ -88,62 +95,60 @@ export const MENUS: readonly MenuId[] = [
   "table",
   "notes",
   "sources",
+  "review",
   "view",
   "tools",
   "help",
 ];
 
-/** The tab strip, in order. */
-export const TABS: readonly TabId[] = ["home", "insert", "layout", "table", "notes", "sources", "view"];
+/** The tab strip, in order. The contextual tabs come last, coloured, and only in context. */
+export const TABS: readonly TabId[] = ["home", "insert", "layout", "notes", "sources", "review", "view", "table"];
 
-/**
- * The tab each menu's actions appear on by default.
- *
- * Partial on purpose. File, Documents, Edit, Tools and Help are menus a writer
- * opens, not furniture a writer works from; what of them belongs on a tab is a
- * Home pick (undo, redo, find). Format has no tab of its own either: its text
- * and paragraph halves are Home, and its Page half is the Layout tab — which is
- * `GROUP_TAB`, below.
- */
-export const TAB_OF_MENU: Readonly<Partial<Record<MenuId, TabId>>> = {
-  insert: "insert",
-  table: "table",
-  notes: "notes",
-  sources: "sources",
-  view: "view",
-};
+/** The tabs that appear only while the caret asks for them (§5). */
+export const CONTEXTUAL: ReadonlySet<TabId> = new Set<TabId>(["table"]);
 
 /**
  * The sections of each menu, in order. Every `Place.group` is one of these,
  * and a group id is unique across the whole bar, so `grp.<id>` names it once.
  */
 export const GROUPS: Readonly<Record<MenuId, readonly string[]>> = {
-  file: ["fileOpen", "fileImport", "fileShare", "templates", "export", "fileHistory"],
+  file: ["fileOpen", "fileImport", "fileShare", "templates", "export"],
   docs: ["library", "docTabs"],
-  edit: ["undo", "find", "entity", "brackets", "spelling"],
-  insert: ["headings", "lists", "blocks", "objects", "misc", "hidden"],
+  edit: ["undo", "clipboard", "find", "entity", "brackets"],
+  insert: ["tables", "objects", "headings", "lists", "blocks", "misc", "hidden"],
   format: ["font", "paragraph", "styles", "structure", "page", "breaks", "columns", "spacing"],
-  table: ["table", "rowscols", "cells"],
-  notes: ["notes", "endnotes", "sidenotes", "systems", "numbering", "refs", "review"],
+  table: ["rowscols", "cells"],
+  notes: ["notes", "endnotes", "sidenotes", "systems", "numbering", "refs"],
   sources: ["sefer", "citations", "girsa", "indexes"],
-  view: ["panes", "folding", "display", "interface"],
+  review: ["proofing", "editorComments", "tracking", "versions"],
+  view: ["panes", "folding", "zoom", "ribbon", "interface"],
   tools: ["macros", "commandsGroup", "defer", "compile", "settingsGroup"],
   help: ["helpGroup"],
 };
 
 /**
- * The groups that leave their menu's tab for another.
+ * What each tab but Home draws, group by group, in order: the §5 tables.
  *
- * Format ▸ Page is the menu home of the Layout tab (§5): the page, its breaks,
- * its columns and its spacing are formatting, and a writer who turns the tabs
- * off finds them under Format.
+ * The one statement of the tabs. A group is on the tab whose row lists it; a
+ * group no row lists — File's, Edit's, Tools', the conceal-and-fold rows, the
+ * interface toggles that live in the status bar — is a menu's and no tab's.
+ * Format has no tab of its own: its text and paragraph halves are Home, and its
+ * page half is Layout. Tools' commands group is drawn on View, where Word keeps
+ * its macros.
  */
-export const GROUP_TAB: Readonly<Record<string, TabId>> = {
-  page: "layout",
-  breaks: "layout",
-  columns: "layout",
-  spacing: "layout",
+export const TAB_GROUPS: Readonly<Record<Exclude<TabId, "home">, readonly string[]>> = {
+  insert: ["tables", "objects", "headings", "lists", "blocks", "misc"],
+  layout: ["page", "breaks", "columns", "spacing"],
+  notes: ["notes", "endnotes", "sidenotes", "systems", "numbering", "refs"],
+  sources: ["sefer", "citations", "girsa", "indexes"],
+  review: ["proofing", "editorComments", "tracking", "versions"],
+  view: ["panes", "folding", "zoom", "commandsGroup", "ribbon"],
+  table: ["rowscols", "cells"],
 };
+
+const TAB_OF_GROUP: ReadonlyMap<string, TabId> = new Map(
+  Object.entries(TAB_GROUPS).flatMap(([tab, groups]) => groups.map((g) => [g, tab as TabId] as const)),
+);
 
 /** The menu that owns a group, read off `GROUPS`. */
 export function menuOfGroup(group: string): MenuId | undefined {
@@ -152,7 +157,7 @@ export function menuOfGroup(group: string): MenuId | undefined {
 
 /** The tab a place is drawn on, if any. */
 export function tabOf(place: Place): TabId | undefined {
-  return place.tab ?? GROUP_TAB[place.group] ?? TAB_OF_MENU[place.menu];
+  return place.tab ?? TAB_OF_GROUP.get(place.group);
 }
 
 // ---------------------------------------------------------------- engine commands
@@ -175,7 +180,7 @@ export const PLACE_OF_CATEGORY: Readonly<Record<string, { menu: MenuId; group: s
   layout: { menu: "format", group: "spacing" },
   image: { menu: "insert", group: "objects" },
   torah: { menu: "sources", group: "sefer" },
-  review: { menu: "notes", group: "review" },
+  review: { menu: "review", group: "tracking" },
   math: { menu: "insert", group: "objects" },
 };
 
@@ -194,8 +199,8 @@ export const PLACE_OF_CATEGORY: Readonly<Record<string, { menu: MenuId; group: s
 export const PLACE_OVERRIDE: Readonly<Record<string, { group: string }>> = Object.fromEntries(
   (
     [
-      ["table", ["טבלה"]],
-      ["headings", []],
+      ["tables", ["טבלה"]],
+      ["editorComments", ["הערת_עורך", "הגדרות_הערת_עורך"]],
       ["endnotes", ["הערתסיום", "הגדרות_הערתסיום", "הערות_בסוף", "הגדרות_הערות_סיום", "הערות_בסוף_צד"]],
       ["sidenotes", ["עם_הערות_צד", "הערת_גיליון", "עם_הערות_דו_צד", "הערת_ימין", "הערת_שמאל"]],
       [
@@ -263,11 +268,11 @@ const commandId = (he: string): string => "cmd:" + he;
  */
 export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   // File
-  newDoc: { menu: "docs", group: "library", glyph: "＋", order: -3 },
+  newDoc: { menu: "docs", group: "library", order: -3 },
   renameDoc: { menu: "docs", group: "library", order: -2 },
   duplicateDoc: { menu: "docs", group: "library", order: -1 },
-  open: { menu: "file", group: "fileOpen", glyph: "📂" },
-  save: { menu: "file", group: "fileOpen", glyph: "💾" },
+  open: { menu: "file", group: "fileOpen" },
+  save: { menu: "file", group: "fileOpen" },
   saveAs: { menu: "file", group: "fileOpen" },
   importWord: { menu: "file", group: "fileImport" },
   importOrg: { menu: "file", group: "fileImport" },
@@ -283,10 +288,7 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   exportText: { menu: "file", group: "export" },
   exportTypst: { menu: "file", group: "export" },
   exportTypstCompact: { menu: "file", group: "export" },
-  print: { menu: "file", group: "export", glyph: "🖨" },
-  snapshot: { menu: "file", group: "fileHistory", glyph: "📸" },
-  history: { menu: "file", group: "fileHistory", glyph: "🕘" },
-  gitPanel: { menu: "file", group: "fileHistory", glyph: "⎇" },
+  print: { menu: "file", group: "export" },
   // Documents
   lastDoc: { menu: "docs", group: "docTabs" },
   switcher: { menu: "docs", group: "docTabs" },
@@ -297,72 +299,81 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   nextTab: { menu: "docs", group: "docTabs" },
   prevTab: { menu: "docs", group: "docTabs" },
   // Edit
-  undo: { menu: "edit", group: "undo", glyph: "↶" },
-  redo: { menu: "edit", group: "undo", glyph: "↷" },
-  find: { menu: "edit", group: "find", glyph: "🔍" },
-  entitySelect: { menu: "edit", group: "entity", glyph: "⌖" },
-  entityUnwrap: { menu: "edit", group: "entity", glyph: "⌫" },
-  entityRemove: { menu: "edit", group: "entity", glyph: "✕" },
+  undo: { menu: "edit", group: "undo" },
+  redo: { menu: "edit", group: "undo" },
+  cut: { menu: "edit", group: "clipboard" },
+  copy: { menu: "edit", group: "clipboard" },
+  paste: { menu: "edit", group: "clipboard" },
+  find: { menu: "edit", group: "find" },
+  replace: { menu: "edit", group: "find" },
+  entitySelect: { menu: "edit", group: "entity" },
+  entityUnwrap: { menu: "edit", group: "entity" },
+  entityRemove: { menu: "edit", group: "entity" },
   healBrackets: { menu: "edit", group: "brackets" },
   moveOutOfBracket: { menu: "edit", group: "brackets" },
   moveOutOfBracketToNextLine: { menu: "edit", group: "brackets" },
   moveOutOfAllBrackets: { menu: "edit", group: "brackets" },
-  spellSuggest: { menu: "edit", group: "spelling" },
   // Insert
-  insertImage: { menu: "insert", group: "objects", face: true, glyph: "🖼" },
-  insertFormula: { menu: "insert", group: "objects", face: true, glyph: "∑" },
-  hideLine: { menu: "insert", group: "hidden", glyph: "⌫" },
-  hideBlock: { menu: "insert", group: "hidden", glyph: "▨" },
-  fold: { menu: "insert", group: "hidden", glyph: "▤" },
+  insertImage: { menu: "insert", group: "objects" },
+  insertFormula: { menu: "insert", group: "objects" },
+  hideLine: { menu: "insert", group: "hidden" },
+  hideBlock: { menu: "insert", group: "hidden" },
+  fold: { menu: "insert", group: "hidden" },
   // Format
-  makeList: { menu: "format", group: "structure", glyph: "≔", order: -1 },
-  stylesPanel: { menu: "format", group: "styles", glyph: "🎨" },
-  sectionSetup: { menu: "format", group: "page", face: true, glyph: "▭", order: -1 },
-  hiddenBreak: { menu: "format", group: "breaks", glyph: "⏎", order: -1 },
+  makeList: { menu: "format", group: "structure", order: -1 },
+  stylesPanel: { menu: "format", group: "styles" },
+  sectionSetup: { menu: "format", group: "page", order: -1 },
+  hiddenBreak: { menu: "format", group: "breaks", order: -1 },
   // Notes
-  tieredNote: { menu: "notes", group: "notes", face: true, glyph: "⁑" },
-  notesChooser: { menu: "notes", group: "notes", glyph: "✻", order: -1 },
-  renumber: { menu: "notes", group: "numbering", face: true },
+  tieredNote: { menu: "notes", group: "notes" },
+  notesChooser: { menu: "notes", group: "notes", order: -1 },
+  renumber: { menu: "notes", group: "numbering" },
   renderNotes: { menu: "notes", group: "numbering" },
-  markInsert: { menu: "notes", group: "review", face: true },
-  markDelete: { menu: "notes", group: "review", face: true },
-  addComment: { menu: "notes", group: "review", face: true },
-  reviewPanel: { menu: "notes", group: "review" },
   // Sources
-  citePhrase: { menu: "sources", group: "girsa", face: true, glyph: "⌕" },
-  linkifyCitations: { menu: "sources", group: "girsa", face: true, glyph: "⚯" },
-  refreshSources: { menu: "sources", group: "girsa", face: true, glyph: "↻" },
+  citePhrase: { menu: "sources", group: "girsa" },
+  linkifyCitations: { menu: "sources", group: "girsa" },
+  refreshSources: { menu: "sources", group: "girsa" },
   hydra: { menu: "sources", group: "girsa" },
+  // Review
+  spellSuggest: { menu: "review", group: "proofing" },
+  addComment: { menu: "review", group: "editorComments" },
+  reviewPanel: { menu: "review", group: "editorComments" },
+  markInsert: { menu: "review", group: "tracking" },
+  markDelete: { menu: "review", group: "tracking" },
+  snapshot: { menu: "review", group: "versions" },
+  history: { menu: "review", group: "versions" },
+  gitPanel: { menu: "review", group: "versions" },
   // View
+  outline: { menu: "view", group: "panes" },
+  notesPane: { menu: "view", group: "panes" },
+  marksPane: { menu: "view", group: "panes" },
+  arrangement: { menu: "view", group: "panes" },
   "pane.swapLeft": { menu: "view", group: "panes" },
-  "pane.swapRight": { menu: "view", group: "panes", face: true },
+  "pane.swapRight": { menu: "view", group: "panes" },
   "pane.swapUp": { menu: "view", group: "panes" },
   "pane.swapDown": { menu: "view", group: "panes" },
-  minimap: { menu: "view", group: "panes", face: true },
+  minimap: { menu: "view", group: "panes" },
   "pane.zoom": { menu: "view", group: "panes" },
   narrow: { menu: "view", group: "panes" },
   widen: { menu: "view", group: "panes" },
   isolate: { menu: "view", group: "panes" },
-  outline: { menu: "view", group: "panes", glyph: "☰" },
-  notesPane: { menu: "view", group: "panes" },
-  marksPane: { menu: "view", group: "panes" },
-  arrangement: { menu: "view", group: "panes" },
-  foldAll: { menu: "view", group: "folding", face: true, glyph: "⊟" },
-  unfoldAll: { menu: "view", group: "folding", face: true, glyph: "⊞" },
-  prose: { menu: "view", group: "display", face: true },
-  zoomIn: { menu: "view", group: "display", face: true },
-  zoomOut: { menu: "view", group: "display", face: true },
-  zoomReset: { menu: "view", group: "display" },
-  revealCursor: { menu: "view", group: "display" },
-  revealPlaces: { menu: "view", group: "display" },
-  toggleTheme: { menu: "view", group: "interface", face: true, glyph: "◐" },
-  toggleLang: { menu: "view", group: "interface", face: true },
+  foldAll: { menu: "view", group: "folding" },
+  unfoldAll: { menu: "view", group: "folding" },
+  zoomIn: { menu: "view", group: "zoom" },
+  zoomOut: { menu: "view", group: "zoom" },
+  zoomReset: { menu: "view", group: "zoom" },
+  revealCursor: { menu: "view", group: "zoom" },
+  revealPlaces: { menu: "view", group: "zoom" },
+  ribbonCustomize: { menu: "view", group: "ribbon" },
+  prose: { menu: "view", group: "interface" },
+  toggleTheme: { menu: "view", group: "interface" },
+  toggleLang: { menu: "view", group: "interface" },
   nikud: { menu: "view", group: "interface" },
   // Tools
-  macroRecord: { menu: "tools", group: "macros", glyph: "⏺" },
-  macroPlay: { menu: "tools", group: "macros", glyph: "▶" },
-  palette: { menu: "tools", group: "commandsGroup", glyph: "⌘" },
+  palette: { menu: "tools", group: "commandsGroup" },
+  macroRecord: { menu: "tools", group: "commandsGroup" },
   commandsDrawer: { menu: "tools", group: "commandsGroup" },
+  macroPlay: { menu: "tools", group: "macros" },
   deferJump: { menu: "tools", group: "defer" },
   deferHere: { menu: "tools", group: "defer" },
   deferRecall: { menu: "tools", group: "defer" },
@@ -370,12 +381,17 @@ export const ACTION_PLACE: Readonly<Record<string, Place>> = {
   deferRecallAll: { menu: "tools", group: "defer" },
   deferSort: { menu: "tools", group: "defer" },
   compileNow: { menu: "tools", group: "compile" },
-  settingsDrawer: { menu: "tools", group: "settingsGroup", glyph: "⚙" },
-  ribbonCustomize: { menu: "tools", group: "settingsGroup" },
+  settingsDrawer: { menu: "tools", group: "settingsGroup" },
   // Help
-  help: { menu: "help", group: "helpGroup", glyph: "?" },
-  keysDrawer: { menu: "help", group: "helpGroup", glyph: "⌨" },
+  help: { menu: "help", group: "helpGroup" },
+  keysDrawer: { menu: "help", group: "helpGroup" },
 };
+
+/**
+ * The shell actions that are a group's dialog launcher (§3): the `⚙` in the
+ * group's label row, beside the `*_config` commands — Word's *page setup…*.
+ */
+export const LAUNCHER: ReadonlySet<string> = new Set(["sectionSetup", "notesChooser"]);
 
 /**
  * The place of a generated shell action — the families `BUILT_IN` builds with
@@ -385,8 +401,7 @@ function familyPlace(id: string): Place | undefined {
   if (/^foldLevel\d+$/.test(id) || /^foldListDepth\d+$/.test(id)) return { menu: "view", group: "folding" };
   if (/^heading\./.test(id) || /^list\./.test(id)) return { menu: "format", group: "structure" };
   if (/^note\./.test(id)) return { menu: "notes", group: "notes" };
-  if (id === "table.delete") return { menu: "table", group: "table" };
-  if (/^table\.(row|col)/.test(id) || /^table\.(wider|narrower|equal|auto)/.test(id) || id === "table.headerRow")
+  if (/^table\.(row|col)/.test(id) || /^table\.(wider|narrower|equal|auto)/.test(id) || id === "table.headerRow" || id === "table.delete")
     return { menu: "table", group: "rowscols" };
   if (/^table\./.test(id)) return { menu: "table", group: "cells" };
   return undefined;
@@ -402,62 +417,102 @@ function familyPlace(id: string): Place | undefined {
  * under. A face of more than `MAX_FACE` is a wall, and a fence says so.
  */
 export const FACE: Readonly<Record<string, readonly string[]>> = {
+  // Insert
+  tables: ["טבלה"],
+  objects: ["insertImage", "insertFormula"],
   headings: ["שער", "תת_שער", "כותרת"],
   lists: ["רשימה", "ממוספרת", "ממוספרת_עברית"],
   blocks: ["ציטוט", "תיבה", "מקור"],
-  misc: ["קו_מפריד", "חסר"],
+  misc: ["קו_מפריד", "חסר", "כלול"],
+  // Layout
   page: ["מקטע_עמוד", "כותרת_עליונה", "כותרת_תחתונה"],
   breaks: ["מעבר_עמוד", "מעבר_טור"],
   columns: ["טורים_בלוק"],
   spacing: ["מרווח", "הזחה"],
-  table: ["טבלה"],
-  rowscols: ["table.rowAbove", "table.rowBelow", "table.colBefore", "table.colAfter", "table.rowDelete", "table.colDelete"],
-  cells: ["מיזוג", "כותרת_תא", "תא"],
-  notes: ["הערה", "הערה_ב", "הערה_ג"],
+  // Notes
+  notes: ["הערה", "הערה_ב", "הערה_ג", "tieredNote"],
   endnotes: ["הערתסיום", "הערות_בסוף"],
   sidenotes: ["עם_הערות_צד", "הערת_גיליון"],
   systems: ["ערוץ", "אזור", "הצג_אזור"],
-  numbering: ["התחל_מספור", "המשך_מספור"],
+  numbering: ["התחל_מספור", "המשך_מספור", "renumber"],
   refs: ["הפניה", "סמן", "הפניה_להערה"],
+  // Sources
   sefer: ["סימן", "סעיף", "אות", "דיבור_המתחיל"],
-  citations: ["מראה_מקום", "ציון", "גמרא", "פסוק", "ציון_מקור"],
+  citations: ["מראה_מקום", "ציון", "גמרא", "פסוק"],
+  girsa: ["citePhrase", "linkifyCitations", "refreshSources"],
   indexes: ["תוכן", "מפתח_מקורות", "מפתח_ענינים", "ערך"],
+  // Review
+  proofing: ["spellSuggest"],
+  editorComments: ["addComment", "reviewPanel"],
+  tracking: ["markInsert", "markDelete"],
+  versions: ["snapshot", "history", "gitPanel"],
+  // View
+  panes: ["outline", "notesPane", "marksPane", "arrangement", "pane.swapRight", "minimap"],
+  folding: ["foldAll", "unfoldAll"],
+  zoom: ["zoomIn", "zoomOut"],
+  commandsGroup: ["palette", "macroRecord"],
+  ribbon: ["ribbonCustomize"],
+  // Table (contextual)
+  rowscols: ["table.rowAbove", "table.rowBelow", "table.colBefore", "table.colAfter", "table.rowDelete", "table.colDelete"],
+  cells: ["מיזוג", "table.splitCell", "כותרת_תא"],
 };
 
-/** The most face buttons a default group draws. */
+/** The most labelled (large or small) faces a group draws: rule 2. */
 export const MAX_FACE = 6;
+/** The most icon-only faces a group draws: the Font and Paragraph rows are icons, and denser. */
+export const MAX_ICON_FACE = 10;
+/** The most large faces a group draws. */
+export const MAX_LARGE = 2;
+
+/**
+ * The faces that are not `small` (§5): the large ones a group leads with, and
+ * the icon-only ones whose picture is the name. Keyed like `FACE`.
+ */
+export const SIZE: Readonly<Record<string, FaceSize>> = {
+  ...Object.fromEntries(
+    [
+      "paste", "טבלה", "insertImage", "מקטע_עמוד", "טורים_בלוק", "הערה", "סימן", "מראה_מקום", "תוכן",
+      "spellSuggest", "addComment",
+    ].map((k) => [k, "large" as const]),
+  ),
+  ...Object.fromEntries(
+    [
+      "גדול", "קטן", "הדגשה", "נטוי", "קו_תחתון", "קו_חוצה", "סימון", "צבע",
+      "ימין", "מרכז", "שמאל", "מימין_לשמאל", "משמאל_לימין", "zoomIn", "zoomOut",
+    ].map((k) => [k, "icon" as const]),
+  ),
+};
 
 /**
  * The Home tab: what a writer reaches for every minute (§5).
  *
- * A list of its own rather than a flag on each place, and this is the one
- * place the spec's record and the build differ (§13): Home's groups are not
+ * A list of its own rather than a flag on each place: Home's groups are not
  * the items' own groups — the headings sit with siman and seif under *מבנה*,
- * undo and redo are a group with no tab of their own — and a footnote is a face
- * button on Home while the endnote beside it is behind `⋯`, which is not what
- * the Notes tab says about either. `placed()` still sets `place.home` from this,
- * so a reader of one action can see that it is a Home pick.
+ * cut and copy under *לוח* while the Edit menu files them with undo — and a footnote is a face on Home
+ * while the endnote beside it is behind `⋯`, which is not what the Notes tab
+ * says about either. `placed()` still sets `place.home` from this, so a reader
+ * of one action can see that it is a Home pick.
  */
 export const HOME: readonly { group: string; face: readonly string[]; more: readonly string[] }[] = [
-  { group: "homeEdit", face: ["undo", "redo"], more: ["find"] },
+  // Word's Clipboard: paste large, cut and copy stacked beside it.
+  { group: "clipboard", face: ["paste", "cut", "copy"], more: [] },
   {
     group: "font",
-    face: ["הדגשה", "נטוי", "קו_תחתון", "סימון", "גדול", "קטן"],
-    more: [
-      "קו_חוצה", "עילי", "תחתי", "רברבתי", "כתב_רשי", "צבע", "רקע", "גופן_שונה", "גודל_גופן",
-      "מרווח_אותיות", "קוד", "עיצוב",
-    ],
+    face: ["גדול", "קטן", "הדגשה", "נטוי", "קו_תחתון", "קו_חוצה", "סימון", "צבע"],
+    more: ["עילי", "תחתי", "רברבתי", "כתב_רשי", "רקע", "מרווח_אותיות", "קוד", "גופן_שונה", "גודל_גופן", "עיצוב"],
   },
-  { group: "paragraph", face: ["ימין", "מרכז", "שמאל"], more: ["מימין_לשמאל", "משמאל_לימין"] },
-  // The first custom styles are added at render time: they are the document's,
-  // and `placed()` puts every style in this group (see `STYLE_PLACE`).
-  { group: "styles", face: [], more: ["stylesPanel"] },
+  { group: "paragraph", face: ["ימין", "מרכז", "שמאל", "מימין_לשמאל", "משמאל_לימין"], more: [] },
+  // The document's custom styles follow the panel's face at render time: they
+  // are the document's, and `placed()` puts every style in this group.
+  { group: "styles", face: ["stylesPanel"], more: [] },
   { group: "homeStructure", face: ["כותרת1", "כותרת2", "כותרת3", "סימן", "סעיף"], more: ["אות", "דיבור_המתחיל", "שער", "תת_שער"] },
   { group: "homeNotes", face: ["הערה", "הערה_ב"], more: ["הערתסיום"] },
+  // Word's Editing, at Home's far end: find and replace.
+  { group: "find", face: ["find", "replace"], more: [] },
 ];
 
 /** Home's own group ids — named like any group, owned by no menu. */
-export const HOME_GROUPS: readonly string[] = ["homeEdit", "homeStructure", "homeNotes"];
+export const HOME_GROUPS: readonly string[] = ["homeStructure", "homeNotes"];
 
 /** Where the generated actions go (§4). */
 const MACRO_PLACE: Place = { menu: "tools", group: "macros" };
@@ -522,10 +577,10 @@ export function placed(src: PlaceSources): PlacedAction[] {
     const a: PlacedAction = { id: door ?? commandId(c.he), place, kind: door ? "shell" : "command", command: c };
     if (door) {
       doors.add(door);
-      // A door that also has a hand-written place keeps it (its glyph, its order),
-      // but the menu is the command's, so the two cannot disagree about the floor.
+      // A door that also has a hand-written place keeps its order, but the
+      // menu is the command's, so the two cannot disagree about the floor.
       const own = ACTION_PLACE[door];
-      if (own) a.place = { ...place, glyph: own.glyph, order: own.order };
+      if (own) a.place = { ...place, order: own.order };
     }
     if (isConfig(c)) a.gear = true;
     out.push(a);
@@ -539,6 +594,7 @@ export function placed(src: PlaceSources): PlacedAction[] {
     // under a fallback would be the habit `menus.ts`'s floor warned against.
     if (!place) continue;
     const a: PlacedAction = { id, place: { ...place }, kind: "shell" };
+    if (LAUNCHER.has(id)) a.gear = true;
     out.push(a);
     byKey.set(id, a);
   }
@@ -557,6 +613,14 @@ export function placed(src: PlaceSources): PlacedAction[] {
     const a = byKey.get(k);
     if (a) a.place.home = true;
   }
+  // The look: an icon and a size, keyed by id or by the command's name.
+  for (const a of out) {
+    const key = (t: Readonly<Record<string, string>>) => t[a.id] ?? (a.command ? t[a.command.he] : undefined);
+    const ic = key(ICON_OF);
+    if (ic) a.place.icon = ic;
+    const size = key(SIZE) as FaceSize | undefined;
+    if (size) a.place.size = size;
+  }
   // The rule, applied last so no table above can break it.
   for (const a of out) if (a.gear) a.place.face = false;
 
@@ -564,13 +628,16 @@ export function placed(src: PlaceSources): PlacedAction[] {
   // stable sort, so the registry's own order survives inside a group.
   const menuIx = (m: MenuId) => MENUS.indexOf(m);
   const groupIx = (p: Place) => GROUPS[p.menu].indexOf(p.group);
+  // Settings rows sink to the end of their group; a launcher is the group's own
+  // dialog — the Notes chooser — and keeps the place it was given.
+  const tail = (a: PlacedAction) => Number(!!a.gear && !LAUNCHER.has(a.id));
   return out
     .map((a, i) => ({ a, i }))
     .sort(
       (x, y) =>
         menuIx(x.a.place.menu) - menuIx(y.a.place.menu) ||
         groupIx(x.a.place) - groupIx(y.a.place) ||
-        Number(!!x.a.gear) - Number(!!y.a.gear) ||
+        tail(x.a) - tail(y.a) ||
         (x.a.place.order ?? 1e6) - (y.a.place.order ?? 1e6) ||
         x.i - y.i,
     )
@@ -668,17 +735,14 @@ export interface TabNode {
   groups: TabGroup[];
 }
 
-/** Groups that are a menu's and never a tab's: the conceal-and-fold rows are reached by chord and menu. */
-const NOT_ON_A_TAB: ReadonlySet<string> = new Set(["hidden"]);
-
 /**
  * The tab strip, as a tree — tab → group → face, `⋯`, `⚙` (§4 "Building").
  *
- * Every tab but Home is the placed list grouped by `tabOf`; a group with nothing
- * on its face and nothing behind `⚙` still draws its `⋯`, so every action a tab
- * claims is one click away on it. Home is `HOME`, resolved against the list — its
- * groups are its own (§13) — and its styles group takes the document's first
- * custom styles as its face.
+ * Every tab but Home is `TAB_GROUPS`, filled from the placed list; a group with
+ * nothing on its face and nothing behind `⚙` still draws its `⋯`, so every
+ * action a tab claims is one click away on it. Home is `HOME`, resolved against
+ * the list — its groups are its own (§13) — and its styles group takes the
+ * document's custom styles after the panel's face.
  *
  * Pure, like `menuTree`, and for the same reason: a fence can say what each tab
  * holds without a DOM.
@@ -687,18 +751,29 @@ export function tabTree(list: readonly PlacedAction[]): TabNode[] {
   return TABS.map((tab) => ({ tab, groups: tab === "home" ? homeGroups(list) : tabGroups(tab, list) }));
 }
 
-function tabGroups(tab: TabId, list: readonly PlacedAction[]): TabGroup[] {
-  const byGroup = new Map<string, TabGroup>();
-  for (const a of list) {
-    if (tabOf(a.place) !== tab || NOT_ON_A_TAB.has(a.place.group)) continue;
-    let g = byGroup.get(a.place.group);
-    if (!g) byGroup.set(a.place.group, (g = { group: a.place.group, face: [], more: [], gear: [], missing: [] }));
-    if (a.gear) g.gear.push(a);
-    else if (a.place.face && g.face.length < MAX_FACE) g.face.push(a);
-    else g.more.push(a);
-  }
-  // `list` is already in menu → group order, so insertion order is the right one.
-  return [...byGroup.values()];
+/** Can one more face of this size go on a group that already has these. */
+function roomFor(face: readonly PlacedAction[], a: PlacedAction): boolean {
+  const n = (want: (s: FaceSize) => boolean) => face.filter((f) => want(f.place.size ?? "small")).length;
+  const size = a.place.size ?? "small";
+  if (size === "icon") return n((s) => s === "icon") < MAX_ICON_FACE;
+  if (size === "large" && n((s) => s === "large") >= MAX_LARGE) return false;
+  return n((s) => s !== "icon") < MAX_FACE;
+}
+
+function tabGroups(tab: Exclude<TabId, "home">, list: readonly PlacedAction[]): TabGroup[] {
+  return TAB_GROUPS[tab]
+    .map((group) => {
+      const g: TabGroup = { group, face: [], more: [], gear: [], missing: [] };
+      for (const a of list) {
+        if (a.place.group !== group || tabOf(a.place) !== tab) continue;
+        if (a.gear) g.gear.push(a);
+        else if (a.place.face && roomFor(g.face, a)) g.face.push(a);
+        else g.more.push(a);
+      }
+      g.face.sort((x, y) => (x.place.order ?? 1e6) - (y.place.order ?? 1e6));
+      return g;
+    })
+    .filter((g) => g.face.length || g.more.length || g.gear.length);
 }
 
 function homeGroups(list: readonly PlacedAction[]): TabGroup[] {
@@ -706,8 +781,7 @@ function homeGroups(list: readonly PlacedAction[]): TabGroup[] {
     keys.map((k) => resolveKey(k, list)).filter((a): a is PlacedAction => !!a);
   return HOME.map((h) => ({
     group: h.group,
-    face:
-      h.group === "styles" ? list.filter((a) => a.kind === "style").slice(0, MAX_FACE) : resolve(h.face),
+    face: [...resolve(h.face), ...(h.group === "styles" ? list.filter((a) => a.kind === "style").slice(0, MAX_FACE - 1) : [])],
     more: resolve(h.more),
     gear: [],
     missing: h.face.filter((k) => !resolveKey(k, list)),

@@ -397,7 +397,7 @@ export function missingControl(glyph: string, command: string): HTMLElement {
  * the argument takes any colour and a fixed palette would be the product being
  * narrower than the document format again.
  */
-export function highlightControl(label: string): HTMLElement {
+export function highlightControl(label: string, lead: Node[] = [], size = "small"): HTMLElement {
   const writing = docLang();
   const cmd = runtime.commandsReg.find((c) => c.he === "סימון");
   if (!cmd) return missingControl(label, "סימון");
@@ -428,7 +428,19 @@ export function highlightControl(label: string): HTMLElement {
   // would make every use two gestures, and the second one invisible.
   swatch.addEventListener("change", apply);
   return el("span", { class: "tb-split" }, [
-    el("button", { class: "tb-btn ribbon-btn", type: "button", title: `${desc} · #${name}`, "data-command": cmd.he, onClick: apply }, [label]),
+    el(
+      "button",
+      {
+        class: "tb-btn ribbon-btn",
+        type: "button",
+        title: `${desc} · #${name}`,
+        "data-command": cmd.he,
+        "data-size": size,
+        ...(size === "icon" && lead.length ? { "aria-label": label } : {}),
+        onClick: apply,
+      },
+      [...lead, el("span", { class: "ribbon-lbl" }, [label])],
+    ),
     swatch,
   ]);
 }

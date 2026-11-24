@@ -8,7 +8,7 @@
 
 import { check, ok, installChrome, fakeView } from "./harness.mjs";
 import { commands } from "../tools/commands.mjs";
-import { HOME, MAX_FACE, TABS, menuTree, placed, tabOf, tabTree } from "../.tmp-test/placement.mjs";
+import { HOME, MAX_FACE, MAX_ICON_FACE, MAX_LARGE, TABS, menuTree, placed, tabOf, tabTree } from "../.tmp-test/placement.mjs";
 import { buildRibbon, faceLabel, menuToggle, stepTab } from "../.tmp-test/shelltabs.mjs";
 import { setRegistries, setView } from "../.tmp-test/runtime.mjs";
 import { t } from "../.tmp-test/i18n.mjs";
@@ -38,7 +38,10 @@ export async function run() {
   check("every tab button has a menu row (§3: a tab is never a home)", all.filter((a) => !inMenus.has(a.id)).map((a) => a.id), []);
   for (const n of tree) {
     for (const g of n.groups) {
-      ok(`${n.tab}/${g.group}: at most ${MAX_FACE} on the face`, g.face.length <= MAX_FACE);
+      const sized = (size) => g.face.filter((a) => a.kind !== "style" && (a.place.size ?? "small") === size).length;
+      ok(`${n.tab}/${g.group}: at most ${MAX_LARGE} large faces`, sized("large") <= MAX_LARGE);
+      ok(`${n.tab}/${g.group}: at most ${MAX_FACE} labelled faces`, sized("large") + sized("small") <= MAX_FACE);
+      ok(`${n.tab}/${g.group}: at most ${MAX_ICON_FACE} icon faces`, sized("icon") <= MAX_ICON_FACE);
       check(`${n.tab}/${g.group}: no config command on the face`, g.face.filter((a) => a.gear).map((a) => a.id), []);
       check(`${n.tab}/${g.group}: ⚙ holds only config commands`, g.gear.filter((a) => !a.gear).map((a) => a.id), []);
       if (n.tab !== "home") {
@@ -53,9 +56,16 @@ export async function run() {
   const home = tree.find((n) => n.tab === "home");
   check("Home's groups are HOME's, in order", home.groups.map((g) => g.group), HOME.map((h) => h.group));
   const homeFont = home.groups.find((g) => g.group === "font");
-  check("Home ▸ Font's face is bold first", homeFont.face[0]?.command?.he, "הדגשה");
-  check("Home ▸ Styles' face is the document's styles", home.groups.find((g) => g.group === "styles").face.map((a) => a.id), ["style:a"]);
-  ok("Home has undo on its face", home.groups[0].face.some((a) => a.id === "undo"));
+  check("Home ▸ Font leads with the size buttons, then bold", homeFont.face.slice(0, 3).map((a) => a.command?.he), ["גדול", "קטן", "הדגשה"]);
+  check("…all of them icon faces", homeFont.face.filter((a) => a.place.size !== "icon").map((a) => a.id), []);
+  check(
+    "Home ▸ Styles' face is the gallery's door, then the document's styles",
+    home.groups.find((g) => g.group === "styles").face.map((a) => a.id),
+    ["stylesPanel", "style:a"],
+  );
+  check("Home leads with the clipboard: paste large, then cut and copy", home.groups[0].face.map((a) => [a.id, a.place.size ?? "small"]), [["paste", "large"], ["cut", "small"], ["copy", "small"]]);
+  check("…and ends with find and replace, as Word's Editing does", home.groups.at(-1).face.map((a) => a.id), ["find", "replace"]);
+  ok("undo is not on Home: it is Quick Access's", !home.groups.some((g) => g.face.some((a) => a.id === "undo")));
   const table = tree.find((n) => n.tab === "table");
   ok("the Table tab has a ⚙", table.groups.some((g) => g.gear.length > 0));
   ok("the conceal rows are not on a tab", !all.some((a) => a.place.group === "hidden"));
@@ -86,18 +96,30 @@ export async function run() {
   check("one tab is in the tab order", strip.children.filter((b) => b.tabindex === "0").length, 1);
   check("Home's panel draws Home's groups", panel.children.map((g) => g["data-group"]), HOME.map((h) => h.group));
 
-  const undo = panel.children[0].children[0].children.find((b) => b["data-action"] === "undo");
-  ok("undo is a named face button", undo && typeof undo.children[0] === "string" && undo.children[0].length > 1);
+  // A group is its row of lanes, then its foot: the caption and `⚙`.
+  const lanesOf = (g) => g.children[0].children;
+  const controls = (g) => [...lanesOf(g).flatMap((l) => l.children), ...g.children[1].children.slice(1)];
+  const paste = controls(panel.children[0]).find((b) => b["data-action"] === "paste");
+  check("paste is a large face", paste?.["data-size"], "large");
+  check("…drawn as its icon over its words", [paste?.children[0]?.tagName?.toLowerCase(), paste?.children[1]?.children], ["svg", [t("btn.paste")]]);
+  check("Clipboard: paste stands alone, cut and copy stack beside it", lanesOf(panel.children[0]).map((l) => l["data-lane"]), ["large", "small"]);
+  const bold = panel.children.flatMap(controls).find((b) => b["data-command"] === "הדגשה");
+  check("bold is an icon face, named for the reader that cannot see it", [bold?.["data-size"], bold?.["aria-label"]], ["icon", t("btn.bold")]);
   const font = panel.children.find((g) => g["data-group"] === "font");
-  const fontRow = font.children[0].children;
-  check("Font: six faces, then ⋯", fontRow.length, 7);
+  check("Font: one lane of icon faces", lanesOf(font).map((l) => l["data-lane"]), ["icon"]);
+  const fontRow = lanesOf(font)[0].children;
+  check("…eight of them, then ⋯", fontRow.length, 9);
   check("⋯ is the group's last control", fontRow.at(-1)["data-menu"], "more-font");
   ok("⋯ says which group it opens", fontRow.at(-1).children[0]["aria-label"].includes(t("grp.font")));
 
   strip.children.find((b) => b["data-tab"] === "table").click();
   check("choosing a tab selects it", strip.children.map((b) => b["aria-selected"]), TABS.map((x) => String(x === "table")));
   ok("and draws its groups", panel.children.some((g) => g["data-group"] === "rowscols"));
-  const gear = panel.children.flatMap((g) => g.children[0].children).filter((c) => String(c["data-menu"]).startsWith("gear-"));
+  for (const g of panel.children) {
+    ok(`${g["data-group"]}: no small lane holds more than three`, lanesOf(g).every((l) => l["data-lane"] !== "small" || l.children.length <= 3));
+    ok(`${g["data-group"]}: a large lane holds one face`, lanesOf(g).every((l) => l["data-lane"] !== "large" || l.children.length === 1));
+  }
+  const gear = panel.children.flatMap((g) => g.children[1].children).filter((c) => String(c["data-menu"]).startsWith("gear-"));
   ok("the Table tab draws a ⚙", gear.length > 0);
   check("the open tab survives a redraw", buildRibbon().children[0].children.find((b) => b["aria-selected"] === "true")["data-tab"], "table");
 

@@ -2023,6 +2023,38 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 .ribbon-tab[data-contextual="true"] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
 .ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
 .ribbon-btn { white-space: nowrap; }
+
+/* Word's group body (#233, §6). Three lane kinds, one height: a large face is a
+   column with a 32px icon over its words; small faces stack three to a column,
+   icon beside words; icon faces sit in two rows, their words kept only for the
+   reader that cannot see the drawing. The row is the height of three small
+   faces, so a group's caption lines up with every other group's. */
+.ribbon-group { justify-content: space-between; }
+.ribbon-group .tb-group-row { align-items: stretch; gap: 4px; min-height: 72px; }
+.rb-lane { display: flex; flex-direction: column; gap: 1px; }
+.rb-lane[data-lane="large"] > * { flex: 1; }
+.rb-lane[data-lane="icon"] {
+  display: grid; grid-template-columns: repeat(var(--cols, 1), auto);
+  grid-auto-rows: 26px; align-content: center; gap: 2px;
+}
+.ribbon-btn { gap: 5px; }
+.ribbon-btn[data-size="small"] { height: 23px; min-width: 0; padding: 0 6px; justify-content: flex-start; }
+.ribbon-btn[data-size="large"] {
+  flex-direction: column; height: auto; min-height: 70px; padding: 4px 6px; gap: 3px;
+  white-space: normal; max-width: 72px; text-align: center; line-height: 1.15;
+}
+.ribbon-btn[data-size="icon"] { height: 26px; min-width: 26px; padding: 0 4px; }
+.rb-lane > .menu-btn, .rb-lane > * > .menu-btn { height: 23px; min-width: 0; padding: 0 6px; }
+.rb-lane[data-lane="icon"] .menu-btn { height: 26px; min-width: 26px; }
+/* Visually hidden, still read: the button's name for a screen reader and the tests. */
+.ribbon-btn[data-size="icon"] .ribbon-lbl {
+  position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+.ribbon-btn svg { flex: none; }
+/* The caption, with `⚙` — Word's dialog launcher — in its trailing corner. */
+.tb-group-foot { display: flex; align-items: center; gap: 4px; align-self: stretch; justify-content: center; position: relative; }
+.tb-group-foot .menu-btn { position: absolute; inset-inline-end: -4px; height: 16px; min-width: 16px; padding: 0; font-size: 11px; line-height: 1; }
 .ribbon-group .menu-list { top: 32px; }
 
 /* Customize the ribbon (#233, §8). Logical properties throughout, so Hebrew mirrors. */

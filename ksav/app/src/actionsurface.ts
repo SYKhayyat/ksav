@@ -157,6 +157,13 @@ export const BUILT_IN: { id: string; run: (v: EditorView) => boolean }[] = [
   // find panel over the buffer. The other two open the find drawer, which is
   // the only surface that can show a hit on a page.
   { id: "find", run: (v) => startFind(v) },
+  { id: "replace", run: (v) => startReplace(v) },
+  // The clipboard, as buttons (§5, Home ▸ Edit). The keys need nothing: the
+  // browser's own cut, copy and paste reach CodeMirror's handlers. A button is
+  // not a key, so it asks for the same events.
+  { id: "cut", run: (v) => clipboardOut(v, "cut") },
+  { id: "copy", run: (v) => clipboardOut(v, "copy") },
+  { id: "paste", run: (v) => (voidAction("general", () => pasteInto(v)), true) },
   { id: "foldAll", run: (v) => foldAll(v) },
   { id: "unfoldAll", run: (v) => unfoldAll(v) },
   // Lock this pane to the section the caret is in, and let it out again. On the
@@ -484,6 +491,56 @@ export function startFind(view: EditorView): boolean {
   if ((settings.searchScope ?? "source") === "source") return openSearchPanel(view);
   openPanel("find-drawer");
   return true;
+}
+
+/** Find, with the replace field focused: the search panel is both. */
+function startReplace(view: EditorView): boolean {
+  if (!openSearchPanel(view)) return false;
+  view.dom.querySelector<HTMLInputElement>(".cm-search input[name=replace]")?.focus();
+  return true;
+}
+
+/**
+ * Cut or copy the selection. `execCommand` raises the real event, so
+ * CodeMirror's own handler writes what it writes for a key; where the browser
+ * refuses it, the selected text goes to the clipboard plainly.
+ */
+function clipboardOut(view: EditorView, how: "cut" | "copy"): boolean {
+  view.focus();
+  if (document.execCommand(how)) return true;
+  const sel = view.state.selection.main;
+  if (sel.empty) return false;
+  void navigator.clipboard?.writeText(view.state.sliceDoc(sel.from, sel.to));
+  if (how === "cut") view.dispatch(view.state.replaceSelection(""));
+  return true;
+}
+
+/**
+ * Paste what the clipboard holds, through the editor's paste handler — the one
+ * that reads a Girsa packet and pastes into every caret — by raising a paste
+ * event carrying it. Only text and HTML: a button cannot read files.
+ */
+async function pasteInto(view: EditorView): Promise<void> {
+  view.focus();
+  const data = new DataTransfer();
+  // `read` is the newer half and not everywhere, nor always allowed; plain text
+  // is the fallback below, and the writer hears if that is refused too.
+  const items = (await navigator.clipboard?.read?.().catch(() => undefined)) ?? [];
+  for (const item of items) {
+    for (const type of item.types.filter((t) => t === "text/plain" || t === "text/html")) {
+      data.setData(type, await (await item.getType(type)).text());
+    }
+  }
+  if (!data.getData("text/plain")) {
+    const text = await navigator.clipboard?.readText?.().catch(() => "");
+    if (!text) {
+      setStatus(t("pasteDenied"), "warn");
+      return;
+    }
+    data.setData("text/plain", text);
+  }
+  const ev = new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true });
+  if (view.contentDOM.dispatchEvent(ev)) view.dispatch(view.state.replaceSelection(data.getData("text/plain")));
 }
 
 export function toggleMinimap(): void {

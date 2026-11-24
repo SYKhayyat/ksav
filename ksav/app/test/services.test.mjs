@@ -393,7 +393,7 @@ export async function run() {
     // so the lane was never drained from the foreground side either.
     //
     // One worker death and the browser build was back to plain FIFO — which is
-    // exactly what `AUDIT-perf-and-blocking.md` §B1 was written to end, *"a
+    // exactly what the 2026-08-18 perf audit (retired; `git show a1d2f3b:AUDIT-perf-and-blocking.md`) §B1 was written to end, *"a
     // background layout or the 1 Hz inbox poll in front of the compile the
     // writer was waiting for"*. Silently, and at the worst moment: a worker dies
     // because a document ran away, which is when the next compile matters most.

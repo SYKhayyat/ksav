@@ -842,7 +842,7 @@ mod tests {
     /// has to know where the text printed, and there is no answer without laying
     /// the document out. Marking it `Work` would put a full layout in the
     /// background lane, where it would queue behind the compile the writer is
-    /// waiting for, which is the mistake `AUDIT-perf-and-blocking.md` §B1 exists
+    /// waiting for, which is the mistake the 2026-08-18 perf audit (retired; `git show a1d2f3b:AUDIT-perf-and-blocking.md`) §B1 exists
     /// to prevent. A chooser that answers after the page has moved is worse than
     /// one that waits.
     #[test]

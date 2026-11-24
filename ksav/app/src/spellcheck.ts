@@ -140,7 +140,7 @@ export async function runSpellCheck() {
   // The region **first**, and only then the text for it. This used to build the
   // whole document's checkable text and slice a paragraph out of it, which is
   // the one part of the incremental check that never became incremental —
-  // `AUDIT-perf-and-blocking.md` §A6 fixed the transfer and the engine's work
+  // the 2026-08-18 perf audit (retired; `git show a1d2f3b:AUDIT-perf-and-blocking.md`) §A6 fixed the transfer and the engine's work
   // and left the client's. See `checkableText`'s `window` parameter.
   const payload = spell.checkableText(
     realText,

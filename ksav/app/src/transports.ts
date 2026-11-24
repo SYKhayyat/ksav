@@ -702,7 +702,7 @@ export class WasmBackend extends ServiceClient implements Backend {
       // ever held; `--this.foregroundPending === 0` false forever, so the lane
       // was never drained from this side either. One worker death and the
       // browser build was back to plain FIFO, which is precisely what
-      // `AUDIT-perf-and-blocking.md` §B1 was written to fix: *"a background
+      // the 2026-08-18 perf audit (retired; `git show a1d2f3b:AUDIT-perf-and-blocking.md`) §B1 was written to fix: *"a background
       // layout or the 1 Hz inbox poll in front of the compile the writer was
       // waiting for"*.
       //

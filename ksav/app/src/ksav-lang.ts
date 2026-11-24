@@ -8,7 +8,7 @@
 
 import { EditorView, ViewPlugin, Decoration, ViewUpdate, WidgetType } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
-import { StateEffect, StateField } from "@codemirror/state";
+import { Facet, RangeSetBuilder, StateEffect, StateField, type RangeSet } from "@codemirror/state";
 import type { EditorState, EditorSelection } from "@codemirror/state";
 import { foldService, codeFolding } from "@codemirror/language";
 import { FOLD_OPEN, FOLD_CLOSE } from "./hiding";
@@ -236,6 +236,35 @@ class MarkWidget extends WidgetType {
     return false;
   }
 }
+
+/**
+ * A box in writer mode (`decisions/2026-11-23-frontends-are-views-in-boxes.md`):
+ * prose decorations with nothing ever revealed, and the hidden markup atomic.
+ */
+export const writerFacet = Facet.define<boolean, boolean>({ combine: (v) => v.some(Boolean) });
+
+/** Replaced spans of a prose drawing, which the caret steps over whole. */
+const ATOMIC = new WeakMap<DecorationSet, RangeSet<Decoration>>();
+export function atomicOf(deco: DecorationSet): RangeSet<Decoration> {
+  let got = ATOMIC.get(deco);
+  if (got) return got;
+  const b = new RangeSetBuilder<Decoration>();
+  for (const it = deco.iter(); it.value; it.next()) if (it.value.point && it.to > it.from) b.add(it.from, it.to, it.value);
+  got = b.finish();
+  ATOMIC.set(deco, got);
+  return got;
+}
+
+/**
+ * The writer: Word, not Typst. Scaffolding — `#name(…)[` and `]`, comments,
+ * marker bodies — is replaced and atomic, so the caret can never stand inside
+ * markup; the bodies of formatting commands are text and stay editable. This
+ * is what made #126's semantic motion unnecessary.
+ */
+export const writerAtomic = EditorView.atomicRanges.of((v) => {
+  const f = v.state.field(proseMode, false);
+  return f ? atomicOf(f.deco) : Decoration.none;
+});
 
 /** Toggle for "reveal all raw markup" (bound to the Alt key). */
 export const setRevealAll = StateEffect.define<boolean>();
@@ -603,7 +632,11 @@ function overlapsSel(sel: EditorSelection, from: number, to: number): boolean {
 }
 
 function proseDecorations(state: EditorState): ProseValue {
-  const reveal = state.field(revealAll, false);
+  // The writer never shows markup — not under the caret, not with Alt held:
+  // its scaffolding is atomic (`writerAtomic`), so there is nowhere for a
+  // revealed command to be edited from in the first place.
+  const writer = state.facet(writerFacet);
+  const reveal = !writer && state.field(revealAll, false);
   const sel = state.selection;
   const ranges: { from: number; to: number; deco: Decoration; side: number }[] = [];
   const touch: { from: number; to: number }[] = [];
@@ -612,6 +645,7 @@ function proseDecorations(state: EditorState): ProseValue {
     // Every span asked about here is one a cursor move could reveal or hide;
     // recording them lets the field decide, on the next selection change,
     // whether a recompute is even necessary.
+    if (writer) return false;
     touch.push({ from, to });
     return reveal || sel.ranges.some((r) => r.from <= to && r.to >= from);
   };

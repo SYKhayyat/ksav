@@ -458,6 +458,8 @@ export interface Settings {
    * wants to try it turns it on.
    */
   sourceMotions?: "semantic" | "raw";
+  /** In the writer, what Backspace/Delete onto a note marker does (frontends §2). */
+  noteDelete?: "twoStep" | "immediate";
   /**
    * Where the two panes line up: the top, middle or bottom of the viewport. The
    * line at that point of the source is put at the same point of the preview —
@@ -766,6 +768,7 @@ export const DEFAULTS: Settings = {
   // The destination per the spec, held back to the old behaviour until the
   // stops have been felt. See the field's own note.
   sourceMotions: "raw",
+  noteDelete: "twoStep",
   // `direction`, and not `middle`, which is what it shipped as. The report is
   // about reading rather than about preference: a fixed anchor is wrong in one
   // of the two directions and the writer notices it every time they scroll back.

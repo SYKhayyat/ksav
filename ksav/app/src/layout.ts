@@ -349,7 +349,7 @@ export function render() {
   // they built is worth less than no arrangement at all.
   if (!tabs.restore(settings.tabs)) {
     tabs.reset();
-    tabs.add((settings.panes as panes.PaneNode | undefined) ?? panes.defaultTree());
+    tabs.add(panes.validTree(settings.panes) ?? panes.defaultTree());
   }
   setPaneTree(tabs.current()!.tree);
   setFocusedPane(tabs.current()!.focusedPane);

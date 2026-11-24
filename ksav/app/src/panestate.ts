@@ -52,7 +52,7 @@ export interface PaneWiring {
   /** Rebuild every pane's head strip: panehost.refreshPaneHeads. */
   refreshHeads(): void;
   /** The state factory: main.ts's `makeState`. */
-  makePaneState(body: string, prose: boolean, at?: number): EditorState;
+  makePaneState(body: string, prose: boolean | "writer", at?: number): EditorState;
   /** Whether the caret is in prose or raw markup: main.ts's `proseHere`. */
   proseHere(): boolean;
   /** Re-apply the editing mode to every pane, through the save action. */
@@ -202,7 +202,7 @@ export function currentPane(): string | null {
 export function sourceViews(): EditorView[] {
   const out: EditorView[] = [];
   for (const l of panes.leaves(paneTree)) {
-    if (l.role !== "source") continue;
+    if (panes.drawn(l) !== "source") continue;
     const v = paneViews.get(l.id);
     if (v) out.push(v);
   }
@@ -277,8 +277,8 @@ export function showInEveryPane(state: EditorState): void {
 export function rememberPlaces(docId: string | null): void {
   if (!docId) return;
   for (const l of panes.leaves(paneTree)) {
-    const v = l.role === "source" ? paneViews.get(l.id) : undefined;
-    if (l.role === "source" && !v) continue;
+    const v = panes.drawn(l) === "source" ? paneViews.get(l.id) : undefined;
+    if (panes.drawn(l) === "source" && !v) continue;
     const sel = v?.state.selection.main;
     paneplaces.remember(l.id, docId, {
       anchor: sel?.anchor ?? 0,
@@ -308,7 +308,7 @@ export function rememberPlaces(docId: string | null): void {
  */
 export function restorePlaces(docId: string): void {
   for (const l of panes.leaves(paneTree)) {
-    if (l.role !== "source") continue;
+    if (panes.drawn(l) !== "source") continue;
     const v = paneViews.get(l.id);
     const place = v && paneplaces.recall(l.id, docId);
     if (!v || !place) continue;
@@ -330,7 +330,7 @@ export function restorePlaces(docId: string): void {
  */
 export function restorePreviewPlaces(docId: string): void {
   for (const l of panes.leaves(paneTree)) {
-    if (l.role === "source") continue;
+    if (panes.drawn(l) === "source") continue;
     const place = paneplaces.recall(l.id, docId);
     const host = paneHostOf(l.id);
     if (!place || !host || !host.scrollHeight) continue;
@@ -342,7 +342,7 @@ export function restorePreviewPlaces(docId: string): void {
 /** The view that owns a document's history: the first source pane showing it. */
 export function primaryView(): EditorView | undefined {
   for (const l of panes.leaves(paneTree)) {
-    if (l.role !== "source") continue;
+    if (panes.drawn(l) !== "source") continue;
     const v = paneViews.get(l.id);
     if (v) return v;
   }
@@ -400,7 +400,7 @@ export function paneNarrow(id: string): Span | null {
  * The stretch of the document a preview pane is following, or `null` for all of
  * it.
  *
- * A preview follows the pane it was split from, which is what `linked` has
+ * A preview follows the box it is linked to, which is what a link has
  * always meant for scrolling — *"we also should make that you can optionally
  * unlink the scrolling"* — and narrowing is the same relationship asked a second
  * question. Unlinking a preview widens it, which is the escape hatch: a reader
@@ -413,9 +413,10 @@ export function paneNarrow(id: string): Span | null {
  * here for the same reason and read from the same place.
  */
 export function previewWindowOf(pane: panes.Leaf): { win: LineWindow; title: string } | null {
-  if (pane.role !== "preview" || !pane.linked) return null;
-  const beside = panes.sibling(paneTree, pane.id);
-  if (!beside || beside.role !== "source") return null;
+  if (panes.drawn(pane) !== "preview") return null;
+  // The source this preview scrolls with — its leader, or one following it.
+  const beside = panes.partners(paneTree, pane.id).find((p) => panes.drawn(p) === "source");
+  if (!beside) return null;
   const v = paneViews.get(beside.id);
   const span = v ? narrowedTo(v.state) : null;
   if (!v || !span) return null;
@@ -438,7 +439,7 @@ export function previewWindowOf(pane: panes.Leaf): { win: LineWindow; title: str
 export function applyPreviewWindows(): void {
   let narrowed = false;
   for (const pane of panes.leaves(paneTree)) {
-    if (pane.role !== "preview") continue;
+    if (panes.drawn(pane) !== "preview") continue;
     const host = document.getElementById(`pane-host-${pane.id}`);
     if (!host) continue;
     const on = previewWindowOf(pane);

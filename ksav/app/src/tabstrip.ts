@@ -12,6 +12,7 @@
 
 import * as panestate from "./panestate";
 import * as panes from "./panes";
+import { UNLINKED } from "./views";
 import * as tabs from "./tabs";
 import * as docs from "./docs";
 import * as runtime from "./runtime";
@@ -98,8 +99,12 @@ export function movePaneToTab(pane: panes.Leaf, index: number) {
     setStatus(t("cannotMoveLastPane"), "warn");
     return;
   }
-  const carried = panes.find(panestate.paneTree, pane.id);
-  if (!carried) return;
+  const found = panes.find(panestate.paneTree, pane.id);
+  if (!found) return;
+  // It arrives unlinked: its leader stays in the tab being left, and a link to
+  // a box in another tab is a link to nothing on screen. The boxes that
+  // followed *it* stayed too, and `closePane` has handed them its leader.
+  const carried: panes.Leaf = { ...found, link: UNLINKED };
   // This arrangement first, so the tab being left is stored without the pane
   // before anything switches. `stash` writes into the active tab, which is still
   // this one.
@@ -215,7 +220,7 @@ export function refreshTabStrip() {
  */
 export function retargetPanes(from: string | null, to: string) {
   for (const l of panes.leaves(panestate.paneTree)) {
-    if (l.docId === null || l.docId === from) l.docId = to;
+    if (panes.docOf(l) === null || panes.docOf(l) === from) l.view = panes.withDoc(l, to).view;
   }
 }
 

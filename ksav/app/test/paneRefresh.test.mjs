@@ -31,7 +31,7 @@
 import { ok } from "./harness.mjs";
 import { srcOf } from "./source.mjs";
 import { SEFER_810 } from "../tools/seferfixture.mjs";
-import { scan } from "../.tmp-test/spans.mjs";
+import { scan, scanFromScratch } from "../.tmp-test/spans.mjs";
 import { notesOf } from "../.tmp-test/notes.mjs";
 import { outlineOf } from "../.tmp-test/ksav-lang.mjs";
 
@@ -142,11 +142,13 @@ export async function run() {
     // distinct texts, because `spans.ts` keeps a four-slot memo of scans keyed on
     // the string: measuring the walk over the same four texts would time the
     // memo's hits and report the walk as 0.08 ms, which is the number a fence
-    // would happily believe (it did, once).
+    // would happily believe (it did, once). And from scratch: a `scan` of a
+    // text one keystroke from a cached one is a rescan of a window (#238), which
+    // is the point of it and not the walk this compares against.
     const walkTexts = Array.from({ length: 8 }, (_, i) =>
       [doc.slice(0, at), String.fromCharCode(0x5d0 + i), doc.slice(at), " "].join(""),
     );
-    const walk = quickest((i) => scan(walkTexts[i % 8]), 8);
+    const walk = quickest((i) => scanFromScratch(walkTexts[i % 8]), 8);
 
     ok(
       "one refresh with the scan in hand costs less than one walk of the document",

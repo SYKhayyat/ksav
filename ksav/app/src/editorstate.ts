@@ -99,7 +99,7 @@ export interface StateDeps {
  * state, and nothing outside this file reconfigures it (`reconfigureShortcuts`
  * goes through `compartments.ts`).
  */
-export function buildExtensions(prose: boolean, deps: StateDeps): Extension[] {
+export function buildExtensions(prose: boolean | "writer", deps: StateDeps): Extension[] {
   const structureCompartment = new Compartment();
   const extensions: Extension[] = [
     // In a compartment, and owned by `runtime.ts`, because a document swap

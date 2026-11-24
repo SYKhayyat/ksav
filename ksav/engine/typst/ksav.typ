@@ -2226,7 +2226,7 @@
 // tier of this apparatus with a name and a sequence of its own — so the layer
 // above passes both, and a writer who never declares a channel sees exactly the
 // per-tier behaviour this apparatus has always had.
-#let הערה_בדרגה(דרגה, body, שם: none, ציטוט: none, _ערוץ: none, _מספור: none, ..opts) = context {
+#let הערה_בדרגה(דרגה, body, שם: none, ציטוט: none, מזהה: none, _ערוץ: none, _מספור: none, ..opts) = context {
   let (own, rest) = _cfg_split(opts.named(), _fn_own_keys)
   let cfg = _cfg_with(_nt_under(_fn_cfg.get()), own)
   // The entry's paragraph rhythm, carried here because the wrapper that applies
@@ -8791,7 +8791,7 @@
 #let contentnote = _en(הערת_תוכן, extra: (columns: "טורים"))
 #let sourcenote_stream = _en(הערת_מקור, extra: (columns: "טורים"))
 
-#let הערה(body, ערוץ: none, אזור: none, שם: none, ציטוט: none, ..opts) = {
+#let הערה(body, ערוץ: none, אזור: none, שם: none, ציטוט: none, מזהה: none, ..opts) = {
   // `שם` names *this note* so that `#הפניה_להערה` can print the number it turned
   // out to be. It is not the channel's name and not the region's: those say
   // where a note goes, and this says which note it is.

@@ -45,7 +45,7 @@
 // first recorded complaint was that sixteen things already compete for the top
 // of it. One tab, hidden, until somebody makes a second.
 
-import type { Leaf, PaneNode } from "./panes";
+import { docOf, drawn, validTree, type Leaf, type PaneNode } from "./panes";
 
 export interface Tab {
   id: string;
@@ -209,8 +209,8 @@ export function focusedDoc(tab: Tab): string | null {
   walk(tab.tree);
   // The focused pane, or the first source pane, or whatever there is. A tab
   // whose focused pane has been closed still has to be able to name itself.
-  const pick = found.find((l) => l.id === tab.focusedPane) ?? found.find((l) => l.role === "source") ?? found[0];
-  return pick?.docId ?? null;
+  const pick = found.find((l) => l.id === tab.focusedPane) ?? found.find((l) => drawn(l) === "source") ?? found[0];
+  return (pick ? docOf(pick) : null) ?? null;
 }
 
 /**
@@ -221,7 +221,7 @@ export function focusedDoc(tab: Tab): string | null {
  * stands for its arrangement's document.
  */
 export function paneDoc(pane: Leaf, tab: Tab): string | null {
-  return pane.docId ?? focusedDoc(tab);
+  return docOf(pane) ?? focusedDoc(tab);
 }
 
 /**
@@ -258,12 +258,12 @@ export function moveAcross(
   _from: Tab,
   to: Tab,
 ): { kind: "ok" } | { kind: "mixed"; moves: string; shows: string } {
-  if (pane.role !== "source") return { kind: "ok" };
+  if (drawn(pane) !== "source") return { kind: "ok" };
   // `pane.docId` and not `paneDoc(pane, from)`: a pane that follows the focus
   // carries **nothing** — it becomes whatever arrangement it lands in, by
   // definition — so there is no document of its own to displace another with.
   // Only a pane that *names* a document can arrive as it.
-  const moves = pane.docId;
+  const moves = docOf(pane);
   const shows = focusedDoc(to);
   if (moves && shows && moves !== shows) return { kind: "mixed", moves, shows };
   return { kind: "ok" };
@@ -309,11 +309,12 @@ export function restore(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
   const d = data as { tabs?: unknown; active?: unknown };
   if (!Array.isArray(d.tabs) || !d.tabs.length) return false;
-  const ok = d.tabs.every(
-    (t) => t && typeof t === "object" && "tree" in (t as object) && (t as Tab).tree?.kind,
-  );
-  if (!ok) return false;
-  tabs = d.tabs as Tab[];
+  // Every tab's tree, checked: a strip stored before boxes held views has
+  // trees no renderer can draw, and one such tab is the whole strip refused —
+  // the caller then starts from the default rather than a window of blanks.
+  const trees = d.tabs.map((t) => (t && typeof t === "object" ? validTree((t as Tab).tree) : null));
+  if (trees.some((tr) => tr === null)) return false;
+  tabs = (d.tabs as Tab[]).map((t, i) => ({ ...t, tree: trees[i]! }));
   active = typeof d.active === "number" && d.active >= 0 && d.active < tabs.length ? d.active : 0;
   // Ids come back with the strip, so a session that restores two tabs does not
   // hand both of them the same generated id the first time one is added.

@@ -21,22 +21,24 @@ import * as runtime from "./runtime";
 import { rerenderChrome } from "./runtime";
 import { settings, docConfig, saveSettings } from "./settings";
 import { voidAction } from "./asyncaction";
-import { sourceViews, toEveryPane } from "./panestate";
+import { sourceViews, paneTree, paneViewOf } from "./panestate";
+import * as panes from "./panes";
 import * as keymodes from "./keymodes";
 import { focusCompartment, focusExtension } from "./focus";
 import { keybindings } from "./keyhint";
 import { aliasesInForce } from "./bindings";
 import { scheduleCompile } from "./compile";
-import { t, getLang } from "./i18n";
+import { t, tf, getLang } from "./i18n";
 import * as whitespace from "./whitespace";
 import * as opendocs from "./opendocs";
 import { nikudKeymap } from "./nikud";
-import { proseMode, proseReveal } from "./ksav-lang";
+import { proseMode, proseReveal, writerAtomic, writerFacet } from "./ksav-lang";
 import { pairedDelimiters } from "./brackets";
 import * as sefarim from "./sefarim";
 import { insertionAt } from "./mode";
 import { docLang } from "./insert";
 import { docTextOf } from "./spans";
+import { noteDeleteKeys } from "./notedelete";
 import * as commands from "./commands";
 import * as structure from "./structure";
 import { BIDI_MARKS, visibleBidiMarks } from "./bidi";
@@ -297,7 +299,16 @@ export function autoExtension() {
  * whole decoration set and the editor goes blank. Putting them in one slot makes
  * that impossible instead of forbidden.
  */
-export function proseOrRaw(prose = proseHere()) {
+/** Backspace/Delete onto a note's marker, by the `noteDelete` setting (§2). */
+const writerKeys = Prec.high(
+  keymap.of(noteDeleteKeys(() => settings.noteDelete ?? "twoStep", (words) => runtime.setStatus(tf("noteDelete.again", words)))),
+);
+
+export function proseOrRaw(prose: boolean | "writer" = proseHere()) {
+  // The writer is the prose drawing with nothing revealed and the scaffolding
+  // atomic: the same slot, for the same reason — it, too, must never meet the
+  // bidi-mark chips.
+  if (prose === "writer") return [writerFacet.of(true), proseMode, proseReveal, writerAtomic, writerKeys];
   // The field and the plugin that drives its deferred reveal go in together:
   // `proseReveal` is the only thing that draws what a cursor move owes, so a
   // prose view installed without it would hide a command under the caret and
@@ -337,8 +348,19 @@ export function setProseHere(prose: boolean) {
   saveSettings();
   // Every pane, for the reason `toEveryPane` gives: this is the document's own
   // answer and a split shows one document twice (#170).
-  toEveryPane(proseCompartment.reconfigure(proseOrRaw(prose)));
+  reprose(prose);
   rerenderChrome();
+}
+
+/**
+ * Every source box to prose or raw — except the writer boxes, whose mode is
+ * their own and not the document's toggle.
+ */
+export function reprose(prose = proseHere()): void {
+  for (const l of panes.leaves(paneTree)) {
+    if (panes.drawn(l) !== "source") continue;
+    paneViewOf(l.id)?.dispatch({ effects: proseCompartment.reconfigure(proseOrRaw(l.view.mode === "writer" ? "writer" : prose)) });
+  }
 }
 
 /** What to call a command that is not the registry's. */

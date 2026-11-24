@@ -2189,3 +2189,14 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 /* What the simplified ribbon had no room for (§7): `⋯` at the row's end. */
 .ribbon-overflow { justify-content: center; }
 .ribbon-panel > [hidden] { display: none; }
+
+/* ---- key tips (#233, §8) ---------------------------------------------------
+   Alt or F10: a letter under every tab, then under every button of the open one. */
+.keytips { position: fixed; inset: 0; pointer-events: none; z-index: 1000; }
+.keytip {
+  position: absolute; transform: translateX(-50%);
+  font: 600 11px/1 var(--hebrew), system-ui; padding: 2px 4px; min-width: 10px; text-align: center;
+  color: var(--panel); background: var(--ink); border-radius: 3px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+}
+.keytip[data-dim="true"] { opacity: 0.25; }

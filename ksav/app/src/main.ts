@@ -116,6 +116,7 @@ import { renderPaletteList, wirePalette } from "./palette";
 import { syncGlobals, setEditingMode, reconfigureShortcuts, proseHere, whose, phraseCompartment, themeCompartment, proseCompartment, dirCompartment, autoCompartment, pairCompartment, whitespaceCompartment, motionCompartment, editorTheme, proseOrRaw, autoExtension, pairExtension, whitespaceExtension } from "./compartments";
 import { focusCompartment, focusExtension } from "./focus";
 import { wireCompartments } from "./compartments";
+import "./keytips"; // Alt alone or F10: the ribbon's key tips (§8); it wires itself.
 // The source's movement keys (#126) are read at keypress time, so the shell
 // asks the module for them rather than holding a copy — the same reason the
 // structure keys are a function and not an array.

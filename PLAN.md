@@ -66,6 +66,102 @@ answered, in the one job that builds no engine.
       passed`, offline bundle `24 passed`, the pair together `48 passed, 0
       failed`.
 
+### The page the gate is walked in, three names behind the gate
+
+`ksav/README.md` §Test said *nine checks* with a six-row table while the gate had
+thirteen and no `emacs` row, said CI calls the gate "in five jobs" (eight), and
+still listed the Emacs suite among the jobs that are *not* part of the gate after
+#239 put it in. The number was invisible to the documentation sweep because the
+`gateChecks` fact had claims on `CONTRIBUTING.md` and `HANDOFF.md` only.
+
+- [x] **#241** the page says sixteen, carries its `emacs` row, and separates the
+      two jobs that are genuinely outside the gate from the group that is inside
+      it. **Closed**, and fenced twice: the README's table is parsed out of the
+      file and held against `GROUPS` and `NAMES` in both directions — a group
+      without a row is red, a row for a group that is not there is red — and the
+      number in that sentence is a declared claim now, so it moves with
+      `CHECKS.length` instead of with whoever last read the page.
+
+### A flag that was a promise, and a flag that could be misspelled
+
+`docs/your-first-change.md` told a reader that `node tools/gate.mjs --help` lists
+the groups. `main()` drops every word starting with `-`, so `--help` selected
+nothing — and nothing means the whole gate. A page that promises a list ran
+sixteen checks and two cargo builds instead.
+
+- [x] **#240** `FLAGS` is a list and a word that is not on it exits 2 with a
+      pointer to `--help`; `usage()` prints the invocations, the flags, each group
+      with a one-line note, and every check with its command. **Closed.** The
+      finding under the finding: `--require` is what turns "could not measure
+      this" into a failure, and misspelled it was silently dropped, so a workflow
+      could measure less than it said and exit 0. Fenced by sweeping the help
+      against `GROUPS` and `CHECKS`, and by running the runner twice — `--requird`
+      must exit 2, `--help` must exit 0 before any check is selected.
+
+### A whole test suite that only CI could run
+
+`node tools/gate.mjs` is the one command the repository documents and the one
+`ci.yml` splits by group. The Emacs package's 66 tests were spelled out in
+`ci.yml` and nowhere else, so `gate.mjs emacs` answered *no such group or tree*:
+a worker editing `.el` code had no inner loop, and #234 — a wire change that left
+two readers behind and shipped `ok · commands` to an installed package — went
+through a commit whose gate never opened one of its files.
+
+- [x] **#239** `group: emacs`, `tree: emacs`, three checks: the byte-compile
+      (warnings as errors, `.elc` into a temp directory rather than beside the
+      sources), the offline half asked for by name (`KSAV_EMACS_TEST_OFFLINE`),
+      and the live half with the engine as a **build product** rather than an
+      installed program. **Closed**: `needs` grew from a library to a program and
+      a binary, with a sentence for each — "not in this shell", "not on this
+      machine's search path", "not built here" — and `GATE_VERBS` now carries both
+      commands, so a re-spelling outside the runner is red (verified by putting
+      one back).
+- The finding inside the finding: the offline half was decided by looking for a
+      `ksav` on `exec-path`, so on a machine that has one installed the check
+      that must need nothing ran the live half against it — eight minutes and a
+      failure. Measured after the fix: compile 1.3 s, offline 1.1 s, live 12.6 s.
+
+### A client with no wire-shape fence, which is how a wire change shipped
+
+The desktop application has had one since #225/#215: `app/test/wire.test.mjs` walks
+the registry and holds every service's answer. The **Emacs client** — a whole
+second front end, eleven services, 66 tests — had none, and that is the shape of
+#234: `/commands` and `/templates` moved to `{ok, commands: […]}` and the package's
+readers kept taking the envelope as the list, so `M-x ksav-insert-command` offered
+`ok · commands` to whoever installed it. Nothing raised, because a two-element
+alist is a good alist.
+
+- [x] **#237** the client had no claim about the *shape* of an answer, only tests
+      for two services, written after the fact. **Closed**: a source sweep reads
+      every `(ksav-call "…")` out of the package's own files — 11 today — and three
+      tests ask it what the client needs: the sweep is not vacuous
+      (`ksav-the-sweep-finds-the-calls-there-are`, ≥ 11 and three names it must
+      find), every service found answers **one object** with a boolean `ok` and a
+      refusal that says why, and the three registry lists travel under their own
+      names with object rows. Mutation-tested: changing `ksav-call`'s
+      `:object-type` to `'hash-table` reddens both live tests. Measured: **66/66**,
+      byte-compile clean.
+
+### A fence that discards the evidence its own author attached
+
+`ok` and `notOk` in `app/test/harness.mjs` took two arguments, and the suite
+called them with a third **842 times across 140 files** — `${rows.length}
+handlers`, the status slot's own words, `JSON.stringify(out)`. `record()` has
+always taken a `detail`; the two helpers never passed one, so every one of those
+observations was computed and thrown away. `check()` printed both sides, which is
+why the defect was invisible: the readable assertion was not the one that failed.
+
+- [x] **#236** what that cost, measured: the red #235 was written for read `FAIL a
+      valid .docx imports / got false, wanted something truthy`, and the call site
+      already held `good.status` — `✗ שגיאת רשת`, the compile's network error. It
+      took a throwaway probe to learn what the fence had in its hand. **Closed**:
+      both helpers take and print the detail, on failure only, so a passing
+      assertion still costs nothing. Fenced by `app/test/harness.test.mjs`, which
+      runs the real harness as a **subprocess** (a deliberately failing assertion
+      inside the suite would move its own tally) and asserts six things including
+      that a pass prints nothing at all. Mutation-tested: dropping the
+      interpolation reddens exactly one named check.
+
 ### A fence asked about a phrase where the question was a pattern
 
 `ac499fc`. The lint check went red on this machine for the first time, and all

@@ -218,15 +218,22 @@ The syntax table also declares Hebrew letters to *be* letters, without which
 ## Tests
 
 ```sh
-emacs -Q --batch -L . -l ksav.el -l ksav-tests.el -f ert-run-tests-batch-and-exit
+cd ../.. && node tools/gate.mjs emacs
 ```
+
+Two checks, in the runner every other check in this repository lives in: a
+byte-compile with warnings as errors, and the ERT suite. Both are also what CI
+runs; there is no second spelling of either.
 
 Two halves. Everything up to `ksav-live-` runs with nothing installed and
 nothing running: the service table, the mode, the syntax, the insertion
 convention, how a refusal is read. The `ksav-live-` tests need a `ksav` binary
 and drive a real engine — a real compile, a real PDF, the real Hebrew speller.
 
-They skip when there is no binary, and setting `KSAV_EMACS_LIVE=1` turns that
-skip into an error. CI sets it, so the half of the suite that proves this
-package talks to an engine cannot quietly stop running on the machine whose job
-is to run it.
+The gate puts `engine/target/release` in front of the search path for that, so
+`cargo build --release` in `ksav/engine` is the one thing to do first; with no
+binary built the check is reported as **not measured here** rather than as a
+failure, and the live half is not silently skipped in a run that claims to be
+green. When it is built, `KSAV_EMACS_LIVE=1` is set by the check, so the half of
+the suite that proves this package talks to an engine cannot quietly stop
+running on the machine whose job is to run it.

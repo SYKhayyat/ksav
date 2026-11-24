@@ -46,7 +46,12 @@ export async function run() {
   // has to be a claim about all of it. Reading `ksav.el` alone is how a check
   // survives a split and stops covering the thing it was written for: two of
   // these went green by moving.
-  const shipped = files.filter((f) => f.endsWith(".el") && f !== "ksav-tests.el");
+  // The denylist from the packaging tool, not a copy of it. A copy here would
+  // sweep this directory with a different answer than the tarball does, and the
+  // first file to notice would be `gate-options.el` — a byte-compile recipe that
+  // is not package code at all.
+  const { NOT_SHIPPED: notShipped } = await import("../tools/emacs-package.mjs");
+  const shipped = files.filter((f) => f.endsWith(".el") && !notShipped.includes(f));
   const packageSource = shipped.map((f) => code(read(f))).join("\n");
 
   // ------------------------------------------------- it asks for real services
@@ -378,6 +383,15 @@ export async function run() {
     );
 
     ok("the package ships files", PACKAGE_FILES.length >= 3, PACKAGE_FILES.join(" "));
+    // And the byte-compile settings the gate loads are *not* in it: they are a
+    // build recipe, and a recipe shipped to readers is a file that can only ever
+    // be wrong. Swept from the directory, so this is the assertion that notices
+    // if the denylist loses it.
+    ok(
+      "the gate's byte-compile settings are not shipped",
+      !PACKAGE_FILES.includes("gate-options.el"),
+      PACKAGE_FILES.join(" "),
+    );
     check(
       "everything the package ships is really there",
       PACKAGE_FILES.filter((f) => !files.includes(f)),

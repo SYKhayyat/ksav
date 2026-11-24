@@ -244,27 +244,38 @@ export async function run() {
       name: "פרק.org",
       bytes: [...new TextEncoder().encode("* פרק ראשון\nטקסט בעברית\n")],
     });
-    ok("a valid .org imports", org.status.includes("יובא"), org.status);
+    // Gated for the reason the docx report is: this reads the slot a compile
+    // writes into, and a successful import schedules one.
+    if (engine) ok("a valid .org imports", org.status.includes("יובא"), org.status);
+    else console.log(noEngine);
     notOk("and no crash panel appears", org.crash);
     ok("its heading is on the page", org.text.includes("פרק ראשון"), org.text.slice(0, 80));
 
     const orgBefore = await page.evaluate(READ);
     const orgBroken = await importVia(page, "ייבוא מ־Org", { name: "שבור.org", bytes: [0xff, 0xfe, 0x00] });
     notOk("a broken .org does not crash the application", orgBroken.crash);
-    ok(
-      "it either imports or says why — one of the two, never nothing",
-      orgBroken.status.includes("יובא") || orgBroken.status.includes("הייבוא נכשל"),
-      orgBroken.status,
-    );
     // The bytes carry no text at all, so either answer is honest: the importer
     // makes an empty document and says it imported, or it refuses. What is not
     // honest is a crash, and what the old test asserted — that the document on
     // screen is not blank — was wrong: a file with no readable text producing an
-    // empty document is the importer working. Both branches are checked.
-    if (orgBroken.status.includes("יובא")) {
-      ok("the .org with no text in it imported as an empty document", orgBroken.text.length === 0, orgBroken.text);
+    // empty document is the importer working. Both branches are checked, and
+    // **which branch it is comes from the status slot**, so the whole judgement
+    // is gated on there being a compile to overwrite that slot: in a wire bundle
+    // with no server the slot answers `network error` and the branch would be
+    // chosen by the absent engine.
+    if (engine) {
+      ok(
+        "it either imports or says why — one of the two, never nothing",
+        orgBroken.status.includes("יובא") || orgBroken.status.includes("הייבוא נכשל"),
+        orgBroken.status,
+      );
+      if (orgBroken.status.includes("יובא")) {
+        ok("the .org with no text in it imported as an empty document", orgBroken.text.length === 0, orgBroken.text);
+      } else {
+        check("the document survived the refusal unchanged", orgBroken.text, orgBefore.text);
+      }
     } else {
-      check("the document survived the refusal unchanged", orgBroken.text, orgBefore.text);
+      console.log(noEngine);
     }
     ok("the Org import did not delete what was there", orgBefore.text.length > 0);
 

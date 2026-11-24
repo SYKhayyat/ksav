@@ -128,10 +128,10 @@ One command, and it is the whole of what has to pass before you push:
 cd ksav && node tools/gate.mjs
 ```
 
-It runs thirteen checks, and you can select a part of it while you work
+It runs sixteen checks, and you can select a part of it while you work
 (`node tools/gate.mjs editor`). A name is a kind of check — `fmt` — or a body of
-code — `editor`, `engine`, `shell`, `wasm` — and naming a tree runs *every* check
-about that tree, formatting included. A partial run ends by listing the checks it
+code — `editor`, `engine`, `shell`, `emacs`, `wasm` — and naming a tree runs
+*every* check about that tree, formatting included. A partial run ends by listing the checks it
 did not run, so a green subset is never mistakable for a green gate.
 
 **Do not spell the check commands out yourself.** They live in
@@ -140,11 +140,25 @@ check command reappears as a literal in a workflow or in any living page. A gate
 spelled out in several places drifts, and a gate nobody can run in one command
 gets read as a suggestion.
 
-Three things CI does that the gate deliberately does not, because they need a
-toolchain, a browser or an Emacs that a plain checkout should not have to have:
-it builds the wasm engine and runs it, it embeds the editor in the server and
-drives a real browser through the assembled application, and it runs the Emacs
-package's own suite against a live engine.
+Two things CI does that the gate deliberately does not, because they need a
+toolchain and a browser that a plain checkout should not have to have: it builds
+the wasm engine and runs it, and it embeds the editor in the server and drives a
+real browser through the assembled application.
+
+The Emacs package is in the gate — `node tools/gate.mjs emacs` — because it needs
+nothing a checkout lacks beyond `emacs` itself. Three checks, and the suite runs
+twice on purpose: `emacs-tests` asks for the **offline** half by name
+(`KSAV_EMACS_TEST_OFFLINE`), so it is the package's own decisions measured with
+nothing installed and nothing running, in about a second; `emacs-tests-live` sets
+`KSAV_EMACS_LIVE`, so a missing engine is an error rather than fifteen skips, and
+it finds that engine where this tree builds it rather than where a machine
+happens to have installed one. On a checkout that has never built one the live
+check is reported as **not measured here** and the offline one still runs.
+
+It sat outside the gate for as long as it did because a command spelled out in
+`ci.yml` was invisible to the sweep that keeps every check in one place, and #234
+is what that cost: a wire change in the engine reached an installed Emacs package
+while the gate was green.
 
 ### Cargo will not do two things at once, and there are three ways round it
 

@@ -509,26 +509,22 @@ jobs:
       # what this runner has and what the declaration is *for*. The ERT run
       # failed with a `void-function` backtrace inside a `let` inside an
       # `unwind-protect`; the byte compiler says the name and the line.
-      - name: Byte-compile it
-        working-directory: ./ksav/editors/emacs
+      # Both of the package's checks, in the runner the rest of the repository
+      # uses, so that a push and a desk run the same two commands. They were
+      # spelled out here — a byte-compile, an `rm` of its leftovers, an ERT run
+      # with `KSAV_EMACS_LIVE` in the step's environment — and nothing outside
+      # this file could run them: the gate had no `emacs` group, so a worker
+      # editing `.el` code had a green gate that had opened none of it. #234 is
+      # what that cost.
+      #
+      # The engine is built above because `emacs-tests-live` needs it: the check
+      # finds it as a build product and puts its directory in front of the search
+      # path, rather than this step exporting a `PATH` of its own.
+      - name: The package's checks
+        working-directory: ./ksav
         run: |
           emacs --version | head -1
-          # Every `.el` in the directory, not a list of three. The list was
-          # written when there were three and a fourth arrived generated, which
-          # is exactly when a hand-kept list stops covering the file most likely
-          # to be wrong.
-          emacs -Q --batch -L . --eval '(setq byte-compile-error-on-warn t)' \
-                -f batch-byte-compile ./*.el
-          rm -f ./*.elc
-
-      - name: Run the package's tests
-        working-directory: ./ksav/editors/emacs
-        env:
-          KSAV_EMACS_LIVE: "1"
-        run: |
-          export PATH="$GITHUB_WORKSPACE/ksav/engine/target/release:$PATH"
-          emacs -Q --batch -L . -l ksav.el -l ksav-tests.el \
-                -f ert-run-tests-batch-and-exit
+          node tools/gate.mjs emacs --require
 
       # And then install it the way a person would.
       #
@@ -606,14 +602,20 @@ jobs:
               ;;
           esac
 
-      - name: Run the offline half
-        working-directory: ./ksav/editors/emacs
+      # Still no engine here, deliberately — see this job's comment above: the
+      # fault it was written for is one where no engine gets started, so the
+      # assertion that catches it needs none. So the live check is reported as
+      # **not measured here** rather than green, and the line below says which
+      # check that is; `--require` is not passed, which makes this the one
+      # invocation in this file that does not pass it. That is the point of this
+      # job and not a broken runner: what it measures is the package's own
+      # decisions — the byte-compile and the offline half of the suite — on an
+      # Emacs newer than the floor.
+      - name: The package's checks, without an engine
+        working-directory: ./ksav
         run: |
-          emacs -Q --batch -L . --eval '(setq byte-compile-error-on-warn t)' \
-                -f batch-byte-compile ./*.el
-          rm -f ./*.elc
-          emacs -Q --batch -L . -l ksav.el -l ksav-tests.el \
-                -f ert-run-tests-batch-and-exit
+          emacs --version | head -1
+          node tools/gate.mjs emacs   # not measured here: emacs-tests-live — no engine, deliberately
 
       # What MELPA will run, run here instead of by hand once.
       #

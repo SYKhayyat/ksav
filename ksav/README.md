@@ -745,7 +745,7 @@ One is Emacs inside Ksav; this is Ksav inside Emacs.
 - [x] **Licensed** — MIT OR Apache-2.0, with the bundled fonts' OFL/GUST notices
       shipped in the installers *and* rendered in the app. See [Licence](#licence).
 - [x] **CI, running and green** — `ci.yml` runs on every push and is green across
-      all ten jobs: the typechecker and 14,847 editor assertions across 174 files,
+      all ten jobs: the typechecker and 14,905 editor assertions across 175 files,
       1202 tests in the engine, formatting and `clippy -D warnings`, the engine
       again on macOS **and on Windows**, a build-and-run check of the browser (wasm)
       engine, the assembled application in a real browser, the Emacs package
@@ -818,15 +818,17 @@ node tools/gate.mjs engine                  # or one part of it
 cd app && npm test -- panels spans          # the inner loop: those files, by substring
 ```
 
-Nine checks. A name selects them on either of two axes — the **kind** of check,
-which is what CI splits jobs on, or the **tree** the check is about:
+The gate runs sixteen checks. A name selects them on either of two axes — the
+**kind** of check, which is what CI splits jobs on, or the **tree** the check is
+about:
 
 | name | kind | what it runs |
 |---|---|---|
 | `fmt` | kind | `rustfmt`, over all three Rust trees |
-| `editor` | both | the typechecker, the linter, then 14,847 assertions across 174 files |
+| `editor` | both | the typechecker, the linter, then 14,905 assertions across 175 files |
 | `engine` | both | formatting, lints, then 1225 tests across 93 binaries |
 | `shell` | both | the desktop shell: formatting, lints, the path allowlist and the Girsa desk |
+| `emacs` | both | the Emacs package: a byte-compile, then its own ERT suite offline and live |
 | `wasm` | tree | formatting; the browser engine is built and run in CI, not here |
 
 Two axes because a name that reads as "check the engine" has to check the engine:
@@ -834,9 +836,9 @@ with kind as the only axis, `fmt` and `engine` are siblings, and asking for
 `engine` runs clippy and the engine tests while skipping a one-second
 `cargo fmt -- --check` **on the same crate**.
 
-**A partial run says so.** Selecting a name is normal — CI does it in five jobs —
+**A partial run says so.** Selecting a name is normal — CI does it in eight jobs —
 but the run ends by naming every check it did not run, because "the gate is green
-— 2 checks" is a two-of-nine answer wearing a nine-of-nine sentence.
+— 2 checks" is a two-check answer wearing the sentence for the whole gate.
 
 **A check that cannot run here is not a failure here.** The `shell` group links
 WebKitGTK, which lives in the `desktop` dev shell and nowhere else, so in the
@@ -867,16 +869,20 @@ documentation fence over it. A partial tally checked against the documentation
 would fail every single-file run, which is the fastest way to teach everybody to
 ignore the one fence that catches a stale count.
 
-The workflow runs the gate on every push and pull request, plus three jobs that
-need more than a plain checkout and are therefore not part of it. It builds the
+The workflow runs the gate on every push and pull request, plus two jobs that
+need more than a plain checkout and are therefore not part of it: it builds the
 wasm engine and then *runs* it (`.github/scripts/wasm-smoke.mjs` — every template
-compiled, both lexicons answered); the built package is git-ignored and produced
-locally, so without that job the entire no-server build could break and every
-other check would still be green. And it builds the app, embeds it in the server,
-and [uses it](#use-it). And it installs an Emacs and runs
-`ksav/editors/emacs`'s own suite against a real engine — half of that suite skips
-without one, and the job sets `KSAV_EMACS_LIVE` so the skip is an error on the
-machine whose job is to run it.
+compiled, both lexicons answered), and it builds the app, embeds it in the
+server, and [uses it](#use-it).
+
+The Emacs package is *in* the gate — that is the difference a suite outside the
+runner makes. `node tools/gate.mjs emacs` is byte-compile, then the same ERT suite
+twice: once offline, which must hold with nothing installed and nothing running,
+and once against a real engine, with `KSAV_EMACS_LIVE` set so fifteen skips become
+an error rather than a green tick over tests that did not run. CI builds the
+engine for the second of those and calls the same group; the newer-Emacs job
+deliberately has none, so it says which check it cannot measure and the offline
+half runs there instead.
 
 The editor's runner (`app/test/run.mjs`) builds **every module in `app/src`** and
 executes every `app/test/*.test.mjs`, so **adding a test is adding a file** — that

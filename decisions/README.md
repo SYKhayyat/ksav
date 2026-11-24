@@ -153,6 +153,7 @@ supersede an earlier one without rewriting it.
 | 2026-11-17 | [source-navigation-spec](2026-11-17-source-navigation-spec.md) |
 | 2026-11-22 | [the-disk-had-no-room-and-the-save-had-no-copy](2026-11-22-the-disk-had-no-room-and-the-save-had-no-copy.md) |
 | 2026-11-23 | [the-shell-is-built-from-placements](2026-11-23-the-shell-is-built-from-placements.md) |
+| 2026-11-23 | [the-emacs-package-joins-the-gate](2026-11-23-the-emacs-package-joins-the-gate.md) |
 | 2026-10-11 | [the-editor-scan-is-the-seam](2026-10-11-the-editor-scan-is-the-seam.md) |
 | 2026-10-13 | [a-scan-belongs-to-its-text](2026-10-13-a-scan-belongs-to-its-text.md) |
 | 2026-10-13 | [i18n-data-lives-apart](2026-10-13-i18n-data-lives-apart.md) |

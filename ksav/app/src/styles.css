@@ -110,6 +110,7 @@
   --z-menu: 40;             /* the toolbar's dropdown menus */
   --z-float-btn: 45;        /* the floating preview button */
   --z-hydra: 47;            /* the transient keymap, docked above the status */
+  --z-backstage: 48;        /* File's page: over the shell, under what it opens */
   --z-drawer: 50;           /* settings, outline, notes, marks, help */
   --z-overlay: 60;          /* the palette and the modals, over the drawers */
   --z-popup: 80;            /* pointer-anchored menus: spell, pane, citations */
@@ -2022,6 +2023,73 @@ p.note-caveat.blocks { background: var(--warn-soft, var(--accent-soft)); font-we
 /* Contextual tabs (#233, §4): the tab the caret asked for is underlined in the accent. */
 .ribbon-tab[data-contextual="true"] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
 .ribbon-panel { display: flex; align-items: flex-start; gap: 2px; flex-wrap: wrap; }
+/* File (#233, §6): a button at the tab row's start in the accent, as Word's is —
+   it is not a tab, and the colour says so before it is pressed. */
+.ribbon-head > .ribbon-file {
+  flex: none; align-self: stretch; margin-bottom: -1px; padding: 4px 16px;
+  font-family: var(--hebrew); font-size: 13px; font-weight: 600; cursor: pointer;
+  color: #fff; background: var(--accent); border: 0; border-radius: 7px 7px 0 0;
+}
+.ribbon-head > .ribbon-file:hover { filter: brightness(1.1); }
+.ribbon-head > .ribbon-file:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+
+/* The backstage: a page over the whole window, the section column on the start
+   side in the accent, the section's page beside it. */
+.backstage {
+  position: fixed; inset: 0; z-index: var(--z-backstage);
+  display: flex; background: var(--panel); color: var(--ink);
+}
+.backstage-nav {
+  flex: none; width: 200px; display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 0; background: var(--accent); color: #fff; overflow-y: auto;
+}
+.backstage-head { display: flex; align-items: center; gap: 8px; padding: 0 12px 10px; }
+.backstage-head h2 { margin: 0; font-size: 16px; }
+.backstage-head .panel-back {
+  order: -1; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%; color: #fff; padding: 0;
+}
+.backstage-head .panel-back:hover { color: #fff; background: rgb(255 255 255 / .18); }
+.backstage-head .panel-back:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+/* The arrow points back the way the writing came: toward the start of the line. */
+[dir="rtl"] .panel-back svg { transform: scaleX(-1); }
+.backstage-tabs { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.backstage-tab {
+  display: flex; align-items: center; gap: 10px; padding: 9px 18px;
+  font-family: var(--hebrew); font-size: 14px; text-align: start; cursor: pointer;
+  color: #fff; background: transparent; border: 0;
+}
+.backstage-tab:hover { background: rgb(255 255 255 / .14); }
+.backstage-tab[aria-selected="true"] { background: rgb(255 255 255 / .24); font-weight: 600; }
+.backstage-tab:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
+/* Settings and About sit at the foot of the column, as Word's Options and Account do. */
+.backstage-tab-end { margin-top: auto; }
+.backstage-page {
+  flex: 1; min-width: 0; overflow-y: auto; padding: 28px 40px;
+}
+.backstage-page > h2 { margin: 0 0 18px; font-size: 26px; font-weight: 400; }
+.backstage-page > * { max-width: 720px; }
+.backstage-rows { display: flex; flex-direction: column; gap: 2px; }
+/* A row on the page is a line, not a menu row: the icon, then the words and what
+   they mean beneath them, then the key at the far end. Rows without an icon line
+   their words up with the ones that have one. */
+.backstage-page .menu-item {
+  display: grid; grid-template-columns: 28px 1fr auto; align-items: center;
+  column-gap: 12px; row-gap: 2px; padding: 10px 12px;
+}
+.backstage-page .menu-item > svg { grid-column: 1; grid-row: 1 / span 2; width: 22px; height: 22px; color: var(--muted); }
+.backstage-page .menu-item > :not(svg) { grid-column: 2; }
+.backstage-page .menu-item > .menu-key,
+.backstage-page .menu-item > code { grid-column: 3; grid-row: 1; }
+.backstage-page .menu-item b { font-size: 15px; font-weight: 600; }
+.backstage-page .menu-desc { font-size: 12px; }
+.backstage-page .menu-sep { margin: 10px 0; }
+@media (max-width: 640px) {
+  .backstage-nav { width: 64px; }
+  .backstage-head h2, .backstage-tab > span { display: none; }
+  .backstage-tab { justify-content: center; padding: 10px 0; }
+  .backstage-page { padding: 18px 16px; }
+}
 .ribbon-btn { white-space: nowrap; }
 
 /* Word's group body (#233, §6). Three lane kinds, one height: a large face is a

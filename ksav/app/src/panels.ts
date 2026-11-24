@@ -276,6 +276,9 @@ export const PANELS: readonly Panel[] = [
   // and no state to keep — the same shape as `history-modal`, and for the same
   // reason: you open it, you pick, it closes.
   { id: "places-chooser", kind: "modal", presence: "class", escape: true, exits: [{ via: "scrim" }] },
+  // File (#233, §6): a full-window page over the document. Its way out is the
+  // `←` at the top of its column, which `panelHead` builds like any ×.
+  { id: "backstage", kind: "modal", presence: "mounted", escape: true, exits: [{ via: "head" }] },
   {
     id: "welcome",
     kind: "modal",
@@ -698,7 +701,8 @@ export function panelHead(
   id: string,
   /** An i18n key. Pass `{ text }` for a title that is not one — a file's name. */
   title: string | { text: string },
-  opts: { level?: "h2" | "h3"; cls?: string; extra?: Node[] } = {},
+  /** `back`: the way out is a `←` named `backToDoc`, the backstage's — still this function's, still wired to `closePanel(id)`. */
+  opts: { level?: "h2" | "h3"; cls?: string; extra?: Node[]; back?: Node } = {},
 ): HTMLElement {
   const p = panelOf(id);
   if (!hasExit(p, "head")) {
@@ -720,15 +724,15 @@ export function panelHead(
     el(
       "button",
       {
-        class: "styles-close",
+        class: "styles-close" + (opts.back ? " panel-back" : ""),
         type: "button",
-        title: t("close"),
-        "aria-label": t("close"),
-        "data-i18n-title": "close",
-        "data-i18n-label": "close",
+        title: t(opts.back ? "backToDoc" : "close"),
+        "aria-label": t(opts.back ? "backToDoc" : "close"),
+        "data-i18n-title": opts.back ? "backToDoc" : "close",
+        "data-i18n-label": opts.back ? "backToDoc" : "close",
         onClick: () => closePanel(id),
       },
-      ["×"],
+      [opts.back ?? "×"],
     ),
   ]);
 }

@@ -1618,6 +1618,17 @@ export const HE: Dict = {
   arrangementSaved: "הסידור ״{0}״ נשמר",
   myArrangements: "הסידורים שלי",
   forgetArrangement: "מחיקת הסידור",
+  // File's backstage (#233, docs/ui-architecture.md §6): its sections, and the way back.
+  "bs.new": "חדש",
+  "bs.open": "פתיחה",
+  "bs.save": "שמירה",
+  "bs.share": "שיתוף",
+  "bs.export": "ייצוא",
+  "bs.print": "הדפסה",
+  "bs.versions": "גרסאות",
+  "bs.settings": "הגדרות",
+  "bs.about": "אודות",
+  backToDoc: "חזרה למסמך",
   // The shell's names (#233, docs/ui-architecture.md §5): menus, tabs, groups,
   // and the short labels a tab button draws beside its glyph.
   "menu.file": "קובץ",

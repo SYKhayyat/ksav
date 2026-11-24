@@ -222,7 +222,7 @@ function docRow(id: string, title: string, desc: string, mark: string, active: b
 }
 
 /** The rows that are not actions. */
-function extra(x: MenuExtra, r: MenuExtraRenderers): (Node | string)[] {
+export function extraRows(x: MenuExtra, r: MenuExtraRenderers): (Node | string)[] {
   switch (x) {
     case "pages":
       return r.pages();
@@ -305,9 +305,9 @@ function menuItems(menu: string, r: MenuExtraRenderers): (Node | string)[] {
   node.groups.forEach((g, i) => {
     if (i) out.push(el("div", { class: "menu-sep" }));
     out.push(el("div", { class: "menu-cat", "data-group": g.group }, [t("grp." + g.group)]));
-    for (const x of g.before) out.push(...extra(x, r));
+    for (const x of g.before) out.push(...extraRows(x, r));
     for (const a of g.items) out.push(row(a, h));
-    for (const x of g.after) out.push(...extra(x, r));
+    for (const x of g.after) out.push(...extraRows(x, r));
   });
   return out;
 }

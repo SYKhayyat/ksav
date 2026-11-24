@@ -10,6 +10,13 @@ import { check, ok } from "./harness.mjs";
 import { commands } from "../tools/commands.mjs";
 import {
   ACTION_PLACE,
+  BACKSTAGE,
+  BACKSTAGE_EXTRAS,
+  BACKSTAGE_OF_ACTION,
+  BACKSTAGE_OF_GROUP,
+  MENU_EXTRAS,
+  NOT_IN_BACKSTAGE,
+  backstageTree,
   FACE,
   GROUPS,
   CONTEXTUAL,
@@ -234,5 +241,59 @@ export async function run() {
     ok("placed() returns menu order", order.every((x, i) => i === 0 || order[i - 1] <= x));
     check("bold is placed under its key's id", byId.get("bold")?.command?.he, "הדגשה");
     check("…and lives in Format ▸ Font", byId.get("bold")?.place.group, "font");
+  }
+
+  // ------------------------------------------------ 9. File is a backstage (§6)
+  //
+  // The backstage is drawn from the placements, so these hold it to them: a
+  // File or Documents group cannot go unshown by being forgotten, and nothing
+  // in File's menu is missing from File's page.
+  {
+    const fileGroups = [...GROUPS.file, ...GROUPS.docs];
+    check(
+      "every File and Documents group has a section or is named as left out",
+      fileGroups.filter((g) => !(g in BACKSTAGE_OF_GROUP) && !NOT_IN_BACKSTAGE.includes(g)),
+      [],
+    );
+    check(
+      "no group is both shown and left out",
+      NOT_IN_BACKSTAGE.filter((g) => g in BACKSTAGE_OF_GROUP),
+      [],
+    );
+    check(
+      "every section a table names is a section",
+      [...Object.values(BACKSTAGE_OF_GROUP), ...Object.values(BACKSTAGE_OF_ACTION), ...Object.keys(BACKSTAGE_EXTRAS)].filter((s) => !BACKSTAGE.includes(s)),
+      [],
+    );
+    check(
+      "every action BACKSTAGE_OF_ACTION moves is placed",
+      Object.keys(BACKSTAGE_OF_ACTION).filter((id) => !byId.has(id)),
+      [],
+    );
+    const tree = backstageTree(list);
+    const shown = new Set(tree.flatMap((n) => n.items.map((a) => a.id)));
+    check(
+      "every row of File's menu is on File's page",
+      list.filter((a) => a.place.menu === "file" && !shown.has(a.id)).map((a) => a.id),
+      [],
+    );
+    check(
+      "every Documents row the backstage keeps is on it",
+      list.filter((a) => a.place.menu === "docs" && !NOT_IN_BACKSTAGE.includes(a.place.group) && !shown.has(a.id)).map((a) => a.id),
+      [],
+    );
+    const extrasShown = new Set(tree.flatMap((n) => [...n.before, ...n.after]));
+    check(
+      "every extra File's menus draw is on the page",
+      fileGroups.flatMap((g) => [...(MENU_EXTRAS[g]?.before ?? []), ...(MENU_EXTRAS[g]?.after ?? [])]).filter((x) => !extrasShown.has(x)),
+      [],
+    );
+    check("no row is in two sections", tree.flatMap((n) => n.items).length, shown.size);
+    check("save is on Save", tree.find((n) => n.section === "save").items.some((a) => a.id === "save"), true);
+    check("the column runs in Word's order, Settings and About last", BACKSTAGE.slice(-2), ["settings", "about"]);
+    for (const lang of ["he", "en"]) {
+      check(`every section has a ${lang} name`, BACKSTAGE.filter((s) => !("bs." + s in DICTS[lang])), []);
+      ok(`the way back has a ${lang} name`, "backToDoc" in DICTS[lang]);
+    }
   }
 }

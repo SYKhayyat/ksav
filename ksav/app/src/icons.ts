@@ -163,7 +163,7 @@ export const UI_ICONS = {
   dropdown: "chevron-down",
   more: "dots",
   launcher: "arrow-down-right",
-  back: "arrow-back",
+  back: "arrow-left",
   info: "info-circle",
   settings: "settings",
   moon: "moon",
@@ -175,6 +175,14 @@ export const UI_ICONS = {
   files: "files",
   template: "template",
   palette: "paint",
+  // The backstage's column (§6), one per section.
+  fileNew: "file-plus",
+  fileOpen: "folder-open",
+  fileSave: "device-floppy",
+  fileShare: "share",
+  fileExport: "file-export",
+  filePrint: "printer",
+  fileVersions: "history",
 } as const;
 // icons:end
 

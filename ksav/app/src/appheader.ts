@@ -57,6 +57,7 @@ import { openHistory } from "./snapshots";
 import { openHelp } from "./help";
 import { toggleSettings } from "./settingsdrawer";
 import { buildMenus } from "./shellmenu";
+import { openBackstage } from "./backstage";
 import { buildRibbon, menuToggle } from "./shelltabs";
 import { makeWiring } from "./wiring";
 
@@ -279,10 +280,23 @@ export function buildHeader(): HTMLElement {
 
   // One shell (#233, §4): the title row, then the ribbon. The menu bar is
   // folded behind `☰`, which the ribbon puts at the end of its tab row.
+  const renderers = { pages: () => [pagesRow()], templates: templateRows };
   const menubar = el(
     "nav",
     { class: "menubar", id: "shell-menubar", "aria-label": t("menubar"), "data-folded": "folded" },
-    buildMenus({ pages: () => [pagesRow()], templates: templateRows }),
+    buildMenus(renderers),
+  );
+  // File is not a tab (§6): it opens the backstage, a page over the document.
+  const fileButton = el(
+    "button",
+    {
+      class: "ribbon-file",
+      type: "button",
+      "data-backstage": "",
+      "aria-haspopup": "dialog",
+      onClick: () => openBackstage(renderers),
+    },
+    [t("menu.file")],
   );
   const frame = header.chips(headerState());
   const at = (place: header.ChipPlace) => frame.filter((c) => c.place === place).map(chipButton);
@@ -313,7 +327,7 @@ export function buildHeader(): HTMLElement {
     // Every menu, from the placements (#233): which menu holds a thing is
     // `placement.ts`'s statement, not the order somebody wrote builders in.
     menubar,
-    buildRibbon([menuToggle(menubar)]),
+    buildRibbon([menuToggle(menubar)], [fileButton]),
   ]);
 }
 

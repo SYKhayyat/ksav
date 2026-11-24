@@ -405,9 +405,9 @@ export async function run() {
   // Read from the source: the suite has no `document`, and the drawer's drawing is
   // `tools/eyes.mjs`'s business, not this file's.
   {
-    const src = readFileSync(path.join(SRC, "settingsdrawer.ts"), "utf8");
+    const src = readFileSync(path.join(SRC, "about.ts"), "utf8");
     const at = src.indexOf("const ISSUES_URL");
-    const end = src.indexOf("function buildAboutSection", at);
+    const end = src.indexOf("export function buildAbout", at);
     ok("the About section has a feedback block", at > 0 && end > at, `${at}..${end}`);
     const block = at > 0 && end > at ? src.slice(at, end) : "";
     ok(

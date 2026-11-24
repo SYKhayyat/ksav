@@ -171,6 +171,20 @@ export const RECIPES = new Map([
   ["notes-chooser", { how: HOW.action, action: "notesChooser" }],
   ["arrangement", { how: HOW.action, action: "arrangement" }],
   ["history-modal", { how: HOW.action, action: "history" }],
+  [
+    "backstage",
+    {
+      how: HOW.driven,
+      why:
+        "File is not an action: it is the button at the start of the tab row " +
+        "(§6), and it is drawn whether or not any action is placed, so the " +
+        "registry has nothing to name it by.",
+      drive: async (p) => {
+        await p.click(".ribbon-file[data-backstage]");
+        await p.waitFor("#backstage.open", 10_000);
+      },
+    },
+  ],
   ["nikud-bar", { how: HOW.chip, chip: "nikud" }],
 
   // ---- opened by a keystroke or a menu ----

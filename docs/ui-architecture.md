@@ -298,19 +298,31 @@ beside it, exactly Word's shape.
 
 | section | contents |
 |---|---|
-| **חדש** New | blank document, then the templates as cards |
-| **פתיחה** Open | recent documents, the library, open a file |
-| **שמירה בשם** Save as | name, place |
-| **ייצוא** Export | each format as a card, with the pages box for PDF |
+| **חדש** New | new document, duplicate, then the templates |
+| **פתיחה** Open | open a file, import, the open documents and the library |
+| **שמירה** Save | save, save as, rename |
+| **שיתוף** Share | the share and send rows |
+| **ייצוא** Export | each format, with the pages box for PDF |
 | **הדפסה** Print | print, with the pages box |
 | **גרסאות** Versions | snapshots and git history |
-| **הגדרות** Settings | opens the settings drawer |
-| **אודות** About | version, engine, licences |
+| **הגדרות** Settings | opens the settings drawer, over the document |
+| **אודות** About | version, licences, where to report a problem |
 
 `←` at the top of the column, or Esc, returns to the document with the caret where
-it was. The sections are built from the `file` and `docs` menu groups plus the
-template, pages and library extras, so a command added to File appears in the
-backstage without a line of layout.
+it was. Up and Down walk the column, and Home and End jump to its ends. Settings and
+About sit at the foot of the column, as Word's Options and Account do. A row that
+acts closes the page before it acts, so a dialog it opens is on top. Rows that edit
+the page in place stay on the page: deleting a template, closing an open document,
+and the pages box. Below 640px the column keeps its icons and drops its words.
+
+The sections are `placement.backstageTree`. It is built from the `file` and `docs`
+menu groups (`BACKSTAGE_OF_GROUP`), a few rows moved by id (`BACKSTAGE_OF_ACTION`),
+and the template, pages and library extras. A command added to File therefore
+appears in the backstage without a line of layout. `placement.test` fails if a File
+or Documents group is in no section. The one group left out is `docTabs`
+(`NOT_IN_BACKSTAGE`): moving between open tabs is not a page, and it stays in `☰`.
+The backstage is a registered modal panel (`PANELS`, z 48). Its `←` is
+`panelHead`'s exit, so the exit and Escape fences hold it like every other panel.
 
 ## 7 · Small screens and half screens
 

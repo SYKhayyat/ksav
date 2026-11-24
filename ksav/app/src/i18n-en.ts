@@ -1558,6 +1558,17 @@ export const EN: Dict = {
   arrangementSaved: "Arrangement “{0}” saved",
   myArrangements: "My arrangements",
   forgetArrangement: "Delete this arrangement",
+  // File's backstage (#233, docs/ui-architecture.md §6): its sections, and the way back.
+  "bs.new": "New",
+  "bs.open": "Open",
+  "bs.save": "Save",
+  "bs.share": "Share",
+  "bs.export": "Export",
+  "bs.print": "Print",
+  "bs.versions": "Versions",
+  "bs.settings": "Settings",
+  "bs.about": "About",
+  backToDoc: "Back to the document",
   // The shell's names (#233, docs/ui-architecture.md §5): menus, tabs, groups,
   // and the short labels a tab button draws beside its glyph.
   "menu.file": "File",

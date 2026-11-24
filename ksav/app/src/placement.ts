@@ -707,6 +707,73 @@ export function menuTree(list: readonly PlacedAction[]): MenuNode[] {
   }));
 }
 
+// ---------------------------------------------------------------- the backstage
+
+/** The backstage's sections, in column order (§6). */
+export type BackstageId = "new" | "open" | "save" | "share" | "export" | "print" | "versions" | "settings" | "about";
+
+export const BACKSTAGE: readonly BackstageId[] = ["new", "open", "save", "share", "export", "print", "versions", "settings", "about"];
+
+/**
+ * Which section a group's rows go to. Every `file` and `docs` group is here or
+ * in `NOT_IN_BACKSTAGE`, so a command added to File is in the backstage without
+ * a line of layout — the fence in `placement.test` holds both lists to `GROUPS`.
+ */
+export const BACKSTAGE_OF_GROUP: Readonly<Record<string, BackstageId>> = {
+  fileOpen: "open",
+  fileImport: "open",
+  library: "open",
+  fileShare: "share",
+  templates: "new",
+  export: "export",
+  // Review's versions group, which Word keeps under File ▸ Info as well.
+  versions: "versions",
+};
+
+/** The `file`/`docs` groups the backstage leaves to `☰`: moving between open tabs is not a page. */
+export const NOT_IN_BACKSTAGE: readonly string[] = ["docTabs"];
+
+/** The rows whose section is not their group's. */
+export const BACKSTAGE_OF_ACTION: Readonly<Record<string, BackstageId>> = {
+  newDoc: "new",
+  duplicateDoc: "new",
+  save: "save",
+  saveAs: "save",
+  renameDoc: "save",
+  print: "print",
+};
+
+/** The rows of each section that are not actions — the same extras the menus draw. */
+export const BACKSTAGE_EXTRAS: Readonly<Partial<Record<BackstageId, { before?: readonly MenuExtra[]; after?: readonly MenuExtra[] }>>> = {
+  new: { after: ["templates"] },
+  open: { after: ["openDocs", "docsLegend", "library"] },
+  export: { before: ["pages"] },
+  print: { before: ["pages"] },
+};
+
+/** One backstage section: its rows and extras. `settings` and `about` are drawn by the shell, not from rows. */
+export interface BackstageNode {
+  section: BackstageId;
+  items: PlacedAction[];
+  before: readonly MenuExtra[];
+  after: readonly MenuExtra[];
+}
+
+/** The section a placed action is shown in, or `undefined` if the backstage does not show it. */
+function backstageOf(a: PlacedAction): BackstageId | undefined {
+  return BACKSTAGE_OF_ACTION[a.id] ?? BACKSTAGE_OF_GROUP[a.place.group];
+}
+
+/** The backstage, as a tree: every section in order, with its rows in placement order. */
+export function backstageTree(list: readonly PlacedAction[]): BackstageNode[] {
+  return BACKSTAGE.map((section) => ({
+    section,
+    items: list.filter((a) => backstageOf(a) === section),
+    before: BACKSTAGE_EXTRAS[section]?.before ?? [],
+    after: BACKSTAGE_EXTRAS[section]?.after ?? [],
+  }));
+}
+
 // ---------------------------------------------------------------- the tabs
 
 /**

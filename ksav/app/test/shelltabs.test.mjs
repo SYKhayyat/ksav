@@ -137,10 +137,13 @@ export async function run() {
 
   // ------------------------------------------------ the header
   const header = src("appheader.ts");
-  ok("the header draws the ribbon, ☰ at the end of its tab row", /^\s*buildRibbon\(\[menuToggle\(menubar\)\]\),$/m.test(header));
+  ok("the header draws the ribbon, File at the start of its tab row and ☰ at the end", /^\s*buildRibbon\(\[menuToggle\(menubar\)\], \[fileButton\]\),$/m.test(header));
   ok("and the menu bar folded behind ☰", header.includes('"data-folded": "folded"'));
 
   const tail = { tagName: "BUTTON", children: [] };
   const withEnd = buildRibbon([tail]);
   check("what the header hands it ends the tab row", withEnd.children[0].children.at(-1), tail);
+  const lead = { tagName: "BUTTON", children: [] };
+  const withStart = buildRibbon([tail], [lead]);
+  check("and what it hands first starts it", withStart.children[0].children[0], lead);
 }

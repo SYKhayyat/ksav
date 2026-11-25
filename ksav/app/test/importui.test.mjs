@@ -242,47 +242,77 @@ export async function run() {
     check("the document survives that too", empty.text, before.text);
 
     // -------------------------------------------------- UAT 4: Org
-    const org = await importVia(page, "ייבוא מ־Org", {
-      name: "פרק.org",
-      bytes: [...new TextEncoder().encode("* פרק ראשון\nטקסט בעברית\n")],
-    });
-    ok("a valid .org imports", org.status.includes("יובא"), org.status);
-    notOk("and no crash panel appears", org.crash);
-    ok("its heading is on the page", org.text.includes("פרק ראשון"), org.text.slice(0, 80));
+    //
+    // **Org conversion is the engine's work**, not the editor's: the parser is
+    // the `org` module inside the wasm engine, so in a wire bundle with nothing
+    // serving it the import cannot happen at all and the status slot holds the
+    // compile's error instead. Three assertions below were measuring that absent
+    // engine and failed in CI's `editor` job (#248) — skipped out loud here, and
+    // driven in `browser engine`, where an engine is in the bundle.
+    //
+    // Word is different and runs in both: a broken `.docx` is refused on this
+    // side of the wire, so those sentences and the surviving document above are
+    // the editor's own work.
+    if (engine) {
+      const org = await importVia(page, "ייבוא מ־Org", {
+        name: "פרק.org",
+        bytes: [...new TextEncoder().encode("* פרק ראשון\nטקסט בעברית\n")],
+      });
+      ok("a valid .org imports", org.status.includes("יובא"), org.status);
+      notOk("and no crash panel appears", org.crash);
+      ok("its heading is on the page", org.text.includes("פרק ראשון"), org.text.slice(0, 80));
 
-    const orgBefore = await page.evaluate(READ);
-    const orgBroken = await importVia(page, "ייבוא מ־Org", { name: "שבור.org", bytes: [0xff, 0xfe, 0x00] });
-    notOk("a broken .org does not crash the application", orgBroken.crash);
-    ok(
-      "it either imports or says why — one of the two, never nothing",
-      orgBroken.status.includes("יובא") || orgBroken.status.includes("הייבוא נכשל"),
-      orgBroken.status,
-    );
-    // The bytes carry no text at all, so either answer is honest: the importer
-    // makes an empty document and says it imported, or it refuses. What is not
-    // honest is a crash, and what the old test asserted — that the document on
-    // screen is not blank — was wrong: a file with no readable text producing an
-    // empty document is the importer working. Both branches are checked.
-    if (orgBroken.status.includes("יובא")) {
-      ok("the .org with no text in it imported as an empty document", orgBroken.text.length === 0, orgBroken.text);
+      const orgBefore = await page.evaluate(READ);
+      const orgBroken = await importVia(page, "ייבוא מ־Org", { name: "שבור.org", bytes: [0xff, 0xfe, 0x00] });
+      notOk("a broken .org does not crash the application", orgBroken.crash);
+      ok(
+        "it either imports or says why — one of the two, never nothing",
+        orgBroken.status.includes("יובא") || orgBroken.status.includes("הייבוא נכשל"),
+        orgBroken.status,
+      );
+      // The bytes carry no text at all, so either answer is honest: the importer
+      // makes an empty document and says it imported, or it refuses. What is not
+      // honest is a crash, and what the old test asserted — that the document on
+      // screen is not blank — was wrong: a file with no readable text producing an
+      // empty document is the importer working. Both branches are checked.
+      if (orgBroken.status.includes("יובא")) {
+        ok("the .org with no text in it imported as an empty document", orgBroken.text.length === 0, orgBroken.text);
+      } else {
+        check("the document survived the refusal unchanged", orgBroken.text, orgBefore.text);
+      }
+      ok("the Org import did not delete what was there", orgBefore.text.length > 0);
     } else {
-      check("the document survived the refusal unchanged", orgBroken.text, orgBefore.text);
+      console.log(
+        "SKIPPED the Org import: this dist keeps the engine at the other end of a wire, so the" +
+          " conversion cannot run here — build with `npm run build:wasm` to drive it (CI does," +
+          " in `browser engine`)",
+      );
     }
-    ok("the Org import did not delete what was there", orgBefore.text.length > 0);
 
     // -------------------------------------------------- cancelling
     //
     // A dismissed dialog is not an error and must not be reported as one: the
     // `focus` fallback in `importAs` resolves `null` after 800 ms, and the whole
     // handler returns. `CANCELLED` says nothing on purpose.
+    // The baseline is read here rather than carried over from the Org import,
+    // which skips in a wire bundle: a name declared inside a branch that did not
+    // run is a `ReferenceError` waiting for the build that takes it.
+    const beforeCancel = await page.evaluate(READ);
     const cancelled = await importVia(page, "ייבוא מ־Word", { name: "" });
     notOk("a cancelled dialog does not crash", cancelled.crash);
     ok(
       "and it says nothing — no failure sentence for a decision",
-      !cancelled.status.includes("הייבוא נכשל"),
-      cancelled.status,
+      // **Unchanged, not empty.** "Says nothing" is about the decision, and the
+      // status slot is not the decision's: a sentence already there (the broken
+      // `.docx` above, or the compile's own error in a bundle with no engine) is
+      // the previous fact and not this one. Written as an absence, this check
+      // failed in CI's engine-less `editor` job for a status the *engine's
+      // absence* had put there (#248) — the refusal sentence of the `.docx`
+      // before it, which nothing later could clear.
+      cancelled.status === beforeCancel.status,
+      `${beforeCancel.status} → ${cancelled.status}`,
     );
-    check("the document is untouched by a cancel", cancelled.text, orgBroken.text);
+    check("the document is untouched by a cancel", cancelled.text, beforeCancel.text);
   } finally {
     await close();
   }

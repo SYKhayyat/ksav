@@ -1847,6 +1847,35 @@ export function nodeAt(scan: Scan, pos: number): Node | null {
   return null;
 }
 
+/**
+ * Is `pos` inside this call's body — including a body whose `]` has not been
+ * typed yet?
+ *
+ * `node.to` cannot answer this, and the reason is a decision worth keeping: a
+ * call whose argument list or body never closed is **head-only**, because a
+ * half-typed mark must never be *acted* on (`review.ts` states the same rule as
+ * "an unclosed mark is not a mark" — accepting one would remove text nobody
+ * selected). A reader of *state* wants the other answer, though. A writer who has
+ * typed `#הדגשה[של` is inside bold and every keystroke until the `]` is, which is
+ * what the frame scan already says: a `[` with no closer stays open to the end of
+ * the text. Reading `node.bodies` alone said no, so B showed unpressed on the
+ * line where the writer was plainly bold (#247).
+ *
+ * The two are read together here, in one place: a closed body by its range, and a
+ * single unclosed one by the bracket the scan itself would have used — after the
+ * argument list, when there is one.
+ */
+export function inBody(scan: Scan, n: Node, pos: number): boolean {
+  if (n.bodies.some((b) => pos >= b.from && pos <= b.to)) return true;
+  // Bodies that exist and do not hold `pos` settle it: nothing about the text
+  // makes the caret inside one of them.
+  if (n.bodies.length > 0) return false;
+  let at = skipSpaceTab(scan.text, n.nameTo);
+  if (n.args != null) at = skipSpaceTab(scan.text, n.args.to + 1);
+  else if (scan.text[at] === "(") return false; // an unclosed argument list is not a body
+  return scan.text[at] === "[" && pos > at;
+}
+
 /** Is `pos` inside a comment? */
 export function inComment(scan: Scan, pos: number): boolean {
   return scan.comments.some((c) => pos >= c.from && pos < c.to);

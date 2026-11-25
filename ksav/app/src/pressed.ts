@@ -16,7 +16,7 @@
  * and a call counts only when the caret is inside one of its bodies.
  */
 
-import { type Scan, stackAt } from "./spans";
+import { type Scan, inBody } from "./spans";
 
 /** One wrapper the caret is inside: its name as written, and its argument text. */
 export interface Wrapper {
@@ -29,15 +29,29 @@ export interface Wrapper {
  *
  * A caret inside the argument list is not inside the body: `#הדגשה[…]` pressed
  * while the writer is choosing a colour is a state the document does not have.
+ *
+ * A body with no closing `]` yet **is** a body. That is the whole of #247: a
+ * writer who has typed `#הדגשה[של` is inside bold, and the toggles said no because
+ * they asked `node.bodies`, whose emptiness is deliberate for a call that never
+ * closed (a half-typed mark must not be acted on). `spans.ts`'s `inBody` reads the
+ * model and the frame scan together and answers the state question; the comment
+ * there says why that is not the same question as "where can this be edited".
+ *
+ * `stackAt` could not be asked either, and not only for that reason: the model
+ * puts an unclosed call's `to` at its head, so a caret inside its body is past
+ * every containment test and the call never appears in a stack at all. Hence the
+ * walk, bounded by `n.from > pos`, over a scan that is already memoised.
  */
 export function wrappersIn(scan: Scan, pos: number): Wrapper[] {
   const out: Wrapper[] = [];
-  for (const n of stackAt(scan, pos)) {
-    if (!n.bodies.some((b) => pos >= b.from && pos <= b.to)) continue;
+  for (const n of scan.nodes) {
+    if (n.from > pos) break; // opens after the caret, so it cannot hold it
+    if (!inBody(scan, n, pos)) continue;
     out.push({ name: n.name, args: n.args ? scan.text.slice(n.args.from, n.args.to) : "" });
   }
-  // `stackAt` is outermost first; the surfaces want the innermost answer, and
-  // the boxes below want the nearest `#גופן_שונה`, which is the innermost one.
+  // `scan.nodes` is in document order, so the innermost holder is the last one —
+  // which is the answer the surfaces want first, and the boxes below want the
+  // nearest `#גופן_שונה`.
   return out.reverse();
 }
 

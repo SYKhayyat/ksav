@@ -35,6 +35,19 @@ export async function run() {
   check("inside an argument list: not pressed", at('#סימון(צבע: |rgb("#ff0"))[א]'), []);
   check("…nor is a caret before any body", at("#הדגשה|[]"), []);
 
+  // **A body that has not been closed yet is still a body.** #247.
+  //
+  // The writer is inside bold the moment they type the `[`, and every keystroke
+  // before the `]` is inside it: the frame scan says so (an unclosed `[` closes
+  // at the end of the text), and this read used to disagree with it and report
+  // nothing at all — so B showed unpressed on the line where the writer is
+  // plainly bold. Held here because the disagreement was invisible: both halves
+  // were "right" about their own subject.
+  check("inside an unclosed body", at("#הדגשה[של|ום"), ["הדגשה"]);
+  check("…to the end of the text", at("#הדגשה[שלום|"), ["הדגשה"]);
+  check("…nested too", at("#הדגשה[א #נטוי[ב|"), ["נטוי", "הדגשה"]);
+  check("…and from the first character", at("#הדגשה[|שלום"), ["הדגשה"]);
+
   // ------------------------------------------------ the boxes' values
   check("arguments are read", wrappersAt('#גופן_שונה("David Libre")[א|]'), [
     { name: "גופן_שונה", args: '"David Libre"' },

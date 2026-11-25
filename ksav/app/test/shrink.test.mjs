@@ -129,9 +129,10 @@ export async function run() {
       // the menus and nothing else — which is the honest answer, and still
       // something to press.
       ok(`${width}px: the row is not empty`, m.faces > 0 || m.overflow);
-      // #246's band: 700, 680 and 660 drew seven group names and no button.
-      if (width >= 660 && width <= 700) ok(`${width}px: the band has its command buttons`, m.faces > 0);
-      if (!m.simplified) check(`${width}px: no group is folded to its name`, m.levels.filter((l) => l === "3"), []);
+      // #246's band: 700, 680 and 660 drew seven group names and no button at
+      // all. A row of names is §7's walk and is right where it still has faces
+      // on it; the rule is that it does not become the only thing on the strip.
+      if (width >= 660 && width <= 700) ok(`${width}px: the band has its command buttons`, m.faces >= 6);
       if (width === 1366) {
         check("1366px: every group full", m.levels.filter((l) => l !== "0"), []);
         check("1366px: nothing in ⋯", m.spilled, 0);

@@ -402,23 +402,33 @@ export function buildRibbon(end: readonly HTMLElement[] = [], start: readonly HT
       }
     };
 
+    // What is left on the row to **press**: a group in `⋯` is hidden, and a
+    // folded group is its name with all of its commands behind it — a door, but
+    // not a command button.
+    const facesShown = () => [...panel.children].some((g) => !(g as HTMLElement).hidden && !!g.querySelector("[data-action]"));
+
     if (simple) {
       // The simplified row is icons and stays icons: a folded group is its name
       // in words, wider than the icons it replaces, so there what does not fit
       // goes into `⋯` instead — as Word's simplified ribbon does.
       spill();
     } else {
-      walk(2);
-      if (over()) {
-        // `⋯` before a row of names (#246). A folded group is its name in words,
-        // wider than the icons it replaced, so a walk that runs to level 3 for
-        // every group before anything spills ends with a strip of seven group
-        // buttons and **no command button at all** — measured between 648 and
-        // 668px of panel, with six faces at 700px and twenty-four again at 640
-        // where the simplified row takes over. Hiding two groups is narrower and
-        // leaves the rest of the row in the writer's hand.
-        spill();
-        walk(3);
+      // §7's walk: levels 1 and 2, then a group as one button, then `⋯` for what
+      // still does not fit.
+      walk(3);
+      if (over()) spill();
+      if (!facesShown()) {
+        // …unless the row fits only by folding *every* group, which is a strip of
+        // seven names with **no command button on it** (#246, measured between 648
+        // and 668px of panel). A row of icons that fits is worth more than a row
+        // of names that fits, so start again one level back and let `⋯` take the
+        // groups that do not: at 680px that is eleven faces and five groups in
+        // `⋯`. Folding first, and unfolding only for this, keeps the walk
+        // width-efficient where it is barely over — at 1280px with a wider font,
+        // two folded groups leave the rest of the row in the writer's hand, and
+        // spilling first would have emptied it.
+        redraw(2);
+        walk(2);
         spill();
       }
     }

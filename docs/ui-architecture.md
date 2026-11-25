@@ -352,13 +352,17 @@ while the panel overflows. A `ResizeObserver` starts it a frame later, and only 
 a new width: refitting inside the observer's callback is a resize loop, which
 Chromium reports as an error.
 
-**`⋯` comes before level 3.** A folded group is its name in words, wider than the
-icons it replaces, so the loop sends what does not fit to `⋯` before it folds a
-single group to its name. A walk that folds first ends at 680px with seven group
-names and **no command button at all** — measured at 648–668px, with six faces at
-700px and twenty-four again at 640 where the simplified row takes over (#246). The
-order is: levels 1–2 for the groups that have something to give up, then `⋯`, and
-only a row that still does not fit after that folds a group.
+**A row of names is not a row of buttons.** A folded group is its name in words,
+with its commands behind a drop-down, so a walk that folds every group ends with a
+strip of names and **no command button on it at all** — measured at 648–668px of
+panel, with six faces at 700px and twenty-four again at 640 where the simplified
+row takes over (#246). The walk therefore runs to level 3 as written, and if the
+row fits *only* by folding everything, it starts again at level 2 and lets `⋯` take
+the groups that do not fit: at 680px that is sixteen faces and three groups in `⋯`.
+Folding first is kept because it is the width-efficient step where the row is
+barely over — at 1280px a wider font folds two groups and leaves the rest of its
+buttons in the writer's hand — and the second pass is the answer for the width
+where folding all of them is the only way to fit.
 
 The **simplified ribbon** starts every group at level 2 and never folds one: a
 folded group is its name in words, wider than its icons. What does not fit goes

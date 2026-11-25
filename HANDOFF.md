@@ -45,7 +45,7 @@ compatibility shims, and `/home/shaul/ksav-frontends` is another sitting's tree.
   draws no tabs. A stale `dist` is refused rather than measured, which the runner
   reports as a *threw*, not as a failure.
 - **Gate fences that bite.** `ksav/README.md` states the assertion and file counts
-  in two places (15,231 … across 178 files since #246); `main.ts` must stay at or
+  in two places (15,224 … across 178 files since #246); `main.ts` must stay at or
   under 1,500 lines (it is 1,499 — modules wire themselves on import instead); and
   an `export` only its own file reads fails the module-surface check, so `pressed`
   exports `wrappersIn`, not a text-taking wrapper the app never calls.

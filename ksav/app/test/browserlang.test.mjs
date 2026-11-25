@@ -219,6 +219,24 @@ export async function run() {
   // follow name the language rather than the path.
   const { base, offenders } = baseOf(await readFile(join(DIST, "index.html"), "utf8"));
   check("browserlang: every asset URL in the built HTML shares one prefix", offenders, []);
+  // **The switch is a menu row, and the menus are drawn from the command list.**
+  //
+  // `שפה` sits in View ▸ interface (`placement.ts`), so it exists exactly when
+  // the registries arrived: in `npx vite build` — the bundle `ci.yml`'s `editor`
+  // job builds, with no server in the job — there is no View menu and no row,
+  // and pressing it by its Hebrew name timed out for thirty seconds and read as
+  // a slow machine. It is not slow, it is absent, and a language fence against a
+  // build that has no language control measures nothing. `ci.yml`'s `browser
+  // engine` job runs this file where the bundle carries the engine.
+  if (!engineInBundle()) {
+    console.log(
+      "SKIPPED browserlang: the language switch is a row in View ▸ interface, and this dist keeps " +
+        "the engine at the other end of a wire, so the menus have no rows — build with " +
+        "`npm run build:wasm` to drive it (CI does, in `browser engine`)",
+    );
+    return;
+  }
+
   const { server, origin } = await serve(base);
   const page = await b.newPage();
   // **A returning writer's window, not a first-run dialog.**
@@ -290,19 +308,13 @@ export async function run() {
     // file starts an engine. Asserting the ribbon for both would have made a
     // legitimate build look like #228 — the exact wrong diagnosis #229 is about.
     //
-    // What that costs, stated rather than hidden: **no workflow installs a
-    // browser**, so this file skips in CI, and the CI-side end-to-end fence is
-    // `desktop render scale` (`tools/render-check.mjs`, the `desktop shell` job).
-    // That is where #228 was found, as `ribbonGroups: 0`.
-    if (engineInBundle()) {
-      ok("the ribbon is built from the engine's registry", chrome0.groups > 0, `${chrome0.groups} groups`);
-      check("and it is not the registry-failed notice", chrome0.failed, 0);
-    } else {
-      console.log(
-        "SKIPPED the ribbon: this dist keeps the engine at the other end of a wire, and no server " +
-          "runs in this test — build with `npm run build:wasm` to assert it (CI asserts it in `desktop render scale`)",
-      );
-    }
+    // The guard at the top of this file has already answered it — the engine is
+    // in this bundle or this file did not get here — so the ribbon is asserted
+    // rather than conditionally skipped. `desktop render scale`
+    // (`tools/render-check.mjs`, the `desktop shell` job) is the other fence, and
+    // that is where #228 was found, as `ribbonGroups: 0`.
+    ok("the ribbon is built from the engine's registry", chrome0.groups > 0, `${chrome0.groups} groups`);
+    check("and it is not the registry-failed notice", chrome0.failed, 0);
     // The switch, pressed the way a writer presses it: the toolbar button whose
     // accessible name is "שפה". Found by its name in the *old* language on
     // purpose — that is the only way a writer can find it.

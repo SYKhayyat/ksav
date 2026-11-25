@@ -246,27 +246,39 @@ export async function run() {
       name: "פרק.org",
       bytes: [...new TextEncoder().encode("* פרק ראשון\nטקסט בעברית\n")],
     });
-    ok("a valid .org imports", org.status.includes("יובא"), org.status);
+    // The Org path needs the parser as much as the Word one does — the same
+    // guard, for the same reason: with the engine at the other end of a wire the
+    // file never reaches it, and "no sentence said imported" is a reading of the
+    // build rather than of the importer.
+    if (engine) ok("a valid .org imports", org.status.includes("יובא"), org.status);
+    else console.log(noEngine);
     notOk("and no crash panel appears", org.crash);
     ok("its heading is on the page", org.text.includes("פרק ראשון"), org.text.slice(0, 80));
 
     const orgBefore = await page.evaluate(READ);
     const orgBroken = await importVia(page, "ייבוא מ־Org", { name: "שבור.org", bytes: [0xff, 0xfe, 0x00] });
     notOk("a broken .org does not crash the application", orgBroken.crash);
-    ok(
-      "it either imports or says why — one of the two, never nothing",
-      orgBroken.status.includes("יובא") || orgBroken.status.includes("הייבוא נכשל"),
-      orgBroken.status,
-    );
+    if (engine) {
+      ok(
+        "it either imports or says why — one of the two, never nothing",
+        orgBroken.status.includes("יובא") || orgBroken.status.includes("הייבוא נכשל"),
+        orgBroken.status,
+      );
+    }
     // The bytes carry no text at all, so either answer is honest: the importer
     // makes an empty document and says it imported, or it refuses. What is not
     // honest is a crash, and what the old test asserted — that the document on
     // screen is not blank — was wrong: a file with no readable text producing an
     // empty document is the importer working. Both branches are checked.
-    if (orgBroken.status.includes("יובא")) {
-      ok("the .org with no text in it imported as an empty document", orgBroken.text.length === 0, orgBroken.text);
-    } else {
-      check("the document survived the refusal unchanged", orgBroken.text, orgBefore.text);
+    // Read only where a file was decoded: with no engine behind the build the
+    // bytes never reached the importer, and an empty document and an unchanged
+    // one look the same.
+    if (engine) {
+      if (orgBroken.status.includes("יובא")) {
+        ok("the .org with no text in it imported as an empty document", orgBroken.text.length === 0, orgBroken.text);
+      } else {
+        check("the document survived the refusal unchanged", orgBroken.text, orgBefore.text);
+      }
     }
     ok("the Org import did not delete what was there", orgBefore.text.length > 0);
 

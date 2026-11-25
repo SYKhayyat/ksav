@@ -99,7 +99,7 @@ export async function run() {
   setSetting("shell", { ...readShell(settings.shell), collapsed: before });
 
   // ------------------------------------------------ in the built application
-  const app = await openApp();
+  const app = await openApp({ ribbon: true });
   if (app.skip) {
     console.log(`SKIPPED shrink (browser): ${app.skip}`);
     return;

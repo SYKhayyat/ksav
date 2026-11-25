@@ -256,8 +256,30 @@ export async function browser() {
  * overlay is right on a first visit and it covers the chrome, so it is seeded
  * away before the first byte.
  */
-export async function openApp({ wait = 2500 } = {}) {
+export async function openApp({ wait = 2500, ribbon = false } = {}) {
   if (!existsSync(join(DIST, "index.html"))) return { skip: "no dist/ — run `npm run build` first" };
+  // **A caller that measures the ribbon asks for it by name.**
+  //
+  // `npm run build` and `npx vite build` leave the engine at the other end of a
+  // wire — that is the bundle `ci.yml`'s `editor` job builds, with no server in
+  // the job — so the command list never arrives and the ribbon is drawn as the
+  // sentence that says so: no tabs, no panel, no faces. A test that waits for
+  // `.ribbon-tab[data-tab="insert"]` here would spend thirty seconds and then
+  // fail on "slow", which is a false reading of a legitimate build. It skips
+  // instead, in the words `importui` already uses for the same fact, and
+  // `ci.yml`'s `browser engine` job runs these files where the bundle carries
+  // the engine.
+  //
+  // Asked *before* the browser: a skip that costs a Chromium launch is a skip
+  // reported thirty seconds after the reason was already known.
+  if (ribbon && !engineInBundle()) {
+    return {
+      skip:
+        "this dist keeps the engine at the other end of a wire, so the ribbon is the notice that " +
+        "says the command list did not load — build with `npm run build:wasm` to measure it " +
+        "(CI does, in `browser engine`)",
+    };
+  }
   // Before the browser and before anything is measured, spelled the way the
   // fence in `visibility.test.mjs` reads it: a guard that runs after the window
   // has been read has already let the measurement happen.

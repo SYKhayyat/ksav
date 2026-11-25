@@ -104,12 +104,28 @@ compatibility shims, and `/home/shaul/ksav-frontends` is another sitting's tree.
   kept escalating. `fit()` in `shelltabs.ts` now walks levels 1–2, **then** spills
   into `⋯`, and folds a group only if the row still does not fit; 680px is eleven
   faces and five groups in `⋯` rather than seven names. §7 says so in words.
+  **And one rule on top of it**: if the row fits *only* by folding every group to
+  a name, the walk starts again at icons and `⋯` takes what does not fit. The
+  first cut of this fix spilled before folding, which cost more than it saved —
+  `the assembled app` went red with `notesPane` at 0×0, because spilling hides a
+  whole group where folding sheds its width and keeps its buttons.
 - **The fence that would have caught it** was measuring the wrong thing: it
   counted `[data-action]` nodes, and a group hidden by `⋯` keeps its buttons in
   the DOM, so the panel read "24 faces" at the width where the row showed none.
   `shrink.test.mjs` counts what is *on the screen* now, holds a width table
-  through the band (700, 680, 660), asserts that no group is folded to its name
-  while the ribbon is not simplified, and that everything hidden is listed in `⋯`.
+  through the band (700, 680, 660) where the floor is **six buttons on the row**,
+  and asserts that everything hidden is listed in `⋯`.
+- **Four browser files now skip where the engine is not in the bundle.** `ci.yml`'s
+  `editor` job builds `npx vite build` — the engine at the other end of a wire,
+  with no server in the job — so the command list never arrives, the ribbon is
+  the notice that says so, and `keytips`, `pressed`, `shrink` and `browserlang`
+  each spent thirty seconds failing on a legitimate build. `openApp({ribbon: true})`
+  asks `engineInBundle()` **before** it launches a browser and returns a skip in
+  the words `importui` already used; `browserlang` does the same above its switch,
+  which is a row in View ▸ interface and therefore absent without a registry. The
+  fences they carry run in `ci.yml`'s `browser engine` job, which builds the
+  offline bundle and runs `importui browserlang` against it. `importui`'s Org
+  half got the guard its Word half already had, for the same reason.
 - Issue #243 — the red story run on `main` — is closed by this branch: its nine
   failures were the seven causes above.
 

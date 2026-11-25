@@ -126,6 +126,16 @@ compatibility shims, and `/home/shaul/ksav-frontends` is another sitting's tree.
   fences they carry run in `ci.yml`'s `browser engine` job, which builds the
   offline bundle and runs `importui browserlang` against it. `importui`'s Org
   half got the guard its Word half already had, for the same reason.
+- **The count is a count of one run, and now the job that can make that run makes
+  it.** `ci.yml`'s `browser engine` job builds the offline bundle and ends with the
+  whole `editor` group rather than `npm test -- importui browserlang`, which is
+  what lets the documentation fence check `ksav/README.md`'s 15,224 where an
+  engine exists; the `editor` job, whose bundle keeps the engine behind a wire,
+  prints *15,114 of the assertions ran* and exits 0. First run of the wider job
+  found one real race: `keytips` read the document's text the instant the editor
+  was clicked, and on the runner the compile's answer arrived after that, so the
+  text changed and the fence read it as a typed letter. It waits for the text to
+  stop moving now.
 - Issue #243 — the red story run on `main` — is closed by this branch: its nine
   failures were the seven causes above.
 

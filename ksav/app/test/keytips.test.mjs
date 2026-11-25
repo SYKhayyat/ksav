@@ -71,7 +71,24 @@ export async function run() {
     });
     await page.waitForSelector('.ribbon-tab[data-tab="insert"]', { timeout: 30_000 });
     await page.click(".cm-content");
-    const before = await page.evaluate(() => document.querySelector(".cm-content").textContent);
+    // **A boot that has not settled looks exactly like a typed letter.**
+    //
+    // `before` was read the instant the editor was clicked, and on a slow runner
+    // the document is still settling: the compile's answer arrives a moment
+    // later, `.cm-content` changes, and the assertion at the end of this block —
+    // that the tip letter was *not* typed into the text — went red in the
+    // `browser engine` job with a character nobody pressed. Waiting for the text
+    // to stop moving leaves the key this file presses as the only thing that can
+    // change it.
+    const text = () => page.evaluate(() => document.querySelector(".cm-content").textContent);
+    let last = await text();
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(300);
+      const now = await text();
+      if (now === last) break;
+      last = now;
+    }
+    const before = await text();
     await page.keyboard.press("Alt");
     const row = await tips();
     check("Alt alone shows the tab row's tips", row?.level, "tabs");
@@ -93,7 +110,7 @@ export async function run() {
     const panel = await tips();
     check("…and puts tips on its buttons", panel?.level, "panel");
     ok("…unique and prefix-free", panel && new Set(panel.tips).size === panel.tips.length && prefixFree(panel.tips));
-    check("nothing was typed into the text", await page.evaluate(() => document.querySelector(".cm-content").textContent), before);
+    check("nothing was typed into the text", await text(), before);
 
     await page.keyboard.press("Escape");
     check("Esc steps back to the tabs", (await tips())?.level, "tabs");

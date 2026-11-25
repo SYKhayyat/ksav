@@ -14,6 +14,7 @@ import { buildableModules } from "./modules.mjs";
 import { APP, TEST as HERE, SRC, TMP_TEST as OUT } from "../tools/paths.mjs";
 import { staleOutputs } from "../tools/generated.mjs";
 import { publicRoot } from "../tools/publicroot.mjs";
+import { engineInBundle } from "./pageserve.mjs";
 
 // The stylesheets reference fonts and icons root-absolute (`/fonts/…`), which
 // Vite resolves against `public/`. esbuild resolves it against the filesystem
@@ -240,7 +241,25 @@ if (silent.length) {
 // describe *the whole suite*, and checking a partial tally against the
 // documentation would fail every single-file run and teach everybody to ignore
 // the one fence that catches a stale count.
-if (!fail && !broke && !silent.length && !FILTER.length) {
+if (!fail && !broke && !silent.length && !FILTER.length && !engineInBundle()) {
+  // **The numbers describe a run whose bundle carries the engine.**
+  //
+  // `ci.yml`'s `editor` job builds `npx vite build` — the engine at the other end
+  // of a wire, and no Rust toolchain in the job to put it inside the bundle — so
+  // the browser halves that measure the ribbon skip with their reason and this
+  // run is a hundred-odd assertions shorter than the number `ksav/README.md`
+  // names. The claim is not stale here, it is unmeasurable here: a run that
+  // cannot reach the engine cannot count the assertions a run with one makes,
+  // and comparing the two is how a correct file gets "fixed". The job that can
+  // measure it is `browser engine`, which builds the offline bundle and runs this
+  // whole suite.
+  const { group } = await import(pathToFileURL(path.join(HERE, "docfacts.mjs")).href);
+  console.log(
+    `\n(the documentation fence needs a build with the engine in its bundle: this dist keeps it ` +
+      `behind a wire, so ${group(pass + fail)} of the assertions ran — ` +
+      "\`npm run build:wasm\` measures all of them)",
+  );
+} else if (!fail && !broke && !silent.length && !FILTER.length) {
   const { CLAIMS, RUNTIME, group, livingPages, numericClaimsIn, says, ROOT } = await import(
     pathToFileURL(path.join(HERE, "docfacts.mjs")).href
   );

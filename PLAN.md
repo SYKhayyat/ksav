@@ -62,7 +62,7 @@ answered, in the one job that builds no engine.
       one spelling for both) and skips exactly the two assertions a compile has to
       answer, naming the build command; the other 22 run in both bundles. The two
       that skip are fenced where an engine exists: the `browser engine` job now
-      ends with `npm test -- importui browserlang`. Measured — wire bundle `22
+      ends with the whole `editor` group against the offline bundle. Measured — wire bundle `22
       passed`, offline bundle `24 passed`, the pair together `48 passed, 0
       failed`.
 

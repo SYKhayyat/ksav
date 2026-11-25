@@ -390,20 +390,23 @@ jobs:
       # `playwright-core` drives the Chrome the runner already ships, which is why
       # this costs an install already done above and not a browser download.
       #
-      # The **filtered** form, spelled the one way the gate's backward sweep
-      # permits it: five files out of a suite the gate runs whole elsewhere. It is
-      # not a second copy of a check — the gate still owns `editor suite`, and
-      # this is that suite's browser half asked where an engine exists.
+      # **The whole suite**, and this is the only job where that means anything.
       #
-      # `keytips`, `shrink` and `pressed` are the three whose subject *is* the
-      # ribbon: they ask for faces, groups and tabs, and every one of those comes
-      # out of the engine's registry. In `editor` they now skip out loud (`openApp
-      # ({ ribbon: true })`) instead of spending thirty seconds each waiting for a
-      # tab that build cannot draw (#248); here they run, because here there is an
-      # engine in the bundle.
+      # `editor` builds the wire-the-engine-away bundle, so its five browser files
+      # skip out loud there (#248) — `keytips`, `shrink` and `pressed` because the
+      # ribbon is the registry's and that build has no registry, `importui`'s Org
+      # section because the Org parser is in the engine, `browserlang` because the
+      # language switch is registry chrome too. Those skips mean a wire tally is
+      # short by exactly those assertions, and `run.mjs` will not check the
+      # documentation's counts against a build that cannot see the whole suite.
+      #
+      # Here all of it runs, so this job is where the ribbon assertions and the
+      # suite's own numbers are actually witnessed in CI. It costs the same
+      # browser `playwright-core` drives on the Chrome the runner already ships —
+      # no download — and one full `node test/run.mjs`.
       - name: Drive the offline bundle in a browser
-        working-directory: ./ksav/app
-        run: npm test -- importui browserlang keytips shrink pressed
+        working-directory: ./ksav
+        run: node tools/gate.mjs browser --require
 
   # The half of the process that was missing.
   #

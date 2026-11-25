@@ -240,7 +240,22 @@ if (silent.length) {
 // describe *the whole suite*, and checking a partial tally against the
 // documentation would fail every single-file run and teach everybody to ignore
 // the one fence that catches a stale count.
-if (!fail && !broke && !silent.length && !FILTER.length) {
+// **And not on a build with no engine in it.** Those five browser halves skip out
+// loud there — the ribbon is the registry's, and a wire bundle has no registry —
+// so the tally is short by exactly those assertions and *this* run cannot say what
+// the suite's size is. The same reason the filtered run one paragraph up is
+// exempt, one level down: the numbers describe the whole suite, and a partial
+// tally checked against the documentation fails on every build that is honestly
+// partial. The check happens in `browser engine`, the one job whose `dist/` has an
+// engine in it (#248).
+const { engineInBundle } = await import(pathToFileURL(path.join(HERE, "pageserve.mjs")).href);
+if (!fail && !broke && !silent.length && !FILTER.length && !engineInBundle()) {
+  console.log(
+    "\n(no engine in app/dist, so the browser halves skipped and the documentation fences for" +
+      "\n assertion counts need a build that has one: cd ksav/app && npm run build:wasm)",
+  );
+}
+if (!fail && !broke && !silent.length && !FILTER.length && engineInBundle()) {
   const { CLAIMS, RUNTIME, group, livingPages, numericClaimsIn, says, ROOT } = await import(
     pathToFileURL(path.join(HERE, "docfacts.mjs")).href
   );

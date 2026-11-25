@@ -158,6 +158,22 @@ export const CHECKS = [
     why: "Every module in src/ built, every test/*.test.mjs run, and the documentation fence over both.",
   },
   {
+    id: "browser-suite",
+    group: "browser",
+    tree: "editor",
+    name: "browser suite",
+    cwd: "app",
+    command: ["node", "test/run.mjs"],
+    why:
+      "The whole suite against the `dist/` this machine has, which is the only way to run " +
+      "the browser halves at all. `editor suite` is the same command in a job that builds the " +
+      "wire bundle, where five files skip out loud because the ribbon and the Org parser are " +
+      "the engine's (#248) — so that tally is short and `run.mjs` will not check the " +
+      "documentation's counts against it. A group of its own rather than a workflow step, " +
+      "because the second copy of a command is the drift the sweep in `gate.test.mjs` exists " +
+      "to catch.",
+  },
+  {
     id: "engine-clippy",
     group: "engine",
     tree: "engine",
